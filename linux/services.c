@@ -108,6 +108,8 @@ extern char *program_invocation_name;
 /* contains the entire environment strings array */
 extern char **environ;
 
+#define TRUE            1 /* value of true/false */
+#define FALSE           0
 #define HOURSEC         3600   /* number of seconds in an hour */
 #define DAYSEC          (HOURSEC * 24)   /* number of seconds in a day */
 #define YEARSEC         (DAYSEC * 365)   /* number of seconds in year */
@@ -1356,7 +1358,8 @@ Returns the properly pathed command if found.
 void cmdpth(
     /* command to search for */           char *cn,
     /* result correctly pathed command */ char *pcn,
-    /* result length */                   int  pcnl
+    /* result length */                   int  pcnl,
+    /* search path only */                int  schpth
 )
 {
 
@@ -1366,7 +1369,8 @@ void cmdpth(
     char *cp;
 
     strcpy(ncn, cn); /* copy command to temp */
-    if (!exists(cn)) {  /* does not exist in current form */
+    /* check does not exist in current form or force search */
+    if (!exists(cn) || schpth) {  
 
         /* perform pathing search */
         pa_brknam(cn, p, MAXSTR, n, MAXSTR, e, MAXSTR); /* break down the name */
@@ -1441,7 +1445,7 @@ void pa_exec(
     if (wc == 0)
     error("Command is empty");
     extwords(cn, MAXSTR, cmd, 0, 0);  /* get the command verb */
-    cmdpth(cn, cn, MAXSTR); /* fix path */
+    cmdpth(cn, cn, MAXSTR, FALSE); /* fix path */
 
     /* on fork, the child is going to see a zero return, and the parent will
        get the process id. Although this seems dangerous, forked processes
@@ -1504,7 +1508,7 @@ void pa_execw(
     if (wc == 0)
     error("Command is empty");
     extwords(cn, MAXSTR, cmd, 0, 0);  /* get the command verb */
-    cmdpth(cn, cn, MAXSTR); /* fix path */
+    cmdpth(cn, cn, MAXSTR, FALSE); /* fix path */
 
     /* on fork, the child is going to see a zero return, and the parent will
        get the process id. Although this seems dangerous, forked processes
@@ -1573,7 +1577,7 @@ void pa_exece(
     if (wc == 0)
     error("Command is empty");
     extwords(cn, MAXSTR, cmd, 0, 0);  /* get the command verb */
-    cmdpth(cn, cn, MAXSTR); /* fix path */
+    cmdpth(cn, cn, MAXSTR, FALSE); /* fix path */
 
     /* on fork, the child is going to see a zero return, and the parent will
        get the process id. Although this seems dangerous, forked processes
@@ -1638,7 +1642,7 @@ void pa_execew(
     if (wc == 0)
     error("Command is empty");
     extwords(cn, MAXSTR, cmd, 0, 0);  /* get the command verb */
-    cmdpth(cn, cn, MAXSTR); /* fix path */
+    cmdpth(cn, cn, MAXSTR, FALSE); /* fix path */
 
     /* on fork, the child is going to see a zero return, and the parent will
        get the process id. Although this seems dangerous, forked processes
@@ -1948,6 +1952,9 @@ Get program path
 There is no direct call for program path. So we get the command line, and
 extract the program path from that.
 
+In Linux, the full path of the command is not available. If the command 
+executing does not exist in the current directory, it must be found on path.
+
 Note: this does not work for standard CLIB programs. We need another solution.
 
 ********************************************************************************/
@@ -1971,7 +1978,8 @@ void pa_getpgm(
     bl = MAXSTR;
     _NSGetExecutablePath(pn, &bl);
 #endif
-    cmdpth(pn, pcn, MAXSTR); /* get fully pathed command*/
+    if (exists(pn)) strcpy(pcn, pn); /* copy to path */
+    else cmdpth(pn, pcn, MAXSTR, TRUE); /* get fully pathed command*/
     pa_fulnam(pcn, MAXSTR);   /* clean that */
     pa_brknam(pcn, p, pl, n, MAXSTR, e, MAXSTR); /* extract path from that */
 
