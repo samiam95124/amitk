@@ -1961,6 +1961,8 @@ void pa_getpgm(
     bufstr   pn;   /* program name holder */
     bufstr   n, e; /* name component holders */
     unsigned bl;   /* length of buffer holder */
+    bufstr   pcn;  /* pathed command name */
+    int      pcnl; /* length of command name */
 
 #if defined(__linux) || defined(__MINGW32__) /* linux, Windows */
     strcpy(pn, program_invocation_name); /* copy invoke name to path */
@@ -1970,8 +1972,9 @@ void pa_getpgm(
     bl = MAXSTR;
     _NSGetExecutablePath(pn, &bl);
 #endif
-    pa_fulnam(pn, MAXSTR);   /* clean that */
-    pa_brknam(pn, p, pl, n, MAXSTR, e, MAXSTR); /* extract path from that */
+    cmdpth(pn, pcn, pcnl); /* get fully pathed command*/
+    pa_fulnam(pcn, MAXSTR);   /* clean that */
+    pa_brknam(pcn, p, pl, n, MAXSTR, e, MAXSTR); /* extract path from that */
 
 }
 
