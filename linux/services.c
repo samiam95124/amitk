@@ -108,8 +108,6 @@ extern char *program_invocation_name;
 /* contains the entire environment strings array */
 extern char **environ;
 
-#define TRUE            1 /* value of true/false */
-#define FALSE           0
 #define HOURSEC         3600   /* number of seconds in an hour */
 #define DAYSEC          (HOURSEC * 24)   /* number of seconds in a day */
 #define YEARSEC         (DAYSEC * 365)   /* number of seconds in year */
@@ -1358,8 +1356,7 @@ Returns the properly pathed command if found.
 void cmdpth(
     /* command to search for */           char *cn,
     /* result correctly pathed command */ char *pcn,
-    /* result length */                   int  pcnl,
-    /* search path only */                int  schpth
+    /* result length */                   int  pcnl
 )
 {
 
@@ -1368,43 +1365,43 @@ void cmdpth(
     bufstr ncn;
     char *cp;
 
+printf("cmdpth: cn: %s\n", cn);
     strcpy(ncn, cn); /* copy command to temp */
-    /* check does not exist in current form or force search */
-    if (!exists(cn) || schpth) {  
+    /* perform pathing search */
+    pa_brknam(cn, p, MAXSTR, n, MAXSTR, e, MAXSTR); /* break down the name */
+    if (*p == 0 && *pthstr != 0) { /* no path on name and environment path exists */
 
-        /* perform pathing search */
-        pa_brknam(cn, p, MAXSTR, n, MAXSTR, e, MAXSTR); /* break down the name */
-        *ncn = 0;
-        if (*p == 0 && *pthstr != 0) {
+        strcpy(pc, pthstr);   /* make a copy of the path */
+        trim(pc);   /* make sure left aligned */
+        while (*pc != 0) {  /* match path components */
 
-            strcpy(pc, pthstr);   /* make a copy of the path */
-            trim(pc);   /* make sure left aligned */
-            while (*pc != 0) {  /* match path components */
+            cp = strchr(pc, ':' /*pa_pthchr()*/); /* find next path separator */
+            if (!cp) {  /* none left, use entire remaining */
 
-                cp = strchr(pc, ':' /*pa_pthchr()*/); /* find next path separator */
-                if (!cp) {  /* none left, use entire remaining */
+                strcpy(p, pc); /* none left, use entire remaining */
+                pc[0] = 0; /* clear the rest */
 
-                    strcpy(p, pc); /* none left, use entire remaining */
-                    pc[0] = 0; /* clear the rest */
+            } else { /* copy partial */
 
-                } else { /* copy partial */
-
-                    extract(p, MAXSTR, pc, 0, cp-pc-1);   /* get left side to path */
-                    extract(pc, MAXSTR, pc, cp-pc+1, strlen(pc)); /* remove from path */
-                    trim(pc); /* make sure left aligned */
-
-                }
-                pa_maknam(ncn, MAXSTR, p, n, e);   /* create filename */
-                if (exists(ncn)) *pc = 0;  /* found, indicate stop */
+                extract(p, MAXSTR, pc, 0, cp-pc-1);   /* get left side to path */
+                extract(pc, MAXSTR, pc, cp-pc+1, strlen(pc)); /* remove from path */
+                trim(pc); /* make sure left aligned */
 
             }
-            if (!exists(ncn)) error("Command does not exist");
+            pa_maknam(ncn, MAXSTR, p, n, e);   /* create filename */
+            if (exists(ncn)) *pc = 0;  /* found, indicate stop */
 
-        } else error("Command does not exist");
+        }
+        if (!exists(ncn)) error("Command does not exist");
 
-    }
+    } else if (*p != 0) { /* has path */
+
+        if (!exists(cn)) error("Command does not exist");
+
+    } else error("Command does not exist");
     if (strlen(ncn)+1 > pcnl) error("String too large for destination\n");
     strcpy(pcn, ncn); /* copy to result */
+printf("Final path: %s\n", pcn);
 
 }
 
@@ -1445,7 +1442,7 @@ void pa_exec(
     if (wc == 0)
     error("Command is empty");
     extwords(cn, MAXSTR, cmd, 0, 0);  /* get the command verb */
-    cmdpth(cn, cn, MAXSTR, FALSE); /* fix path */
+    cmdpth(cn, cn, MAXSTR); /* fix path */
 
     /* on fork, the child is going to see a zero return, and the parent will
        get the process id. Although this seems dangerous, forked processes
@@ -1508,7 +1505,7 @@ void pa_execw(
     if (wc == 0)
     error("Command is empty");
     extwords(cn, MAXSTR, cmd, 0, 0);  /* get the command verb */
-    cmdpth(cn, cn, MAXSTR, FALSE); /* fix path */
+    cmdpth(cn, cn, MAXSTR); /* fix path */
 
     /* on fork, the child is going to see a zero return, and the parent will
        get the process id. Although this seems dangerous, forked processes
@@ -1577,7 +1574,7 @@ void pa_exece(
     if (wc == 0)
     error("Command is empty");
     extwords(cn, MAXSTR, cmd, 0, 0);  /* get the command verb */
-    cmdpth(cn, cn, MAXSTR, FALSE); /* fix path */
+    cmdpth(cn, cn, MAXSTR); /* fix path */
 
     /* on fork, the child is going to see a zero return, and the parent will
        get the process id. Although this seems dangerous, forked processes
@@ -1642,7 +1639,7 @@ void pa_execew(
     if (wc == 0)
     error("Command is empty");
     extwords(cn, MAXSTR, cmd, 0, 0);  /* get the command verb */
-    cmdpth(cn, cn, MAXSTR, FALSE); /* fix path */
+    cmdpth(cn, cn, MAXSTR); /* fix path */
 
     /* on fork, the child is going to see a zero return, and the parent will
        get the process id. Although this seems dangerous, forked processes
@@ -1978,8 +1975,7 @@ void pa_getpgm(
     bl = MAXSTR;
     _NSGetExecutablePath(pn, &bl);
 #endif
-    if (exists(pn)) strcpy(pcn, pn); /* copy to path */
-    else cmdpth(pn, pcn, MAXSTR, TRUE); /* get fully pathed command*/
+    cmdpth(pn, pcn, MAXSTR); /* get fully pathed command*/
     pa_fulnam(pcn, MAXSTR);   /* clean that */
     pa_brknam(pcn, p, pl, n, MAXSTR, e, MAXSTR); /* extract path from that */
 
