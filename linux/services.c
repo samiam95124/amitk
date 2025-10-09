@@ -1365,7 +1365,6 @@ void cmdpth(
     bufstr ncn;
     char *cp;
 
-printf("cmdpth: cn: %s\n", cn);
     strcpy(ncn, cn); /* copy command to temp */
     /* perform pathing search */
     pa_brknam(cn, p, MAXSTR, n, MAXSTR, e, MAXSTR); /* break down the name */
@@ -1401,7 +1400,6 @@ printf("cmdpth: cn: %s\n", cn);
     } else error("Command does not exist");
     if (strlen(ncn)+1 > pcnl) error("String too large for destination\n");
     strcpy(pcn, ncn); /* copy to result */
-printf("Final path: %s\n", pcn);
 
 }
 
