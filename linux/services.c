@@ -441,7 +441,9 @@ void pa_list(
     bufstr         p;  /* filename components */
     bufstr         n;
     bufstr         e;
-    bufstr         fn; /* holder for directory name */
+    bufstr         fn; /* name holder */
+    bufstr         tn; /* name holder */
+    bufstr         dn; /* directory name holder */
     int            ls;
 
     *l = NULL; /* clear destination list */
@@ -450,8 +452,9 @@ void pa_list(
     /* check wildcards in path */
     if (strstr(p, "*") || strstr(p, "?")) error("Path cannot contain wildcards");
     /* construct name of containing directory */
-    pa_maknam(fn, MAXSTR, p, ".", "");
-    dd = opendir(fn); /* open the directory */
+    if (*p == 0) pa_maknam(dn, MAXSTR, p, ".", "");
+    else pa_maknam(dn, MAXSTR, p, "", "");
+    dd = opendir(dn); /* open the directory */
     if (!dd) unixerr(); /* process unix open error */
     pa_maknam(fn, MAXSTR, "", n, e);   /* reform name without path */
     do { /* read directory entries */
@@ -468,7 +471,9 @@ void pa_list(
                 fp->name = malloc(strlen(dr->d_name)+1);
                 strcpy(fp->name, dr->d_name); /* copy to destination */
                 fp->namel = strlen(fp->name); /* set length */
-                r = stat(fp->name, &sr); /* get stat structure on file */
+                pa_brknam(fp->name, p, MAXSTR, n, MAXSTR, e, MAXSTR); /* find name/extension */
+                pa_maknam(tn, MAXSTR, dn, n, e); /* add path */
+                r = stat(tn, &sr); /* get stat structure on file */
                 if (r < 0) unixerr(); /* process unix error */
                 /* file information in stat record, translate to our format */
                 fp->size = sr.st_size;   /* place size */
