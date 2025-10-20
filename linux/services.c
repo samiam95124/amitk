@@ -2524,7 +2524,6 @@ void pa_filchr(pa_chrset fc)
     /* add everything but control characters and space */
     for (i = ' '+1; i <= 0x7e; i++) ADDCSET(fc, i);
     SUBCSET(fc, pa_optchr()); /* remove option character */
-    SUBCSET(fc, pa_pthchr()); /* remove path character */
 
 }
 
