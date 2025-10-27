@@ -115,7 +115,7 @@ extern char **environ;
 
 /* maximum size of holding buffers (I had to make this very large for large
    paths [sam]) */
-#define MAXSTR          500
+#define MAXSTR          1000
 
 typedef char bufstr[MAXSTR]; /* standard string buffer */
 
