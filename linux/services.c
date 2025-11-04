@@ -1446,6 +1446,7 @@ void pa_exec(
     extwords(cn, MAXSTR, cmd, 0, 0);  /* get the command verb */
     cmdpth(cn, cn, MAXSTR); /* fix path */
 
+    fflush(NULL); /* sync any pending I/O */
     /* on fork, the child is going to see a zero return, and the parent will
        get the process id. Although this seems dangerous, forked processes
        are truly independent, and so don't care what language is running */
@@ -1509,6 +1510,7 @@ void pa_execw(
     extwords(cn, MAXSTR, cmd, 0, 0);  /* get the command verb */
     cmdpth(cn, cn, MAXSTR); /* fix path */
 
+    fflush(NULL); /* sync any pending I/O */
     /* on fork, the child is going to see a zero return, and the parent will
        get the process id. Although this seems dangerous, forked processes
        are truly independent, and so don't care what language is running */
@@ -1578,6 +1580,7 @@ void pa_exece(
     extwords(cn, MAXSTR, cmd, 0, 0);  /* get the command verb */
     cmdpth(cn, cn, MAXSTR); /* fix path */
 
+    fflush(NULL); /* sync any pending I/O */
     /* on fork, the child is going to see a zero return, and the parent will
        get the process id. Although this seems dangerous, forked processes
        are truly independent, and so don't care what language is running */
@@ -1643,6 +1646,7 @@ void pa_execew(
     extwords(cn, MAXSTR, cmd, 0, 0);  /* get the command verb */
     cmdpth(cn, cn, MAXSTR); /* fix path */
 
+    fflush(NULL); /* sync any pending I/O */
     /* on fork, the child is going to see a zero return, and the parent will
        get the process id. Although this seems dangerous, forked processes
        are truly independent, and so don't care what language is running */
