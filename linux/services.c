@@ -1102,7 +1102,7 @@ void pa_setenvl(
     char buff2[MAXSTR];
 
     cpstrl2z(buff1, MAXSTR, sn, snl);
-    cpstrl2z(buff1, MAXSTR, sd, sdl);
+    cpstrl2z(buff2, MAXSTR, sd, sdl);
     pa_setenv(buff1, buff2);
 
 }
