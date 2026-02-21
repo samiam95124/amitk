@@ -2509,8 +2509,6 @@ with common IP procedures:
 2. Non printing, so we don't create names that cannot be seen as well as
 removed.
 
-3. '-', because that is the Unix option character.
-
 Unfortunately, this can create the inability to access filenames with spaces.
 For such reasons, the program will probably have to determine its own
 specials in these cases.
@@ -2527,7 +2525,6 @@ void pa_filchr(pa_chrset fc)
 
     /* add everything but control characters and space */
     for (i = ' '+1; i <= 0x7e; i++) ADDCSET(fc, i);
-    SUBCSET(fc, pa_optchr()); /* remove option character */
 
 }
 
