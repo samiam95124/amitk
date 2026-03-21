@@ -76,8 +76,8 @@ void update(int cx, int cy, /* center of clock in x and y */
     char ds[100]; /* storage for date */
 
     /* break down time to seconds, minutes, hours */
-    t = pa_local(pa_time()); /* get local time */
-    pa_dates(ds, 100, t); /* get the date in ASCII from that */
+    t = services_local(services_time()); /* get local time */
+    services_dates(ds, 100, t); /* get the date in ASCII from that */
     t = t%DAYSEC; /* find number of seconds in day */
     /* if before 2000, find from remaining seconds */
     if (t < 0) t = DAYSEC+t;

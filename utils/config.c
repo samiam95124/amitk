@@ -643,27 +643,27 @@ void pa_config(pa_valptr* root)
     char filnam[MAXSTR];
 
     /* config from program path */
-    pa_getpgm(pgmpth, MAXSTR); /* get program path */
+    services_getpgm(pgmpth, MAXSTR); /* get program path */
     /* try both visible and invisible names */
-    pa_maknam(filnam, MAXSTR, pgmpth, "petit_ami", "cfg");
+    services_maknam(filnam, MAXSTR, pgmpth, "petit_ami", "cfg");
     pa_configfile(filnam, root);
-    pa_maknam(filnam, MAXSTR, pgmpth, ".petit_ami", "cfg");
+    services_maknam(filnam, MAXSTR, pgmpth, ".petit_ami", "cfg");
     pa_configfile(filnam, root);
 
     /* config from user path */
-    pa_getusr(pgmpth, MAXSTR); /* get user path */
+    services_getusr(pgmpth, MAXSTR); /* get user path */
     /* try both visible and invisible names */
-    pa_maknam(filnam, MAXSTR, pgmpth, "petit_ami", "cfg");
+    services_maknam(filnam, MAXSTR, pgmpth, "petit_ami", "cfg");
     pa_configfile(filnam, root);
-    pa_maknam(filnam, MAXSTR, pgmpth, ".petit_ami", "cfg");
+    services_maknam(filnam, MAXSTR, pgmpth, ".petit_ami", "cfg");
     pa_configfile(filnam, root);
 
     /* config from current directory */
-    pa_getcur(pgmpth, MAXSTR); /* get current path */
+    services_getcur(pgmpth, MAXSTR); /* get current path */
     /* try both visible and invisible names */
-    pa_maknam(filnam, MAXSTR, pgmpth, "petit_ami", "cfg");
+    services_maknam(filnam, MAXSTR, pgmpth, "petit_ami", "cfg");
     pa_configfile(filnam, root);
-    pa_maknam(filnam, MAXSTR, pgmpth, ".petit_ami", "cfg");
+    services_maknam(filnam, MAXSTR, pgmpth, ".petit_ami", "cfg");
     pa_configfile(filnam, root);
 
 }

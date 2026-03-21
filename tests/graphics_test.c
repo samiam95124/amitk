@@ -751,9 +751,9 @@ static void benchtest(
     i = 10;
     do {
 
-        t = pa_clock(); /* get base time */
+        t = services_clock(); /* get base time */
         fp(w, i, &s); /* perform test */
-        et = pa_elapsed(t); /* find time to execute */
+        et = services_elapsed(t); /* find time to execute */
         i *= 2; /* scale for next pass */
 
     } while (et < SECOND); /* set minimum time to measure for stability */
@@ -779,7 +779,7 @@ static void linespeed(int w, int t, long* s)
     pa_curvis(stdout, FALSE);
     putchar('\f');
     pa_linewidth(stdout, w);
-    c = pa_clock();
+    c = services_clock();
     for (i = 1; i <= t; i++) {
 
         pa_fcolor(stdout, randr(pa_red, pa_magenta));
@@ -787,7 +787,7 @@ static void linespeed(int w, int t, long* s)
                         randr(1, pa_maxxg(stdout)), randr(1, pa_maxyg(stdout)));
 
     }
-    *s = pa_elapsed(c);
+    *s = services_elapsed(c);
     pa_fcolor(stdout, pa_black);
 
 }
@@ -805,7 +805,7 @@ static void rectspeed(int w, int t, long* s)
     pa_curvis(stdout, FALSE);
     putchar('\f');
     pa_linewidth(stdout, w);
-    c = pa_clock();
+    c = services_clock();
     for (i = 1; i <= t; i++) {
 
         pa_fcolor(stdout, randr(pa_red, pa_magenta));
@@ -813,7 +813,7 @@ static void rectspeed(int w, int t, long* s)
                         randr(1, pa_maxxg(stdout)), randr(1, pa_maxyg(stdout)));
 
     }
-    *s = pa_elapsed(c);
+    *s = services_elapsed(c);
     pa_fcolor(stdout, pa_black);
 
 }
@@ -831,7 +831,7 @@ static void rrectspeed(int w, int t, long* s)
     pa_curvis(stdout, FALSE);
     putchar('\f');
     pa_linewidth(stdout, w);
-    c = pa_clock();
+    c = services_clock();
     for (i = 1; i <= t; i++) {
 
         pa_fcolor(stdout, randr(pa_red, pa_magenta));
@@ -840,7 +840,7 @@ static void rrectspeed(int w, int t, long* s)
                          randn(100-1)+1, randn(100-1)+1);
 
     }
-    *s = pa_elapsed(c);
+    *s = services_elapsed(c);
     pa_fcolor(stdout, pa_black);
 
 }
@@ -857,7 +857,7 @@ static void frectspeed(int w, int t, long* s)
     pa_auto(stdout, FALSE);
     pa_curvis(stdout, FALSE);
     putchar('\f');
-    c = pa_clock();
+    c = services_clock();
     for (i = 1; i <= t; i++) {
 
         pa_fcolor(stdout, randr(pa_red, pa_magenta));
@@ -865,7 +865,7 @@ static void frectspeed(int w, int t, long* s)
                          randr(1, pa_maxxg(stdout)), randr(1, pa_maxyg(stdout)));
 
     }
-    *s = pa_elapsed(c);
+    *s = services_elapsed(c);
     pa_fcolor(stdout, pa_black);
 
 }
@@ -882,7 +882,7 @@ static void frrectspeed(int w, int t, long* s)
     pa_auto(stdout, FALSE);
     pa_curvis(stdout, FALSE);
     putchar('\f');
-    c = pa_clock();
+    c = services_clock();
     for (i = 1; i <= t; i++) {
 
         pa_fcolor(stdout, randr(pa_red, pa_magenta));
@@ -891,7 +891,7 @@ static void frrectspeed(int w, int t, long* s)
                           randn(100-1)+1, randn(100-1)+1);
 
     }
-    *s = pa_elapsed(c);
+    *s = services_elapsed(c);
     pa_fcolor(stdout, pa_black);
 
 }
@@ -909,7 +909,7 @@ static void ellipsespeed(int w, int t, long* s)
     pa_curvis(stdout, FALSE);
     putchar('\f');
     pa_linewidth(stdout, w);
-    c = pa_clock();
+    c = services_clock();
     for (i = 1; i <= t; i++) {
 
         pa_fcolor(stdout, randr(pa_red, pa_magenta));
@@ -917,7 +917,7 @@ static void ellipsespeed(int w, int t, long* s)
                            randr(1, pa_maxxg(stdout)), randr(1, pa_maxyg(stdout)));
 
     }
-    *s = pa_elapsed(c);
+    *s = services_elapsed(c);
     pa_fcolor(stdout, pa_black);
 
 }
@@ -934,7 +934,7 @@ static void fellipsespeed(int w, int t, long* s)
     pa_auto(stdout, FALSE);
     pa_curvis(stdout, FALSE);
     putchar('\f');
-    c = pa_clock();
+    c = services_clock();
     for (i = 1; i <= t; i++) {
 
         pa_fcolor(stdout, randr(pa_red, pa_magenta));
@@ -942,7 +942,7 @@ static void fellipsespeed(int w, int t, long* s)
                             randr(1, pa_maxxg(stdout)), randr(1, pa_maxyg(stdout)));
 
     }
-    *s = pa_elapsed(c);
+    *s = services_elapsed(c);
     pa_fcolor(stdout, pa_black);
 
 }
@@ -961,7 +961,7 @@ static void arcspeed(int w, int t, long* s)
     pa_curvis(stdout, FALSE);
     putchar('\f');
     pa_linewidth(stdout, w);
-    c = pa_clock();
+    c = services_clock();
     for (i = 1; i <= t; i++) {
 
         do {
@@ -976,7 +976,7 @@ static void arcspeed(int w, int t, long* s)
                        sa, ea);
 
     }
-    *s = pa_elapsed(c);
+    *s = services_elapsed(c);
     pa_fcolor(stdout, pa_black);
 
 }
@@ -994,7 +994,7 @@ static void farcspeed(int w, int t, long* s)
     pa_auto(stdout, FALSE);
     pa_curvis(stdout, FALSE);
     putchar('\f');
-    c = pa_clock();
+    c = services_clock();
     for (i = 1; i <= t; i++) {
 
         do {
@@ -1009,7 +1009,7 @@ static void farcspeed(int w, int t, long* s)
                         sa, ea);
 
     }
-    *s = pa_elapsed(c);
+    *s = services_elapsed(c);
     pa_fcolor(stdout, pa_black);
 
 }
@@ -1027,7 +1027,7 @@ static void fchordspeed(int w, int t, long* s)
     pa_auto(stdout, FALSE);
     pa_curvis(stdout, FALSE);
     putchar('\f');
-    c = pa_clock();
+    c = services_clock();
     for (i = 1; i <= t; i++) {
 
         do {
@@ -1042,7 +1042,7 @@ static void fchordspeed(int w, int t, long* s)
                           sa, ea);
 
     }
-    *s = pa_elapsed(c);
+    *s = services_elapsed(c);
     pa_fcolor(stdout, pa_black);
 
 }
@@ -1059,7 +1059,7 @@ static void ftrianglespeed(int w, int t, long* s)
     pa_auto(stdout, FALSE);
     pa_curvis(stdout, FALSE);
     putchar('\f');
-    c = pa_clock();
+    c = services_clock();
     for (i = 1; i <= t; i++) {
 
         pa_fcolor(stdout, randr(pa_red, pa_magenta));
@@ -1068,7 +1068,7 @@ static void ftrianglespeed(int w, int t, long* s)
                              randr(1, pa_maxxg(stdout)), randr(1, pa_maxyg(stdout)));
 
     }
-    *s = pa_elapsed(c);
+    *s = services_elapsed(c);
     pa_fcolor(stdout, pa_black);
 
 }
@@ -1085,7 +1085,7 @@ static void ftextspeed(int w, int t, long* s)
     pa_auto(stdout, FALSE);
     pa_curvis(stdout, FALSE);
     putchar('\f');
-    c = pa_clock();
+    c = services_clock();
     for (i = 1; i <= t; i++) {
 
         pa_fcolor(stdout, randr(pa_red, pa_magenta));
@@ -1094,7 +1094,7 @@ static void ftextspeed(int w, int t, long* s)
         printf("Test text");
 
     }
-    *s = pa_elapsed(c);
+    *s = services_elapsed(c);
     pa_fcolor(stdout, pa_black);
     pa_bcolor(stdout, pa_white);
 
@@ -1114,7 +1114,7 @@ static void fpictspeed(int w, int t, long* s)
     pa_curvis(stdout, FALSE);
     putchar('\f');
     pa_loadpict(stdout, 1, "tests/mypic");
-    c = pa_clock();
+    c = services_clock();
     for (i = 1; i <= t; i++) {
 
         x1 = randr(1, pa_maxxg(stdout));
@@ -1126,7 +1126,7 @@ static void fpictspeed(int w, int t, long* s)
         pa_picture(stdout, 1, x1, y1, x2, y2);
 
    }
-   *s = pa_elapsed(c);
+   *s = services_elapsed(c);
    pa_fcolor(stdout, pa_black);
 
 }
@@ -1148,7 +1148,7 @@ static void fpictnsspeed(int w, int t, long* s)
     pa_loadpict(stdout, 1, "tests/mypic");
     xs = pa_pictsizx(stdout, 1);
     ys = pa_pictsizy(stdout, 1);
-    c = pa_clock();
+    c = services_clock();
     for (i = 1; i <= t; i++) {
 
         x = randr(1, pa_maxxg(stdout));
@@ -1156,7 +1156,7 @@ static void fpictnsspeed(int w, int t, long* s)
         pa_picture(stdout, 1, x, y, x+xs-1, y+ys-1);
 
     }
-    *s = pa_elapsed(c);
+    *s = services_elapsed(c);
     pa_fcolor(stdout, pa_black);
 
 }
@@ -2760,11 +2760,11 @@ int main(void)
 
     putchar('\f');
     grid();
-    pa_maknam(fn, 100, "tests", "mypic", "");
+    services_maknam(fn, 100, "tests", "mypic", "");
     pa_loadpict(stdout, 1, fn);
     printf("Picture size for 1: x: %d y: %d\n", pa_pictsizx(stdout, 1),
            pa_pictsizy(stdout, 1));
-    pa_maknam(fn, 100, "tests", "mypic1", "bmp");
+    services_maknam(fn, 100, "tests", "mypic1", "bmp");
     pa_loadpict(stdout, 2, fn);
     printf("Picture size for 2: x: %d y: %d\n", pa_pictsizx(stdout, 2),
            pa_pictsizy(stdout, 2));
