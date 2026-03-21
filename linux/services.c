@@ -72,132 +72,10 @@
 #include <mach-o/dyld.h>
 #endif
 
-#include <services.h> /* the header for this file */
-
-/*
- * Coining configuration for external function names.
- *
- * SERVICES_NOCOIN  - No prefix (e.g., list, times, time)
- * SERVICES_PACOIN  - pa_ prefix (e.g., pa_list, pa_times, pa_time) [default]
- * SERVICES_MODCOIN - Module prefix (e.g., services_list, services_times)
- *
- * If no coining option is specified, pa_ coining is used as the default.
- */
-
-/* set default coining if none specified */
-#if !defined(SERVICES_NOCOIN) && !defined(SERVICES_MODCOIN) && !defined(SERVICES_PACOIN)
-#define SERVICES_PACOIN
-#endif
-
-/* token pasting helpers */
-#define SERVICES_JOIN_(a, b) a##b
-#define SERVICES_JOIN(a, b) SERVICES_JOIN_(a, b)
-
-#if defined(SERVICES_NOCOIN)
-#define SVCFN(name) name
-#elif defined(SERVICES_MODCOIN)
-#define SVCFN(name) SERVICES_JOIN(services_, name)
-#else /* SERVICES_PACOIN - default */
-#define SVCFN(name) SERVICES_JOIN(pa_, name)
-#endif
-
 /* save reference to standard time() before coining remaps the name */
 static time_t (*_std_time)(time_t *) = time;
 
-/* coin all external function names */
-#define list          SVCFN(list)
-#define listl         SVCFN(listl)
-#define times         SVCFN(times)
-#define dates         SVCFN(dates)
-#define writetime     SVCFN(writetime)
-#define writedate     SVCFN(writedate)
-#define time          SVCFN(time)
-#define local         SVCFN(local)
-#define clock         SVCFN(clock)
-#define elapsed       SVCFN(elapsed)
-#define validfile     SVCFN(validfile)
-#define validfilel    SVCFN(validfilel)
-#define validpath     SVCFN(validpath)
-#define validpathl    SVCFN(validpathl)
-#define wild          SVCFN(wild)
-#define wildl         SVCFN(wildl)
-#define getenv        SVCFN(getenv)
-#define getenvl       SVCFN(getenvl)
-#define setenv        SVCFN(setenv)
-#define setenvl       SVCFN(setenvl)
-#define remenv        SVCFN(remenv)
-#define remenvl       SVCFN(remenvl)
-#define allenv        SVCFN(allenv)
-#define exec          SVCFN(exec)
-#define execl         SVCFN(execl)
-#define execw         SVCFN(execw)
-#define execwl        SVCFN(execwl)
-#define exece         SVCFN(exece)
-#define execel        SVCFN(execel)
-#define execew        SVCFN(execew)
-#define execewl       SVCFN(execewl)
-#define getcur        SVCFN(getcur)
-#define setcur        SVCFN(setcur)
-#define setcurl       SVCFN(setcurl)
-#define brknam        SVCFN(brknam)
-#define brknaml       SVCFN(brknaml)
-#define maknam        SVCFN(maknam)
-#define maknaml       SVCFN(maknaml)
-#define fulnam        SVCFN(fulnam)
-#define getpgm        SVCFN(getpgm)
-#define getusr        SVCFN(getusr)
-#define setatr        SVCFN(setatr)
-#define setatrl       SVCFN(setatrl)
-#define resatr        SVCFN(resatr)
-#define resatrl       SVCFN(resatrl)
-#define bakupd        SVCFN(bakupd)
-#define bakupdl       SVCFN(bakupdl)
-#define setuper       SVCFN(setuper)
-#define setuperl      SVCFN(setuperl)
-#define resuper       SVCFN(resuper)
-#define resuperl      SVCFN(resuperl)
-#define setgper       SVCFN(setgper)
-#define setgperl      SVCFN(setgperl)
-#define resgper       SVCFN(resgper)
-#define resgperl      SVCFN(resgperl)
-#define setoper       SVCFN(setoper)
-#define setoperl      SVCFN(setoperl)
-#define resoper       SVCFN(resoper)
-#define resoperl      SVCFN(resoperl)
-#define makpth        SVCFN(makpth)
-#define makpthl       SVCFN(makpthl)
-#define rempth        SVCFN(rempth)
-#define rempthl       SVCFN(rempthl)
-#define filchr        SVCFN(filchr)
-#define optchr        SVCFN(optchr)
-#define pthchr        SVCFN(pthchr)
-#define latitude      SVCFN(latitude)
-#define longitude     SVCFN(longitude)
-#define altitude      SVCFN(altitude)
-#define country       SVCFN(country)
-#define countrys      SVCFN(countrys)
-#define timezone      SVCFN(timezone)
-#define daysave       SVCFN(daysave)
-#define time24hour    SVCFN(time24hour)
-#define language      SVCFN(language)
-#define languages     SVCFN(languages)
-#define decimal       SVCFN(decimal)
-#define numbersep     SVCFN(numbersep)
-#define timeorder     SVCFN(timeorder)
-#define dateorder     SVCFN(dateorder)
-#define datesep       SVCFN(datesep)
-#define timesep       SVCFN(timesep)
-#define currchr       SVCFN(currchr)
-#define newthread     SVCFN(newthread)
-#define initlock      SVCFN(initlock)
-#define deinitlock    SVCFN(deinitlock)
-#define lock          SVCFN(lock)
-#define unlock        SVCFN(unlock)
-#define initsig       SVCFN(initsig)
-#define deinitsig     SVCFN(deinitsig)
-#define sendsig       SVCFN(sendsig)
-#define sendsigone    SVCFN(sendsigone)
-#define waitsig       SVCFN(waitsig)
+#include <services.h> /* the header for this file */
 
 /*
  * Debug print system
@@ -259,7 +137,7 @@ static char* prgpth;    /* program path */
 /* end of read-only group */
 
 static pthread_mutex_t  envlck;               /* environment list lock */
-static pa_envrec*       envlst;               /* our environment list */
+static envrec*       envlst;               /* our environment list */
 /* end of environment lock group */
 
 static pthread_mutex_t  thdtbllck;            /* thread table lock */
@@ -536,7 +414,7 @@ If no files are matched, the returned list is nil.
 void listl(
     /** file to search for */ char *f,
     /** length of file string */ int l,
-    /** file list returned */ pa_filrec **lp
+    /** file list returned */ filrec **lp
 )
 
 {
@@ -550,7 +428,7 @@ void listl(
 
 void list(
     /** file to search for */ char *f,
-    /** file list returned */ pa_filrec **l
+    /** file list returned */ filrec **l
 )
 
 {
@@ -559,8 +437,8 @@ void list(
     DIR*           dd; /* directory file descriptor */
     int            r;  /* result code */
     struct stat    sr; /* stat() record */
-    pa_filrec*     fp; /* file entry pointer */
-    pa_filrec*     lp; /* last entry pointer */
+    filrec*     fp; /* file entry pointer */
+    filrec*     lp; /* last entry pointer */
     int            i;  /* name index */
     bufstr         p;  /* filename components */
     bufstr         n;
@@ -590,7 +468,7 @@ void list(
 
             if (match(fn, dr->d_name, 0, 0)) { /* matching filename, add to list */
 
-                fp = malloc(sizeof(pa_filrec)); /* create a new file entry */
+                fp = malloc(sizeof(filrec)); /* create a new file entry */
                 /* copy to new filename string */
                 fp->name = malloc(strlen(dr->d_name)+1);
                 strcpy(fp->name, dr->d_name); /* copy to destination */
@@ -606,49 +484,49 @@ void list(
                 fp->alloc = sr.st_size;   /* place allocation */
                 fp->attr = 0;   /* clear attributes */
                 /* clear permissions to all is allowed */
-                fp->user = BIT(pa_pmread) | BIT(pa_pmwrite) | BIT(pa_pmexec) | BIT(pa_pmdel) |
-                           BIT(pa_pmvis) | BIT(pa_pmcopy) | BIT(pa_pmren);
-                fp->other = BIT(pa_pmread) | BIT(pa_pmwrite) | BIT(pa_pmexec) | BIT(pa_pmdel) |
-                            BIT(pa_pmvis) | BIT(pa_pmcopy) | BIT(pa_pmren);
-                fp->group = BIT(pa_pmread) | BIT(pa_pmwrite) | BIT(pa_pmexec) | BIT(pa_pmdel) |
-                            BIT(pa_pmvis) | BIT(pa_pmcopy) | BIT(pa_pmren);
+                fp->user = BIT(pmread) | BIT(pmwrite) | BIT(pmexec) | BIT(pmdel) |
+                           BIT(pmvis) | BIT(pmcopy) | BIT(pmren);
+                fp->other = BIT(pmread) | BIT(pmwrite) | BIT(pmexec) | BIT(pmdel) |
+                            BIT(pmvis) | BIT(pmcopy) | BIT(pmren);
+                fp->group = BIT(pmread) | BIT(pmwrite) | BIT(pmexec) | BIT(pmdel) |
+                            BIT(pmvis) | BIT(pmcopy) | BIT(pmren);
                 /* check and set directory attribute */
-                if (sr.st_mode & S_IFDIR) fp->attr |= BIT(pa_atdir);
+                if (sr.st_mode & S_IFDIR) fp->attr |= BIT(atdir);
                 /* check and set any system special file */
-                if (sr.st_mode & S_IFIFO) fp->attr |= BIT(pa_atsys);
-                if (sr.st_mode & S_IFCHR) fp->attr |= BIT(pa_atsys);
-                if (sr.st_mode & S_IFBLK) fp->attr |= BIT(pa_atsys);
+                if (sr.st_mode & S_IFIFO) fp->attr |= BIT(atsys);
+                if (sr.st_mode & S_IFCHR) fp->attr |= BIT(atsys);
+                if (sr.st_mode & S_IFBLK) fp->attr |= BIT(atsys);
                 /* check hidden. in Unix, this is done with a leading '.'. We remove
                    visiblity priveledges */
                 if (dr->d_name[0] == '.') {
 
-                    fp->user &= ~BIT(pa_pmvis);
-                    fp->group &= ~BIT(pa_pmvis);
-                    fp->other &= ~BIT(pa_pmvis);
+                    fp->user &= ~BIT(pmvis);
+                    fp->group &= ~BIT(pmvis);
+                    fp->other &= ~BIT(pmvis);
 
                 }
                 /* check and set executable attribute. Unix has separate executable
                    permissions for each permission type, we set executable if any of
                    them are true */
-                if (sr.st_mode & S_IXUSR) fp->attr |= BIT(pa_atexec);
+                if (sr.st_mode & S_IXUSR) fp->attr |= BIT(atexec);
                 /* set execute permissions to user */
-                if (!(sr.st_mode & S_IXUSR)) fp->user &= ~BIT(pa_pmexec);
+                if (!(sr.st_mode & S_IXUSR)) fp->user &= ~BIT(pmexec);
                 /* set read permissions to user */
-                if (!(sr.st_mode & S_IRUSR)) fp->user &= ~BIT(pa_pmread);
+                if (!(sr.st_mode & S_IRUSR)) fp->user &= ~BIT(pmread);
                 /* set write permissions to user */
-                if (!(sr.st_mode & S_IWUSR)) fp->user &= ~BIT(pa_pmwrite);
+                if (!(sr.st_mode & S_IWUSR)) fp->user &= ~BIT(pmwrite);
                 /* set execute permissions to group */
-                if (!(sr.st_mode & S_IXGRP)) fp->group &= ~BIT(pa_pmexec);
+                if (!(sr.st_mode & S_IXGRP)) fp->group &= ~BIT(pmexec);
                 /* set read permissions to group */
-                if (!(sr.st_mode & S_IRGRP)) fp->group &= ~BIT(pa_pmread);
+                if (!(sr.st_mode & S_IRGRP)) fp->group &= ~BIT(pmread);
                 /* set write permissions to group */
-                if (!(sr.st_mode & S_IWGRP)) fp->group &= ~BIT(pa_pmwrite);
+                if (!(sr.st_mode & S_IWGRP)) fp->group &= ~BIT(pmwrite);
                 /* set execute permissions to other */
-                if (!(sr.st_mode & S_IXOTH)) fp->other &= ~BIT(pa_pmexec);
+                if (!(sr.st_mode & S_IXOTH)) fp->other &= ~BIT(pmexec);
                 /* set read permissions to other */
-                if (!(sr.st_mode & S_IROTH)) fp->other &= ~BIT(pa_pmread);
+                if (!(sr.st_mode & S_IROTH)) fp->other &= ~BIT(pmread);
                 /* set write permissions to other */
-                if (!(sr.st_mode & S_IWOTH)) fp->other &= ~BIT(pa_pmwrite);
+                if (!(sr.st_mode & S_IWOTH)) fp->other &= ~BIT(pmwrite);
                 /* set times */
                 fp->create = sr.st_ctime-UNIXADJ;
                 fp->modify = sr.st_mtime-UNIXADJ;
@@ -1137,12 +1015,12 @@ Expects the environment lock to be on.
 
 static void fndenv(
     /* string name */                      char*       esn,
-    /* returns environment string entry */ pa_envptr*  ep
+    /* returns environment string entry */ envptr*  ep
 )
 
 {
 
-    pa_envptr p; /* pointer to environment entry */
+    envptr p; /* pointer to environment entry */
 
     p = envlst; /* index top of environment list */
     *ep = NULL; /* set no string found */
@@ -1186,7 +1064,7 @@ void getenv(
 )
 {
 
-    pa_envrec *p;
+    envrec *p;
 
     pthread_mutex_lock(&envlck); /* lock environment list */
     *esd = 0;
@@ -1239,7 +1117,7 @@ void setenv(
 
 {
 
-    pa_envrec *p;   /* pointer to environment entry */
+    envrec *p;   /* pointer to environment entry */
 
     pthread_mutex_lock(&envlck); /* lock environment list */
     fndenv(sn, &p); /* find environment string */
@@ -1258,7 +1136,7 @@ void setenv(
 
     } else {
 
-        p = malloc(sizeof(pa_envrec)); /* get a new environment entry */
+        p = malloc(sizeof(envrec)); /* get a new environment entry */
         if (!p) {
 
             pthread_mutex_unlock(&envlck); /* unlock environment list */
@@ -1320,7 +1198,7 @@ void remenv(
 
 {
 
-    pa_envrec *p, *l; /* pointer to environment entry */
+    envrec *p, *l; /* pointer to environment entry */
 
     pthread_mutex_lock(&envlck); /* lock environment list */
     fndenv(sn, &p);   /* find environment string */
@@ -1361,12 +1239,12 @@ a copy.
 ********************************************************************************/
 
 void allenv(
-    /* environment table */ pa_envrec **el
+    /* environment table */ envrec **el
 )
 
 {
 
-    pa_envrec *p, *lp, *tp; /* environment pointers */
+    envrec *p, *lp, *tp; /* environment pointers */
 
     pthread_mutex_lock(&envlck); /* lock environment list */
     /* copy current environment list */
@@ -1374,7 +1252,7 @@ void allenv(
     tp = NULL; /* clear destination */
     while (lp != NULL) {  /* copy entries */
 
-        p = malloc(sizeof(pa_envrec)); /* create a new entry */
+        p = malloc(sizeof(envrec)); /* create a new entry */
         p->next = tp;   /* push onto list */
         tp = p;
         p->name = (char *) malloc(strlen(lp->name)+1);
@@ -1442,7 +1320,7 @@ Expects the environment lock to be active. Drops it on error.
 ********************************************************************************/
 
 void cpyenv(
-    /* services environment list */ pa_envptr env,
+    /* services environment list */ envptr env,
     /* Linux environment array */   char *envp[],
     /* Linux environment array length */ int envpl
 )
@@ -1675,7 +1553,7 @@ the program environment.
 void execel(
     /** program name to execute */ char *cmd,
     /** length of name string */   int cmdl,
-    /** environment */             pa_envrec *el
+    /** environment */             envrec *el
 )
 
 {
@@ -1689,7 +1567,7 @@ void execel(
 
 void exece(
     /** program name to execute */ char      *cmd,
-    /** environment */             pa_envrec *el
+    /** environment */             envrec *el
 )
 
 {
@@ -1739,7 +1617,7 @@ program environment.
 void execewl(
     /** program name to execute */ char *cmd,
     /** length of name string */   int cmdl,
-    /** environment */             pa_envrec *el,
+    /** environment */             envrec *el,
     /** return error */            int *err
 )
 
@@ -1754,7 +1632,7 @@ void execewl(
 
 void execew(
         /** program name to execute */ char *cmd,
-        /** environment */             pa_envrec *el,
+        /** environment */             envrec *el,
         /** return error */            int *err
 )
 
@@ -2189,7 +2067,7 @@ possible. This is done with makpth.
 void setatrl(
     /** filename */ char *fn, 
     /** filename length */ int fnl,
-    /** attributes */ pa_attrset a
+    /** attributes */ attrset a
 )
 
 {
@@ -2201,7 +2079,7 @@ void setatrl(
 
 }
 
-void setatr(char *fn, pa_attrset a)
+void setatr(char *fn, attrset a)
 {
 
     /* no unix attributes can be set */
@@ -2220,7 +2098,7 @@ possible.
 void resatrl(
     /** filename */ char *fn, 
     /** filename length */ int fnl,
-    /** attributes */ pa_attrset a
+    /** attributes */ attrset a
 )
 
 {
@@ -2234,7 +2112,7 @@ void resatrl(
 
 void resatr(
     /** filename */ char *fn, 
-    /** attributes */ pa_attrset a
+    /** attributes */ attrset a
 )
 
 {
@@ -2272,7 +2150,7 @@ void bakupd(
 
 {
 
-    setatr(fn, BIT(pa_atarc));
+    setatr(fn, BIT(atarc));
 
 }
 
@@ -2287,7 +2165,7 @@ Sets user permisions
 void setuperl(
     /** filename */ char *fn, 
     /** filename length */ int fnl,
-    /** permissions */ pa_permset p
+    /** permissions */ permset p
 )
 
 {
@@ -2301,7 +2179,7 @@ void setuperl(
 
 void setuper(
     /** filename */ char *fn, 
-    /** permissions */ pa_permset p
+    /** permissions */ permset p
 )
 
 {
@@ -2313,9 +2191,9 @@ void setuper(
     if (r < 0)   /* process unix error */
     unixerr();
     sr.st_mode &= 0777; /* mask permissions */
-    if (BIT(pa_pmread) & p) sr.st_mode |= S_IRUSR; /* set read */
-    if (BIT(pa_pmwrite) & p) sr.st_mode |= S_IWUSR; /* set write */
-    if (BIT(pa_pmexec) & p) sr.st_mode |= S_IXUSR; /* set execute */
+    if (BIT(pmread) & p) sr.st_mode |= S_IRUSR; /* set read */
+    if (BIT(pmwrite) & p) sr.st_mode |= S_IWUSR; /* set write */
+    if (BIT(pmexec) & p) sr.st_mode |= S_IXUSR; /* set execute */
     r = chmod(fn, sr.st_mode); /* set mode */
     if (r < 0) unixerr();  /* process unix error */
 
@@ -2333,7 +2211,7 @@ Resets user permissions.
 void resuperl(
     /** filename */ char *fn, 
     /** filename length */ int fnl,
-    /** permissions */ pa_permset p
+    /** permissions */ permset p
 )
 
 {
@@ -2347,7 +2225,7 @@ void resuperl(
 
 void resuper(
     /** filename */ char *fn, 
-    /** permissions */ pa_permset p
+    /** permissions */ permset p
 )
 
 {
@@ -2358,9 +2236,9 @@ void resuper(
     r = stat(fn, &sr);   /* get stat structure on file */
     if (r < 0) unixerr();  /* process unix error */
     sr.st_mode &= 0777;   /* mask permissions */
-    if (BIT(pa_pmread) & p) sr.st_mode &= ~S_IRUSR; /* set read */
-    if (BIT(pa_pmwrite) & p) sr.st_mode &= ~S_IWUSR; /* set write */
-    if (BIT(pa_pmexec) & p) sr.st_mode &= ~S_IXUSR; /* set execute */
+    if (BIT(pmread) & p) sr.st_mode &= ~S_IRUSR; /* set read */
+    if (BIT(pmwrite) & p) sr.st_mode &= ~S_IWUSR; /* set write */
+    if (BIT(pmexec) & p) sr.st_mode &= ~S_IXUSR; /* set execute */
     r = chmod(fn, sr.st_mode);   /* set mode */
     if (r < 0) unixerr();  /* process unix error */
 
@@ -2378,7 +2256,7 @@ Sets group permissions.
 void setgperl(
     /** filename */ char *fn, 
     /** filename length */ int fnl,
-    /** permissions */ pa_permset p
+    /** permissions */ permset p
 )
 
 {
@@ -2392,7 +2270,7 @@ void setgperl(
 
 void setgper(
     /** filename */ char *fn, 
-    /** permissions */ pa_permset p
+    /** permissions */ permset p
 )
 
 {
@@ -2403,9 +2281,9 @@ void setgper(
     r = stat(fn, &sr); /* get stat structure on file */
     if (r < 0) unixerr(); /* process unix error */
     sr.st_mode &= 0777;   /* mask permissions */
-    if (BIT(pa_pmread) & p) sr.st_mode |= S_IRGRP;  /* set read */
-    if (BIT(pa_pmwrite) & p) sr.st_mode |= S_IWGRP;  /* set write */
-    if (BIT(pa_pmexec) & p) sr.st_mode |= S_IXGRP;  /* set execute */
+    if (BIT(pmread) & p) sr.st_mode |= S_IRGRP;  /* set read */
+    if (BIT(pmwrite) & p) sr.st_mode |= S_IWGRP;  /* set write */
+    if (BIT(pmexec) & p) sr.st_mode |= S_IXGRP;  /* set execute */
     r = chmod(fn, sr.st_mode);   /* set mode */
     if (r < 0) unixerr();  /* process unix error */
 
@@ -2423,7 +2301,7 @@ Resets group permissions.
 void resgperl(
     /** filename */ char *fn, 
     /** filename length */ int fnl,
-    /** permissions */ pa_permset p
+    /** permissions */ permset p
 )
 
 {
@@ -2437,7 +2315,7 @@ void resgperl(
 
 void resgper(
     /** filename */ char *fn, 
-    /** permissions */ pa_permset p
+    /** permissions */ permset p
 )
 
 {
@@ -2447,9 +2325,9 @@ void resgper(
     r = stat(fn, &sr); /* get stat structure on file */
     if (r < 0) unixerr(); /* process unix error */
     sr.st_mode &= 0777;   /* mask permissions */
-    if (BIT(pa_pmread) & p)  sr.st_mode &= ~S_IRGRP; /* set read */
-    if (BIT(pa_pmwrite) & p) sr.st_mode &= ~S_IWGRP;  /* set write */
-    if (BIT(pa_pmexec) & p) sr.st_mode &= ~S_IXGRP;  /* set execute */
+    if (BIT(pmread) & p)  sr.st_mode &= ~S_IRGRP; /* set read */
+    if (BIT(pmwrite) & p) sr.st_mode &= ~S_IWGRP;  /* set write */
+    if (BIT(pmexec) & p) sr.st_mode &= ~S_IXGRP;  /* set execute */
     r = chmod(fn, sr.st_mode);   /* set mode */
     if (r < 0) unixerr();  /* process unix error */
 
@@ -2466,7 +2344,7 @@ Sets other permissions.
 void setoperl(
     /** filename */ char *fn, 
     /** filename length */ int fnl,
-    /** permissions */ pa_permset p
+    /** permissions */ permset p
 )
 
 {
@@ -2480,7 +2358,7 @@ void setoperl(
 
 void setoper(
     /** filename */ char *fn, 
-    /** permissions */ pa_permset p
+    /** permissions */ permset p
 )
 
 {
@@ -2491,9 +2369,9 @@ void setoper(
     r = stat(fn, &sr);   /* get stat structure on file */
     if (r < 0) unixerr();  /* process unix error */
     sr.st_mode &= 0777;   /* mask permissions */
-    if (BIT(pa_pmread) & p) sr.st_mode |= S_IROTH;  /* set read */
-    if (BIT(pa_pmwrite) & p) sr.st_mode |= S_IWOTH;  /* set write */
-    if (BIT(pa_pmexec) & p) sr.st_mode |= S_IXOTH;  /* set execute */
+    if (BIT(pmread) & p) sr.st_mode |= S_IROTH;  /* set read */
+    if (BIT(pmwrite) & p) sr.st_mode |= S_IWOTH;  /* set write */
+    if (BIT(pmexec) & p) sr.st_mode |= S_IXOTH;  /* set execute */
     r = chmod(fn, sr.st_mode);   /* set mode */
     if (r < 0) unixerr();  /* process unix error */
 
@@ -2510,7 +2388,7 @@ Resets other permissions.
 void resoperl(
     /** filename */ char *fn, 
     /** filename length */ int fnl,
-    /** permissions */ pa_permset p
+    /** permissions */ permset p
 )
 
 {
@@ -2524,7 +2402,7 @@ void resoperl(
 
 void resoper(
     /** filename */ char *fn, 
-    /** permissions */ pa_permset p
+    /** permissions */ permset p
 )
 
 {
@@ -2535,9 +2413,9 @@ void resoper(
     r = stat(fn, &sr); /* get stat structure on file */
     if (r < 0) unixerr(); /* process unix error */
     sr.st_mode &= 0777; /* mask permissions */
-    if (BIT(pa_pmread) & p) sr.st_mode &= ~S_IROTH; /* set read */
-    if (BIT(pa_pmwrite) & p) sr.st_mode &= ~S_IWOTH; /* set write */
-    if (BIT(pa_pmexec) & p) sr.st_mode &= ~S_IXOTH; /* set execute */
+    if (BIT(pmread) & p) sr.st_mode &= ~S_IROTH; /* set read */
+    if (BIT(pmwrite) & p) sr.st_mode &= ~S_IWOTH; /* set write */
+    if (BIT(pmexec) & p) sr.st_mode &= ~S_IXOTH; /* set execute */
     r = chmod(fn, sr.st_mode); /* set mode */
     if (r < 0) unixerr(); /* process unix error */
 
@@ -2640,7 +2518,7 @@ specials in these cases.
 
 ********************************************************************************/
 
-void filchr(pa_chrset fc)
+void filchr(chrset fc)
 {
 
     int i;
@@ -3935,10 +3813,10 @@ static void pa_init_services(int argc, char* argv[])
     char**      ep;     /* unix environment string table */
     int         ei;     /* index for string table */
     int         si;     /* index for strings */
-    pa_envrec*  p;      /* environment entry pointer */
+    envrec*  p;      /* environment entry pointer */
     langety*    lp;     /* pointer to language entry */
     countryety* ctp;    /* pointer to language entry */
-    pa_envrec*  p1;
+    envrec*  p1;
     char*       cp;
     int         l;
     int         i;
@@ -3949,7 +3827,7 @@ static void pa_init_services(int argc, char* argv[])
     ep = environ;   /* get unix environment pointers */
     while (*ep != NULL) {  /* copy environment strings */
 
-        p = malloc(sizeof(pa_envrec)); /* get a new environment entry */
+        p = malloc(sizeof(envrec)); /* get a new environment entry */
         p->next = envlst; /* push onto environment list */
         envlst = p;
         cp = strchr(*ep, '='); /* find location of '=' */
@@ -4072,7 +3950,7 @@ static void pa_deinit_services()
 {
 
     int        ti; /* index for timers */
-    pa_envrec* p;  /* environment entry pointer */
+    envrec* p;  /* environment entry pointer */
     int        r;
 
     while (envlst) {
