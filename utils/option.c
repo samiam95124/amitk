@@ -133,15 +133,15 @@ int pa_option(
 
     r = 1; /* set error by default */
     longopt = FALSE;
-    if (s[0] == pa_optchr()) { /* there is an option */
+    if (s[0] == services_optchr()) { /* there is an option */
 
         s++; /* skip option character */
-        if (single && pa_optchr() == '-' && *s == '-') {
+        if (single && services_optchr() == '-' && *s == '-') {
 
             longopt = TRUE; /* set long option */
             s++; /* skip '-' */
 
-        } else if (pa_optchr() != '-')
+        } else if (services_optchr() != '-')
             /* all other option characters besides '-' signify long */
             longopt = TRUE;
         if (*s && single && !longopt) { /* parse singles */
@@ -269,7 +269,7 @@ int pa_options(
     int r;
 
     r = 0; /* set no error */
-    while (*argc > 1 && argv[*argi][0] == pa_optchr() && !r) {
+    while (*argc > 1 && argv[*argi][0] == services_optchr() && !r) {
 
         r = pa_option(argv[*argi], opts, single); /* parse options */
         if (!r) { /* success */
