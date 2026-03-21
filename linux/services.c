@@ -15,9 +15,9 @@
 *                                                                              *
 * 1. This version is US english only. Need translations according to locale.   *
 *                                                                              *
-* Functions to be changed to translations: pa_dateorder(), pa_datesep(),       *
-* pa_timesep(), pa_currchar(), pa_timeorder(), pa_numbersep(), pa_decimal(),   *
-* pa_time24hour().                                                             *
+* Functions to be changed to translations: dateorder(), datesep(),       *
+* timesep(), pa_currchar(), timeorder(), numbersep(), decimal(),   *
+* time24hour().                                                             *
 *                                                                              *
 *                          BSD LICENSE INFORMATION                             *
 *                                                                              *
@@ -75,6 +75,131 @@
 #include <services.h> /* the header for this file */
 
 /*
+ * Coining configuration for external function names.
+ *
+ * SERVICES_NOCOIN  - No prefix (e.g., list, times, time)
+ * SERVICES_PACOIN  - pa_ prefix (e.g., pa_list, pa_times, pa_time) [default]
+ * SERVICES_MODCOIN - Module prefix (e.g., services_list, services_times)
+ *
+ * If no coining option is specified, pa_ coining is used as the default.
+ */
+
+/* set default coining if none specified */
+#if !defined(SERVICES_NOCOIN) && !defined(SERVICES_MODCOIN) && !defined(SERVICES_PACOIN)
+#define SERVICES_PACOIN
+#endif
+
+/* token pasting helpers */
+#define SERVICES_JOIN_(a, b) a##b
+#define SERVICES_JOIN(a, b) SERVICES_JOIN_(a, b)
+
+#if defined(SERVICES_NOCOIN)
+#define SVCFN(name) name
+#elif defined(SERVICES_MODCOIN)
+#define SVCFN(name) SERVICES_JOIN(services_, name)
+#else /* SERVICES_PACOIN - default */
+#define SVCFN(name) SERVICES_JOIN(pa_, name)
+#endif
+
+/* save reference to standard time() before coining remaps the name */
+static time_t (*_std_time)(time_t *) = time;
+
+/* coin all external function names */
+#define list          SVCFN(list)
+#define listl         SVCFN(listl)
+#define times         SVCFN(times)
+#define dates         SVCFN(dates)
+#define writetime     SVCFN(writetime)
+#define writedate     SVCFN(writedate)
+#define time          SVCFN(time)
+#define local         SVCFN(local)
+#define clock         SVCFN(clock)
+#define elapsed       SVCFN(elapsed)
+#define validfile     SVCFN(validfile)
+#define validfilel    SVCFN(validfilel)
+#define validpath     SVCFN(validpath)
+#define validpathl    SVCFN(validpathl)
+#define wild          SVCFN(wild)
+#define wildl         SVCFN(wildl)
+#define getenv        SVCFN(getenv)
+#define getenvl       SVCFN(getenvl)
+#define setenv        SVCFN(setenv)
+#define setenvl       SVCFN(setenvl)
+#define remenv        SVCFN(remenv)
+#define remenvl       SVCFN(remenvl)
+#define allenv        SVCFN(allenv)
+#define exec          SVCFN(exec)
+#define execl         SVCFN(execl)
+#define execw         SVCFN(execw)
+#define execwl        SVCFN(execwl)
+#define exece         SVCFN(exece)
+#define execel        SVCFN(execel)
+#define execew        SVCFN(execew)
+#define execewl       SVCFN(execewl)
+#define getcur        SVCFN(getcur)
+#define setcur        SVCFN(setcur)
+#define setcurl       SVCFN(setcurl)
+#define brknam        SVCFN(brknam)
+#define brknaml       SVCFN(brknaml)
+#define maknam        SVCFN(maknam)
+#define maknaml       SVCFN(maknaml)
+#define fulnam        SVCFN(fulnam)
+#define getpgm        SVCFN(getpgm)
+#define getusr        SVCFN(getusr)
+#define setatr        SVCFN(setatr)
+#define setatrl       SVCFN(setatrl)
+#define resatr        SVCFN(resatr)
+#define resatrl       SVCFN(resatrl)
+#define bakupd        SVCFN(bakupd)
+#define bakupdl       SVCFN(bakupdl)
+#define setuper       SVCFN(setuper)
+#define setuperl      SVCFN(setuperl)
+#define resuper       SVCFN(resuper)
+#define resuperl      SVCFN(resuperl)
+#define setgper       SVCFN(setgper)
+#define setgperl      SVCFN(setgperl)
+#define resgper       SVCFN(resgper)
+#define resgperl      SVCFN(resgperl)
+#define setoper       SVCFN(setoper)
+#define setoperl      SVCFN(setoperl)
+#define resoper       SVCFN(resoper)
+#define resoperl      SVCFN(resoperl)
+#define makpth        SVCFN(makpth)
+#define makpthl       SVCFN(makpthl)
+#define rempth        SVCFN(rempth)
+#define rempthl       SVCFN(rempthl)
+#define filchr        SVCFN(filchr)
+#define optchr        SVCFN(optchr)
+#define pthchr        SVCFN(pthchr)
+#define latitude      SVCFN(latitude)
+#define longitude     SVCFN(longitude)
+#define altitude      SVCFN(altitude)
+#define country       SVCFN(country)
+#define countrys      SVCFN(countrys)
+#define timezone      SVCFN(timezone)
+#define daysave       SVCFN(daysave)
+#define time24hour    SVCFN(time24hour)
+#define language      SVCFN(language)
+#define languages     SVCFN(languages)
+#define decimal       SVCFN(decimal)
+#define numbersep     SVCFN(numbersep)
+#define timeorder     SVCFN(timeorder)
+#define dateorder     SVCFN(dateorder)
+#define datesep       SVCFN(datesep)
+#define timesep       SVCFN(timesep)
+#define currchr       SVCFN(currchr)
+#define newthread     SVCFN(newthread)
+#define initlock      SVCFN(initlock)
+#define deinitlock    SVCFN(deinitlock)
+#define lock          SVCFN(lock)
+#define unlock        SVCFN(unlock)
+#define initsig       SVCFN(initsig)
+#define deinitsig     SVCFN(deinitsig)
+#define sendsig       SVCFN(sendsig)
+#define sendsigone    SVCFN(sendsigone)
+#define waitsig       SVCFN(waitsig)
+
+/*
  * Debug print system
  *
  * Example use:
@@ -128,8 +253,8 @@ typedef char bufstr[MAXSTR]; /* standard string buffer */
 /* these aren't locked because they are only set during init, read otherwise */
 static bufstr pthstr;   /* buffer for execution path */
 static bufstr langstr;  /* buffer for language country string (locale) */
-static int language;    /* current language */
-static int country;     /* current country */
+static int curlanguage; /* current language */
+static int curcountry;  /* current country */
 static char* prgpth;    /* program path */
 /* end of read-only group */
 
@@ -408,7 +533,7 @@ If no files are matched, the returned list is nil.
 
 ********************************************************************************/
 
-void pa_listl(
+void listl(
     /** file to search for */ char *f,
     /** length of file string */ int l,
     /** file list returned */ pa_filrec **lp
@@ -419,11 +544,11 @@ void pa_listl(
     char buff[MAXSTR];
 
     cpstrl2z(buff, MAXSTR, f, l);
-    pa_list(buff, lp);
+    list(buff, lp);
 
 }
 
-void pa_list(
+void list(
     /** file to search for */ char *f,
     /** file list returned */ pa_filrec **l
 )
@@ -447,15 +572,15 @@ void pa_list(
 
     *l = NULL; /* clear destination list */
     lp = NULL; /* clear last pointer */
-    pa_brknam(f, p, MAXSTR, n, MAXSTR, e, MAXSTR); /* break up filename */
+    brknam(f, p, MAXSTR, n, MAXSTR, e, MAXSTR); /* break up filename */
     /* check wildcards in path */
     if (strstr(p, "*") || strstr(p, "?")) error("Path cannot contain wildcards");
     /* construct name of containing directory */
-    if (*p == 0) pa_maknam(dn, MAXSTR, p, ".", "");
-    else pa_maknam(dn, MAXSTR, p, "", "");
+    if (*p == 0) maknam(dn, MAXSTR, p, ".", "");
+    else maknam(dn, MAXSTR, p, "", "");
     dd = opendir(dn); /* open the directory */
     if (!dd) unixerr(); /* process unix open error */
-    pa_maknam(fn, MAXSTR, "", n, e);   /* reform name without path */
+    maknam(fn, MAXSTR, "", n, e);   /* reform name without path */
     do { /* read directory entries */
 
         errno = 0; /* clear any error */
@@ -470,8 +595,8 @@ void pa_list(
                 fp->name = malloc(strlen(dr->d_name)+1);
                 strcpy(fp->name, dr->d_name); /* copy to destination */
                 fp->namel = strlen(fp->name); /* set length */
-                pa_brknam(fp->name, p, MAXSTR, n, MAXSTR, e, MAXSTR); /* find name/extension */
-                pa_maknam(tn, MAXSTR, dn, n, e); /* add path */
+                brknam(fp->name, p, MAXSTR, n, MAXSTR, e, MAXSTR); /* find name/extension */
+                maknam(tn, MAXSTR, dn, n, e); /* add path */
                 r = stat(tn, &sr); /* get stat structure on file */
                 if (r < 0) unixerr(); /* process unix error */
                 /* file information in stat record, translate to our format */
@@ -553,7 +678,7 @@ Converts the given time into a string.
 
 ********************************************************************************/
 
-void pa_times(
+void times(
     /** result string */           char *s,
     /** result string length */    int sl,
     /** time to convert */         int t
@@ -567,7 +692,7 @@ void pa_times(
     int  am;  /* am flag */
     int  pm;  /* pm flag */
 
-    if (sl < 11-(!pa_time24hour()*3)) /* string to small to hold result */
+    if (sl < 11-(!time24hour()*3)) /* string to small to hold result */
         error("String buffer to small to hold time");
     /* because leap adjustments are made in terms of days, we just remove
        the days to find the time of day in seconds. this is completely
@@ -581,32 +706,32 @@ void pa_times(
     sec = t % 60;   /* find seconds */
     pm = 0; /* clear am and pm flags */
     am = 0;
-    if (!pa_time24hour()) { /* do am/pm adjustment */
+    if (!time24hour()) { /* do am/pm adjustment */
 
         if (h == 0) h = 12; /* hour zero */
         else if (h > 12) { h -= 12; pm = 1; } /* 1 pm to 11 pm */
 
     }
     /* place hour:miniute:second */
-    switch (pa_timeorder()) {
+    switch (timeorder()) {
 
         case 1:
-            s += sprintf(s, "%02d%c%02d%c%02d", h, pa_timesep(), m, pa_timesep(), sec);
+            s += sprintf(s, "%02d%c%02d%c%02d", h, timesep(), m, timesep(), sec);
             break;
         case 2:
-            s += sprintf(s, "%02d%c%02d%c%02d", h, pa_timesep(), sec, pa_timesep(), m);
+            s += sprintf(s, "%02d%c%02d%c%02d", h, timesep(), sec, timesep(), m);
             break;
         case 3:
-            s += sprintf(s, "%02d%c%02d%c%02d", m, pa_timesep(), h, pa_timesep(), sec);
+            s += sprintf(s, "%02d%c%02d%c%02d", m, timesep(), h, timesep(), sec);
             break;
         case 4:
-            s += sprintf(s, "%02d%c%02d%c%02d", m, pa_timesep(), sec, pa_timesep(), h);
+            s += sprintf(s, "%02d%c%02d%c%02d", m, timesep(), sec, timesep(), h);
             break;
         case 5:
-            s += sprintf(s, "%02d%c%02d%c%02d", sec, pa_timesep(), h, pa_timesep(), m);
+            s += sprintf(s, "%02d%c%02d%c%02d", sec, timesep(), h, timesep(), m);
             break;
         case 6:
-            s += sprintf(s, "%02d%c%02d%c%02d", sec, pa_timesep(), m, pa_timesep(), h);
+            s += sprintf(s, "%02d%c%02d%c%02d", sec, timesep(), m, timesep(), h);
             break;
 
     }
@@ -629,7 +754,7 @@ Converts the given date into a string.
  */
 #define LEAPYEAR(y) ((y & 3) == 0 && y % 100 != 0 || y % 400 == 0)
 
-void pa_dates(
+void dates(
     /** string to place date into */   char *s,
     /** string to place date length */ int sl,
     /** time record to write from */   int t
@@ -695,25 +820,25 @@ void pa_dates(
 
     }
     /* place year/month/day */
-    switch (pa_dateorder()) { /* place according to current location format */
+    switch (dateorder()) { /* place according to current location format */
 
         case 1:
-            s += sprintf(s, "%04d%c%02d%c%02d", y, pa_datesep(), m, pa_datesep(), d);
+            s += sprintf(s, "%04d%c%02d%c%02d", y, datesep(), m, datesep(), d);
             break;
         case 2:
-            s += sprintf(s, "%04d%c%02d%c%02d", y, pa_datesep(), d, pa_datesep(), m);
+            s += sprintf(s, "%04d%c%02d%c%02d", y, datesep(), d, datesep(), m);
             break;
         case 3:
-            s += sprintf(s, "%02d%c%02d%c%04d", m, pa_datesep(), d, pa_datesep(), y);
+            s += sprintf(s, "%02d%c%02d%c%04d", m, datesep(), d, datesep(), y);
             break;
         case 4:
-            s += sprintf(s, "%02d%c%04d%c%02d", m, pa_datesep(), y, pa_datesep(), d);
+            s += sprintf(s, "%02d%c%04d%c%02d", m, datesep(), y, datesep(), d);
             break;
         case 5:
-            s += sprintf(s, "%02d%c%02d%c%04d", d, pa_datesep(), m, pa_datesep(), y);
+            s += sprintf(s, "%02d%c%02d%c%04d", d, datesep(), m, datesep(), y);
             break;
         case 6:
-            s += sprintf(s, "%02d%c%04d%c%02d", d, pa_datesep(), y, pa_datesep(), m);
+            s += sprintf(s, "%02d%c%04d%c%02d", d, datesep(), y, datesep(), m);
             break;
 
     }
@@ -729,7 +854,7 @@ Writes the time to a given file, from a time record.
 
 ********************************************************************************/
 
-void pa_writetime(
+void writetime(
         /** file to write to */ FILE *f,
         /** time record to write from */ int t
 )
@@ -738,7 +863,7 @@ void pa_writetime(
 
     bufstr s;
 
-    pa_times(s, MAXSTR, t);   /* convert time to string form */
+    times(s, MAXSTR, t);   /* convert time to string form */
     fputs(s, f);   /* output */
 
 }
@@ -753,7 +878,7 @@ used by windows.
 
 ********************************************************************************/
 
-void pa_writedate(
+void writedate(
         /* file to write to */ FILE *f,
         /* time record to write from */ int t
 )
@@ -762,7 +887,7 @@ void pa_writedate(
 
     char s[MAXSTR];
 
-    pa_dates(s, MAXSTR, t);   /* convert date to string form */
+    dates(s, MAXSTR, t);   /* convert date to string form */
     fputs(s, f);   /* output */
 
 }
@@ -775,13 +900,13 @@ Finds the current time as an S2000 integer.
 
 ********************************************************************************/
 
-long pa_time(void)
+long time(void)
 
 {
 
     time_t r;   /* return value */
 
-    r = time(NULL); /* get current time */
+    r = _std_time(NULL); /* get current time */
     if (r < 0) unixerr();  /* process unix error */
 
     return ((int) r-UNIXADJ);   /* return S2000 time */
@@ -799,10 +924,10 @@ timezones.
 
 ********************************************************************************/
 
-long pa_local(long t)
+long local(long t)
 {
 
-    return t+pa_timezone()+pa_daysave()*HOURSEC;
+    return t+timezone()+daysave()*HOURSEC;
 
 }
 
@@ -827,7 +952,7 @@ has more than enough precision to count from 0 AD to present.
 
 ********************************************************************************/
 
-long pa_clock(void)
+long clock(void)
 
 {
 
@@ -854,13 +979,13 @@ time that can be measured is 24 hours.
 
 ********************************************************************************/
 
-long pa_elapsed(long r)
+long elapsed(long r)
 {
 
     /* reference time */
     int t;
 
-    t = pa_clock();   /* get the current time */
+    t = clock();   /* get the current time */
     if (t >= r) t -= r; /* time has not wrapped */
     else t += INT_MAX-r; /* time has wrapped */
 
@@ -880,7 +1005,7 @@ is null or all blanks
 
 ********************************************************************************/
 
-int pa_validfilel(
+int validfilel(
     /** string to validate */ char *s,
     /** length of filename string */ int l
 )
@@ -890,11 +1015,11 @@ int pa_validfilel(
     char buff[MAXSTR];
 
     cpstrl2z(buff, MAXSTR, s, l);
-    return (pa_validfile(buff));
+    return (validfile(buff));
 
 }
 
-int pa_validfile(
+int validfile(
     /* string to validate */ char *s
 )
 
@@ -921,7 +1046,7 @@ filename that is null or all blanks
 
 ********************************************************************************/
 
-int pa_validpathl(
+int validpathl(
     /** string to validate */ char *s,
     /** length of filename string */ int l
 )
@@ -931,11 +1056,11 @@ int pa_validpathl(
     char buff[MAXSTR];
 
     cpstrl2z(buff, MAXSTR, s, l);
-    return (pa_validpath(buff));
+    return (validpath(buff));
 
 }
 
-int pa_validpath(
+int validpath(
     /* string to validate */ char *s
 )
 
@@ -961,7 +1086,7 @@ on that directory.
 
 ********************************************************************************/
 
-int pa_wildl(
+int wildl(
     /** filename */ char *s,
     /** length of filename string */ int l
 )
@@ -971,11 +1096,11 @@ int pa_wildl(
     char buff[MAXSTR];
 
     cpstrl2z(buff, MAXSTR, s, l);
-    return (pa_wild(buff));
+    return (wild(buff));
 
 }
 
-int pa_wild(
+int wild(
     /* filename */ char *s
 )
 
@@ -991,7 +1116,7 @@ int pa_wild(
 
         /* search and flag wildcard characters */
         for (i = 0; i < ln; i++) { if (s[i] == '*' || s[i] == '?') r = 1; }
-        if (s[ln-1] == pa_pthchr()) r = 1; /* last was '/', it's wild */
+        if (s[ln-1] == pthchr()) r = 1; /* last was '/', it's wild */
 
     }
 
@@ -1038,7 +1163,7 @@ Returns an environment string by name.
 
 *******************************************************************************/
 
-void pa_getenvl(
+void getenvl(
     /** string name */        char* esn,
     /** name length  */       int esnl,
     /** string data */        char* esd,
@@ -1050,11 +1175,11 @@ void pa_getenvl(
     char buff[MAXSTR];
 
     cpstrl2z(buff, MAXSTR, esn, esnl);
-    pa_getenv(buff, esd, esdl);
+    getenv(buff, esd, esdl);
 
 }
 
-void pa_getenv(
+void getenv(
     /** string name */        char* esn,
     /** string data */        char* esd,
     /** string data length */ int esdl
@@ -1089,7 +1214,7 @@ Sets an environment string by name.
 
 ********************************************************************************/
 
-void pa_setenvl(
+void setenvl(
     /** name of string */      char *sn,
     /** length of name */      int snl,
     /** value of string */     char *sd,
@@ -1103,11 +1228,11 @@ void pa_setenvl(
 
     cpstrl2z(buff1, MAXSTR, sn, snl);
     cpstrl2z(buff2, MAXSTR, sd, sdl);
-    pa_setenv(buff1, buff2);
+    setenv(buff1, buff2);
 
 }
 
-void pa_setenv(
+void setenv(
     /** name of string */ char *sn,
     /** value of string */char *sd
 )
@@ -1174,7 +1299,7 @@ Removes an environment string by name.
 
 ********************************************************************************/
 
-void pa_remenvl(
+void remenvl(
     /** name of string */ char *sn,
     /** length of name string */ int snl  
 )
@@ -1184,12 +1309,12 @@ void pa_remenvl(
     char buff[MAXSTR];
 
     cpstrl2z(buff, MAXSTR, sn, snl);
-    pa_remenv(buff);
+    remenv(buff);
 
 }
 
 
-void pa_remenv(
+void remenv(
         /* name of string */ char *sn
 )
 
@@ -1235,7 +1360,7 @@ a copy.
 
 ********************************************************************************/
 
-void pa_allenv(
+void allenv(
     /* environment table */ pa_envrec **el
 )
 
@@ -1371,14 +1496,14 @@ void cmdpth(
 
     strcpy(ncn, cn); /* copy command to temp */
     /* perform pathing search */
-    pa_brknam(cn, p, MAXSTR, n, MAXSTR, e, MAXSTR); /* break down the name */
+    brknam(cn, p, MAXSTR, n, MAXSTR, e, MAXSTR); /* break down the name */
     if (*p == 0 && *pthstr != 0) { /* no path on name and environment path exists */
 
         strcpy(pc, pthstr);   /* make a copy of the path */
         trim(pc);   /* make sure left aligned */
         while (*pc != 0) {  /* match path components */
 
-            cp = strchr(pc, ':' /*pa_pthchr()*/); /* find next path separator */
+            cp = strchr(pc, ':' /*pthchr()*/); /* find next path separator */
             if (!cp) {  /* none left, use entire remaining */
 
                 strcpy(p, pc); /* none left, use entire remaining */
@@ -1391,7 +1516,7 @@ void cmdpth(
                 trim(pc); /* make sure left aligned */
 
             }
-            pa_maknam(ncn, MAXSTR, p, n, e);   /* create filename */
+            maknam(ncn, MAXSTR, p, n, e);   /* create filename */
             if (exists(ncn)) *pc = 0;  /* found, indicate stop */
 
         }
@@ -1415,7 +1540,7 @@ Executes a program by name. Does not wait for the program to complete.
 
 ********************************************************************************/
 
-void pa_execl(
+void execl(
     /** program name to execute */ char *cmd,
     /** length of name string */ int cmdl
 )
@@ -1425,11 +1550,11 @@ void pa_execl(
     char buff[MAXSTR];
 
     cpstrl2z(buff, MAXSTR, cmd, cmdl);
-    pa_exec(buff);
+    exec(buff);
 
 }
 
-void pa_exec(
+void exec(
     /* program name to execute */ char *cmd
 )
 
@@ -1477,7 +1602,7 @@ Executes a program by name. Waits for the program to complete.
 
 ********************************************************************************/
 
-void pa_execwl(
+void execwl(
     /** program name to execute */ char *cmd,
     /** length of name string */ int cmdl,
     /** return error */ int *err
@@ -1488,11 +1613,11 @@ void pa_execwl(
     char buff[MAXSTR];
 
     cpstrl2z(buff, MAXSTR, cmd, cmdl);
-    pa_execw(buff, err);
+    execw(buff, err);
 
 }
 
-void pa_execw(
+void execw(
     /** program name to execute */ char *cmd,
     /** return error */ int *err
 )
@@ -1547,7 +1672,7 @@ the program environment.
 
 ********************************************************************************/
 
-void pa_execel(
+void execel(
     /** program name to execute */ char *cmd,
     /** length of name string */   int cmdl,
     /** environment */             pa_envrec *el
@@ -1558,11 +1683,11 @@ void pa_execel(
     char buff[MAXSTR];
 
     cpstrl2z(buff, MAXSTR, cmd, cmdl);
-    pa_exece(buff, el);
+    exece(buff, el);
 
 }
 
-void pa_exece(
+void exece(
     /** program name to execute */ char      *cmd,
     /** environment */             pa_envrec *el
 )
@@ -1611,7 +1736,7 @@ program environment.
 
 ********************************************************************************/
 
-void pa_execewl(
+void execewl(
     /** program name to execute */ char *cmd,
     /** length of name string */   int cmdl,
     /** environment */             pa_envrec *el,
@@ -1623,11 +1748,11 @@ void pa_execewl(
     char buff[MAXSTR];
 
     cpstrl2z(buff, MAXSTR, cmd, cmdl);
-    pa_execew(buff, el, err);
+    execew(buff, el, err);
 
 }
 
-void pa_execew(
+void execew(
         /** program name to execute */ char *cmd,
         /** environment */             pa_envrec *el,
         /** return error */            int *err
@@ -1679,7 +1804,7 @@ Returns the current path in the given padded string.
 
 ********************************************************************************/
 
-void pa_getcur(
+void getcur(
         /** buffer to get path */ char *fn,
         /** length of buffer */   int l
 )
@@ -1699,7 +1824,7 @@ Sets the current path from the given string.
 
 ********************************************************************************/
 
-void pa_setcurl(
+void setcurl(
     /** path to set */ char *fn,
     /** length of path string */ int fnl
 
@@ -1710,11 +1835,11 @@ void pa_setcurl(
     char buff[MAXSTR];
 
     cpstrl2z(buff, MAXSTR, fn, fnl);
-    pa_setcur(buff);
+    setcur(buff);
 
 }
 
-void pa_setcur(
+void setcur(
     /** path to set */ char *fn
 )
 
@@ -1750,7 +1875,7 @@ were a normal character.
 
 ********************************************************************************/
 
-void pa_brknaml(
+void brknaml(
     /** file specification */ char *fn,
     /** file name length */   int fnl,
     /** path */               char *p, int pl,
@@ -1763,11 +1888,11 @@ void pa_brknaml(
     char buff[MAXSTR];
 
     cpstrl2z(buff, MAXSTR, fn, fnl);
-    pa_brknam(buff, p, pl, n, nl, e, el);
+    brknam(buff, p, pl, n, nl, e, el);
 
 }
 
-void pa_brknam(
+void brknam(
     /** file specification */ char *fn,
     /** path */               char *p, int pl,
     /** name */               char *n, int nl,
@@ -1788,7 +1913,7 @@ void pa_brknam(
     /* skip spaces */
     while (*s1 && *s1 == ' ') s1++;
     /* find last '/' that will mark the path */
-    s2 = strrchr(s1, pa_pthchr());
+    s2 = strrchr(s1, pthchr());
     if (s2) {
 
         /* there was a path, store that */
@@ -1852,7 +1977,7 @@ concatenating.
 
 ********************************************************************************/
 
-void pa_maknaml(
+void maknaml(
     /** file specification to build */ char *fn,
     /** file specification length */   int fnl,
     /** path */                        char *p,
@@ -1872,11 +1997,11 @@ void pa_maknaml(
     cpstrl2z(buff1, MAXSTR, p, pl);
     cpstrl2z(buff2, MAXSTR, n, nl);
     cpstrl2z(buff3, MAXSTR, e, el);
-    pa_maknam(fn, fnl, buff1, buff2, buff3);
+    maknam(fn, fnl, buff1, buff2, buff3);
 
 }
 
-void pa_maknam(
+void maknam(
     /** file specification to build */ char *fn,
     /** file specification length */   int fnl,
     /** path */                        char *p,
@@ -1895,10 +2020,10 @@ void pa_maknam(
     /* check path properly terminated */
     i = strlen(p);   /* find length */
     if (*p) /* not null */
-        if (p[i-1] != pa_pthchr()) {
+        if (p[i-1] != pthchr()) {
 
         if (strlen(fn)+1 > fnl) error("String too large for desination");
-        s[0] = pa_pthchr();
+        s[0] = pthchr();
         s[1] = 0;
         strcat(fn, s); /* add path separator */
 
@@ -1927,7 +2052,7 @@ No validity check is done. Garbage in, garbage out.
 
 ********************************************************************************/
 
-void pa_fulnam(
+void fulnam(
     /** filename */        char *fn,
     /** filename length */ int fnl
 )
@@ -1936,15 +2061,15 @@ void pa_fulnam(
     /* file specification */
     bufstr p, n, e, ps;   /* filespec components */
 
-    pa_brknam(fn, p, MAXSTR, n, MAXSTR, e, MAXSTR);   /* break spec down */
+    brknam(fn, p, MAXSTR, n, MAXSTR, e, MAXSTR);   /* break spec down */
     /* if the path is blank, then default to current */
     if (!*p) strcpy(p, ".");
-    pa_getcur(ps, MAXSTR);   /* save current path */
-    pa_setcur(p);   /* set candidate path */
-    pa_getcur(p, MAXSTR);   /* get washed path */
-    pa_setcur(ps);   /* reset old path */
+    getcur(ps, MAXSTR);   /* save current path */
+    setcur(p);   /* set candidate path */
+    getcur(p, MAXSTR);   /* get washed path */
+    setcur(ps);   /* reset old path */
     /* reassemble */
-    pa_maknam(fn, fnl, p, n, e);
+    maknam(fn, fnl, p, n, e);
 
 }
 
@@ -1962,7 +2087,7 @@ Note: this does not work for standard CLIB programs. We need another solution.
 
 ********************************************************************************/
 
-void pa_getpgm(
+void getpgm(
     /** program path */        char* p,
     /** program path length */ int   pl
 )
@@ -1982,8 +2107,8 @@ void pa_getpgm(
     _NSGetExecutablePath(pn, &bl);
 #endif
     cmdpth(pn, pcn, MAXSTR); /* get fully pathed command*/
-    pa_fulnam(pcn, MAXSTR);   /* clean that */
-    pa_brknam(pcn, p, pl, n, MAXSTR, e, MAXSTR); /* extract path from that */
+    fulnam(pcn, MAXSTR);   /* clean that */
+    brknam(pcn, p, pl, n, MAXSTR, e, MAXSTR); /* extract path from that */
 
 }
 
@@ -2010,7 +2135,7 @@ directory.
 
 ********************************************************************************/
 
-void pa_getusr(
+void getusr(
     /** pathname */        char *fn,
     /** pathname length */ int fnl
 )
@@ -2026,7 +2151,7 @@ void pa_getusr(
     /* find applicable environment names, in order */
     for (i = 0, f = -1; envnam[i] && f == -1; i++) {
 
-        pa_getenv(envnam[i], b, MAXSTR);
+        getenv(envnam[i], b, MAXSTR);
         if (*b && f < 0) f = i;
 
     }
@@ -2045,7 +2170,7 @@ void pa_getusr(
     } else {
 
         /* all fails, set to program path */
-        pa_getpgm(b, MAXSTR);
+        getpgm(b, MAXSTR);
 
     }
     strcpy(fn, b); /* place result */
@@ -2061,7 +2186,7 @@ possible. This is done with makpth.
 
 ********************************************************************************/
 
-void pa_setatrl(
+void setatrl(
     /** filename */ char *fn, 
     /** filename length */ int fnl,
     /** attributes */ pa_attrset a
@@ -2072,11 +2197,11 @@ void pa_setatrl(
     char buff[MAXSTR];
 
     cpstrl2z(buff, MAXSTR, fn, fnl);
-    pa_setatr(buff, a);
+    setatr(buff, a);
 
 }
 
-void pa_setatr(char *fn, pa_attrset a)
+void setatr(char *fn, pa_attrset a)
 {
 
     /* no unix attributes can be set */
@@ -2092,7 +2217,7 @@ possible.
 
 ********************************************************************************/
 
-void pa_resatrl(
+void resatrl(
     /** filename */ char *fn, 
     /** filename length */ int fnl,
     /** attributes */ pa_attrset a
@@ -2103,11 +2228,11 @@ void pa_resatrl(
     char buff[MAXSTR];
 
     cpstrl2z(buff, MAXSTR, fn, fnl);
-    pa_resatr(buff, a);
+    resatr(buff, a);
 
 }
 
-void pa_resatr(
+void resatr(
     /** filename */ char *fn, 
     /** attributes */ pa_attrset a
 )
@@ -2127,7 +2252,7 @@ which effectively means "back this file up now".
 
 ********************************************************************************/
 
-void pa_bakupdl(
+void bakupdl(
     /** filename */ char *fn,
     /** filename length */ int fnl
 )
@@ -2137,17 +2262,17 @@ void pa_bakupdl(
     char buff[MAXSTR];
 
     cpstrl2z(buff, MAXSTR, fn, fnl);
-    pa_bakupd(buff);
+    bakupd(buff);
 
 }
 
-void pa_bakupd(
+void bakupd(
     /** filename */ char *fn
 )
 
 {
 
-    pa_setatr(fn, BIT(pa_atarc));
+    setatr(fn, BIT(pa_atarc));
 
 }
 
@@ -2159,7 +2284,7 @@ Sets user permisions
 
 ********************************************************************************/
 
-void pa_setuperl(
+void setuperl(
     /** filename */ char *fn, 
     /** filename length */ int fnl,
     /** permissions */ pa_permset p
@@ -2170,11 +2295,11 @@ void pa_setuperl(
     char buff[MAXSTR];
 
     cpstrl2z(buff, MAXSTR, fn, fnl);
-    pa_setuper(buff, p);
+    setuper(buff, p);
 
 }
 
-void pa_setuper(
+void setuper(
     /** filename */ char *fn, 
     /** permissions */ pa_permset p
 )
@@ -2205,7 +2330,7 @@ Resets user permissions.
 
 ********************************************************************************/
 
-void pa_resuperl(
+void resuperl(
     /** filename */ char *fn, 
     /** filename length */ int fnl,
     /** permissions */ pa_permset p
@@ -2216,11 +2341,11 @@ void pa_resuperl(
     char buff[MAXSTR];
 
     cpstrl2z(buff, MAXSTR, fn, fnl);
-    pa_resuper(buff, p);
+    resuper(buff, p);
 
 }
 
-void pa_resuper(
+void resuper(
     /** filename */ char *fn, 
     /** permissions */ pa_permset p
 )
@@ -2250,7 +2375,7 @@ Sets group permissions.
 
 ********************************************************************************/
 
-void pa_setgperl(
+void setgperl(
     /** filename */ char *fn, 
     /** filename length */ int fnl,
     /** permissions */ pa_permset p
@@ -2261,11 +2386,11 @@ void pa_setgperl(
     char buff[MAXSTR];
 
     cpstrl2z(buff, MAXSTR, fn, fnl);
-    pa_setgper(buff, p);
+    setgper(buff, p);
 
 }
 
-void pa_setgper(
+void setgper(
     /** filename */ char *fn, 
     /** permissions */ pa_permset p
 )
@@ -2295,7 +2420,7 @@ Resets group permissions.
 
 ********************************************************************************/
 
-void pa_resgperl(
+void resgperl(
     /** filename */ char *fn, 
     /** filename length */ int fnl,
     /** permissions */ pa_permset p
@@ -2306,11 +2431,11 @@ void pa_resgperl(
     char buff[MAXSTR];
 
     cpstrl2z(buff, MAXSTR, fn, fnl);
-    pa_resgper(buff, p);
+    resgper(buff, p);
 
 }
 
-void pa_resgper(
+void resgper(
     /** filename */ char *fn, 
     /** permissions */ pa_permset p
 )
@@ -2338,7 +2463,7 @@ Sets other permissions.
 
 ********************************************************************************/
 
-void pa_setoperl(
+void setoperl(
     /** filename */ char *fn, 
     /** filename length */ int fnl,
     /** permissions */ pa_permset p
@@ -2349,11 +2474,11 @@ void pa_setoperl(
     char buff[MAXSTR];
 
     cpstrl2z(buff, MAXSTR, fn, fnl);
-    pa_setoper(buff, p);
+    setoper(buff, p);
 
 }
 
-void pa_setoper(
+void setoper(
     /** filename */ char *fn, 
     /** permissions */ pa_permset p
 )
@@ -2382,7 +2507,7 @@ Resets other permissions.
 
 ********************************************************************************/
 
-void pa_resoperl(
+void resoperl(
     /** filename */ char *fn, 
     /** filename length */ int fnl,
     /** permissions */ pa_permset p
@@ -2393,11 +2518,11 @@ void pa_resoperl(
     char buff[MAXSTR];
 
     cpstrl2z(buff, MAXSTR, fn, fnl);
-    pa_resoper(buff, p);
+    resoper(buff, p);
 
 }
 
-void pa_resoper(
+void resoper(
     /** filename */ char *fn, 
     /** permissions */ pa_permset p
 )
@@ -2426,7 +2551,7 @@ Create a new path. Only one new level at a time may be created.
 
 ********************************************************************************/
 
-void pa_makpthl(
+void makpthl(
     /** pathname */ char *fn,
     /** pathname length */ int fnl
 )
@@ -2436,11 +2561,11 @@ void pa_makpthl(
     char buff[MAXSTR];
 
     cpstrl2z(buff, MAXSTR, fn, fnl);
-    pa_makpth(buff);
+    makpth(buff);
 
 }
 
-void pa_makpth(
+void makpth(
     /** pathname */ char *fn
 )
 
@@ -2464,7 +2589,7 @@ Create a new path. Only one new level at a time may be deleted.
 
 ********************************************************************************/
 
-void pa_rempthl(
+void rempthl(
     /** pathname */ char *fn,
     /** pathname length */ int fnl
 )
@@ -2474,11 +2599,11 @@ void pa_rempthl(
     char buff[MAXSTR];
 
     cpstrl2z(buff, MAXSTR, fn, fnl);
-    pa_rempth(buff);
+    rempth(buff);
 
 }
 
-void pa_rempth(
+void rempth(
     /** pathname */ char *fn
 )
 
@@ -2515,7 +2640,7 @@ specials in these cases.
 
 ********************************************************************************/
 
-void pa_filchr(pa_chrset fc)
+void filchr(pa_chrset fc)
 {
 
     int i;
@@ -2538,7 +2663,7 @@ is overly cute and not common.
 
 ********************************************************************************/
 
-char pa_optchr(void)
+char optchr(void)
 {
     return '-';
 
@@ -2556,7 +2681,7 @@ separator as '\\'.
 
 *******************************************************************************/
 
-char pa_pthchr(void)
+char pthchr(void)
 {
 
     return '/';
@@ -2586,7 +2711,7 @@ host location.
 
 *******************************************************************************/
 
-int pa_latitude(void)
+int latitude(void)
 
 {
 
@@ -2613,7 +2738,7 @@ A mobile host is constantly reading its location (usually from a GPS).
 
 *******************************************************************************/
 
-int pa_longitude(void)
+int longitude(void)
 
 {
 
@@ -2648,7 +2773,7 @@ A mobile host is constantly reading its location (usually from a GPS).
 
 *******************************************************************************/
 
-int pa_altitude(void)
+int altitude(void)
 
 {
 
@@ -2666,11 +2791,11 @@ determined by latitude/longitude.
 
 *******************************************************************************/
 
-int pa_country(void)
+int country(void)
 
 {
 
-    return country; /* USA */
+    return curcountry; /* USA */
 
 }
 
@@ -2953,7 +3078,7 @@ countryety countrytab[] = {
 
 };
 
-void pa_countrys(
+void countrys(
     /** string buffer */           char* s,
     /** length of buffer */        int len,
     /** ISO 3166-1 country code */ int c)
@@ -2979,7 +3104,7 @@ negative for zones west of the prime meridian, and positive for zones east.
 
 *******************************************************************************/
 
-int pa_timezone(void)
+int timezone(void)
 
 {
 
@@ -2987,7 +3112,7 @@ int pa_timezone(void)
     struct tm gmt; /* time structure gmt */
     struct tm lcl; /* local time structure */
 
-    t = time(NULL); /* get seconds time */
+    t = _std_time(NULL); /* get seconds time */
     gmtime_r(&t, &gmt); /* get gmt */
     localtime_r(&t, &lcl); /* get local */
     nt = (lcl.tm_hour-gmt.tm_hour)*HOURSEC-(!!lcl.tm_isdst*HOURSEC);
@@ -3013,7 +3138,7 @@ Note that local() already takes daylight savings into account.
 
 *******************************************************************************/
 
-int pa_daysave(void)
+int daysave(void)
 
 
 {
@@ -3021,7 +3146,7 @@ int pa_daysave(void)
     time_t t; /* seconds time holder */
     struct tm* plcl; /* local time structure */
 
-    t = time(NULL); /* get seconds time */
+    t = _std_time(NULL); /* get seconds time */
     plcl = localtime(&t); /* get local */
 
     return !!plcl->tm_isdst; /* return dst active status */
@@ -3036,7 +3161,7 @@ Returns true if 24 hour time is in use in the current host location.
 
 *******************************************************************************/
 
-int pa_time24hour(void)
+int time24hour(void)
 
 {
 
@@ -3056,11 +3181,11 @@ necessarily be added at the end, and thus out of order.
 
 *******************************************************************************/
 
-int pa_language(void)
+int language(void)
 
 {
 
-    return language; /* english */
+    return curlanguage; /* english */
 
 }
 
@@ -3280,7 +3405,7 @@ static langety langtab[] = {
 
 };
 
-void pa_languages(
+void languages(
     /** string buffer */ char* s, 
     /** length of buffer */ int len, 
     /** language code */ int l
@@ -3306,7 +3431,7 @@ Finds the decimal point character of the host, which is generally '.' or ','.
 
 *******************************************************************************/
 
-char pa_decimal(void)
+char decimal(void)
 
 {
 
@@ -3323,7 +3448,7 @@ generally used to mark 3 digit groups, ie., 3,000,000.
 
 *******************************************************************************/
 
-char pa_numbersep(void)
+char numbersep(void)
 
 {
 
@@ -3352,7 +3477,7 @@ Note that times() compensates for this.
 
 *******************************************************************************/
 
-int pa_timeorder(void)
+int timeorder(void)
 
 {
 
@@ -3384,7 +3509,7 @@ Note that dates() compensates for this.
 
 *******************************************************************************/
 
-int pa_dateorder(void)
+int dateorder(void)
 
 {
 
@@ -3401,7 +3526,7 @@ Note that dates() uses this character.
 
 *******************************************************************************/
 
-char pa_datesep(void)
+char datesep(void)
 
 {
 
@@ -3419,7 +3544,7 @@ Note that times() uses this character.
 
 *******************************************************************************/
 
-char pa_timesep(void)
+char timesep(void)
 
 {
 
@@ -3435,7 +3560,7 @@ Finds the currency symbol of the host country.
 
 *******************************************************************************/
 
-char pa_currchr(void)
+char currchr(void)
 
 {
 
@@ -3467,7 +3592,7 @@ static void* dummystart(void *function)
 
 }
 
-int pa_newthread(void (*threadmain)(void))
+int newthread(void (*threadmain)(void))
 
 {
 
@@ -3508,7 +3633,7 @@ Creates a new concurrency lock and returns the logical id for it.
 
 *******************************************************************************/
 
-int pa_initlock(void)
+int initlock(void)
 
 {
 
@@ -3551,7 +3676,7 @@ Releases a concurrency lock by logical id.
 
 *******************************************************************************/
 
-void pa_deinitlock(int ln)
+void deinitlock(int ln)
 
 {
 
@@ -3580,7 +3705,7 @@ come first served.
 
 *******************************************************************************/
 
-void pa_lock(int ln)
+void lock(int ln)
 
 {
 
@@ -3607,7 +3732,7 @@ lock and that is in a runnable state is set to run.
 
 *******************************************************************************/
 
-void pa_unlock(int ln)
+void unlock(int ln)
 
 {
 
@@ -3632,7 +3757,7 @@ Creates a new concurrency signal and returns the logical id for it.
 
 *******************************************************************************/
 
-int pa_initsig(void)
+int initsig(void)
 
 {
 
@@ -3675,7 +3800,7 @@ Releases a concurrency lock by logical id.
 
 *******************************************************************************/
 
-void pa_deinitsig(int sn)
+void deinitsig(int sn)
 
 {
 
@@ -3703,7 +3828,7 @@ signal or just one is set to run by a signal.
 
 *******************************************************************************/
 
-void pa_sendsig(int sn)
+void sendsig(int sn)
 
 {
 
@@ -3734,7 +3859,7 @@ still active, and not just assume it.
 
 *******************************************************************************/
 
-void pa_sendsigone(int sn)
+void sendsigone(int sn)
 
 {
 
@@ -3765,7 +3890,7 @@ run, and thus the wait and signal operations are synchronized together.
 
 *******************************************************************************/
 
-void pa_waitsig(int ln, int sn)
+void waitsig(int ln, int sn)
 
 {
 
@@ -3851,14 +3976,14 @@ static void pa_init_services(int argc, char* argv[])
         envlst = p1;
 
      }
-    pa_getenv("PATH", pthstr, MAXSTR); /* load up the current path */
+    getenv("PATH", pthstr, MAXSTR); /* load up the current path */
     trim(pthstr); /* make sure left aligned */
-    pa_getenv("LANG", langstr, MAXSTR); /* get locale */
+    getenv("LANG", langstr, MAXSTR); /* get locale */
     trim(langstr); /* clean */
 
     /* set default language and country */
-    language = 30; /* english */
-    country = 840; /* USA */
+    curlanguage = 30; /* english */
+    curcountry = 840; /* USA */
 
     /* the (misnamed) LANG environment variable contains the locale in the
        format:
@@ -3885,7 +4010,7 @@ static void pa_init_services(int argc, char* argv[])
 
             if (!strncmp(langstr, lp->langnamea2c, 2)) {
 
-                language = lp->langnum;
+                curlanguage = lp->langnum;
                 lp = 0;
 
             } else lp++;
@@ -3898,7 +4023,7 @@ static void pa_init_services(int argc, char* argv[])
 
             if (!strncmp(&langstr[3], ctp->countrya2c, 2)) {
 
-                country = ctp->countrynum;
+                curcountry = ctp->countrynum;
                 ctp = 0;
 
             } else ctp++;
