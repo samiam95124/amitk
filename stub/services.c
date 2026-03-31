@@ -84,14 +84,14 @@ If no files are matched, the returned list is nil.
 
 ********************************************************************************/
 
-void services_list(
+void pa_list(
     /** file to search for */ char *fn,
-    /** file list returned */ services_filrec **l
+    /** file list returned */ pa_filrec **l
 )
 
 {
 
-    error("services_list: Is not implemented");
+    error("pa_list: Is not implemented");
 
 }
 
@@ -103,7 +103,7 @@ Converts the given time into a string.
 
 ********************************************************************************/
 
-void services_times(
+void pa_times(
     /** result string */           char *s,
     /** result string length */    int sl,
     /** time to convert */         int t
@@ -111,7 +111,7 @@ void services_times(
 
 {
 
-    error("services_times: Is not implemented");
+    error("pa_times: Is not implemented");
 
 }
 
@@ -123,7 +123,7 @@ Converts the given date into a string.
 
 ********************************************************************************/
 
-void services_dates(
+void pa_dates(
     /** string to place date into */   char *s,
     /** string to place date length */ int sl,
     /** time record to write from */   int t
@@ -131,7 +131,7 @@ void services_dates(
 
 {
 
-    error("services_dates: Is not implemented");
+    error("pa_dates: Is not implemented");
 
 }
 
@@ -143,14 +143,14 @@ Writes the time to a given file, from a time record.
 
 ********************************************************************************/
 
-void services_writetime(
+void pa_writetime(
         /** file to write to */ FILE *f,
         /** time record to write from */ int t
 )
 
 {
 
-    error("services_writetime: Is not implemented");
+    error("pa_writetime: Is not implemented");
 
 }
 
@@ -164,14 +164,14 @@ used by windows.
 
 ********************************************************************************/
 
-void services_writedate(
+void pa_writedate(
         /* file to write to */ FILE *f,
         /* time record to write from */ int t
 )
 
 {
 
-    error("services_writedate: Is not implemented");
+    error("pa_writedate: Is not implemented");
 
 }
 
@@ -183,11 +183,11 @@ Finds the current time as an S2000 integer.
 
 ********************************************************************************/
 
-long services_time(void)
+long pa_time(void)
 
 {
 
-    error("services_time: Is not implemented");
+    error("pa_time: Is not implemented");
 
     return (1); /* this just shuts up compiler */
 
@@ -203,10 +203,10 @@ timezones.
 
 ********************************************************************************/
 
-long services_local(long t)
+long pa_local(long t)
 {
 
-    error("services_local: Is not implemented");
+    error("pa_local: Is not implemented");
 
     return (1); /* this just shuts up compiler */
 
@@ -233,11 +233,11 @@ has more than enough precision to count from 0 AD to present.
 
 ********************************************************************************/
 
-long services_clock(void)
+long pa_clock(void)
 
 {
 
-    error("services_clock: Is not implemented");
+    error("pa_clock: Is not implemented");
 
     return (1); /* this just shuts up compiler */
 
@@ -253,10 +253,10 @@ time that can be measured is 24 hours.
 
 ********************************************************************************/
 
-long services_elapsed(long r)
+long pa_elapsed(long r)
 {
 
-    error("services_elapsed: Is not implemented");
+    error("pa_elapsed: Is not implemented");
 
     return (1); /* this just shuts up compiler */
 
@@ -274,13 +274,13 @@ is null or all blanks
 
 ********************************************************************************/
 
-int services_validfile(
+int pa_validfile(
     /* string to validate */ char *s
 )
 
 {
 
-    error("services_validfile: Is not implemented");
+    error("pa_validfile: Is not implemented");
 
     return (1); /* this just shuts up compiler */
 
@@ -297,13 +297,13 @@ filename that is null or all blanks
 
 ********************************************************************************/
 
-int services_validpath(
+int pa_validpath(
     /* string to validate */ char *s
 )
 
 {
 
-    error("services_validpath: Is not implemented");
+    error("pa_validpath: Is not implemented");
 
     return (1); /* this just shuts up compiler */
 
@@ -319,13 +319,13 @@ on that directory.
 
 ********************************************************************************/
 
-int services_wild(
+int pa_wild(
     /* filename */ char *s
 )
 
 {
 
-    error("services_wild: Is not implemented");
+    error("pa_wild: Is not implemented");
 
     return (1); /* this just shuts up compiler */
 
@@ -339,7 +339,7 @@ Returns an environment string by name.
 
 *******************************************************************************/
 
-void services_getenv(
+void pa_getenv(
     /** string name */        char* esn,
     /** string data */        char* esd,
     /** string data length */ int esdl
@@ -347,7 +347,7 @@ void services_getenv(
 
 {
 
-    error("services_getenv: Is not implemented");
+    error("pa_getenv: Is not implemented");
 
 }
 
@@ -359,14 +359,14 @@ Sets an environment string by name.
 
 ********************************************************************************/
 
-void services_setenv(
+void pa_setenv(
     /* name of string */ char *sn,
     /* value of string */char *sd
 )
 
 {
 
-    error("services_setenv: Is not implemented");
+    error("pa_setenv: Is not implemented");
 
 }
 
@@ -378,13 +378,13 @@ Removes an environment string by name.
 
 ********************************************************************************/
 
-void services_remenv(
+void pa_remenv(
         /* name of string */ char *sn
 )
 
 {
 
-    error("services_remenv: Is not implemented");
+    error("pa_remenv: Is not implemented");
 
 }
 
@@ -396,13 +396,13 @@ Returns a table with the entire environment string set in it.
 
 ********************************************************************************/
 
-void services_allenv(
-    /* environment table */ services_envrec **el
+void pa_allenv(
+    /* environment table */ pa_envrec **el
 )
 
 {
 
-    error("services_allenv: Is not implemented");
+    error("pa_allenv: Is not implemented");
 
 }
 
@@ -414,13 +414,13 @@ Executes a program by name. Does not wait for the program to complete.
 
 ********************************************************************************/
 
-void services_exec(
+void pa_exec(
     /* program name to execute */ char *cmd
 )
 
 {
 
-    error("services_exec: Is not implemented");
+    error("pa_exec: Is not implemented");
 
 }
 
@@ -432,14 +432,14 @@ Executes a program by name. Waits for the program to complete.
 
 ********************************************************************************/
 
-void services_execw(
+void pa_execw(
     /* program name to execute */ char *cmd,
     /* return error */            int *err
 )
 
 {
 
-    error("services_execw: Is not implemented");
+    error("pa_execw: Is not implemented");
 
 }
 
@@ -452,14 +452,14 @@ the program environment.
 
 ********************************************************************************/
 
-void services_exece(
+void pa_exece(
     /* program name to execute */ char      *cmd,
-    /* environment */             services_envrec *el
+    /* environment */             pa_envrec *el
 )
 
 {
 
-    error("services_exece: Is not implemented");
+    error("pa_exece: Is not implemented");
 }
 
 
@@ -472,15 +472,15 @@ program environment.
 
 ********************************************************************************/
 
-void services_execew(
+void pa_execew(
         /* program name to execute */ char*      cmd,
-        /* environment */             services_envrec* el,
+        /* environment */             pa_envrec* el,
         /* return error */            int*       err
 )
 
 {
 
-    error("services_execew: Is not implemented");
+    error("pa_execew: Is not implemented");
 
 }
 
@@ -492,14 +492,14 @@ Returns the current path in the given padded string.
 
 ********************************************************************************/
 
-void services_getcur(
+void pa_getcur(
         /** buffer to get path */ char *pn,
         /** length of buffer */   int l
 )
 
 {
 
-    error("services_getcur: Is not implemented");
+    error("pa_getcur: Is not implemented");
 
 }
 
@@ -511,13 +511,13 @@ Sets the current path from the given string.
 
 ********************************************************************************/
 
-void services_setcur(
+void pa_setcur(
         /* path to set */ char *fn
 )
 
 {
 
-    error("services_setcur: Is not implemented");
+    error("pa_setcur: Is not implemented");
 
 }
 
@@ -544,7 +544,7 @@ were a normal character.
 
 ********************************************************************************/
 
-void services_brknam(
+void pa_brknam(
         /* file specification */ char *fn,
         /* path */               char *p, int pl,
         /* name */               char *n, int nl,
@@ -553,7 +553,7 @@ void services_brknam(
 
 {
 
-    error("services_brknam: Is not implemented");
+    error("pa_brknam: Is not implemented");
 
 }
 
@@ -567,7 +567,7 @@ concatenating.
 
 ********************************************************************************/
 
-void services_maknam(
+void pa_maknam(
     /** file specification to build */ char *fn,
     /** file specification length */   int fnl,
     /** path */                        char *p,
@@ -577,7 +577,7 @@ void services_maknam(
 
 {
 
-    error("services_maknam: Is not implemented");
+    error("pa_maknam: Is not implemented");
 
 }
 
@@ -591,13 +591,13 @@ No validity check is done. Garbage in, garbage out.
 
 ********************************************************************************/
 
-void services_fulnam(
+void pa_fulnam(
     /** filename */        char *fn,
     /** filename length */ int fnl
 )
 {
 
-    error("services_fulnam: Is not implemented");
+    error("pa_fulnam: Is not implemented");
 
 }
 
@@ -610,13 +610,13 @@ extract the program path from that.
 
 ********************************************************************************/
 
-void services_getpgm(
+void pa_getpgm(
     /** program path */        char* p,
     /** program path length */ int   pl
 )
 {
 
-    error("services_getpgm: Is not implemented");
+    error("pa_getpgm: Is not implemented");
 
 }
 
@@ -643,14 +643,14 @@ directory.
 
 ********************************************************************************/
 
-void services_getusr(
+void pa_getusr(
     /** pathname */        char *fn,
     /** pathname length */ int fnl
 )
 
 {
 
-    error("services_getusr: Is not implemented");
+    error("pa_getusr: Is not implemented");
 
 }
 
@@ -663,11 +663,11 @@ possible. This is done with makpth.
 
 ********************************************************************************/
 
-void services_setatr(char *fn, services_attrset a)
+void pa_setatr(char *fn, pa_attrset a)
 
 {
 
-    error("services_setatr: Is not implemented");
+    error("pa_setatr: Is not implemented");
 
 }
 
@@ -680,10 +680,10 @@ possible.
 
 ********************************************************************************/
 
-void services_resatr(char *fn, services_attrset a)
+void pa_resatr(char *fn, pa_attrset a)
 {
 
-    error("services_resatr: Is not implemented");
+    error("pa_resatr: Is not implemented");
 
 }
 
@@ -696,10 +696,10 @@ which effectively means "back this file up now".
 
 ********************************************************************************/
 
-void services_bakupd(char *fn)
+void pa_bakupd(char *fn)
 {
 
-    error("services_bakupd: Is not implemented");
+    error("pa_bakupd: Is not implemented");
 
 }
 
@@ -711,11 +711,11 @@ Sets user permisions
 
 ********************************************************************************/
 
-void services_setuper(char *fn, services_permset p)
+void pa_setuper(char *fn, pa_permset p)
 
 {
 
-    error("services_setuper: Is not implemented");
+    error("pa_setuper: Is not implemented");
 
 }
 
@@ -728,11 +728,11 @@ Resets user permissions.
 
 ********************************************************************************/
 
-void services_resuper(char *fn, services_permset p)
+void pa_resuper(char *fn, pa_permset p)
 
 {
 
-    error("services_resuper: Is not implemented");
+    error("pa_resuper: Is not implemented");
 
 }
 
@@ -744,11 +744,11 @@ Sets group permissions.
 
 ********************************************************************************/
 
-void services_setgper(char *fn, services_permset p)
+void pa_setgper(char *fn, pa_permset p)
 
 {
 
-    error("services_setgper: Is not implemented");
+    error("pa_setgper: Is not implemented");
 
 }
 
@@ -760,11 +760,11 @@ Resets group permissions.
 
 ********************************************************************************/
 
-void services_resgper(char *fn, services_permset p)
+void pa_resgper(char *fn, pa_permset p)
 
 {
 
-    error("services_resgper: Is not implemented");
+    error("pa_resgper: Is not implemented");
 
 }
 
@@ -776,11 +776,11 @@ Sets other permissions.
 
 ********************************************************************************/
 
-void services_setoper(char *fn, services_permset p)
+void pa_setoper(char *fn, pa_permset p)
 
 {
 
-    error("services_setoper: Is not implemented");
+    error("pa_setoper: Is not implemented");
 
 }
 
@@ -792,10 +792,10 @@ Resets other permissions.
 
 ********************************************************************************/
 
-void services_resoper(char *fn, services_permset p)
+void pa_resoper(char *fn, pa_permset p)
 {
 
-    error("services_resoper: Is not implemented");
+    error("pa_resoper: Is not implemented");
 
 }
 
@@ -807,10 +807,10 @@ Create a new path. Only one new level at a time may be created.
 
 ********************************************************************************/
 
-void services_makpth(char *fn)
+void pa_makpth(char *fn)
 {
 
-    error("services_makpth: Is not implemented");
+    error("pa_makpth: Is not implemented");
 
 }
 
@@ -822,10 +822,10 @@ Create a new path. Only one new level at a time may be deleted.
 
 ********************************************************************************/
 
-void services_rempth(char *fn)
+void pa_rempth(char *fn)
 {
 
-    error("services_rempth: Is not implemented");
+    error("pa_rempth: Is not implemented");
 
 }
 
@@ -856,10 +856,10 @@ specials in these cases.
 
 ********************************************************************************/
 
-void services_filchr(services_chrset fc)
+void pa_filchr(pa_chrset fc)
 {
 
-    error("services_chrset: Is not implemented");
+    error("pa_chrset: Is not implemented");
 
 }
 
@@ -873,10 +873,10 @@ is overly cute and not common.
 
 ********************************************************************************/
 
-char services_optchr(void)
+char pa_optchr(void)
 {
 
-    error("services_optchr: Is not implemented");
+    error("pa_optchr: Is not implemented");
 
     return (' '); /* this just shuts up compiler */
 
@@ -894,10 +894,10 @@ separator as '\\'.
 
 *******************************************************************************/
 
-char services_pthchr(void)
+char pa_pthchr(void)
 {
 
-    error("services_pthchr: Is not implemented");
+    error("pa_pthchr: Is not implemented");
 
     return (' '); /* this just shuts up compiler */
 
@@ -926,11 +926,11 @@ host location.
 
 *******************************************************************************/
 
-int services_latitude(void)
+int pa_latitude(void)
 
 {
 
-    error("services_latitude: Is not implemented");
+    error("pa_latitude: Is not implemented");
 
     return (1); /* this just shuts up compiler */
 
@@ -955,11 +955,11 @@ A mobile host is constantly reading its location (usually from a GPS).
 
 *******************************************************************************/
 
-int services_longitude(void)
+int pa_longitude(void)
 
 {
 
-    error("services_longitude: Is not implemented");
+    error("pa_longitude: Is not implemented");
 
     return (1); /* this just shuts up compiler */
 
@@ -992,11 +992,11 @@ A mobile host is constantly reading its location (usually from a GPS).
 
 *******************************************************************************/
 
-int services_altitude(void)
+int pa_altitude(void)
 
 {
 
-    error("services_altitude: Is not implemented");
+    error("pa_altitude: Is not implemented");
 
     return (1); /* this just shuts up compiler */
 
@@ -1012,11 +1012,11 @@ determined by latitude/longitude.
 
 *******************************************************************************/
 
-int services_country(void)
+int pa_country(void)
 
 {
 
-    error("services_country: Is not implemented");
+    error("pa_country: Is not implemented");
 
     return (1); /* this just shuts up compiler */
 
@@ -1037,14 +1037,14 @@ Note that the 2 letter codes happen to also be the Internet location codes
 
 *******************************************************************************/
 
-void services_countrys(
+void pa_countrys(
     /** string buffer */           char* s,
     /** length of buffer */        int len,
     /** ISO 3166-1 country code */ int c)
 
 {
 
-    error("services_countrys: Is not implemented");
+    error("pa_countrys: Is not implemented");
 
 }
 
@@ -1057,11 +1057,11 @@ negative for zones west of the prime meridian, and positive for zones east.
 
 *******************************************************************************/
 
-int services_timezone(void)
+int pa_timezone(void)
 
 {
 
-    error("services_timezone: Is not implemented");
+    error("pa_timezone: Is not implemented");
 
     return (1); /* this just shuts up compiler */
 
@@ -1083,12 +1083,12 @@ Note that local() already takes daylight savings into account.
 
 *******************************************************************************/
 
-int services_daysave(void)
+int pa_daysave(void)
 
 
 {
 
-    error("services_daysave: Is not implemented");
+    error("pa_daysave: Is not implemented");
 
     return (1); /* this just shuts up compiler */
 
@@ -1102,11 +1102,11 @@ Returns true if 24 hour time is in use in the current host location.
 
 *******************************************************************************/
 
-int services_time24hour(void)
+int pa_time24hour(void)
 
 {
 
-    error("services_time24hour: Is not implemented");
+    error("pa_time24hour: Is not implemented");
 
     return (1); /* this just shuts up compiler */
 
@@ -1124,11 +1124,11 @@ necessarily be added at the end, and thus out of order.
 
 *******************************************************************************/
 
-int services_language(void)
+int pa_language(void)
 
 {
 
-    error("services_language: Is not implemented");
+    error("pa_language: Is not implemented");
 
     return (1); /* this just shuts up compiler */
 
@@ -1151,11 +1151,11 @@ additions. Once a language is assigned a number it keeps it.
 
 *******************************************************************************/
 
-void services_languages(char* s, int len, int l)
+void pa_languages(char* s, int len, int l)
 
 {
 
-    error("services_languages: Is not implemented");
+    error("pa_languages: Is not implemented");
 
 }
 
@@ -1167,11 +1167,11 @@ Finds the decimal point character of the host, which is generally '.' or ','.
 
 *******************************************************************************/
 
-char services_decimal(void)
+char pa_decimal(void)
 
 {
 
-    error("services_decimal: Is not implemented");
+    error("pa_decimal: Is not implemented");
 
     return (' '); /* this just shuts up compiler */
 
@@ -1186,11 +1186,11 @@ generally used to mark 3 digit groups, ie., 3,000,000.
 
 *******************************************************************************/
 
-char services_numbersep(void)
+char pa_numbersep(void)
 
 {
 
-    error("services_numbersep: Is not implemented");
+    error("pa_numbersep: Is not implemented");
 
     return (' '); /* this just shuts up compiler */
 
@@ -1217,11 +1217,11 @@ Note that times() compensates for this.
 
 *******************************************************************************/
 
-int services_timeorder(void)
+int pa_timeorder(void)
 
 {
 
-    error("services_timeorder: Is not implemented");
+    error("pa_timeorder: Is not implemented");
 
     return (1); /* this just shuts up compiler */
 
@@ -1251,11 +1251,11 @@ Note that dates() compensates for this.
 
 *******************************************************************************/
 
-int services_dateorder(void)
+int pa_dateorder(void)
 
 {
 
-    error("services_dateorder: Is not implemented");
+    error("pa_dateorder: Is not implemented");
 
     return (1); /* this just shuts up compiler */
 
@@ -1270,11 +1270,11 @@ Note that dates() uses this character.
 
 *******************************************************************************/
 
-char services_datesep(void)
+char pa_datesep(void)
 
 {
 
-    error("services_datesep: Is not implemented");
+    error("pa_datesep: Is not implemented");
 
     return (' '); /* this just shuts up compiler */
 
@@ -1290,11 +1290,11 @@ Note that times() uses this character.
 
 *******************************************************************************/
 
-char services_timesep(void)
+char pa_timesep(void)
 
 {
 
-    error("services_timesep: Is not implemented");
+    error("pa_timesep: Is not implemented");
 
     return (' '); /* this just shuts up compiler */
 
@@ -1308,11 +1308,11 @@ Finds the currency symbol of the host country.
 
 *******************************************************************************/
 
-char services_currchr(void)
+char pa_currchr(void)
 
 {
 
-    error("services_currchr: Is not implemented");
+    error("pa_currchr: Is not implemented");
 
     return (' '); /* this just shuts up compiler */
 

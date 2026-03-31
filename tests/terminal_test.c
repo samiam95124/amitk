@@ -258,11 +258,11 @@ static void timetest(void)
     total = 0;
     for (i = 1; i <= 100; i++) {
 
-        t = services_clock();
+        t = pa_clock();
         pa_timer(stdout, 1, 1, 0);
         do { putchar('*'); pa_event(stdin, &er); } while (er.etype != pa_ettim);
-        et = services_elapsed(t);
-        total += services_elapsed(t);
+        et = pa_elapsed(t);
+        total += pa_elapsed(t);
         if (et > max) max = et;
         if (et < min) min = et;
 
@@ -274,10 +274,10 @@ static void timetest(void)
     printf("Maximum time was: %d00 Microseconds\n", max);
     printf("This timer supports frame rates up to %ld", 10000 / (total / 100));
     printf(" frames per second\n");
-    t = services_clock();
+    t = pa_clock();
     pa_timer(stdout, 1, 10000, 0);
     do { pa_event(stdin, &er); } while (er.etype != pa_ettim);
-    printf("1 second time, was: %ld00 Microseconds\n", services_elapsed(t));
+    printf("1 second time, was: %ld00 Microseconds\n", pa_elapsed(t));
     printf("\n");
     printf("30 seconds of 1 second ticks:\n");
     printf("\n");
@@ -308,10 +308,10 @@ static void frametest(void)
     total = 0;
     for (i = 1; i <= 10; i++) {
 
-        t = services_clock();
+        t = pa_clock();
         do { putchar('.'); pa_event(stdin, &er); } while (er.etype != pa_etframe);
-        et = services_elapsed(t);
-        total += services_elapsed(t);
+        et = pa_elapsed(t);
+        total += pa_elapsed(t);
         if (et > max) max = et;
         if (et < min) min = et;
 
@@ -424,20 +424,20 @@ void eventthread(void)
     stop = FALSE; /* set no stop */
     do { pa_event(stdin, &er);
 
-        services_lock(ln);
+        pa_lock(ln);
         if (er.etype == pa_ettim) {
 
-            if (er.timnum == 1) services_sendsig(timeout1);
-            else if (er.timnum == 2) services_sendsig(timeout2);
+            if (er.timnum == 1) pa_sendsig(timeout1);
+            else if (er.timnum == 2) pa_sendsig(timeout2);
 
         }
         stop = ethdstp;
-        services_unlock(ln);
+        pa_unlock(ln);
 
     } while (!stop);
-    services_lock(ln);
-    services_sendsig(esn); /* signal thread complete */
-    services_unlock(ln);
+    pa_lock(ln);
+    pa_sendsig(esn); /* signal thread complete */
+    pa_unlock(ln);
 
 }
 
@@ -457,23 +457,23 @@ void thread(void)
         i = 1;
         for (i = 0; i < 10; i++) {
 
-            services_lock(ln);
+            pa_lock(ln);
             box(x-i, y-i, x+i, y+i, '*');
-            services_waitsig(ln, timeout2);
+            pa_waitsig(ln, timeout2);
             box(x-i, y-i, x+i, y+i, ' ');
-            services_unlock(ln);
+            pa_unlock(ln);
             i++;
 
         }
-        services_lock(ln);
+        pa_lock(ln);
         stop = thdstp;
-        services_unlock(ln);
+        pa_unlock(ln);
 
 
     }
-    services_lock(ln);
-    services_sendsig(sn); /* signal thread complete */
-    services_unlock(ln);
+    pa_lock(ln);
+    pa_sendsig(sn); /* signal thread complete */
+    pa_unlock(ln);
 
 }
 
@@ -1377,13 +1377,13 @@ int main(int argc, char *argv[])
     prtcen(pa_maxy(stdout), "Threading test");
     thdstp = FALSE;
     ethdstp = FALSE;
-    ln = services_initlock();
-    sn = services_initsig();
-    esn = services_initsig();
-    timeout1 = services_initsig();
-    timeout2 = services_initsig();
-    tn = services_newthread(thread);
-    etn = services_newthread(eventthread);
+    ln = pa_initlock();
+    sn = pa_initsig();
+    esn = pa_initsig();
+    timeout1 = pa_initsig();
+    timeout2 = pa_initsig();
+    tn = pa_newthread(thread);
+    etn = pa_newthread(eventthread);
     pa_timer(stdout, 1, SECOND/10, TRUE);
     pa_timer(stdout, 2, SECOND/10, TRUE);
     x = pa_maxx(stdout)/3;
@@ -1393,30 +1393,30 @@ int main(int argc, char *argv[])
         i = 1;
         for (i = 0; i < 10; i++) {
 
-            services_lock(ln);
+            pa_lock(ln);
             box(x-i, y-i, x+i, y+i, '*');
-            services_waitsig(ln, timeout1);
+            pa_waitsig(ln, timeout1);
             box(x-i, y-i, x+i, y+i, ' ');
-            services_unlock(ln);
+            pa_unlock(ln);
             i++;
 
         }
 
     }
     /* stop subthread */
-    services_lock(ln);
+    pa_lock(ln);
     thdstp = TRUE;
-    services_waitsig(ln, sn);
-    services_unlock(ln);
+    pa_waitsig(ln, sn);
+    pa_unlock(ln);
     /* stop event thread */
-    services_lock(ln);
+    pa_lock(ln);
     ethdstp = TRUE;
-    services_waitsig(ln, esn);
-    services_unlock(ln);
+    pa_waitsig(ln, esn);
+    pa_unlock(ln);
     pa_killtimer(stdout, 1);
     pa_killtimer(stdout, 2);
     pa_cursor(stdout, 1, 3);
-    services_deinitlock(ln);
+    pa_deinitlock(ln);
     printf("Test complete!\n");
     waitnext();
     pa_auto(stdout, TRUE);
@@ -1597,7 +1597,7 @@ int main(int argc, char *argv[])
 
     printf("\f");
     pa_curvis(stdout, FALSE);
-    clk = services_clock();   /* get reference time */
+    clk = pa_clock();   /* get reference time */
     c = '\0';   /* initalize character value */
     cnt = 0;   /* clear character count */
     maxx = pa_maxx(stdout);
@@ -1615,7 +1615,7 @@ int main(int argc, char *argv[])
         }
 
     }
-    clk = services_elapsed(clk);   /* find elapsed time */
+    clk = pa_elapsed(clk);   /* find elapsed time */
     benchtab[bncharw].iter = cnt;
     benchtab[bncharw].time = clk;
     printf("\f");
@@ -1638,7 +1638,7 @@ int main(int argc, char *argv[])
 
     }
     prtban("Scrolling speed test");
-    clk = services_clock(); /* get reference time */
+    clk = pa_clock(); /* get reference time */
     cnt = 0; /* clear count */
     for (i = 1; i <= 100; i++) { /* scroll various directions */
 
@@ -1663,7 +1663,7 @@ int main(int argc, char *argv[])
         cnt += 19; /* count all scrolls */
 
     }
-    clk = services_elapsed(clk);   /* find elapsed time */
+    clk = pa_elapsed(clk);   /* find elapsed time */
     benchtab[bnscroll].iter = cnt;
     benchtab[bnscroll].time = clk;
     printf("\f");
@@ -1684,7 +1684,7 @@ int main(int argc, char *argv[])
 
     }
 
-    clk = services_clock();   /* get reference time */
+    clk = pa_clock();   /* get reference time */
     for (i = 1; i <= 100; i++) /* flip buffers */
     for (b = 2; b <= 10; b++) {
 
@@ -1692,7 +1692,7 @@ int main(int argc, char *argv[])
         cnt++;
 
     }
-    clk = services_elapsed(clk);   /* find elapsed time */
+    clk = pa_elapsed(clk);   /* find elapsed time */
     benchtab[bnbuffer].iter = cnt;
     benchtab[bnbuffer].time = clk;
     pa_select(stdout, 2, 2);   /* restore buffer select */
