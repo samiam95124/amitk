@@ -26,56 +26,70 @@ extern "C" {
 
 /*
  * This block of defines will "coin" all of the plain labeled stdio calls and
- * make them pa_ coined names. This allows the stio calls to exist in parallel
- * with the built-in stio package.
+ * make them stdio_ coined names. This allows the stio calls to exist in 
+ * parallel with the built-in stio package.
+ *
+ * Some systems don't need this (Windows, Mac OS X) because they can override
+ * at link time.
  */
 
-#ifdef PA_COIN_NAMES
+#ifdef STDIO_BYPASS
 
-#define fopen       pa_fopen
-#define freopen     pa_freopen
-#define fdopen      pa_fdopen
-#define fflush      pa_fflush
-#define fclose      pa_fclose
-#define remove      pa_remove
-#define rename      pa_rename
-#define tmpfile     pa_tmpfile
-#define tmpnam      pa_tmpnam
-#define setvbuf     pa_setvbuf
-#define setbuf      pa_setbuf
-#define fprintf     pa_fprintf
-#define printf      pa_printf
-#define sprintf     pa_sprintf
-#define vprintf     pa_vprintf
-#define vfprintf    pa_vfprintf
-#define vsprintf    pa_vsprintf
-#define scanf       pa_scanf
-#define scanf       pa_scanf
-#define sscanf      pa_sscanf
-#define fgetc       pa_fgetc
-#define getc        pa_getc
-#define fgets       pa_fgets
-#define fputc       pa_fputc
-#define fputs       pa_fputs
-#define putc        pa_putc
-#define getchar     pa_getchar
-#define gets        pa_gets
-#define putc        pa_putc
-#define putchar     pa_putchar
-#define puts        pa_puts
-#define ungetc      pa_ungetc
-#define fread       pa_fread
-#define fwrite      pa_fwrite
-#define fseek       pa_fseek
-#define ftell       pa_ftell
-#define rewind      pa_rewind
-#define fgetpos     pa_fgetpos
-#define fsetpos     pa_fsetpos
-#define clearerr    pa_clearerr
-#define feof        pa_feof
-#define ferror      pa_ferror
-#define perror      pa_perror
-#define fileno      pa_fileno
+/*
+* Functions
+*/
+#define fopen       stdio_fopen
+#define freopen     stdio_freopen
+#define fdopen      stdio_fdopen
+#define fflush      stdio_fflush
+#define fclose      stdio_fclose
+#define remove      stdio_remove
+#define rename      stdio_rename
+#define tmpfile     stdio_tmpfile
+#define tmpnam      stdio_tmpnam
+#define setvbuf     stdio_setvbuf
+#define setbuf      stdio_setbuf
+#define fprintf     stdio_fprintf
+#define printf      stdio_printf
+#define sprintf     stdio_sprintf
+#define vprintf     stdio_vprintf
+#define vfprintf    stdio_vfprintf
+#define vsprintf    stdio_vsprintf
+#define fscanf      stdio_fscanf
+#define scanf       stdio_scanf
+#define sscanf      stdio_sscanf
+#define fgetc       stdio_fgetc
+#define getc        stdio_getc
+#define fgets       stdio_fgets
+#define fputc       stdio_fputc
+#define fputs       stdio_fputs
+#define putc        stdio_putc
+#define getchar     stdio_getchar
+#define gets        stdio_gets
+#define putc        stdio_putc
+#define putchar     stdio_putchar
+#define puts        stdio_puts
+#define ungetc      stdio_ungetc
+#define fread       stdio_fread
+#define fwrite      stdio_fwrite
+#define fseek       stdio_fseek
+#define ftell       stdio_ftell
+#define rewind      stdio_rewind
+#define fgetpos     stdio_fgetpos
+#define fsetpos     stdio_fsetpos
+#define clearerr    stdio_clearerr
+#define feof        stdio_feof
+#define ferror      stdio_ferror
+#define perror      stdio_perror
+#define fileno      stdio_fileno
+
+/*
+ * Declarations
+ */
+#define FILE        STDIO_FILE
+#define stdin       stdio_stdin
+#define stdout      stdio_stdout
+#define stderr      stdio_err
 
 #endif
 
@@ -146,31 +160,9 @@ int fscanf(FILE* stream, const char *format, ...);
 int scanf(const char* format, ...);
 int sscanf(const char* s, const char *format, ...);
 int fgetc(FILE *stream);
-
-#ifdef USEMACRO
-#ifdef PA_COIN_NAMES
-#define pa_getc(fp) (pa_fgetc(fp))
-#else
-#define getc(fp) (fgetc(fp))
-#endif
-#else
-int getc(FILE *stream);
-#endif
-
 char *fgets(char *s, int n, FILE *stream);
 int fputc(int c, FILE *stream);
 int fputs(const char *s, FILE *stream);
-
-#ifdef USEMACRO
-#ifdef PA_COIN_NAMES
-#define pa_putc(c, fp) pa_fputc(c, fp)
-#else
-#define putc(c, fp) fputc(c, fp)
-#endif
-#else
-int putc(int c, FILE *stream);
-#endif
-
 int getchar(void);
 char *gets(char *s);
 int putc(int c, FILE *stream);
