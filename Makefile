@@ -1332,7 +1332,13 @@ line5: $(GLIBSD) graph_programs/line5.c
 #
 clock: $(GLIBSD) graph_programs/clock.c
 	$(CC) $(CFLAGS) graph_programs/clock.c $(GLIBS) -o bin/clock
-	
+
+#
+# Chess game
+#
+chess: $(GLIBSD) graph_games/chess.c
+	$(CC) $(CFLAGS) graph_games/chess.c $(GLIBS) -o bin/chess
+
 ################################################################################
 #
 # Clean target
