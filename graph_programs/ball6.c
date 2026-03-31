@@ -26,7 +26,7 @@ typedef struct balrec { /* ball data record */
     int      x, y;   /* current position */
     int      lx, ly; /* last position */
     int      xd, yd; /* deltas */
-    pa_color c;      /* pa_color */
+    ami_color c;      /* ami_color */
 
 } balrec;
 
@@ -37,8 +37,8 @@ int      nx, ny;          /* temp coordinates holders */
 int      rc;              /* repetition counter */
 int      ballsize;        /* size of ball onscreen */
 int      halfball;        /* half size of ball */
-pa_color cc;              /* pa_color assignment counter */
-pa_note  n;               /* note variable */
+ami_color cc;              /* ami_color assignment counter */
+ami_note  n;               /* note variable */
 int      bounce;          /* a bounce took place */
 int      wavtim;          /* wave output timer */
 
@@ -46,13 +46,13 @@ int chkbrk(void)
 
 {
 
-    pa_evtrec er;
+    ami_evtrec er;
     int cancel;
 
     cancel = FALSE;
-    do { pa_event(stdin, &er); }
-    while (er.etype != pa_etframe && er.etype != pa_etterm);
-    if (er.etype == pa_etterm) cancel = TRUE;
+    do { ami_event(stdin, &er); }
+    while (er.etype != ami_etframe && er.etype != ami_etterm);
+    if (er.etype == ami_etterm) cancel = TRUE;
 
     return (cancel);
 
@@ -84,7 +84,7 @@ void drawball(int x, int y, int s)
     int hs;
 
     hs = s / 2;
-    pa_fellipse(stdout, x-hs, y-hs, x+hs, y+hs);
+    ami_fellipse(stdout, x-hs, y-hs, x+hs, y+hs);
 
 }
 
@@ -128,7 +128,7 @@ void drawsball(int x, int y, int size, int o, int steps, int r, int g, int b)
     shad = INT_MAX/2/steps; /* find shading steps */
     for (i = 1; i <= steps; i++) {
 
-        pa_fcolorg(stdout, level(r, steps, shad, i), level(g, steps, shad, i),
+        ami_fcolorg(stdout, level(r, steps, shad, i), level(g, steps, shad, i),
                    level(b, steps, shad, i));
         k = round((i-1)*((float)size/steps));
         q = round((i-1)*(offs/steps));
@@ -138,39 +138,39 @@ void drawsball(int x, int y, int size, int o, int steps, int r, int g, int b)
 
 }
 
-int redv(pa_color c)
+int redv(ami_color c)
 
 {
 
     int cv;
 
-    if (c == pa_red || c == pa_magenta || c == pa_yellow) cv = INT_MAX;
+    if (c == ami_red || c == ami_magenta || c == ami_yellow) cv = INT_MAX;
     else cv = 0;
 
     return (cv);
 
 }
 
-int greenv(pa_color c)
+int greenv(ami_color c)
 
 {
 
     int cv;
 
-    if (c == pa_green || c == pa_yellow || c == pa_cyan) cv = INT_MAX;
+    if (c == ami_green || c == ami_yellow || c == ami_cyan) cv = INT_MAX;
     else cv = 0;
 
     return (cv);
 
 }
 
-int bluev(pa_color c)
+int bluev(ami_color c)
 
 {
 
     int cv;
 
-    if (c == pa_blue || c == pa_cyan || c == pa_magenta) cv = INT_MAX;
+    if (c == ami_blue || c == ami_cyan || c == ami_magenta) cv = INT_MAX;
     else cv = 0;
 
     return (cv);
@@ -186,13 +186,13 @@ void movbal(int b)
     nx = baltbl[b].x+baltbl[b].xd; /* trial move ball */
     ny = baltbl[b].y+baltbl[b].yd;
     /* check out of bounds and reverse direction */
-    if (nx < halfball || nx > pa_maxxg(stdout)-halfball+1) {
+    if (nx < halfball || nx > ami_maxxg(stdout)-halfball+1) {
 
        bounce = TRUE; /* set bounce occurred */
        baltbl[b].xd = -baltbl[b].xd;
 
     }
-    if (ny < halfball || ny > pa_maxyg(stdout)-halfball+1) {
+    if (ny < halfball || ny > ami_maxyg(stdout)-halfball+1) {
 
        bounce = TRUE; /* set bounce occurred */
        baltbl[b].yd = -baltbl[b].yd;
@@ -207,42 +207,42 @@ int main(void)
 
 {
 
-    pa_openwaveout(1); /* open main wave output */
+    ami_openwaveout(1); /* open main wave output */
     /* load wave files to use */
-    pa_loadwave(1, "graph_programs/car_rev");
-    pa_loadwave(2, "graph_programs/pong");
-    pa_playwave(1, 0, 1);
+    ami_loadwave(1, "graph_programs/car_rev");
+    ami_loadwave(2, "graph_programs/pong");
+    ami_playwave(1, 0, 1);
     wavtim = WAVSTR; /* place starting wave time (60 seconds) */
-    ballsize = pa_maxyg(stdout)/10; /* set ball size */
+    ballsize = ami_maxyg(stdout)/10; /* set ball size */
     halfball = ballsize/2; /* set half ball size */
     /* initialize ball data */
-    cc = pa_red; /* start colors */
+    cc = ami_red; /* start colors */
     for (i = 0; i < MAXBALL; i++) {
 
-        baltbl[i].x = randn(pa_maxxg(stdout)-1-ballsize)+halfball+1;
-        baltbl[i].y = randn(pa_maxyg(stdout)-1-ballsize)+halfball+1;
+        baltbl[i].x = randn(ami_maxxg(stdout)-1-ballsize)+halfball+1;
+        baltbl[i].y = randn(ami_maxyg(stdout)-1-ballsize)+halfball+1;
         if (randn(1)) baltbl[i].xd = +1; else baltbl[i].xd = -1;
         if (randn(1)) baltbl[i].yd = +1; else baltbl[i].yd = -1;
         baltbl[i].lx = baltbl[i].x; /* set last position to same */
         baltbl[i].ly = baltbl[i].y;
-        baltbl[i].c = cc; /* set pa_color */
-        if (cc < pa_magenta) cc++; else cc = pa_red; /* next pa_color */
+        baltbl[i].c = cc; /* set ami_color */
+        if (cc < ami_magenta) cc++; else cc = ami_red; /* next ami_color */
 
     }
-    pa_curvis(stdout, FALSE); /* turn off cursor */
+    ami_curvis(stdout, FALSE); /* turn off cursor */
     cd = FALSE; /* set 1st display */
     rc = 0; /* count reps */
     bounce = FALSE; /* set no bounce */
-    pa_frametimer(stdout, TRUE); /* turn on the framing timer */
+    ami_frametimer(stdout, TRUE); /* turn on the framing timer */
     while (TRUE) {
 
         /* select display and update surfaces */
-        pa_select(stdout, !cd+1, cd+1);
+        ami_select(stdout, !cd+1, cd+1);
         /* erase old balls */
-        pa_fcolor(stdout, pa_white);
+        ami_fcolor(stdout, ami_white);
         for (i = 0; i < MAXBALL; i++)
             drawball(baltbl[i].lx, baltbl[i].ly, ballsize);
-        pa_fcolor(stdout, pa_black);
+        ami_fcolor(stdout, ami_black);
         /* save last position */
         for (i = 0; i < MAXBALL; i++) {
 
@@ -262,7 +262,7 @@ int main(void)
         if (chkbrk()) goto terminate; /* wait frame and check for break */
         if (bounce && wavtim == 0) { /* a bounce occurred in cycle */
 
-            pa_playwave(1, 0, 2); /* start pong sound */
+            ami_playwave(1, 0, 2); /* start pong sound */
             wavtim = WAVCNT; /* start timer */
 
         }
@@ -273,6 +273,6 @@ int main(void)
 
     terminate:
 
-    pa_curvis(stdout, TRUE);
+    ami_curvis(stdout, TRUE);
 
 }

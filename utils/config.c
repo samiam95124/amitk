@@ -199,14 +199,14 @@ Adds new list item to end of list.
 *******************************************************************************/
 
 static void addend(
-    /* list */ pa_valptr* root,
-    /* item */ pa_valptr  item
+    /* list */ ami_valptr* root,
+    /* item */ ami_valptr  item
 )
 
 {
 
-    pa_valptr p;
-    pa_valptr l;
+    ami_valptr p;
+    ami_valptr l;
 
     l = NULL;
     p = *root;
@@ -290,7 +290,7 @@ static void parlst(
     /* name of file */        string  fn,
     /* file handle */         FILE*   f,
     /* line counter */        int*    lc,
-    /* root of config tree */ pa_valptr* root
+    /* root of config tree */ ami_valptr* root
 )
 
 {
@@ -298,7 +298,7 @@ static void parlst(
     /* id buffer */                 char   word[MAXID];
     /* line buffer */               char   linbuf[MAXSTR];
     /* line buffer pointer */       char*  s;
-    /* value constructor pointer */ pa_valptr vp;
+    /* value constructor pointer */ ami_valptr vp;
     /* end of block */              int    end;
     /* fgets return */              string p;
     /* length of input line */      int    ll;
@@ -330,7 +330,7 @@ static void parlst(
                         /* nested sublist */
                         parlab(fn, *lc, &s, word); /* get symbol */
                         /* get sublist constructor */
-                        vp = malloc(sizeof(pa_value));
+                        vp = malloc(sizeof(ami_value));
                         if (!vp) error(fn, *lc, "Out of memory");
                         addend(root, vp); /* add to list end */
                         vp->sublist = NULL; /* set no subtree */
@@ -349,7 +349,7 @@ static void parlst(
 
                         if (isspace(*s)) s++; /* skip space as separator */
                         /* valid id found, construct value entry */
-                        vp = malloc(sizeof(pa_value));
+                        vp = malloc(sizeof(ami_value));
                         if (!vp) error(fn, *lc, "Out of memory");
                         addend(root, vp); /* add to list end */
                         vp->sublist = NULL; /* set no subtree */
@@ -384,7 +384,7 @@ indent level.
 *******************************************************************************/
 
 static void prtlstsub(
-    /* list to print */ pa_valptr list,
+    /* list to print */ ami_valptr list,
     /* indent level */  int ind
 )
 
@@ -422,15 +422,15 @@ list entry and replace it with the new one. The removed entry will be recycled.
 *******************************************************************************/
 
 static void replace(
-    /* old root */    pa_valptr* root,
-    /* new root */    pa_valptr  match,
-    /* replacement */ pa_valptr  rep
+    /* old root */    ami_valptr* root,
+    /* new root */    ami_valptr  match,
+    /* replacement */ ami_valptr  rep
 )
 
 {
 
-    pa_valptr p;
-    pa_valptr l;
+    ami_valptr p;
+    ami_valptr l;
 
     l = NULL; /* set no last */
     p = *root; /* index root */
@@ -464,8 +464,8 @@ since config trees are symmetrical, you can print the tree at any level.
 
 *******************************************************************************/
 
-void pa_prttre(
-    /* list to print */ pa_valptr list
+void ami_prttre(
+    /* list to print */ ami_valptr list
 )
 
 {
@@ -483,9 +483,9 @@ NULL if not found. Note that this will find either a value or a sublist branch.
 
 *******************************************************************************/
 
-pa_valptr pa_schlst(
+ami_valptr ami_schlst(
     /* id to match */ string id,
-    /* list to search */ pa_valptr root
+    /* list to search */ ami_valptr root
 )
 
 {
@@ -514,24 +514,24 @@ all of the entries have been freed!
 
 *******************************************************************************/
 
-void pa_merge(
-    /* old root */ pa_valptr* root,
-    /* new root */ pa_valptr newroot
+void ami_merge(
+    /* old root */ ami_valptr* root,
+    /* new root */ ami_valptr newroot
 )
 
 {
 
-    pa_valptr match;
-    pa_valptr p;
+    ami_valptr match;
+    ami_valptr p;
 
     while (newroot) { /* the new root is not at end */
 
         /* find any matching entry to this new one */
-        match = pa_schlst(newroot->name, *root);
+        match = ami_schlst(newroot->name, *root);
         if (match) { /* found an entry */
 
             /* merge new sublist with old sublist */
-            pa_merge(&match->sublist, newroot->sublist);
+            ami_merge(&match->sublist, newroot->sublist);
             /* copy under new entry */
             newroot->sublist = match->sublist;
             p = newroot->next; /* save next entry */
@@ -564,13 +564,13 @@ The caller is responsible for freeing the entries in the tree after use.
 
 *******************************************************************************/
 
-void pa_configfile(string fn, pa_valptr* root)
+void ami_configfile(string fn, ami_valptr* root)
 
 {
 
     /* file id */          FILE*  f;
     /* line counter */     int    lc;
-    /* new root pointer */ pa_valptr np;
+    /* new root pointer */ ami_valptr np;
 
     dbg_printf(dldbg, "filename: %s\n", fn);
 
@@ -586,11 +586,11 @@ void pa_configfile(string fn, pa_valptr* root)
 
             /* print intermediate tree */
             dbg_printf(dldbg, "Intermediate tree:\n");
-            pa_prttre(np);
+            ami_prttre(np);
 
         }
         /* now merge old and new trees */
-        pa_merge(root, np);
+        ami_merge(root, np);
 
     }
 
@@ -635,7 +635,7 @@ The caller is responsible for freeing the entries in the tree after use.
 
 *******************************************************************************/
 
-void pa_config(pa_valptr* root)
+void ami_config(ami_valptr* root)
 
 {
 
@@ -643,27 +643,27 @@ void pa_config(pa_valptr* root)
     char filnam[MAXSTR];
 
     /* config from program path */
-    pa_getpgm(pgmpth, MAXSTR); /* get program path */
+    ami_getpgm(pgmpth, MAXSTR); /* get program path */
     /* try both visible and invisible names */
-    pa_maknam(filnam, MAXSTR, pgmpth, "petit_ami", "cfg");
-    pa_configfile(filnam, root);
-    pa_maknam(filnam, MAXSTR, pgmpth, ".petit_ami", "cfg");
-    pa_configfile(filnam, root);
+    ami_maknam(filnam, MAXSTR, pgmpth, "petit_ami", "cfg");
+    ami_configfile(filnam, root);
+    ami_maknam(filnam, MAXSTR, pgmpth, ".petit_ami", "cfg");
+    ami_configfile(filnam, root);
 
     /* config from user path */
-    pa_getusr(pgmpth, MAXSTR); /* get user path */
+    ami_getusr(pgmpth, MAXSTR); /* get user path */
     /* try both visible and invisible names */
-    pa_maknam(filnam, MAXSTR, pgmpth, "petit_ami", "cfg");
-    pa_configfile(filnam, root);
-    pa_maknam(filnam, MAXSTR, pgmpth, ".petit_ami", "cfg");
-    pa_configfile(filnam, root);
+    ami_maknam(filnam, MAXSTR, pgmpth, "petit_ami", "cfg");
+    ami_configfile(filnam, root);
+    ami_maknam(filnam, MAXSTR, pgmpth, ".petit_ami", "cfg");
+    ami_configfile(filnam, root);
 
     /* config from current directory */
-    pa_getcur(pgmpth, MAXSTR); /* get current path */
+    ami_getcur(pgmpth, MAXSTR); /* get current path */
     /* try both visible and invisible names */
-    pa_maknam(filnam, MAXSTR, pgmpth, "petit_ami", "cfg");
-    pa_configfile(filnam, root);
-    pa_maknam(filnam, MAXSTR, pgmpth, ".petit_ami", "cfg");
-    pa_configfile(filnam, root);
+    ami_maknam(filnam, MAXSTR, pgmpth, "petit_ami", "cfg");
+    ami_configfile(filnam, root);
+    ami_maknam(filnam, MAXSTR, pgmpth, ".petit_ami", "cfg");
+    ami_configfile(filnam, root);
 
 }

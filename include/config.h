@@ -17,20 +17,20 @@ extern "C" {
 
 /* Tree structured value record */
 
-typedef struct pa_value {
+typedef struct ami_value {
 
-    struct pa_value* next;    /* next value in list */
-    struct pa_value* sublist; /* new begin/end block */
+    struct ami_value* next;    /* next value in list */
+    struct ami_value* sublist; /* new begin/end block */
     string name;           /* name of node */
     string value;          /* value of this node */
 
-} pa_value, *pa_valptr;
+} ami_value, *ami_valptr;
 
-void pa_prttre(pa_valptr list); /* print tree structured config list */
-pa_valptr pa_schlst(string id, pa_valptr root); /* search config list */
-void pa_merge(pa_valptr* root, pa_valptr newroot); /* merge config trees */
-void pa_configfile(string fn, pa_valptr* root); /* parse config file */
-void pa_config(pa_valptr* root); /* parse config files */
+void ami_prttre(ami_valptr list); /* print tree structured config list */
+ami_valptr ami_schlst(string id, ami_valptr root); /* search config list */
+void ami_merge(ami_valptr* root, ami_valptr newroot); /* merge config trees */
+void ami_configfile(string fn, ami_valptr* root); /* parse config file */
+void ami_config(ami_valptr* root); /* parse config files */
 
 #ifdef __cplusplus
 }

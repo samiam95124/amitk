@@ -21,7 +21,7 @@ int os = FALSE;
 int iw = FALSE;
 int ow = FALSE;
 
-pa_optrec opttbl[] = {
+ami_optrec opttbl[] = {
 
     { "is", &is,  NULL,  NULL, NULL },
     { "os", &os,  NULL,  NULL, NULL },
@@ -41,7 +41,7 @@ int main(int argc, char **argv)
     int argi = 1;
 
     /* parse user options */
-    pa_options(&argi, &argc, argv, opttbl, TRUE);
+    ami_options(&argi, &argc, argv, opttbl, TRUE);
 
     if (argc != 1) {
 
@@ -58,9 +58,9 @@ int main(int argc, char **argv)
     if (is) {
 
         printf("Input synthesizer devices:\n\n");
-        for (i = 1; i <= pa_synthin(); i++) {
+        for (i = 1; i <= ami_synthin(); i++) {
 
-            pa_synthinname(i, buff, BUFLEN);
+            ami_synthinname(i, buff, BUFLEN);
             printf("%2d: %s\n", i, buff);
 
         }
@@ -71,9 +71,9 @@ int main(int argc, char **argv)
     if (os) {
 
         printf("Output synthesizer devices:\n\n");
-        for (i = 1; i <= pa_synthout(); i++) {
+        for (i = 1; i <= ami_synthout(); i++) {
 
-            pa_synthoutname(i, buff, BUFLEN);
+            ami_synthoutname(i, buff, BUFLEN);
             printf("%2d: %s\n", i, buff);
 
         }
@@ -85,20 +85,20 @@ int main(int argc, char **argv)
 
         /* sweep for max len */
         max = 0;
-        for (i = 1; i <= pa_wavein(); i++) {
+        for (i = 1; i <= ami_wavein(); i++) {
 
-            pa_waveinname(i, buff, BUFLEN);
+            ami_waveinname(i, buff, BUFLEN);
             if (strlen(buff) > max) max = strlen(buff);
 
         }
         printf("Input wave devices:\n\n");
-        for (i = 1; i <= pa_wavein(); i++) {
+        for (i = 1; i <= ami_wavein(); i++) {
 
-            pa_waveinname(i, buff, BUFLEN);
+            ami_waveinname(i, buff, BUFLEN);
             printf("%2d: %-*.*s channels: %d rate: %5d len: %2d sign: %d "
                    "big endian: %d float: %d\n", i, max, max, buff,
-                   pa_chanwavein(i), pa_ratewavein(i), pa_lenwavein(i),
-                   pa_sgnwavein(i), pa_endwavein(i), pa_fltwavein(i));
+                   ami_chanwavein(i), ami_ratewavein(i), ami_lenwavein(i),
+                   ami_sgnwavein(i), ami_endwavein(i), ami_fltwavein(i));
 
         }
         printf("\n");
@@ -108,9 +108,9 @@ int main(int argc, char **argv)
     if (ow) {
 
         printf("Output wave devices:\n\n");
-        for (i = 1; i <= pa_waveout(); i++) {
+        for (i = 1; i <= ami_waveout(); i++) {
 
-            pa_waveoutname(i, buff, BUFLEN);
+            ami_waveoutname(i, buff, BUFLEN);
             printf("%2d: %s\n", i, buff);
 
         }

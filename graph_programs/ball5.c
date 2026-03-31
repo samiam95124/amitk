@@ -18,7 +18,7 @@ typedef struct balrec { /* ball data record */
     int      x, y;   /* current position */
     int      lx, ly; /* last position */
     int      xd, yd; /* deltas */
-    pa_color c;      /* pa_color */
+    ami_color c;      /* ami_color */
    
 } balrec;
    
@@ -34,24 +34,24 @@ int chkbrk(void)
 
 {
 
-    pa_evtrec er;
+    ami_evtrec er;
     int cancel;
 
     cancel = FALSE;
-    do { pa_event(stdin, &er); }
-    while (er.etype != pa_etframe && er.etype != pa_etterm);
-    if (er.etype == pa_etterm) cancel = TRUE;
+    do { ami_event(stdin, &er); }
+    while (er.etype != ami_etframe && er.etype != ami_etterm);
+    if (er.etype == ami_etterm) cancel = TRUE;
 
     return (cancel);
 
 }
 
-void drawball(pa_color c, int x, int y)
+void drawball(ami_color c, int x, int y)
 
 {
 
-   pa_fcolor(stdout, c); /* set color */
-   pa_fellipse(stdout, x-halfball+1, y-halfball+1, x+halfball-1, y+halfball-1);
+   ami_fcolor(stdout, c); /* set color */
+   ami_fellipse(stdout, x-halfball+1, y-halfball+1, x+halfball-1, y+halfball-1);
 
 }
    
@@ -69,35 +69,35 @@ int main(void)
 
 {
 
-    ballsize = pa_maxyg(stdout)/5; /* set ball size */
+    ballsize = ami_maxyg(stdout)/5; /* set ball size */
     halfball = ballsize/2; /* set half ball size */
     /* initialize ball data */
     for (i = 0; i < MAXBALL; i++) {
 
-        baltbl[i].x = randn(pa_maxxg(stdout)-1-ballsize)+halfball+1;
-        baltbl[i].y = randn(pa_maxyg(stdout)-1-ballsize)+halfball+1;
+        baltbl[i].x = randn(ami_maxxg(stdout)-1-ballsize)+halfball+1;
+        baltbl[i].y = randn(ami_maxyg(stdout)-1-ballsize)+halfball+1;
         if (randn(1)) baltbl[i].xd = +1; else baltbl[i].xd = -1;
         if (randn(1)) baltbl[i].yd = +1; else baltbl[i].yd = -1;
         baltbl[i].lx = baltbl[i].x; /* set last position to same */
         baltbl[i].ly = baltbl[i].y;
-        /* set random pa_color */
-        baltbl[i].c = randn(pa_magenta-pa_red)+pa_red;
+        /* set random ami_color */
+        baltbl[i].c = randn(ami_magenta-ami_red)+ami_red;
 
     }
-    pa_curvis(stdout, FALSE); /* turn off cursor */
+    ami_curvis(stdout, FALSE); /* turn off cursor */
     cd = FALSE; /* set 1st display */
     rc = 0; /* count reps */
         /* start frame timer for 60 cycle refresh */
-    pa_frametimer(stdout, TRUE);
+    ami_frametimer(stdout, TRUE);
     while (TRUE) {
 
         /* select display and update surfaces */
-        pa_select(stdout, !cd+1, cd+1);
-        pa_fover(stdout); /* set overwrite */
+        ami_select(stdout, !cd+1, cd+1);
+        ami_fover(stdout); /* set overwrite */
         /* erase balls at old positions */
         for (i = 0; i < MAXBALL; i++)
-            drawball(pa_white, baltbl[i].lx, baltbl[i].ly);
-        pa_fxor(stdout); /* set xor mode */
+            drawball(ami_white, baltbl[i].lx, baltbl[i].ly);
+        ami_fxor(stdout); /* set xor mode */
         for (i = 0; i < MAXBALL; i++) { /* process balls */
 
             baltbl[i].lx = baltbl[i].x; /* save last position */
@@ -105,9 +105,9 @@ int main(void)
             nx = baltbl[i].x+baltbl[i].xd; /* trial move ball */
             ny = baltbl[i].y+baltbl[i].yd;
             /* check out of bounds and reverse direction */
-            if (nx < halfball || nx > pa_maxxg(stdout)-halfball+1)
+            if (nx < halfball || nx > ami_maxxg(stdout)-halfball+1)
                 baltbl[i].xd = -baltbl[i].xd;
-            if (ny < halfball || ny > pa_maxyg(stdout)-halfball+1)
+            if (ny < halfball || ny > ami_maxyg(stdout)-halfball+1)
                 baltbl[i].yd = -baltbl[i].yd;
             baltbl[i].x = baltbl[i].x+baltbl[i].xd; /* move ball */
             baltbl[i].y = baltbl[i].y+baltbl[i].yd;
@@ -128,6 +128,6 @@ int main(void)
 
     terminate:
 
-    pa_curvis(stdout, TRUE);
+    ami_curvis(stdout, TRUE);
 
 }

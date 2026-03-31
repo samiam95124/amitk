@@ -245,12 +245,12 @@ static int       w;
 static int       l;
 static int       a;
 static int       r, g, b;
-static pa_color  c, c1, c2;
+static ami_color  c, c1, c2;
 static int       lx, ly;
 static int       tx1, ty1, tx2, ty2, tx3, ty3;
 static int       h;
 static int       cnt;
-static pa_evtrec er;
+static ami_evtrec er;
 static int       fsiz;
 static int       aa, ab;
 static int       s;
@@ -300,16 +300,16 @@ static void waitchar(long t, int* st)
 
 {
 
-    pa_evtrec er;
+    ami_evtrec er;
 
     *st = FALSE; /* set no space terminate */
-    pa_timer(stdout, 1, t, FALSE);
-    do { pa_event(stdin, &er); }
-    while (er.etype != pa_ettim && er.etype != pa_etterm &&
-           er.etype != pa_etchar && er.etype != pa_etenter);
-   if (er.etype == pa_etchar && er.echar == ' ') *st = TRUE;
-   if (er.etype == pa_etenter) *st = TRUE;
-   if (er.etype == pa_etterm) longjmp(terminate_buf, 1);
+    ami_timer(stdout, 1, t, FALSE);
+    do { ami_event(stdin, &er); }
+    while (er.etype != ami_ettim && er.etype != ami_etterm &&
+           er.etype != ami_etchar && er.etype != ami_etenter);
+   if (er.etype == ami_etchar && er.echar == ' ') *st = TRUE;
+   if (er.etype == ami_etenter) *st = TRUE;
+   if (er.etype == ami_etterm) longjmp(terminate_buf, 1);
 
 }
 
@@ -319,11 +319,11 @@ static void waitnext(void)
 
 {
 
-    pa_evtrec er; /* event record */
+    ami_evtrec er; /* event record */
 
-    do { pa_event(stdin, &er); }
-    while (er.etype != pa_etenter && er.etype != pa_etterm);
-    if (er.etype == pa_etterm) longjmp(terminate_buf, 1);
+    do { ami_event(stdin, &er); }
+    while (er.etype != ami_etenter && er.etype != ami_etterm);
+    if (er.etype == ami_etterm) longjmp(terminate_buf, 1);
 
 }
 
@@ -333,7 +333,7 @@ static void prtcen(int y, const char* s)
 
 {
 
-   pa_cursor(stdout, (pa_maxx(stdout)/2)-(strlen(s)/2), y);
+   ami_cursor(stdout, (ami_maxx(stdout)/2)-(strlen(s)/2), y);
    printf("%s", s);
 
 }
@@ -344,7 +344,7 @@ static void prtceng(int y, const char* s)
 
 {
 
-   pa_cursorg(stdout, (pa_maxxg(stdout)/2)-(pa_strsiz(stdout, s)/2), y);
+   ami_cursorg(stdout, (ami_maxxg(stdout)/2)-(ami_strsiz(stdout, s)/2), y);
    printf("%s", s);
 
 }
@@ -362,8 +362,8 @@ static void prtall(void)
     for (c = ' '; c <= '}'; c++) {
 
         s[0] = 'c';
-        if (pa_curxg(stdout)+pa_strsiz(stdout, s) >
-            pa_maxxg(stdout)) pa_cursorg(stdout, 1, pa_curyg(stdout)+pa_chrsizy(stdout));
+        if (ami_curxg(stdout)+ami_strsiz(stdout, s) >
+            ami_maxxg(stdout)) ami_cursorg(stdout, 1, ami_curyg(stdout)+ami_chrsizy(stdout));
         putchar(c);
 
     }
@@ -379,22 +379,22 @@ static void chrgrid(void)
 
     int x, y;
 
-    pa_fcolor(stdout, pa_yellow);
+    ami_fcolor(stdout, ami_yellow);
     y = 1;
-    while (y < pa_maxyg(stdout)) {
+    while (y < ami_maxyg(stdout)) {
 
-        pa_line(stdout, 1, y, pa_maxxg(stdout), y);
-        y = y+pa_chrsizy(stdout);
+        ami_line(stdout, 1, y, ami_maxxg(stdout), y);
+        y = y+ami_chrsizy(stdout);
 
     }
     x = 1;
-    while (x < pa_maxxg(stdout)) {
+    while (x < ami_maxxg(stdout)) {
 
-        pa_line(stdout, x, 1, x, pa_maxyg(stdout));
-        x = x+pa_chrsizx(stdout);
+        ami_line(stdout, x, 1, x, ami_maxyg(stdout));
+        x = x+ami_chrsizx(stdout);
 
     }
-    pa_fcolor(stdout, pa_black);
+    ami_fcolor(stdout, ami_black);
 
 }
 
@@ -431,8 +431,8 @@ static void pline(int a,  /* angle of line */
     int ex, ey; /* line start and end */
 
     rectcord(a, o, &ex, &ey); /* find endpoint of line */
-    pa_linewidth(stdout, w); /* set width */
-    pa_line(stdout, cx, cy, cx+ex, cy-ey); /* draw line */
+    ami_linewidth(stdout, w); /* set width */
+    ami_line(stdout, cx, cy, cx+ex, cy-ey); /* draw line */
 
 }
 
@@ -444,17 +444,17 @@ static void justcenter(const char* s, int l)
 
     int i, x;
 
-    x = pa_maxxg(stdout)/2-l/2;
-    pa_cursorg(stdout, x, pa_curyg(stdout));
-    pa_writejust(stdout, s, l);
+    x = ami_maxxg(stdout)/2-l/2;
+    ami_cursorg(stdout, x, ami_curyg(stdout));
+    ami_writejust(stdout, s, l);
     putchar('\n');
-    pa_fcolor(stdout, pa_white);
-    pa_frect(stdout, x, pa_curyg(stdout), x+l-1, pa_curyg(stdout)+pa_chrsizy(stdout)-1);
-    pa_fcolor(stdout, pa_black);
-    pa_rect(stdout, x, pa_curyg(stdout), x+l-1, pa_curyg(stdout)+pa_chrsizy(stdout)-1);
+    ami_fcolor(stdout, ami_white);
+    ami_frect(stdout, x, ami_curyg(stdout), x+l-1, ami_curyg(stdout)+ami_chrsizy(stdout)-1);
+    ami_fcolor(stdout, ami_black);
+    ami_rect(stdout, x, ami_curyg(stdout), x+l-1, ami_curyg(stdout)+ami_chrsizy(stdout)-1);
     for (i = 0; i < strlen(s); i++)
-      pa_line(stdout, x+pa_justpos(stdout, s, i, l), pa_curyg(stdout),
-              x+pa_justpos(stdout, s, i, l), pa_curyg(stdout)+pa_chrsizy(stdout)-1);
+      ami_line(stdout, x+ami_justpos(stdout, s, i, l), ami_curyg(stdout),
+              x+ami_justpos(stdout, s, i, l), ami_curyg(stdout)+ami_chrsizy(stdout)-1);
     putchar('\n');
 
 }
@@ -470,26 +470,26 @@ static void grid(void)
     int   yspace;
     float yrat;
 
-    yrat = (double)pa_dpmy(stdout)/pa_dpmx(stdout); /* find aspect ratio */
-    xspace = pa_maxxg(stdout)/60;
+    yrat = (double)ami_dpmy(stdout)/ami_dpmx(stdout); /* find aspect ratio */
+    xspace = ami_maxxg(stdout)/60;
     yspace = xspace*yrat;
-    pa_linewidth(stdout, 1);
-    pa_fcolor(stdout, pa_cyan);
+    ami_linewidth(stdout, 1);
+    ami_fcolor(stdout, ami_cyan);
     x = 10;
-    while (x <= pa_maxxg(stdout)) {
+    while (x <= ami_maxxg(stdout)) {
 
-        pa_line(stdout, x, 1, x, pa_maxyg(stdout));
+        ami_line(stdout, x, 1, x, ami_maxyg(stdout));
         x = x+xspace;
 
     }
     y = 10;
-    while (y <= pa_maxyg(stdout)) {
+    while (y <= ami_maxyg(stdout)) {
 
-        pa_line(stdout, 1, y, pa_maxxg(stdout), y);
+        ami_line(stdout, 1, y, ami_maxxg(stdout), y);
         y = y+yspace;
 
     }
-    pa_fcolor(stdout, pa_black);
+    ami_fcolor(stdout, ami_black);
 
 }
 
@@ -502,7 +502,7 @@ typedef struct { /* square data record */
     int      x, y;   /* current position */
     int      lx, ly; /* last position */
     int      xd, yd; /* deltas */
-    pa_color c;      /* color */
+    ami_color c;      /* color */
 
 } balrec;
 
@@ -515,27 +515,27 @@ static int chkbrk(void)
 
 {
 
-    pa_evtrec er; /* event record */
+    ami_evtrec er; /* event record */
     int done;
 
     done = FALSE;
-    do { pa_event(stdin, &er); }
-    while (er.etype != pa_etframe && er.etype != pa_etterm &&
-           er.etype != pa_etchar && er.etype != pa_etenter);
-    if (er.etype == pa_etterm) { longjmp(terminate_buf, 1); }
-    if (er.etype == pa_etchar || er.etype == pa_etenter)
+    do { ami_event(stdin, &er); }
+    while (er.etype != ami_etframe && er.etype != ami_etterm &&
+           er.etype != ami_etchar && er.etype != ami_etenter);
+    if (er.etype == ami_etterm) { longjmp(terminate_buf, 1); }
+    if (er.etype == ami_etchar || er.etype == ami_etenter)
         done = TRUE; /* terminate */
 
     return (done);
 
 }
 
-static void drawsquare(pa_color c, int x, int y)
+static void drawsquare(ami_color c, int x, int y)
 
 {
 
-    pa_fcolor(stdout, c); /* set color */
-    pa_frect(stdout, x-halfsquare+1, y-halfsquare+1, x+halfsquare-1, y+halfsquare-1);
+    ami_fcolor(stdout, c); /* set color */
+    ami_frect(stdout, x-halfsquare+1, y-halfsquare+1, x+halfsquare-1, y+halfsquare-1);
 
 }
 
@@ -550,8 +550,8 @@ static void movesquare(int s)
     nx = bt->x+bt->xd; /* trial move square */
     ny = bt->y+bt->yd;
     /* check out of bounds and reverse direction */
-    if (nx < halfsquare || nx > pa_maxxg(stdout)-halfsquare+1) bt->xd = -bt->xd;
-    if (ny < halfsquare || ny > pa_maxyg(stdout)-halfsquare+1) bt->yd = -bt->yd;
+    if (nx < halfsquare || nx > ami_maxxg(stdout)-halfsquare+1) bt->xd = -bt->xd;
+    if (ny < halfsquare || ny > ami_maxyg(stdout)-halfsquare+1) bt->yd = -bt->yd;
     bt->x = bt->x+bt->xd; /* move square */
     bt->y = bt->y+bt->yd;
 
@@ -567,37 +567,37 @@ static void squares(void)
     int     done; /* done flag */
     balrec* bt;
 
-    squaresize = pa_maxyg(stdout)/5;
+    squaresize = ami_maxyg(stdout)/5;
     halfsquare = squaresize/2;
     /* initalize square data */
     for (i = 0; i < MAXSQUARE; i++) {
 
         bt = &baltbl[i];
-        bt->x = randn(pa_maxxg(stdout)-squaresize)+halfsquare;
-        bt->y = randn(pa_maxyg(stdout)-squaresize)+halfsquare;
+        bt->x = randn(ami_maxxg(stdout)-squaresize)+halfsquare;
+        bt->y = randn(ami_maxyg(stdout)-squaresize)+halfsquare;
         if (!randn(TRUE)) bt->xd = +1; else bt->xd = -1;
         if (!randn(TRUE)) bt->yd = +1; else bt->yd = -1;
         bt->lx = bt->x; /* set last position to same */
         bt->ly = bt->y;
-        bt->c = randr(pa_red, pa_magenta); /* set random color */
+        bt->c = randr(ami_red, ami_magenta); /* set random color */
 
     }
-    pa_curvis(stdout, FALSE); /* turn off cursor */
+    ami_curvis(stdout, FALSE); /* turn off cursor */
     cd = FALSE; /* set 1st display */
     /* place squares on display */
     for (i = 0; i < MAXSQUARE; i++)
         drawsquare(baltbl[i].c, baltbl[i].x, baltbl[i].y);
-    pa_frametimer(stdout, TRUE); /* start frame timer */
+    ami_frametimer(stdout, TRUE); /* start frame timer */
     done = FALSE; /* set ! done */
     while (!done) {
 
         /* select display and update surfaces */
-        pa_select(stdout, !cd+1, cd+1);
+        ami_select(stdout, !cd+1, cd+1);
         putchar('\f');
-        pa_fover(stdout);
-        pa_fcolor(stdout, pa_black);
-        prtcen(pa_maxy(stdout), "Animation test");
-        pa_fxor(stdout);
+        ami_fover(stdout);
+        ami_fcolor(stdout, ami_black);
+        prtcen(ami_maxy(stdout), "Animation test");
+        ami_fxor(stdout);
         /* save old positions */
         for (i = 0; i < MAXSQUARE; i++) {
 
@@ -615,8 +615,8 @@ static void squares(void)
         done = chkbrk(); /* check complete */
 
     }
-    pa_select(stdout, 1, 1); /* restore buffer surfaces */
-    pa_fover(stdout); /* restore foreground overwrite */
+    ami_select(stdout, 1, 1); /* restore buffer surfaces */
+    ami_fover(stdout); /* restore foreground overwrite */
 
 }
 
@@ -636,87 +636,87 @@ static void graphtest(int lw) /* line width */
     int yfigsiz; /* size of figure y */
     float yrat;  /* aspect ratio of y to x */
 
-    pa_auto(stdout, OFF);
-    pa_font(stdout, PA_FONT_SIGN);
-    fsiz = pa_chrsizy(stdout); /* save character size to restore */
-    pa_fontsiz(stdout, pa_maxyg(stdout)/20);
-    pa_bcolor(stdout, pa_yellow);
-    pa_cursorg(stdout, pa_maxxg(stdout)/2-pa_strsiz(stdout, S6)/2, pa_curyg(stdout));
+    ami_auto(stdout, OFF);
+    ami_font(stdout, PA_FONT_SIGN);
+    fsiz = ami_chrsizy(stdout); /* save character size to restore */
+    ami_fontsiz(stdout, ami_maxyg(stdout)/20);
+    ami_bcolor(stdout, ami_yellow);
+    ami_cursorg(stdout, ami_maxxg(stdout)/2-ami_strsiz(stdout, S6)/2, ami_curyg(stdout));
     printf("%s\n", S6);
     putchar('\n');
     /* note: after this we can't use text spacing */
 
     /* we assume x > y */
-    yrat = (double)pa_dpmy(stdout)/pa_dpmx(stdout); /* find aspect ratio */
-    xsize = pa_maxxg(stdout)/5; /* set spacing of figures */
+    yrat = (double)ami_dpmy(stdout)/ami_dpmx(stdout); /* find aspect ratio */
+    xsize = ami_maxxg(stdout)/5; /* set spacing of figures */
     xspace = xsize/5; /* set x space between figures */
     xfigsiz = xsize-xspace; /* net y size of figure */
     yfigsiz = xfigsiz*yrat; /* net y size of figure */
     yspace = xspace*yrat; /* set y space between figures */
 
     /* first row of figures */
-    pa_fcolor(stdout, pa_magenta);
-    pa_linewidth(stdout, lw);
-    y = pa_curyg(stdout); /* set y location to current */
+    ami_fcolor(stdout, ami_magenta);
+    ami_linewidth(stdout, lw);
+    y = ami_curyg(stdout); /* set y location to current */
     x = xspace/2; /* set x location to after space left */
-    pa_rect(stdout, x, y, x+xfigsiz-1, y+yfigsiz-1);
-    pa_fcolor(stdout, pa_green);
+    ami_rect(stdout, x, y, x+xfigsiz-1, y+yfigsiz-1);
+    ami_fcolor(stdout, ami_green);
     x = x+xfigsiz+xspace;
-    pa_frect(stdout, x, y, x+xfigsiz-1, y+yfigsiz-1);
-    pa_fcolor(stdout, pa_yellow);
+    ami_frect(stdout, x, y, x+xfigsiz-1, y+yfigsiz-1);
+    ami_fcolor(stdout, ami_yellow);
     x = x+xfigsiz+xspace;
-    pa_ftriangle(stdout, x, y+yfigsiz-1, x+xfigsiz/2-1, y,
+    ami_ftriangle(stdout, x, y+yfigsiz-1, x+xfigsiz/2-1, y,
                          x+xfigsiz-1, y+yfigsiz-1);
-    pa_fcolor(stdout, pa_red);
+    ami_fcolor(stdout, ami_red);
     x = x+xfigsiz+xspace;
-    pa_rrect(stdout, x, y, x+xfigsiz-1, y+yfigsiz-1, 20, 20);
-    pa_fcolor(stdout, pa_magenta);
+    ami_rrect(stdout, x, y, x+xfigsiz-1, y+yfigsiz-1, 20, 20);
+    ami_fcolor(stdout, ami_magenta);
     x = x+xfigsiz+xspace;
-    pa_arc(stdout, x, y, x+xfigsiz-1, y+yfigsiz-1, 0, INT_MAX/4);
-    pa_fcolor(stdout, pa_green);
-    pa_farc(stdout, x, y, x+xfigsiz-1, y+xfigsiz-1,
+    ami_arc(stdout, x, y, x+xfigsiz-1, y+yfigsiz-1, 0, INT_MAX/4);
+    ami_fcolor(stdout, ami_green);
+    ami_farc(stdout, x, y, x+xfigsiz-1, y+xfigsiz-1,
                           INT_MAX/2, INT_MAX/2+INT_MAX/4);
     y = y+yfigsiz+yspace;
     x = xspace/2;
 
     /* second row of figures */
-    pa_fcolor(stdout, pa_blue);
-    pa_frect(stdout, x, y, x+xfigsiz-1, y+yfigsiz-1);
+    ami_fcolor(stdout, ami_blue);
+    ami_frect(stdout, x, y, x+xfigsiz-1, y+yfigsiz-1);
     x = x+xfigsiz+xspace;
-    pa_fcolor(stdout, pa_magenta);
-    pa_frrect(stdout, x, y, x+xfigsiz-1, y+yfigsiz-1, 20, 20);
+    ami_fcolor(stdout, ami_magenta);
+    ami_frrect(stdout, x, y, x+xfigsiz-1, y+yfigsiz-1, 20, 20);
     x = x+xfigsiz+xspace;
-    pa_fcolor(stdout, pa_green);
-    pa_ellipse(stdout, x, y, x+xfigsiz-1, y+yfigsiz-1);
+    ami_fcolor(stdout, ami_green);
+    ami_ellipse(stdout, x, y, x+xfigsiz-1, y+yfigsiz-1);
     x = x+xfigsiz+xspace;
-    pa_fcolor(stdout, pa_yellow);
-    pa_fellipse(stdout, x, y, x+xfigsiz-1, y+yfigsiz-1);
+    ami_fcolor(stdout, ami_yellow);
+    ami_fellipse(stdout, x, y, x+xfigsiz-1, y+yfigsiz-1);
     x = x+xfigsiz+xspace;
-    pa_fcolor(stdout, pa_blue);
-    pa_fchord(stdout, x, y, x+xfigsiz-1, y+yfigsiz-1, 0, INT_MAX/2);
+    ami_fcolor(stdout, ami_blue);
+    ami_fchord(stdout, x, y, x+xfigsiz-1, y+yfigsiz-1, 0, INT_MAX/2);
     y = y+xfigsiz+xspace;
 
     /* third row of figures (lines) */
-    pa_fcolor(stdout, pa_red);
-    pa_linewidth(stdout, 1);
-    pa_line(stdout, 20, y, pa_maxxg(stdout)-20, y);
+    ami_fcolor(stdout, ami_red);
+    ami_linewidth(stdout, 1);
+    ami_line(stdout, 20, y, ami_maxxg(stdout)-20, y);
     y = y+10;
-    pa_fcolor(stdout, pa_green);
-    pa_linewidth(stdout, 3);
-    pa_line(stdout, 20, y, pa_maxxg(stdout)-20, y);
+    ami_fcolor(stdout, ami_green);
+    ami_linewidth(stdout, 3);
+    ami_line(stdout, 20, y, ami_maxxg(stdout)-20, y);
     y = y+10;
-    pa_fcolor(stdout, pa_blue);
-    pa_linewidth(stdout, 7);
-    pa_line(stdout, 20, y, pa_maxxg(stdout)-20, y);
+    ami_fcolor(stdout, ami_blue);
+    ami_linewidth(stdout, 7);
+    ami_line(stdout, 20, y, ami_maxxg(stdout)-20, y);
     y = y+20;
-    pa_fcolor(stdout, pa_magenta);
-    pa_linewidth(stdout, 15);
-    pa_line(stdout, 20, y, pa_maxxg(stdout)-20, y);
-    pa_linewidth(stdout, 1);
-    pa_fontsiz(stdout, fsiz); /* restore font size */
-    pa_fcolor(stdout, pa_black);
-    pa_bcolor(stdout, pa_white);
-    pa_font(stdout, PA_FONT_TERM);
+    ami_fcolor(stdout, ami_magenta);
+    ami_linewidth(stdout, 15);
+    ami_line(stdout, 20, y, ami_maxxg(stdout)-20, y);
+    ami_linewidth(stdout, 1);
+    ami_fontsiz(stdout, fsiz); /* restore font size */
+    ami_fcolor(stdout, ami_black);
+    ami_bcolor(stdout, ami_white);
+    ami_font(stdout, PA_FONT_TERM);
 
 }
 
@@ -751,9 +751,9 @@ static void benchtest(
     i = 10;
     do {
 
-        t = pa_clock(); /* get base time */
+        t = ami_clock(); /* get base time */
         fp(w, i, &s); /* perform test */
-        et = pa_elapsed(t); /* find time to execute */
+        et = ami_elapsed(t); /* find time to execute */
         i *= 2; /* scale for next pass */
 
     } while (et < SECOND); /* set minimum time to measure for stability */
@@ -775,20 +775,20 @@ static void linespeed(int w, int t, long* s)
     int i;
     int c;
 
-    pa_auto(stdout, FALSE);
-    pa_curvis(stdout, FALSE);
+    ami_auto(stdout, FALSE);
+    ami_curvis(stdout, FALSE);
     putchar('\f');
-    pa_linewidth(stdout, w);
-    c = pa_clock();
+    ami_linewidth(stdout, w);
+    c = ami_clock();
     for (i = 1; i <= t; i++) {
 
-        pa_fcolor(stdout, randr(pa_red, pa_magenta));
-        pa_line(stdout, randr(1, pa_maxxg(stdout)), randr(1, pa_maxyg(stdout)),
-                        randr(1, pa_maxxg(stdout)), randr(1, pa_maxyg(stdout)));
+        ami_fcolor(stdout, randr(ami_red, ami_magenta));
+        ami_line(stdout, randr(1, ami_maxxg(stdout)), randr(1, ami_maxyg(stdout)),
+                        randr(1, ami_maxxg(stdout)), randr(1, ami_maxyg(stdout)));
 
     }
-    *s = pa_elapsed(c);
-    pa_fcolor(stdout, pa_black);
+    *s = ami_elapsed(c);
+    ami_fcolor(stdout, ami_black);
 
 }
 
@@ -801,20 +801,20 @@ static void rectspeed(int w, int t, long* s)
     int i;
     int c;
 
-    pa_auto(stdout, FALSE);
-    pa_curvis(stdout, FALSE);
+    ami_auto(stdout, FALSE);
+    ami_curvis(stdout, FALSE);
     putchar('\f');
-    pa_linewidth(stdout, w);
-    c = pa_clock();
+    ami_linewidth(stdout, w);
+    c = ami_clock();
     for (i = 1; i <= t; i++) {
 
-        pa_fcolor(stdout, randr(pa_red, pa_magenta));
-        pa_rect(stdout, randr(1, pa_maxxg(stdout)), randr(1, pa_maxyg(stdout)),
-                        randr(1, pa_maxxg(stdout)), randr(1, pa_maxyg(stdout)));
+        ami_fcolor(stdout, randr(ami_red, ami_magenta));
+        ami_rect(stdout, randr(1, ami_maxxg(stdout)), randr(1, ami_maxyg(stdout)),
+                        randr(1, ami_maxxg(stdout)), randr(1, ami_maxyg(stdout)));
 
     }
-    *s = pa_elapsed(c);
-    pa_fcolor(stdout, pa_black);
+    *s = ami_elapsed(c);
+    ami_fcolor(stdout, ami_black);
 
 }
 
@@ -827,21 +827,21 @@ static void rrectspeed(int w, int t, long* s)
     int i;
     int c;
 
-    pa_auto(stdout, FALSE);
-    pa_curvis(stdout, FALSE);
+    ami_auto(stdout, FALSE);
+    ami_curvis(stdout, FALSE);
     putchar('\f');
-    pa_linewidth(stdout, w);
-    c = pa_clock();
+    ami_linewidth(stdout, w);
+    c = ami_clock();
     for (i = 1; i <= t; i++) {
 
-        pa_fcolor(stdout, randr(pa_red, pa_magenta));
-        pa_rrect(stdout, randr(1, pa_maxxg(stdout)), randr(1, pa_maxyg(stdout)),
-                         randr(1, pa_maxxg(stdout)), randr(1, pa_maxyg(stdout)),
+        ami_fcolor(stdout, randr(ami_red, ami_magenta));
+        ami_rrect(stdout, randr(1, ami_maxxg(stdout)), randr(1, ami_maxyg(stdout)),
+                         randr(1, ami_maxxg(stdout)), randr(1, ami_maxyg(stdout)),
                          randn(100-1)+1, randn(100-1)+1);
 
     }
-    *s = pa_elapsed(c);
-    pa_fcolor(stdout, pa_black);
+    *s = ami_elapsed(c);
+    ami_fcolor(stdout, ami_black);
 
 }
 
@@ -854,19 +854,19 @@ static void frectspeed(int w, int t, long* s)
     int i;
     int c;
 
-    pa_auto(stdout, FALSE);
-    pa_curvis(stdout, FALSE);
+    ami_auto(stdout, FALSE);
+    ami_curvis(stdout, FALSE);
     putchar('\f');
-    c = pa_clock();
+    c = ami_clock();
     for (i = 1; i <= t; i++) {
 
-        pa_fcolor(stdout, randr(pa_red, pa_magenta));
-        pa_frect(stdout, randr(1, pa_maxxg(stdout)), randr(1, pa_maxyg(stdout)),
-                         randr(1, pa_maxxg(stdout)), randr(1, pa_maxyg(stdout)));
+        ami_fcolor(stdout, randr(ami_red, ami_magenta));
+        ami_frect(stdout, randr(1, ami_maxxg(stdout)), randr(1, ami_maxyg(stdout)),
+                         randr(1, ami_maxxg(stdout)), randr(1, ami_maxyg(stdout)));
 
     }
-    *s = pa_elapsed(c);
-    pa_fcolor(stdout, pa_black);
+    *s = ami_elapsed(c);
+    ami_fcolor(stdout, ami_black);
 
 }
 
@@ -879,20 +879,20 @@ static void frrectspeed(int w, int t, long* s)
     int i;
     int c;
 
-    pa_auto(stdout, FALSE);
-    pa_curvis(stdout, FALSE);
+    ami_auto(stdout, FALSE);
+    ami_curvis(stdout, FALSE);
     putchar('\f');
-    c = pa_clock();
+    c = ami_clock();
     for (i = 1; i <= t; i++) {
 
-        pa_fcolor(stdout, randr(pa_red, pa_magenta));
-        pa_frrect(stdout, randr(1, pa_maxxg(stdout)), randr(1, pa_maxyg(stdout)),
-                          randr(1, pa_maxxg(stdout)), randr(1, pa_maxyg(stdout)),
+        ami_fcolor(stdout, randr(ami_red, ami_magenta));
+        ami_frrect(stdout, randr(1, ami_maxxg(stdout)), randr(1, ami_maxyg(stdout)),
+                          randr(1, ami_maxxg(stdout)), randr(1, ami_maxyg(stdout)),
                           randn(100-1)+1, randn(100-1)+1);
 
     }
-    *s = pa_elapsed(c);
-    pa_fcolor(stdout, pa_black);
+    *s = ami_elapsed(c);
+    ami_fcolor(stdout, ami_black);
 
 }
 
@@ -905,20 +905,20 @@ static void ellipsespeed(int w, int t, long* s)
     int i;
     int c;
 
-    pa_auto(stdout, FALSE);
-    pa_curvis(stdout, FALSE);
+    ami_auto(stdout, FALSE);
+    ami_curvis(stdout, FALSE);
     putchar('\f');
-    pa_linewidth(stdout, w);
-    c = pa_clock();
+    ami_linewidth(stdout, w);
+    c = ami_clock();
     for (i = 1; i <= t; i++) {
 
-        pa_fcolor(stdout, randr(pa_red, pa_magenta));
-        pa_ellipse(stdout, randr(1, pa_maxxg(stdout)), randr(1, pa_maxyg(stdout)),
-                           randr(1, pa_maxxg(stdout)), randr(1, pa_maxyg(stdout)));
+        ami_fcolor(stdout, randr(ami_red, ami_magenta));
+        ami_ellipse(stdout, randr(1, ami_maxxg(stdout)), randr(1, ami_maxyg(stdout)),
+                           randr(1, ami_maxxg(stdout)), randr(1, ami_maxyg(stdout)));
 
     }
-    *s = pa_elapsed(c);
-    pa_fcolor(stdout, pa_black);
+    *s = ami_elapsed(c);
+    ami_fcolor(stdout, ami_black);
 
 }
 
@@ -931,19 +931,19 @@ static void fellipsespeed(int w, int t, long* s)
     int i;
     int c;
 
-    pa_auto(stdout, FALSE);
-    pa_curvis(stdout, FALSE);
+    ami_auto(stdout, FALSE);
+    ami_curvis(stdout, FALSE);
     putchar('\f');
-    c = pa_clock();
+    c = ami_clock();
     for (i = 1; i <= t; i++) {
 
-        pa_fcolor(stdout, randr(pa_red, pa_magenta));
-        pa_fellipse(stdout, randr(1, pa_maxxg(stdout)), randr(1, pa_maxyg(stdout)),
-                            randr(1, pa_maxxg(stdout)), randr(1, pa_maxyg(stdout)));
+        ami_fcolor(stdout, randr(ami_red, ami_magenta));
+        ami_fellipse(stdout, randr(1, ami_maxxg(stdout)), randr(1, ami_maxyg(stdout)),
+                            randr(1, ami_maxxg(stdout)), randr(1, ami_maxyg(stdout)));
 
     }
-    *s = pa_elapsed(c);
-    pa_fcolor(stdout, pa_black);
+    *s = ami_elapsed(c);
+    ami_fcolor(stdout, ami_black);
 
 }
 
@@ -957,11 +957,11 @@ static void arcspeed(int w, int t, long* s)
     int c;
     int sa, ea;
 
-    pa_auto(stdout, FALSE);
-    pa_curvis(stdout, FALSE);
+    ami_auto(stdout, FALSE);
+    ami_curvis(stdout, FALSE);
     putchar('\f');
-    pa_linewidth(stdout, w);
-    c = pa_clock();
+    ami_linewidth(stdout, w);
+    c = ami_clock();
     for (i = 1; i <= t; i++) {
 
         do {
@@ -970,14 +970,14 @@ static void arcspeed(int w, int t, long* s)
             ea = randn(INT_MAX);
 
         } while (ea <= sa);
-        pa_fcolor(stdout, randr(pa_red, pa_magenta));
-        pa_arc(stdout, randr(1, pa_maxxg(stdout)), randr(1, pa_maxyg(stdout)),
-                       randr(1, pa_maxxg(stdout)), randr(1, pa_maxyg(stdout)),
+        ami_fcolor(stdout, randr(ami_red, ami_magenta));
+        ami_arc(stdout, randr(1, ami_maxxg(stdout)), randr(1, ami_maxyg(stdout)),
+                       randr(1, ami_maxxg(stdout)), randr(1, ami_maxyg(stdout)),
                        sa, ea);
 
     }
-    *s = pa_elapsed(c);
-    pa_fcolor(stdout, pa_black);
+    *s = ami_elapsed(c);
+    ami_fcolor(stdout, ami_black);
 
 }
 
@@ -991,10 +991,10 @@ static void farcspeed(int w, int t, long* s)
     int c;
     int sa, ea;
 
-    pa_auto(stdout, FALSE);
-    pa_curvis(stdout, FALSE);
+    ami_auto(stdout, FALSE);
+    ami_curvis(stdout, FALSE);
     putchar('\f');
-    c = pa_clock();
+    c = ami_clock();
     for (i = 1; i <= t; i++) {
 
         do {
@@ -1003,14 +1003,14 @@ static void farcspeed(int w, int t, long* s)
             ea = randn(INT_MAX);
 
         } while (ea <= sa);
-        pa_fcolor(stdout, randr(pa_red, pa_magenta));
-        pa_farc(stdout, randr(1, pa_maxxg(stdout)), randr(1, pa_maxyg(stdout)),
-                        randr(1, pa_maxxg(stdout)), randr(1, pa_maxyg(stdout)),
+        ami_fcolor(stdout, randr(ami_red, ami_magenta));
+        ami_farc(stdout, randr(1, ami_maxxg(stdout)), randr(1, ami_maxyg(stdout)),
+                        randr(1, ami_maxxg(stdout)), randr(1, ami_maxyg(stdout)),
                         sa, ea);
 
     }
-    *s = pa_elapsed(c);
-    pa_fcolor(stdout, pa_black);
+    *s = ami_elapsed(c);
+    ami_fcolor(stdout, ami_black);
 
 }
 
@@ -1024,10 +1024,10 @@ static void fchordspeed(int w, int t, long* s)
     int c;
     int sa, ea;
 
-    pa_auto(stdout, FALSE);
-    pa_curvis(stdout, FALSE);
+    ami_auto(stdout, FALSE);
+    ami_curvis(stdout, FALSE);
     putchar('\f');
-    c = pa_clock();
+    c = ami_clock();
     for (i = 1; i <= t; i++) {
 
         do {
@@ -1036,14 +1036,14 @@ static void fchordspeed(int w, int t, long* s)
             ea = randn(INT_MAX);
 
         } while (ea <= sa);
-        pa_fcolor(stdout, randr(pa_red, pa_magenta));
-        pa_fchord(stdout, randr(1, pa_maxxg(stdout)), randr(1, pa_maxyg(stdout)),
-                          randr(1, pa_maxxg(stdout)), randr(1, pa_maxyg(stdout)),
+        ami_fcolor(stdout, randr(ami_red, ami_magenta));
+        ami_fchord(stdout, randr(1, ami_maxxg(stdout)), randr(1, ami_maxyg(stdout)),
+                          randr(1, ami_maxxg(stdout)), randr(1, ami_maxyg(stdout)),
                           sa, ea);
 
     }
-    *s = pa_elapsed(c);
-    pa_fcolor(stdout, pa_black);
+    *s = ami_elapsed(c);
+    ami_fcolor(stdout, ami_black);
 
 }
 
@@ -1056,20 +1056,20 @@ static void ftrianglespeed(int w, int t, long* s)
     int i;
     int c;
 
-    pa_auto(stdout, FALSE);
-    pa_curvis(stdout, FALSE);
+    ami_auto(stdout, FALSE);
+    ami_curvis(stdout, FALSE);
     putchar('\f');
-    c = pa_clock();
+    c = ami_clock();
     for (i = 1; i <= t; i++) {
 
-        pa_fcolor(stdout, randr(pa_red, pa_magenta));
-        pa_ftriangle(stdout, randr(1, pa_maxxg(stdout)), randr(1, pa_maxyg(stdout)),
-                             randr(1, pa_maxxg(stdout)), randr(1, pa_maxyg(stdout)),
-                             randr(1, pa_maxxg(stdout)), randr(1, pa_maxyg(stdout)));
+        ami_fcolor(stdout, randr(ami_red, ami_magenta));
+        ami_ftriangle(stdout, randr(1, ami_maxxg(stdout)), randr(1, ami_maxyg(stdout)),
+                             randr(1, ami_maxxg(stdout)), randr(1, ami_maxyg(stdout)),
+                             randr(1, ami_maxxg(stdout)), randr(1, ami_maxyg(stdout)));
 
     }
-    *s = pa_elapsed(c);
-    pa_fcolor(stdout, pa_black);
+    *s = ami_elapsed(c);
+    ami_fcolor(stdout, ami_black);
 
 }
 
@@ -1082,21 +1082,21 @@ static void ftextspeed(int w, int t, long* s)
     int i;
     int c;
 
-    pa_auto(stdout, FALSE);
-    pa_curvis(stdout, FALSE);
+    ami_auto(stdout, FALSE);
+    ami_curvis(stdout, FALSE);
     putchar('\f');
-    c = pa_clock();
+    c = ami_clock();
     for (i = 1; i <= t; i++) {
 
-        pa_fcolor(stdout, randr(pa_red, pa_magenta));
-        pa_bcolor(stdout, randr(pa_red, pa_magenta));
-        pa_cursorg(stdout, randr(1, pa_maxxg(stdout)), randr(1, pa_maxyg(stdout)));
+        ami_fcolor(stdout, randr(ami_red, ami_magenta));
+        ami_bcolor(stdout, randr(ami_red, ami_magenta));
+        ami_cursorg(stdout, randr(1, ami_maxxg(stdout)), randr(1, ami_maxyg(stdout)));
         printf("Test text");
 
     }
-    *s = pa_elapsed(c);
-    pa_fcolor(stdout, pa_black);
-    pa_bcolor(stdout, pa_white);
+    *s = ami_elapsed(c);
+    ami_fcolor(stdout, ami_black);
+    ami_bcolor(stdout, ami_white);
 
 }
 
@@ -1110,24 +1110,24 @@ static void fpictspeed(int w, int t, long* s)
     int c;
     int x1, y1, x2, y2;
 
-    pa_auto(stdout, FALSE);
-    pa_curvis(stdout, FALSE);
+    ami_auto(stdout, FALSE);
+    ami_curvis(stdout, FALSE);
     putchar('\f');
-    pa_loadpict(stdout, 1, "tests/mypic");
-    c = pa_clock();
+    ami_loadpict(stdout, 1, "tests/mypic");
+    c = ami_clock();
     for (i = 1; i <= t; i++) {
 
-        x1 = randr(1, pa_maxxg(stdout));
-        x2 = randr(1, pa_maxxg(stdout));
+        x1 = randr(1, ami_maxxg(stdout));
+        x2 = randr(1, ami_maxxg(stdout));
         if (x1 > x2) swap(&x1, &x2);
-        y1 = randr(1, pa_maxyg(stdout));
-        y2 = randr(1, pa_maxyg(stdout));
+        y1 = randr(1, ami_maxyg(stdout));
+        y2 = randr(1, ami_maxyg(stdout));
         if (y1 > y2) swap(&y1, &y2);
-        pa_picture(stdout, 1, x1, y1, x2, y2);
+        ami_picture(stdout, 1, x1, y1, x2, y2);
 
    }
-   *s = pa_elapsed(c);
-   pa_fcolor(stdout, pa_black);
+   *s = ami_elapsed(c);
+   ami_fcolor(stdout, ami_black);
 
 }
 
@@ -1142,22 +1142,22 @@ static void fpictnsspeed(int w, int t, long* s)
     int x, y;
     int xs, ys;
 
-    pa_auto(stdout, FALSE);
-    pa_curvis(stdout, FALSE);
+    ami_auto(stdout, FALSE);
+    ami_curvis(stdout, FALSE);
     putchar('\f');
-    pa_loadpict(stdout, 1, "tests/mypic");
-    xs = pa_pictsizx(stdout, 1);
-    ys = pa_pictsizy(stdout, 1);
-    c = pa_clock();
+    ami_loadpict(stdout, 1, "tests/mypic");
+    xs = ami_pictsizx(stdout, 1);
+    ys = ami_pictsizy(stdout, 1);
+    c = ami_clock();
     for (i = 1; i <= t; i++) {
 
-        x = randr(1, pa_maxxg(stdout));
-        y = randr(1, pa_maxyg(stdout));
-        pa_picture(stdout, 1, x, y, x+xs-1, y+ys-1);
+        x = randr(1, ami_maxxg(stdout));
+        y = randr(1, ami_maxyg(stdout));
+        ami_picture(stdout, 1, x, y, x+xs-1, y+ys-1);
 
     }
-    *s = pa_elapsed(c);
-    pa_fcolor(stdout, pa_black);
+    *s = ami_elapsed(c);
+    ami_fcolor(stdout, ami_black);
 
 }
 
@@ -1176,19 +1176,19 @@ int main(void)
     float f;
 
     if (setjmp(terminate_buf)) goto terminate;
-    pa_curvis(stdout, FALSE);
-    pa_binvis(stdout);
+    ami_curvis(stdout, FALSE);
+    ami_binvis(stdout);
     printf("Graphics screen test vs. 0.1\n");
     printf("\n");
-    printf("Screen size in characters: x -> %d y -> %d\n", pa_maxx(stdout),
-                                                           pa_maxy(stdout));
+    printf("Screen size in characters: x -> %d y -> %d\n", ami_maxx(stdout),
+                                                           ami_maxy(stdout));
     printf("            in pixels:     x -> %d y -> %d\n",
-           pa_maxxg(stdout), pa_maxyg(stdout));
+           ami_maxxg(stdout), ami_maxyg(stdout));
     printf("Size of character in default font: x -> %d y -> %d\n",
-           pa_chrsizx(stdout), pa_chrsizy(stdout));
-    printf("Dots per meter: dpmx: %d dpmy: %d\n", pa_dpmx(stdout), pa_dpmy(stdout));
-    printf("Aspect ratio: %f\n", (double)pa_dpmx(stdout)/pa_dpmy(stdout));
-    prtcen(pa_maxy(stdout),
+           ami_chrsizx(stdout), ami_chrsizy(stdout));
+    printf("Dots per meter: dpmx: %d dpmy: %d\n", ami_dpmx(stdout), ami_dpmy(stdout));
+    printf("Aspect ratio: %f\n", (double)ami_dpmx(stdout)/ami_dpmy(stdout));
+    prtcen(ami_maxy(stdout),
            "Press return to start test (and to pass each pattern)");
     waitnext();
 
@@ -1198,54 +1198,54 @@ int main(void)
 
     grid();
     printf("\n");
-    pa_bover(stdout);
+    ami_bover(stdout);
     graphtest(1);
-    pa_binvis(stdout);
-    prtcen(pa_maxy(stdout), "Graphical figures test, linewidth == 1");
+    ami_binvis(stdout);
+    prtcen(ami_maxy(stdout), "Graphical figures test, linewidth == 1");
     waitnext();
 
     putchar('\f');
     grid();
     printf("\n");
     graphtest(2);
-    prtcen(pa_maxy(stdout), "Graphical figures test, linewidth == 2");
+    prtcen(ami_maxy(stdout), "Graphical figures test, linewidth == 2");
     waitnext();
 
     putchar('\f');
     grid();
     printf("\n");
     graphtest(3);
-    prtcen(pa_maxy(stdout), "Graphical figures test, linewidth == 3");
+    prtcen(ami_maxy(stdout), "Graphical figures test, linewidth == 3");
     waitnext();
 
     putchar('\f');
     grid();
     printf("\n");
     graphtest(5);
-    prtcen(pa_maxy(stdout), "Graphical figures test, linewidth == 5");
+    prtcen(ami_maxy(stdout), "Graphical figures test, linewidth == 5");
     waitnext();
 
     putchar('\f');
     grid();
     printf("\n");
     graphtest(11);
-    prtcen(pa_maxy(stdout), "Graphical figures test, linewidth == 11");
+    prtcen(ami_maxy(stdout), "Graphical figures test, linewidth == 11");
     waitnext();
 
    /* ***************************** Standard Fonts test *********************** */
 
     putchar('\f');
     chrgrid();
-    prtcen(pa_maxy(stdout), "Standard fonts test");
-    pa_auto(stdout, FALSE);
-    pa_home(stdout);
-    pa_binvis(stdout);
-    pa_fontnam(stdout, PA_FONT_TERM, fns, 100);
+    prtcen(ami_maxy(stdout), "Standard fonts test");
+    ami_auto(stdout, FALSE);
+    ami_home(stdout);
+    ami_binvis(stdout);
+    ami_fontnam(stdout, PA_FONT_TERM, fns, 100);
     if (strlen(fns) > 0) {
 
-        pa_font(stdout, PA_FONT_TERM);
+        ami_font(stdout, PA_FONT_TERM);
         printf("This is the terminal font: System name: \"%s\"\n", fns);
-        printf("Size x -> %d y -> %d\n", pa_chrsizx(stdout), pa_chrsizy(stdout));
+        printf("Size x -> %d y -> %d\n", ami_chrsizx(stdout), ami_chrsizy(stdout));
         prtall();
         printf("\n");
 
@@ -1255,12 +1255,12 @@ int main(void)
         printf("\n");
 
     }
-    pa_fontnam(stdout, PA_FONT_BOOK, fns, 100);
+    ami_fontnam(stdout, PA_FONT_BOOK, fns, 100);
     if (strlen(fns) > 0) {
 
-        pa_font(stdout, PA_FONT_BOOK);
+        ami_font(stdout, PA_FONT_BOOK);
         printf("This is the book font: System name: \"%s\"\n", fns);
-        printf("Size x -> %d y -> %d\n", pa_chrsizx(stdout), pa_chrsizy(stdout));
+        printf("Size x -> %d y -> %d\n", ami_chrsizx(stdout), ami_chrsizy(stdout));
         prtall();
         printf("\n");
 
@@ -1270,12 +1270,12 @@ int main(void)
         printf("\n");
 
     }
-    pa_fontnam(stdout, PA_FONT_SIGN, fns, 100);
+    ami_fontnam(stdout, PA_FONT_SIGN, fns, 100);
     if (strlen(fns) > 0) {
 
-        pa_font(stdout, PA_FONT_SIGN);
+        ami_font(stdout, PA_FONT_SIGN);
         printf("This is the sign font: System name: \"%s\"\n", fns);
-        printf("Size x -> %d y -> %d\n", pa_chrsizx(stdout), pa_chrsizy(stdout));
+        printf("Size x -> %d y -> %d\n", ami_chrsizx(stdout), ami_chrsizy(stdout));
         prtall();
         printf("\n");
 
@@ -1285,12 +1285,12 @@ int main(void)
         printf("\n");
 
     }
-    pa_fontnam(stdout, PA_FONT_TECH, fns, 100);
+    ami_fontnam(stdout, PA_FONT_TECH, fns, 100);
     if (strlen(fns) > 0) {
 
-        pa_font(stdout, PA_FONT_TECH);
+        ami_font(stdout, PA_FONT_TECH);
         printf("This is the technical font: System name: \"%s\"\n", fns);
-        printf("Size x -> %d y -> %d\n", pa_chrsizx(stdout), pa_chrsizy(stdout));
+        printf("Size x -> %d y -> %d\n", ami_chrsizx(stdout), ami_chrsizy(stdout));
         prtall();
         printf("\n");
 
@@ -1300,47 +1300,47 @@ int main(void)
         printf("\n");
 
     }
-    pa_font(stdout, PA_FONT_TERM);
+    ami_font(stdout, PA_FONT_TERM);
     printf("Complete\n");
     waitnext();
 
    /* ********************** Graphical cursor movement test ******************* */
 
     putchar('\f');
-    pa_auto(stdout, FALSE);
-    prtcen(pa_maxy(stdout), "Graphical cursor movement test");
+    ami_auto(stdout, FALSE);
+    prtcen(ami_maxy(stdout), "Graphical cursor movement test");
     x = 1;
     y = 1;
     i = 10000;
     dx = +1;
     dy = +1;
-    ln = pa_strsiz(stdout, S1);
+    ln = ami_strsiz(stdout, S1);
     term = FALSE;
     while (!term) {
 
-        pa_cursorg(stdout, x, y);
+        ami_cursorg(stdout, x, y);
         printf("%s", S1);
         xs = x;
         ys = y;
         x = x+dx;
         y = y+dy;
-        if (x < 1 || x+ln-1 > pa_maxxg(stdout)) {
+        if (x < 1 || x+ln-1 > ami_maxxg(stdout)) {
 
             x = xs;
             dx = -dx;
 
         }
-        if (y < 1 || y+pa_chrsizy(stdout)*2 > pa_maxyg(stdout)) {
+        if (y < 1 || y+ami_chrsizy(stdout)*2 > ami_maxyg(stdout)) {
 
             y = ys;
             dy = -dy;
 
         }
         waitchar(100, &term);
-        pa_cursorg(stdout, xs, ys);
-        pa_fcolor(stdout, pa_white);
+        ami_cursorg(stdout, xs, ys);
+        ami_fcolor(stdout, ami_white);
         printf("%s", S1);
-        pa_fcolor(stdout, pa_black);
+        ami_fcolor(stdout, ami_black);
 
     }
 
@@ -1348,56 +1348,56 @@ int main(void)
 
     putchar('\f');
     grid();
-    prtcen(pa_maxy(stdout), "Vertical lines test");
-    yspace = pa_maxyg(stdout)/20;
-    xspace = pa_maxxg(stdout)/50;
+    prtcen(ami_maxy(stdout), "Vertical lines test");
+    yspace = ami_maxyg(stdout)/20;
+    xspace = ami_maxxg(stdout)/50;
     y = yspace;
     w = 1;
-    while (y+w/2 < pa_maxyg(stdout)-pa_chrsizy(stdout)) {
+    while (y+w/2 < ami_maxyg(stdout)-ami_chrsizy(stdout)) {
 
-        pa_linewidth(stdout, w);
-        pa_line(stdout, xspace, y, pa_maxxg(stdout)-xspace, y);
+        ami_linewidth(stdout, w);
+        ami_line(stdout, xspace, y, ami_maxxg(stdout)-xspace, y);
         y = y+yspace;
         w = w+1;
 
     }
-    pa_linewidth(stdout, 1);
+    ami_linewidth(stdout, 1);
     waitnext();
 
     /* ************************* Horizontal lines test ************************* */
 
     putchar('\f');
     grid();
-    prtcen(pa_maxy(stdout), "Horizontal lines test");
-    yspace = pa_maxyg(stdout)/20;
-    xspace = pa_maxxg(stdout)/20;
+    prtcen(ami_maxy(stdout), "Horizontal lines test");
+    yspace = ami_maxyg(stdout)/20;
+    xspace = ami_maxxg(stdout)/20;
     x = xspace;
     w = 1;
-    while (x+w/2 < pa_maxxg(stdout)-20) {
+    while (x+w/2 < ami_maxxg(stdout)-20) {
 
-        pa_linewidth(stdout, w);
-        pa_line(stdout, x, yspace, x, pa_maxyg(stdout)-pa_chrsizy(stdout));
+        ami_linewidth(stdout, w);
+        ami_line(stdout, x, yspace, x, ami_maxyg(stdout)-ami_chrsizy(stdout));
         x = x+xspace;
         w = w+1;
 
     }
-    pa_linewidth(stdout, 1);
+    ami_linewidth(stdout, 1);
     waitnext();
 
     /* **************************** Polar lines test *************************** */
 
     putchar('\f');
     grid();
-    prtcen(pa_maxy(stdout), "Polar lines test");
-    x = pa_maxxg(stdout)/2;
-    y = pa_maxyg(stdout)/2;
-    if (pa_maxxg(stdout) > pa_maxyg(stdout)) l = pa_maxyg(stdout)/2-pa_chrsizy(stdout);
-    else l = pa_maxxg(stdout)/2-pa_chrsizy(stdout);
+    prtcen(ami_maxy(stdout), "Polar lines test");
+    x = ami_maxxg(stdout)/2;
+    y = ami_maxyg(stdout)/2;
+    if (ami_maxxg(stdout) > ami_maxyg(stdout)) l = ami_maxyg(stdout)/2-ami_chrsizy(stdout);
+    else l = ami_maxxg(stdout)/2-ami_chrsizy(stdout);
     w = 1;
-    pa_fcolor(stdout, pa_blue);
-    pa_ellipse(stdout, x-l, y-l, x+l, y+l);
-    pa_fcolor(stdout, pa_black);
-    pa_bover(stdout);
+    ami_fcolor(stdout, ami_blue);
+    ami_ellipse(stdout, x-l, y-l, x+l, y+l);
+    ami_fcolor(stdout, ami_black);
+    ami_bover(stdout);
     while (w < 10) {
 
         a = 0; /* set angle */
@@ -1407,14 +1407,14 @@ int main(void)
             a = a+10;
 
         };
-        pa_home(stdout);
+        ami_home(stdout);
         printf("Line width: %d\n", w);
         w = w+1;
         waitnext();
 
     }
-    pa_binvis(stdout);
-    pa_linewidth(stdout, 1);
+    ami_binvis(stdout);
+    ami_linewidth(stdout, 1);
 
     /* ******************************* Color test 1 ****************************** */
 
@@ -1423,13 +1423,13 @@ int main(void)
     r = 0; /* set colors */
     g = 0;
     b = 0;
-    while (y < pa_maxyg(stdout)) {
+    while (y < ami_maxyg(stdout)) {
 
         x = 1;
-        while (x < pa_maxxg(stdout)) {
+        while (x < ami_maxxg(stdout)) {
 
-            pa_fcolorg(stdout, r, g, b);
-            pa_frect(stdout, x, y, x+COLSQR-1, y+COLSQR-1);
+            ami_fcolorg(stdout, r, g, b);
+            ami_frect(stdout, x, y, x+COLSQR-1, y+COLSQR-1);
             x = x+COLSQR;
             if (r <= INT_MAX-INT_MAX/COLDIV) r = r+INT_MAX/COLDIV;
             else {
@@ -1450,68 +1450,68 @@ int main(void)
         y = y+COLSQR;
 
     }
-    pa_fcolor(stdout, pa_black);
-    pa_bcolor(stdout, pa_white);
-    pa_bover(stdout);
-    prtcen(pa_maxy(stdout), "Color test 1");
-    pa_binvis(stdout);
+    ami_fcolor(stdout, ami_black);
+    ami_bcolor(stdout, ami_white);
+    ami_bover(stdout);
+    prtcen(ami_maxy(stdout), "Color test 1");
+    ami_binvis(stdout);
     waitnext();
 
     /* ******************************* Color test 2 ****************************** */
 
     putchar('\f');
     x = 1; /* set 2st collumn */
-    while (x < pa_maxxg(stdout)) {
+    while (x < ami_maxxg(stdout)) {
 
-        pa_fcolorg(stdout, INT_MAX/pa_maxxg(stdout)*x, 0, 0);
-        pa_line(stdout, x, 1, x, pa_maxyg(stdout));
+        ami_fcolorg(stdout, INT_MAX/ami_maxxg(stdout)*x, 0, 0);
+        ami_line(stdout, x, 1, x, ami_maxyg(stdout));
         x = x+1;
 
     }
-    pa_binvis(stdout);
-    pa_fcolor(stdout, pa_black);
-    pa_bcolor(stdout, pa_white);
-    pa_bover(stdout);
-    prtcen(pa_maxy(stdout), "Color test 2");
-    pa_binvis(stdout);
+    ami_binvis(stdout);
+    ami_fcolor(stdout, ami_black);
+    ami_bcolor(stdout, ami_white);
+    ami_bover(stdout);
+    prtcen(ami_maxy(stdout), "Color test 2");
+    ami_binvis(stdout);
     waitnext();
 
     /* ******************************* Color test 3 ****************************** */
 
     putchar('\f');
     x = 1; /* set 2st collumn */
-    while (x < pa_maxxg(stdout)) {
+    while (x < ami_maxxg(stdout)) {
 
-        pa_fcolorg(stdout, 0, INT_MAX/pa_maxxg(stdout)*x, 0);
-        pa_line(stdout, x, 1, x, pa_maxyg(stdout));
+        ami_fcolorg(stdout, 0, INT_MAX/ami_maxxg(stdout)*x, 0);
+        ami_line(stdout, x, 1, x, ami_maxyg(stdout));
         x = x+1;
 
     }
-    pa_binvis(stdout);
-    pa_fcolor(stdout, pa_black);
-    pa_bcolor(stdout, pa_white);
-    pa_bover(stdout);
-    prtcen(pa_maxy(stdout), "Color test 3");
-    pa_binvis(stdout);
+    ami_binvis(stdout);
+    ami_fcolor(stdout, ami_black);
+    ami_bcolor(stdout, ami_white);
+    ami_bover(stdout);
+    prtcen(ami_maxy(stdout), "Color test 3");
+    ami_binvis(stdout);
     waitnext();
 
     /* ******************************* Color test 4 ****************************** */
 
     putchar('\f');
     x = 1; /* set 2st collumn */
-    while (x < pa_maxxg(stdout)) {
+    while (x < ami_maxxg(stdout)) {
 
-        pa_fcolorg(stdout, 0, 0, INT_MAX/pa_maxxg(stdout)*x);
-        pa_line(stdout, x, 1, x, pa_maxyg(stdout));
+        ami_fcolorg(stdout, 0, 0, INT_MAX/ami_maxxg(stdout)*x);
+        ami_line(stdout, x, 1, x, ami_maxyg(stdout));
         x = x+1;
 
     }
-    pa_binvis(stdout);
-    pa_fcolor(stdout, pa_black);
-    pa_bcolor(stdout, pa_white);
-    pa_bover(stdout);
-    prtcen(pa_maxy(stdout), "Color test 4");
-    pa_binvis(stdout);
+    ami_binvis(stdout);
+    ami_fcolor(stdout, ami_black);
+    ami_bcolor(stdout, ami_white);
+    ami_bover(stdout);
+    prtcen(ami_maxy(stdout), "Color test 4");
+    ami_binvis(stdout);
     waitnext();
 
     /* ***************************** Rectangle test **************************** */
@@ -1519,50 +1519,50 @@ int main(void)
     putchar('\f');
     grid();
     l = 10;
-    x = pa_maxxg(stdout)/2; /* find center */
-    y = pa_maxyg(stdout)/2;
+    x = ami_maxxg(stdout)/2; /* find center */
+    y = ami_maxyg(stdout)/2;
     w = 1;
-    c = pa_black;
-    while (l < pa_maxxg(stdout)/2 && l < pa_maxyg(stdout)/2-pa_chrsizy(stdout)) {
+    c = ami_black;
+    while (l < ami_maxxg(stdout)/2 && l < ami_maxyg(stdout)/2-ami_chrsizy(stdout)) {
 
-        pa_fcolor(stdout, c);
-        pa_linewidth(stdout, w);
-        pa_rect(stdout, x-l, y-l, x+l, y+l);
+        ami_fcolor(stdout, c);
+        ami_linewidth(stdout, w);
+        ami_rect(stdout, x-l, y-l, x+l, y+l);
         l = l+20;
         w = w+1;
-        if (c < pa_magenta) c++;
-        else c = pa_black;
-        if (c == pa_white) c++;
+        if (c < ami_magenta) c++;
+        else c = ami_black;
+        if (c == ami_white) c++;
 
     };
-    pa_linewidth(stdout, 1);
-    pa_fcolor(stdout, pa_black);
-    pa_binvis(stdout);
-    prtcen(pa_maxy(stdout), "Rectangle test");
+    ami_linewidth(stdout, 1);
+    ami_fcolor(stdout, ami_black);
+    ami_binvis(stdout);
+    prtcen(ami_maxy(stdout), "Rectangle test");
     waitnext();
 
     /* ************************ Filled rectangle test 1 ************************ */
 
     putchar('\f');
     grid();
-    if (pa_maxxg(stdout) > pa_maxyg(stdout)) l = pa_maxyg(stdout)/2-pa_chrsizy(stdout);
-    else l = pa_maxxg(stdout)/2-pa_chrsizy(stdout);
-    x = pa_maxxg(stdout)/2; /* find center */
-    y = pa_maxyg(stdout)/2;
-    c = pa_black;
+    if (ami_maxxg(stdout) > ami_maxyg(stdout)) l = ami_maxyg(stdout)/2-ami_chrsizy(stdout);
+    else l = ami_maxxg(stdout)/2-ami_chrsizy(stdout);
+    x = ami_maxxg(stdout)/2; /* find center */
+    y = ami_maxyg(stdout)/2;
+    c = ami_black;
     while (l >= 10) {
 
-        pa_fcolor(stdout, c);
-        pa_frect(stdout, x-l, y-l, x+l, y+l);
+        ami_fcolor(stdout, c);
+        ami_frect(stdout, x-l, y-l, x+l, y+l);
         l = l-20;
-        if (c < pa_magenta) c++;
-        else c = pa_black;
-        if (c == pa_white) c++;
+        if (c < ami_magenta) c++;
+        else c = ami_black;
+        if (c == ami_white) c++;
 
     }
-    pa_fcolor(stdout, pa_black);
-    pa_binvis(stdout);
-    prtcen(pa_maxy(stdout), "Filled rectangle test 1");
+    ami_fcolor(stdout, ami_black);
+    ami_binvis(stdout);
+    prtcen(ami_maxy(stdout), "Filled rectangle test 1");
     waitnext();
 
     /* ************************ Filled rectangle test 2 ************************ */
@@ -1572,56 +1572,56 @@ int main(void)
     l = 10;
     x = 20;
     y = 20;
-    c = pa_black;
-    while (y+l*2 < pa_maxyg(stdout)-pa_chrsizy(stdout)) {
+    c = ami_black;
+    while (y+l*2 < ami_maxyg(stdout)-ami_chrsizy(stdout)) {
 
-        while (x+l*2 < pa_maxxg(stdout)-pa_chrsizy(stdout)) {
+        while (x+l*2 < ami_maxxg(stdout)-ami_chrsizy(stdout)) {
 
-            pa_fcolor(stdout, c);
-            pa_frect(stdout, x, y, x+l*2, y+l*2);
+            ami_fcolor(stdout, c);
+            ami_frect(stdout, x, y, x+l*2, y+l*2);
             x = x+l*2+20;
             l = l+5;
-            if (c < pa_magenta) c++; else c = pa_black;
-            if (c == pa_white) c++;
+            if (c < ami_magenta) c++; else c = ami_black;
+            if (c == ami_white) c++;
 
         }
         x = 10;
         y = y+l*2+10;
 
     }
-    pa_fcolor(stdout, pa_black);
-    pa_binvis(stdout);
-    prtcen(pa_maxy(stdout), "Filled rectangle test 2");
+    ami_fcolor(stdout, ami_black);
+    ami_binvis(stdout);
+    prtcen(ami_maxy(stdout), "Filled rectangle test 2");
     waitnext();
 
     /* ************************* Rounded rectangle test ************************ */
 
-    pa_binvis(stdout);
+    ami_binvis(stdout);
     r = 1;
     while (r < 100) {
 
         putchar('\f');
         grid();
         l = 10;
-        x = pa_maxxg(stdout)/2; /* find center */
-        y = pa_maxyg(stdout)/2;
+        x = ami_maxxg(stdout)/2; /* find center */
+        y = ami_maxyg(stdout)/2;
         w = 1;
-        c = pa_black;
+        c = ami_black;
         printf("r: %d\n", r);
-        while (l+w/2 < pa_maxxg(stdout)/2 && l < pa_maxyg(stdout)/2-pa_chrsizy(stdout)) {
+        while (l+w/2 < ami_maxxg(stdout)/2 && l < ami_maxyg(stdout)/2-ami_chrsizy(stdout)) {
 
-            pa_fcolor(stdout, c);
-            pa_linewidth(stdout, w);
-            pa_rrect(stdout, x-l, y-l, x+l, y+l, r, r);
+            ami_fcolor(stdout, c);
+            ami_linewidth(stdout, w);
+            ami_rrect(stdout, x-l, y-l, x+l, y+l, r, r);
             l = l+w;
             w = w+1;
-            if (c < pa_magenta) c++; else c = pa_black;
-            if (c == pa_white) c++;
+            if (c < ami_magenta) c++; else c = ami_black;
+            if (c == ami_white) c++;
 
         }
-        pa_linewidth(stdout, 1);
-        pa_fcolor(stdout, pa_black);
-        prtcen(pa_maxy(stdout), "Rounded rectangle test");
+        ami_linewidth(stdout, 1);
+        ami_fcolor(stdout, ami_black);
+        prtcen(ami_maxy(stdout), "Rounded rectangle test");
         waitnext();
         r = r+10;
 
@@ -1629,35 +1629,35 @@ int main(void)
     /* ******************* rounded rectangle minimums test **************** */
 
     putchar('\f');
-    xsize = pa_maxxg(stdout)/20;
-    ysize = pa_maxyg(stdout)/20;
+    xsize = ami_maxxg(stdout)/20;
+    ysize = ami_maxyg(stdout)/20;
 
     /* paint the grid */
-    pa_fcolor(stdout, pa_cyan);
+    ami_fcolor(stdout, ami_cyan);
     x1 = 1;
-    while (x1 < pa_maxxg(stdout)) {
+    while (x1 < ami_maxxg(stdout)) {
 
-        pa_line(stdout, x1, 1, x1, pa_maxyg(stdout));
+        ami_line(stdout, x1, 1, x1, ami_maxyg(stdout));
         x1 += xsize;
 
     }
     y1 = 1;
-    while (y1 < pa_maxyg(stdout)) {
+    while (y1 < ami_maxyg(stdout)) {
 
-        pa_line(stdout, 1, y1, pa_maxxg(stdout), y1);
+        ami_line(stdout, 1, y1, ami_maxxg(stdout), y1);
         y1 += ysize;
 
     }
-    pa_fcolor(stdout, pa_black);
+    ami_fcolor(stdout, ami_black);
 
     /* draw vertical */
     x1 = 1+xsize;
     y1 = 1+ysize;
     x2 = x1+xsize*2;
     y2 = y1;
-    while (y2+ysize < pa_maxyg(stdout)) {
+    while (y2+ysize < ami_maxyg(stdout)) {
 
-        pa_rrect(stdout, x1, y1, x2, y2, 10, 10);
+        ami_rrect(stdout, x1, y1, x2, y2, 10, 10);
         y1 = y1+ysize;
         y2 = y2+ysize+1;
 
@@ -1668,9 +1668,9 @@ int main(void)
     y1 = 1+ysize;
     x2 = x1;
     y2 = ysize*4;
-    while (x2+xsize < pa_maxxg(stdout)) {
+    while (x2+xsize < ami_maxxg(stdout)) {
 
-        pa_rrect(stdout, x1, y1, x2, y2, 10, 10);
+        ami_rrect(stdout, x1, y1, x2, y2, 10, 10);
         x1 = x1+xsize;
         x2 = x2+xsize+1;
 
@@ -1681,42 +1681,42 @@ int main(void)
     y1 = 1+ysize*6;
     x2 = x1;
     y2 = y1;
-    while (x2 < pa_maxxg(stdout)) {
+    while (x2 < ami_maxxg(stdout)) {
 
-        pa_rrect(stdout, x1, y1, x2, y2, 10, 10);
+        ami_rrect(stdout, x1, y1, x2, y2, 10, 10);
         x1 += xsize;
         x2 += xsize+1;
         y2++;
 
     }
-    prtcen(pa_maxy(stdout), "Rounded Rectangle Minimums Test");
+    prtcen(ami_maxy(stdout), "Rounded Rectangle Minimums Test");
     waitnext();
 
     /* ******************** Filled rounded rectangle test 1 ******************** */
 
-    pa_binvis(stdout);
+    ami_binvis(stdout);
     r = 1;
     while (r < 100) {
 
         putchar('\f');
         grid();
-        if (pa_maxxg(stdout) > pa_maxyg(stdout)) l = pa_maxyg(stdout)/2-pa_chrsizy(stdout);
-        else l = pa_maxxg(stdout)/2-pa_chrsizy(stdout);
-        x = pa_maxxg(stdout)/2; /* find center */
-        y = pa_maxyg(stdout)/2;
-        c = pa_black;
+        if (ami_maxxg(stdout) > ami_maxyg(stdout)) l = ami_maxyg(stdout)/2-ami_chrsizy(stdout);
+        else l = ami_maxxg(stdout)/2-ami_chrsizy(stdout);
+        x = ami_maxxg(stdout)/2; /* find center */
+        y = ami_maxyg(stdout)/2;
+        c = ami_black;
         printf("r: %d\n", r);
         while (l >= 10) {
 
-            pa_fcolor(stdout, c);
-            pa_frrect(stdout, x-l, y-l, x+l, y+l, r, r);
+            ami_fcolor(stdout, c);
+            ami_frrect(stdout, x-l, y-l, x+l, y+l, r, r);
             l = l-20;
-            if (c < pa_magenta) c++; else c = pa_black;
-            if (c == pa_white) c++;
+            if (c < ami_magenta) c++; else c = ami_black;
+            if (c == ami_white) c++;
 
         }
-        pa_fcolor(stdout, pa_black);
-        prtcen(pa_maxy(stdout), "Filled rounded rectangle test 1");
+        ami_fcolor(stdout, ami_black);
+        prtcen(ami_maxy(stdout), "Filled rounded rectangle test 1");
         waitnext();
         r = r+10;
 
@@ -1724,7 +1724,7 @@ int main(void)
 
     /* ******************** Filled rounded rectangle test 2 ******************** */
 
-    pa_binvis(stdout);
+    ami_binvis(stdout);
     r = 1;
     while (r < 100) {
 
@@ -1733,27 +1733,27 @@ int main(void)
         printf("r: %d\n", r);
         l = 10;
         x = 20;
-        y = pa_curyg(stdout);
-        c = pa_black;
-        while (y+l*2 < pa_maxyg(stdout)-20) {
+        y = ami_curyg(stdout);
+        c = ami_black;
+        while (y+l*2 < ami_maxyg(stdout)-20) {
 
-            while (x+l*2 < pa_maxxg(stdout)-20) {
+            while (x+l*2 < ami_maxxg(stdout)-20) {
 
-                pa_fcolor(stdout, c);
-                pa_frrect(stdout, x, y, x+l*2, y+l*2, r, r);
+                ami_fcolor(stdout, c);
+                ami_frrect(stdout, x, y, x+l*2, y+l*2, r, r);
                 x = x+l*2+20;
                 l = l+5;
-                if (c < pa_magenta) c++; else c = pa_black;
-                if (c == pa_white) c++;
+                if (c < ami_magenta) c++; else c = ami_black;
+                if (c == ami_white) c++;
 
             }
             x = 10;
             y = y+l*2+10;
 
         }
-        pa_fcolor(stdout, pa_black);
-        pa_binvis(stdout);
-        prtcen(pa_maxy(stdout), "Filled rounded rectangle test 2");
+        ami_fcolor(stdout, ami_black);
+        ami_binvis(stdout);
+        prtcen(ami_maxy(stdout), "Filled rounded rectangle test 2");
         waitnext();
         r = r+10;
 
@@ -1762,35 +1762,35 @@ int main(void)
     /* ******************* filled rounded rectangle minimums test **************** */
 
     putchar('\f');
-    xsize = pa_maxxg(stdout)/20;
-    ysize = pa_maxyg(stdout)/20;
+    xsize = ami_maxxg(stdout)/20;
+    ysize = ami_maxyg(stdout)/20;
 
     /* paint the grid */
-    pa_fcolor(stdout, pa_cyan);
+    ami_fcolor(stdout, ami_cyan);
     x1 = 1;
-    while (x1 < pa_maxxg(stdout)) {
+    while (x1 < ami_maxxg(stdout)) {
 
-        pa_line(stdout, x1, 1, x1, pa_maxyg(stdout));
+        ami_line(stdout, x1, 1, x1, ami_maxyg(stdout));
         x1 += xsize;
 
     }
     y1 = 1;
-    while (y1 < pa_maxyg(stdout)) {
+    while (y1 < ami_maxyg(stdout)) {
 
-        pa_line(stdout, 1, y1, pa_maxxg(stdout), y1);
+        ami_line(stdout, 1, y1, ami_maxxg(stdout), y1);
         y1 += ysize;
 
     }
-    pa_fcolor(stdout, pa_black);
+    ami_fcolor(stdout, ami_black);
 
     /* draw vertical */
     x1 = 1+xsize;
     y1 = 1+ysize;
     x2 = x1+xsize*2;
     y2 = y1;
-    while (y2+ysize < pa_maxyg(stdout)) {
+    while (y2+ysize < ami_maxyg(stdout)) {
 
-        pa_frrect(stdout, x1, y1, x2, y2, 10, 10);
+        ami_frrect(stdout, x1, y1, x2, y2, 10, 10);
         y1 = y1+ysize;
         y2 = y2+ysize+1;
 
@@ -1801,9 +1801,9 @@ int main(void)
     y1 = 1+ysize;
     x2 = x1;
     y2 = ysize*4;
-    while (x2+xsize < pa_maxxg(stdout)) {
+    while (x2+xsize < ami_maxxg(stdout)) {
 
-        pa_frrect(stdout, x1, y1, x2, y2, 10, 10);
+        ami_frrect(stdout, x1, y1, x2, y2, 10, 10);
         x1 = x1+xsize;
         x2 = x2+xsize+1;
 
@@ -1814,79 +1814,79 @@ int main(void)
     y1 = 1+ysize*6;
     x2 = x1;
     y2 = y1;
-    while (x2 < pa_maxxg(stdout)) {
+    while (x2 < ami_maxxg(stdout)) {
 
-        pa_frrect(stdout, x1, y1, x2, y2, 10, 10);
+        ami_frrect(stdout, x1, y1, x2, y2, 10, 10);
         x1 += xsize;
         x2 += xsize+1;
         y2++;
 
     }
-    prtcen(pa_maxy(stdout), "Filled Rectangle Minimums Test");
+    prtcen(ami_maxy(stdout), "Filled Rectangle Minimums Test");
     waitnext();
 
     /* ****************************** Ellipse test ***************************** */
 
-    pa_binvis(stdout);
+    ami_binvis(stdout);
     w = 1;
     while (w < 10) {
 
         putchar('\f');
         grid();
-        lx = pa_maxxg(stdout)/2-10;
+        lx = ami_maxxg(stdout)/2-10;
         lx = lx-lx%10;
-        ly = pa_maxyg(stdout)/2-10-pa_chrsizy(stdout);
+        ly = ami_maxyg(stdout)/2-10-ami_chrsizy(stdout);
         ly = ly-ly%10;
-        x = pa_maxxg(stdout)/2; /* find center */
-        y = pa_maxyg(stdout)/2;
+        x = ami_maxxg(stdout)/2; /* find center */
+        y = ami_maxyg(stdout)/2;
         x = x-x%10;
         y = y-y%10;
-        c = pa_black;
+        c = ami_black;
         printf("width: %d\n", w);
         while (lx >= 10 && ly >= 10) {
 
-            pa_fcolor(stdout, c);
-            pa_linewidth(stdout, w);
-            pa_ellipse(stdout, x-lx, y-ly, x+lx, y+ly);
+            ami_fcolor(stdout, c);
+            ami_linewidth(stdout, w);
+            ami_ellipse(stdout, x-lx, y-ly, x+lx, y+ly);
             lx = lx-20;
             ly = ly-20;
-            if (c < pa_magenta) c++; else c = pa_black;
-            if (c == pa_white) c++;
+            if (c < ami_magenta) c++; else c = ami_black;
+            if (c == ami_white) c++;
 
         }
-        pa_fcolor(stdout, pa_black);
-        prtcen(pa_maxy(stdout), "Ellipse test");
+        ami_fcolor(stdout, ami_black);
+        prtcen(ami_maxy(stdout), "Ellipse test");
         waitnext();
         w = w+1;
 
     }
-    pa_linewidth(stdout, 1);
+    ami_linewidth(stdout, 1);
 
     /* ************************** Filled ellipse test 1 ************************** */
 
     putchar('\f');
     grid();
-    lx = pa_maxxg(stdout)/2-10;
+    lx = ami_maxxg(stdout)/2-10;
     lx = lx-lx%10;
-    ly = pa_maxyg(stdout)/2-10-pa_chrsizy(stdout);
+    ly = ami_maxyg(stdout)/2-10-ami_chrsizy(stdout);
     ly = ly-ly%10;
-    x = pa_maxxg(stdout)/2; /* find center */
-    y = pa_maxyg(stdout)/2;
+    x = ami_maxxg(stdout)/2; /* find center */
+    y = ami_maxyg(stdout)/2;
     x = x-x%10;
     y = y-y%10;
-    c = pa_black;
+    c = ami_black;
     while (lx >= 10 && ly >= 10) {
 
-        pa_fcolor(stdout, c);
-        pa_fellipse(stdout, x-lx, y-ly, x+lx, y+ly);
+        ami_fcolor(stdout, c);
+        ami_fellipse(stdout, x-lx, y-ly, x+lx, y+ly);
         lx = lx-20;
         ly = ly-20;
-        if (c < pa_magenta) c++; else c = pa_black;
-        if (c == pa_white) c++;
+        if (c < ami_magenta) c++; else c = ami_black;
+        if (c == ami_white) c++;
 
     }
-    pa_fcolor(stdout, pa_black);
-    prtcen(pa_maxy(stdout), "Filled ellipse test 1");
+    ami_fcolor(stdout, ami_black);
+    prtcen(ami_maxy(stdout), "Filled ellipse test 1");
     waitnext();
 
     /* ************************ Filled ellipse test 2 ************************ */
@@ -1896,59 +1896,59 @@ int main(void)
     l = 10;
     x = 20;
     y = 20;
-    c = pa_black;
-    while (y+l*2 < pa_maxyg(stdout)-20) {
+    c = ami_black;
+    while (y+l*2 < ami_maxyg(stdout)-20) {
 
-        while (x+l*2 < pa_maxxg(stdout)-20) {
+        while (x+l*2 < ami_maxxg(stdout)-20) {
 
-            pa_fcolor(stdout, c);
-            pa_fellipse(stdout, x, y, x+l*2, y+l*2);
+            ami_fcolor(stdout, c);
+            ami_fellipse(stdout, x, y, x+l*2, y+l*2);
             x = x+l*2+20;
             l = l+5;
-            if (c < pa_magenta) c++; else c = pa_black;
-            if (c == pa_white) c++;
+            if (c < ami_magenta) c++; else c = ami_black;
+            if (c == ami_white) c++;
 
         }
         x = 10;
         y = y+l*2+10;
 
     }
-    pa_fcolor(stdout, pa_black);
-    pa_binvis(stdout);
-    prtcen(pa_maxy(stdout), "Filled ellipse test 2");
+    ami_fcolor(stdout, ami_black);
+    ami_binvis(stdout);
+    prtcen(ami_maxy(stdout), "Filled ellipse test 2");
     waitnext();
 
     /* ******************************* Arc test 1 ******************************** */
 
-    pa_binvis(stdout);
+    ami_binvis(stdout);
     w = 1;
     while (w < 10) {
 
         putchar('\f');
         grid();
         a = 0;
-        c = pa_black;
+        c = ami_black;
         i = 10;
         printf("Linewidth: %d", w);
-        while (i < pa_maxxg(stdout)/2 && i < (pa_maxyg(stdout)-pa_chrsizy(stdout))/2) {
+        while (i < ami_maxxg(stdout)/2 && i < (ami_maxyg(stdout)-ami_chrsizy(stdout))/2) {
 
             a = 0;
             while (a <= INT_MAX-INT_MAX/10) {
 
-                pa_fcolor(stdout, c);
-                pa_linewidth(stdout, w);
-                pa_arc(stdout, i, i, pa_maxxg(stdout)-i,
-                       pa_maxyg(stdout)-pa_chrsizy(stdout)-i, a, a+INT_MAX/10);
+                ami_fcolor(stdout, c);
+                ami_linewidth(stdout, w);
+                ami_arc(stdout, i, i, ami_maxxg(stdout)-i,
+                       ami_maxyg(stdout)-ami_chrsizy(stdout)-i, a, a+INT_MAX/10);
                 a = a+INT_MAX/5;
-                if (c < pa_magenta) c++; else c = pa_black;
-                if (c == pa_white) c++;
+                if (c < ami_magenta) c++; else c = ami_black;
+                if (c == ami_white) c++;
 
             }
             i = i+20;
 
         }
-        pa_fcolor(stdout, pa_black);
-        prtcen(pa_maxy(stdout), "Arc test 1");
+        ami_fcolor(stdout, ami_black);
+        prtcen(ami_maxy(stdout), "Arc test 1");
         waitnext();
         w = w+1;
 
@@ -1956,41 +1956,41 @@ int main(void)
 
     /* ************************ Arc test 2 ************************ */
 
-    pa_binvis(stdout);
+    ami_binvis(stdout);
     w = 1;
-    xspace = pa_maxxg(stdout)/40;
-    yspace = pa_maxyg(stdout)/40;
+    xspace = ami_maxxg(stdout)/40;
+    yspace = ami_maxyg(stdout)/40;
     while (w < 10) {
 
         putchar('\f');
         grid();
         printf("Linewidth: %d\n", w);
-        l = pa_maxxg(stdout)/40;
+        l = ami_maxxg(stdout)/40;
         x = xspace;
-        y = pa_curyg(stdout);
-        c = pa_black;
+        y = ami_curyg(stdout);
+        c = ami_black;
         aa = 0;
         ab = INT_MAX / 360*90;
-        while (y+l*2 < pa_maxyg(stdout)-yspace) {
+        while (y+l*2 < ami_maxyg(stdout)-yspace) {
 
-            while (x+l*2 < pa_maxxg(stdout)-xspace) {
+            while (x+l*2 < ami_maxxg(stdout)-xspace) {
 
-                pa_fcolor(stdout, pa_red);
-                pa_linewidth(stdout, 1);
-                pa_rect(stdout, x, y, x+l*2, y+l*2);
-                pa_fcolor(stdout, pa_black);
-                pa_linewidth(stdout, w);
-                pa_arc(stdout, x, y, x+l*2, y+l*2, aa, ab);
+                ami_fcolor(stdout, ami_red);
+                ami_linewidth(stdout, 1);
+                ami_rect(stdout, x, y, x+l*2, y+l*2);
+                ami_fcolor(stdout, ami_black);
+                ami_linewidth(stdout, w);
+                ami_arc(stdout, x, y, x+l*2, y+l*2, aa, ab);
                 x = x+l*2+xspace;
-                l = l+pa_maxxg(stdout)/60;
+                l = l+ami_maxxg(stdout)/60;
 
             }
             x = xspace;
             y = y+l*2+yspace;
 
         }
-        pa_binvis(stdout);
-        prtcen(pa_maxy(stdout), "Arc test 2");
+        ami_binvis(stdout);
+        prtcen(ami_maxy(stdout), "Arc test 2");
         waitnext();
         w = w+1;
 
@@ -1998,9 +1998,9 @@ int main(void)
 
     /* ************************ Arc test 3 ************************ */
 
-    pa_binvis(stdout);
+    ami_binvis(stdout);
     w = 1;
-    xspace = pa_maxxg(stdout)/25;
+    xspace = ami_maxxg(stdout)/25;
     yspace = xspace;
     while (w < 10) {
 
@@ -2009,20 +2009,20 @@ int main(void)
         printf("Linewidth: %d\n", w);
         l = xspace;
         x = xspace;
-        y = pa_curyg(stdout);
-        c = pa_black;
+        y = ami_curyg(stdout);
+        c = ami_black;
         aa = 0;
         ab = 10;
-        while (y+l*2 < pa_maxyg(stdout)-yspace && ab <= 360) {
+        while (y+l*2 < ami_maxyg(stdout)-yspace && ab <= 360) {
 
-            while (x+l*2 < pa_maxxg(stdout)-xspace && ab <= 360) {
+            while (x+l*2 < ami_maxxg(stdout)-xspace && ab <= 360) {
 
-                pa_fcolor(stdout, pa_red);
-                pa_linewidth(stdout, 1);
-                pa_rect(stdout, x, y, x+l*2, y+l*2);
-                pa_fcolor(stdout, pa_black);
-                pa_linewidth(stdout, w);
-                pa_arc(stdout, x, y, x+l*2, y+l*2, aa*DEGREE, ab*DEGREE);
+                ami_fcolor(stdout, ami_red);
+                ami_linewidth(stdout, 1);
+                ami_rect(stdout, x, y, x+l*2, y+l*2);
+                ami_fcolor(stdout, ami_black);
+                ami_linewidth(stdout, w);
+                ami_arc(stdout, x, y, x+l*2, y+l*2, aa*DEGREE, ab*DEGREE);
                 x = x+l*2+xspace;
                 ab = ab+10;
 
@@ -2031,8 +2031,8 @@ int main(void)
             y = y+l*2+yspace;
 
         }
-        pa_binvis(stdout);
-        prtcen(pa_maxy(stdout), "Arc test 3");
+        ami_binvis(stdout);
+        prtcen(ami_maxy(stdout), "Arc test 3");
         waitnext();
         w = w+1;
 
@@ -2040,9 +2040,9 @@ int main(void)
 
     /* ************************ Arc test 4 ************************ */
 
-    pa_binvis(stdout);
+    ami_binvis(stdout);
     w = 1;
-    xspace = pa_maxxg(stdout)/25;
+    xspace = ami_maxxg(stdout)/25;
     yspace = xspace;
     while (w < 10) {
 
@@ -2051,20 +2051,20 @@ int main(void)
         printf("Linewidth: %d\n", w);
         l = xspace;
         x = xspace;
-        y = pa_curyg(stdout);
-        c = pa_black;
+        y = ami_curyg(stdout);
+        c = ami_black;
         aa = 0;
         ab = 360;
-        while (y+l*2 < pa_maxyg(stdout)-yspace && aa < 360) {
+        while (y+l*2 < ami_maxyg(stdout)-yspace && aa < 360) {
 
-            while (x+l*2 < pa_maxxg(stdout)-xspace && aa < 360) {
+            while (x+l*2 < ami_maxxg(stdout)-xspace && aa < 360) {
 
-                pa_fcolor(stdout, pa_red);
-                pa_linewidth(stdout, 1);
-                pa_rect(stdout, x, y, x+l*2, y+l*2);
-                pa_fcolor(stdout, pa_black);
-                pa_linewidth(stdout, w);
-                pa_arc(stdout, x, y, x+l*2, y+l*2, aa*DEGREE, ab*DEGREE);
+                ami_fcolor(stdout, ami_red);
+                ami_linewidth(stdout, 1);
+                ami_rect(stdout, x, y, x+l*2, y+l*2);
+                ami_fcolor(stdout, ami_black);
+                ami_linewidth(stdout, w);
+                ami_arc(stdout, x, y, x+l*2, y+l*2, aa*DEGREE, ab*DEGREE);
                 x = x+l*2+xspace;
                 aa = aa+10;
 
@@ -2073,8 +2073,8 @@ int main(void)
             y = y+l*2+yspace;
 
         }
-        pa_binvis(stdout);
-        prtcen(pa_maxy(stdout), "Arc test 4");
+        ami_binvis(stdout);
+        prtcen(ami_maxy(stdout), "Arc test 4");
         waitnext();
         w = w+1;
 
@@ -2085,126 +2085,126 @@ int main(void)
     putchar('\f');
     grid();
     a = 0;
-    c = pa_black;
+    c = ami_black;
     a = 0;
-    x = pa_maxxg(stdout)-10;
+    x = ami_maxxg(stdout)-10;
     x = x-x % 10;
-    y = pa_maxyg(stdout)-pa_chrsizy(stdout)-10;
+    y = ami_maxyg(stdout)-ami_chrsizy(stdout)-10;
     y = y-y % 10;
     while (a <= INT_MAX-INT_MAX/10) {
 
-        pa_fcolor(stdout, c);
-        pa_farc(stdout, 10, 10, x, y, a, a+INT_MAX/10);
+        ami_fcolor(stdout, c);
+        ami_farc(stdout, 10, 10, x, y, a, a+INT_MAX/10);
         a = a+INT_MAX / 5;
-        if (c < pa_magenta) c++; else c = pa_black;
-        if (c == pa_white) c++;
+        if (c < ami_magenta) c++; else c = ami_black;
+        if (c == ami_white) c++;
 
     };
-    pa_binvis(stdout);
-    pa_fcolor(stdout, pa_black);
-    prtcen(pa_maxy(stdout), "Filled arc test 1");
+    ami_binvis(stdout);
+    ami_fcolor(stdout, ami_black);
+    prtcen(ami_maxy(stdout), "Filled arc test 1");
     waitnext();
 
     /* ************************ filled arc test 2 ************************ */
 
     putchar('\f');
-    xspace = pa_maxxg(stdout)/40;
-    yspace = pa_maxyg(stdout)/40;
+    xspace = ami_maxxg(stdout)/40;
+    yspace = ami_maxyg(stdout)/40;
     grid();
-    l = pa_maxxg(stdout)/50;
+    l = ami_maxxg(stdout)/50;
     x = xspace;
     y = yspace;
-    c = pa_black;
+    c = ami_black;
     aa = 0;
     ab = INT_MAX / 360*90;
-    while (y+l*2 < pa_maxyg(stdout)-yspace) {
+    while (y+l*2 < ami_maxyg(stdout)-yspace) {
 
-        while (x+l*2 < pa_maxxg(stdout)-xspace) {
+        while (x+l*2 < ami_maxxg(stdout)-xspace) {
 
-            pa_fcolor(stdout, pa_red);
-            pa_linewidth(stdout, 1);
-            pa_rect(stdout, x, y, x+l*2, y+l*2);
-            pa_fcolor(stdout, c);
-            pa_farc(stdout, x, y, x+l*2, y+l*2, aa, ab);
+            ami_fcolor(stdout, ami_red);
+            ami_linewidth(stdout, 1);
+            ami_rect(stdout, x, y, x+l*2, y+l*2);
+            ami_fcolor(stdout, c);
+            ami_farc(stdout, x, y, x+l*2, y+l*2, aa, ab);
             x = x+l*2+xspace;
-            l = l+pa_maxxg(stdout)/40;
-            if (c < pa_magenta) c++; else c = pa_black;
-            if (c == pa_white) c++;
+            l = l+ami_maxxg(stdout)/40;
+            if (c < ami_magenta) c++; else c = ami_black;
+            if (c == ami_white) c++;
 
         }
         x = xspace;
         y = y+l*2+yspace;
 
     }
-    pa_binvis(stdout);
-    pa_fcolor(stdout, pa_black);
-    prtcen(pa_maxy(stdout), "Filled arc test 2");
+    ami_binvis(stdout);
+    ami_fcolor(stdout, ami_black);
+    prtcen(ami_maxy(stdout), "Filled arc test 2");
     waitnext();
 
     /* ************************ Filled arc test 3 ************************ */
 
     putchar('\f');
-    xspace = pa_maxxg(stdout)/40;
-    yspace = pa_maxyg(stdout)/40;
+    xspace = ami_maxxg(stdout)/40;
+    yspace = ami_maxyg(stdout)/40;
     grid();
-    l = pa_maxxg(stdout)/21;
+    l = ami_maxxg(stdout)/21;
     x = xspace;
     y = yspace;
-    c = pa_black;
+    c = ami_black;
     aa = 0;
     ab = 10;
-    while (y+l*2 < pa_maxyg(stdout)-yspace && ab <= 360) {
+    while (y+l*2 < ami_maxyg(stdout)-yspace && ab <= 360) {
 
-        while (x+l*2 < pa_maxxg(stdout)-xspace && ab <= 360) {
+        while (x+l*2 < ami_maxxg(stdout)-xspace && ab <= 360) {
 
-            pa_fcolor(stdout, c);
-            pa_farc(stdout, x, y, x+l*2, y+l*2, aa*DEGREE, ab*DEGREE);
+            ami_fcolor(stdout, c);
+            ami_farc(stdout, x, y, x+l*2, y+l*2, aa*DEGREE, ab*DEGREE);
             x = x+l*2+xspace;
             ab = ab+10;
-            if (c < pa_magenta) c++; else c = pa_black;
-            if (c == pa_white) c++;
+            if (c < ami_magenta) c++; else c = ami_black;
+            if (c == ami_white) c++;
 
         }
         x = xspace;
         y = y+l*2+yspace;
 
     }
-    pa_binvis(stdout);
-    pa_fcolor(stdout, pa_black);
-    prtcen(pa_maxy(stdout), "Arc test 3");
+    ami_binvis(stdout);
+    ami_fcolor(stdout, ami_black);
+    prtcen(ami_maxy(stdout), "Arc test 3");
     waitnext();
 
     /* ************************ Filled arc test 4 ************************ */
 
     putchar('\f');
-    xspace = pa_maxxg(stdout)/40;
-    yspace = pa_maxyg(stdout)/40;
+    xspace = ami_maxxg(stdout)/40;
+    yspace = ami_maxyg(stdout)/40;
     grid();
-    l = pa_maxxg(stdout)/21;
+    l = ami_maxxg(stdout)/21;
     x = xspace;
     y = yspace;
-    c = pa_black;
+    c = ami_black;
     aa = 0;
     ab = 360;
-    while (y+l*2 < pa_maxyg(stdout)-yspace && aa < 360) {
+    while (y+l*2 < ami_maxyg(stdout)-yspace && aa < 360) {
 
-        while (x+l*2 < pa_maxxg(stdout)-xspace && aa < 360) {
+        while (x+l*2 < ami_maxxg(stdout)-xspace && aa < 360) {
 
-            pa_fcolor(stdout, c);
-            pa_farc(stdout, x, y, x+l*2, y+l*2, aa*DEGREE, ab*DEGREE);
+            ami_fcolor(stdout, c);
+            ami_farc(stdout, x, y, x+l*2, y+l*2, aa*DEGREE, ab*DEGREE);
             x = x+l*2+xspace;
             aa = aa+10;
-            if (c < pa_magenta) c++; else c = pa_black;
-            if (c == pa_white) c++;
+            if (c < ami_magenta) c++; else c = ami_black;
+            if (c == ami_white) c++;
 
         }
         x = xspace;
         y = y+l*2+yspace;
 
     }
-    pa_binvis(stdout);
-    pa_fcolor(stdout, pa_black);
-    prtcen(pa_maxy(stdout), "Arc test 4");
+    ami_binvis(stdout);
+    ami_fcolor(stdout, ami_black);
+    prtcen(ami_maxy(stdout), "Arc test 4");
     waitnext();
 
     /* *************************** Filled chord test 1 *************************** */
@@ -2212,123 +2212,123 @@ int main(void)
     putchar('\f');
     grid();
     a = 0;
-    c = pa_black;
+    c = ami_black;
     a = 0;
     i = 8;
-    x = pa_maxxg(stdout)-10;
+    x = ami_maxxg(stdout)-10;
     x = x-x%10;
-    y = pa_maxyg(stdout)-pa_chrsizy(stdout)-10;
+    y = ami_maxyg(stdout)-ami_chrsizy(stdout)-10;
     y = y-y%10;
     while (a <= INT_MAX-INT_MAX/i) {
 
-        pa_fcolor(stdout, c);
-        pa_fchord(stdout, 10, 10, x, y, a, a+INT_MAX/i);
+        ami_fcolor(stdout, c);
+        ami_fchord(stdout, 10, 10, x, y, a, a+INT_MAX/i);
         a = a+INT_MAX/(i/2);
-        if (c < pa_magenta) c++; else c = pa_black;
-        if (c == pa_white) c++;
+        if (c < ami_magenta) c++; else c = ami_black;
+        if (c == ami_white) c++;
 
     }
-    pa_fcolor(stdout, pa_black);
-    prtcen(pa_maxy(stdout), "Filled chord test 1");
+    ami_fcolor(stdout, ami_black);
+    prtcen(ami_maxy(stdout), "Filled chord test 1");
     waitnext();
 
     /* ************************ filled chord test 2 ************************ */
 
     putchar('\f');
-    xspace = pa_maxxg(stdout)/50;
+    xspace = ami_maxxg(stdout)/50;
     yspace = xspace;
     grid();
-    l = pa_maxxg(stdout)/100;
+    l = ami_maxxg(stdout)/100;
     x = xspace;
     y = yspace;
-    c = pa_black;
+    c = ami_black;
     aa = 0;
     ab = INT_MAX/360*90;
-    while (y+l*2 < pa_maxyg(stdout)-yspace) {
+    while (y+l*2 < ami_maxyg(stdout)-yspace) {
 
-        while (x+l*2 < pa_maxxg(stdout)-xspace) {
+        while (x+l*2 < ami_maxxg(stdout)-xspace) {
 
-            pa_fcolor(stdout, c);
-            pa_fchord(stdout, x, y, x+l*2, y+l*2, aa, ab);
+            ami_fcolor(stdout, c);
+            ami_fchord(stdout, x, y, x+l*2, y+l*2, aa, ab);
             x = x+l*2+xspace;
-            l = l+pa_maxxg(stdout)/100;
-            if (c < pa_magenta) c++; else c = pa_black;
-            if (c == pa_white) c++;
+            l = l+ami_maxxg(stdout)/100;
+            if (c < ami_magenta) c++; else c = ami_black;
+            if (c == ami_white) c++;
 
         }
         x = xspace;
         y = y+l*2+yspace;
 
     }
-    pa_binvis(stdout);
-    pa_fcolor(stdout, pa_black);
-    prtcen(pa_maxy(stdout), "Filled chord test 2");
+    ami_binvis(stdout);
+    ami_fcolor(stdout, ami_black);
+    prtcen(ami_maxy(stdout), "Filled chord test 2");
     waitnext();
 
     /* ************************ Filled chord test 3 ************************ */
 
     putchar('\f');
-    xspace = pa_maxxg(stdout)/50;
+    xspace = ami_maxxg(stdout)/50;
     yspace = xspace;
     grid();
-    l = pa_maxxg(stdout)/20;
+    l = ami_maxxg(stdout)/20;
     x = xspace;
     y = yspace;
-    c = pa_black;
+    c = ami_black;
     aa = 0;
     ab = 10;
-    while (y+l*2 < pa_maxyg(stdout)-yspace && ab <= 360) {
+    while (y+l*2 < ami_maxyg(stdout)-yspace && ab <= 360) {
 
-        while (x+l*2 < pa_maxxg(stdout)-xspace && ab <= 360) {
+        while (x+l*2 < ami_maxxg(stdout)-xspace && ab <= 360) {
 
-            pa_fcolor(stdout, c);
-            pa_fchord(stdout, x, y, x+l*2, y+l*2, aa*DEGREE, ab*DEGREE);
+            ami_fcolor(stdout, c);
+            ami_fchord(stdout, x, y, x+l*2, y+l*2, aa*DEGREE, ab*DEGREE);
             x = x+l*2+xspace;
             ab = ab+10;
-            if (c < pa_magenta) c++; else c = pa_black;
-            if (c == pa_white) c++;
+            if (c < ami_magenta) c++; else c = ami_black;
+            if (c == ami_white) c++;
 
         }
         x = xspace;
         y = y+l*2+yspace;
 
     }
-    pa_binvis(stdout);
-    pa_fcolor(stdout, pa_black);
-    prtcen(pa_maxy(stdout), "Filled chord test 3");
+    ami_binvis(stdout);
+    ami_fcolor(stdout, ami_black);
+    prtcen(ami_maxy(stdout), "Filled chord test 3");
     waitnext();
 
     /* ************************ Filled chord test 4 ************************ */
 
     putchar('\f');
-    xspace = pa_maxxg(stdout)/50;
+    xspace = ami_maxxg(stdout)/50;
     yspace = xspace;
     grid();
-    l = pa_maxxg(stdout)/20;
+    l = ami_maxxg(stdout)/20;
     x = xspace;
     y = yspace;
-    c = pa_black;
+    c = ami_black;
     aa = 0;
     ab = 360;
-    while (y+l*2 < pa_maxyg(stdout)-yspace && aa < 360) {
+    while (y+l*2 < ami_maxyg(stdout)-yspace && aa < 360) {
 
-        while (x+l*2 < pa_maxxg(stdout)-xspace && aa < 360) {
+        while (x+l*2 < ami_maxxg(stdout)-xspace && aa < 360) {
 
-            pa_fcolor(stdout, c);
-            pa_fchord(stdout, x, y, x+l*2, y+l*2, aa*DEGREE, ab*DEGREE);
+            ami_fcolor(stdout, c);
+            ami_fchord(stdout, x, y, x+l*2, y+l*2, aa*DEGREE, ab*DEGREE);
             x = x+l*2+xspace;
             aa = aa+10;
-            if (c < pa_magenta) c++; else c = pa_black;
-            if (c == pa_white) c++;
+            if (c < ami_magenta) c++; else c = ami_black;
+            if (c == ami_white) c++;
 
         }
         x = xspace;
         y = y+l*2+yspace;
 
     }
-    pa_binvis(stdout);
-    pa_fcolor(stdout, pa_black);
-    prtcen(pa_maxy(stdout), "Filled chord test 4");
+    ami_binvis(stdout);
+    ami_fcolor(stdout, ami_black);
+    prtcen(ami_maxy(stdout), "Filled chord test 4");
     waitnext();
 
     /* ************************** Filled triangle test 1 ************************* */
@@ -2336,32 +2336,32 @@ int main(void)
     putchar('\f');
     grid();
     tx1 = 10;
-    ty1 = pa_maxyg(stdout)-pa_chrsizy(stdout)-10;
+    ty1 = ami_maxyg(stdout)-ami_chrsizy(stdout)-10;
     ty1 = ty1-ty1%10;
-    tx2 = pa_maxxg(stdout)/2;
+    tx2 = ami_maxxg(stdout)/2;
     ty2 = 10;
-    tx3 = pa_maxxg(stdout)-10;
+    tx3 = ami_maxxg(stdout)-10;
     tx3 = tx3-tx3%10;
-    ty3 = pa_maxyg(stdout)-pa_chrsizy(stdout)-10;
+    ty3 = ami_maxyg(stdout)-ami_chrsizy(stdout)-10;
     ty3 = ty3-ty3%10;
-    c = pa_black;
+    c = ami_black;
     i = 40;
     while (tx1 <= tx3-10 && ty2 <= ty3-10) {
 
-        pa_fcolor(stdout, c);
-        pa_ftriangle(stdout, tx1, ty1, tx2, ty2, tx3, ty3);
+        ami_fcolor(stdout, c);
+        ami_ftriangle(stdout, tx1, ty1, tx2, ty2, tx3, ty3);
         tx1 = tx1+i;
         ty1 = ty1-i/2;
         ty2 = ty2+i;
         tx3 = tx3-i;
         ty3 = ty3-i/2;
-        if (c < pa_magenta) c++; else c = pa_black;
-        if (c == pa_white) c++;
+        if (c < ami_magenta) c++; else c = ami_black;
+        if (c == ami_white) c++;
 
     }
-    pa_fcolor(stdout, pa_black);
-    pa_binvis(stdout);
-    prtcen(pa_maxy(stdout), "Filled triangle test 1");
+    ami_fcolor(stdout, ami_black);
+    ami_binvis(stdout);
+    prtcen(ami_maxy(stdout), "Filled triangle test 1");
     waitnext();
 
     /* ************************** Filled triangle test 2 ************************* */
@@ -2371,25 +2371,25 @@ int main(void)
     x = 20;
     y = 20;
     l = 20;
-    while (y < pa_maxyg(stdout)-20-l) {
+    while (y < ami_maxyg(stdout)-20-l) {
 
-        while (y < pa_maxyg(stdout)-20-l && x < pa_maxxg(stdout)-20-l) {
+        while (y < ami_maxyg(stdout)-20-l && x < ami_maxxg(stdout)-20-l) {
 
-            pa_fcolor(stdout, c);
-            pa_ftriangle(stdout, x, y+l, x+l / 2, y, x+l, y+l);
+            ami_fcolor(stdout, c);
+            ami_ftriangle(stdout, x, y+l, x+l / 2, y, x+l, y+l);
             x = x+l+20;
             l = l+10;
-            if (c < pa_magenta) c++; else c = pa_black;
-            if (c == pa_white) c++;
+            if (c < ami_magenta) c++; else c = ami_black;
+            if (c == ami_white) c++;
 
         }
         x = 20;
         y = y+l+20;
 
     }
-    pa_fcolor(stdout, pa_black);
-    pa_binvis(stdout);
-    prtcen(pa_maxy(stdout), "Filled triangle test 2");
+    ami_fcolor(stdout, ami_black);
+    ami_binvis(stdout);
+    prtcen(ami_maxy(stdout), "Filled triangle test 2");
     waitnext();
 
     /* ************************** Filled triangle test 3 ************************* */
@@ -2399,25 +2399,25 @@ int main(void)
     x = 20;
     y = 20;
     l = 20;
-    while (y < pa_maxyg(stdout)-20-l) {
+    while (y < ami_maxyg(stdout)-20-l) {
 
-        while (y < pa_maxyg(stdout)-20-l && x < pa_maxxg(stdout)-20-l) {
+        while (y < ami_maxyg(stdout)-20-l && x < ami_maxxg(stdout)-20-l) {
 
-            pa_fcolor(stdout, c);
-            pa_ftriangle(stdout, x, y+l, x, y, x+l, y+l);
+            ami_fcolor(stdout, c);
+            ami_ftriangle(stdout, x, y+l, x, y, x+l, y+l);
             x = x+l+20;
             l = l+10;
-            if (c < pa_magenta) c++; else c = pa_black;
-            if (c == pa_white) c++;
+            if (c < ami_magenta) c++; else c = ami_black;
+            if (c == ami_white) c++;
 
         }
         x = 20;
         y = y+l+20;
 
     }
-    pa_fcolor(stdout, pa_black);
-    pa_binvis(stdout);
-    prtcen(pa_maxy(stdout), "Filled triangle test 3");
+    ami_fcolor(stdout, ami_black);
+    ami_binvis(stdout);
+    prtcen(ami_maxy(stdout), "Filled triangle test 3");
     waitnext();
 
     /* ************************** Filled triangle test 4 ************************* */
@@ -2427,25 +2427,25 @@ int main(void)
     x = 20;
     y = 20;
     l = 20;
-    while (y < pa_maxyg(stdout)-20-l) {
+    while (y < ami_maxyg(stdout)-20-l) {
 
-        while (y < pa_maxyg(stdout)-20-l && x < pa_maxxg(stdout)-20-l) {
+        while (y < ami_maxyg(stdout)-20-l && x < ami_maxxg(stdout)-20-l) {
 
-            pa_fcolor(stdout, c);
-            pa_ftriangle(stdout, x, y+l, x, y, x+l, y);
+            ami_fcolor(stdout, c);
+            ami_ftriangle(stdout, x, y+l, x, y, x+l, y);
             x = x+l+20;
             l = l+10;
-            if (c < pa_magenta) c++; else c = pa_black;
-            if (c == pa_white) c++;
+            if (c < ami_magenta) c++; else c = ami_black;
+            if (c == ami_white) c++;
 
         }
         x = 20;
         y = y+l+20;
 
     }
-    pa_fcolor(stdout, pa_black);
-    pa_binvis(stdout);
-    prtcen(pa_maxy(stdout), "Filled triangle test 4");
+    ami_fcolor(stdout, ami_black);
+    ami_binvis(stdout);
+    prtcen(ami_maxy(stdout), "Filled triangle test 4");
     waitnext();
 
     /* ************************** Filled triangle test 5 ************************* */
@@ -2455,25 +2455,25 @@ int main(void)
     x = 20;
     y = 20;
     l = 20;
-    while (y < pa_maxyg(stdout)-20-l) {
+    while (y < ami_maxyg(stdout)-20-l) {
 
-        while (y < pa_maxyg(stdout)-20-l && x < pa_maxxg(stdout)-20-l) {
+        while (y < ami_maxyg(stdout)-20-l && x < ami_maxxg(stdout)-20-l) {
 
-            pa_fcolor(stdout, c);
-            pa_ftriangle(stdout, x+l/2, y+l, x, y, x+l, y);
+            ami_fcolor(stdout, c);
+            ami_ftriangle(stdout, x+l/2, y+l, x, y, x+l, y);
             x = x+l+20;
             l = l+10;
-            if (c < pa_magenta) c++; else c = pa_black;
-            if (c == pa_white) c++;
+            if (c < ami_magenta) c++; else c = ami_black;
+            if (c == ami_white) c++;
 
         }
         x = 20;
         y = y+l+20;
 
     }
-    pa_fcolor(stdout, pa_black);
-    pa_binvis(stdout);
-    prtcen(pa_maxy(stdout), "Filled triangle test 5");
+    ami_fcolor(stdout, ami_black);
+    ami_binvis(stdout);
+    prtcen(ami_maxy(stdout), "Filled triangle test 5");
     waitnext();
 
     /* ************************** Filled triangle test 6 ************************* */
@@ -2483,118 +2483,118 @@ int main(void)
     x = 20;
     y = 20;
     l = 20;
-    c = pa_black;
-    while (y < pa_maxyg(stdout)-20-l) {
+    c = ami_black;
+    while (y < ami_maxyg(stdout)-20-l) {
 
-        while (y < pa_maxyg(stdout)-20-l && x < pa_maxxg(stdout)-20-l) {
+        while (y < ami_maxyg(stdout)-20-l && x < ami_maxxg(stdout)-20-l) {
 
-            pa_fcolor(stdout, c);
-            pa_ftriangle(stdout, x+l, y+l, x, y, x+l, y);
+            ami_fcolor(stdout, c);
+            ami_ftriangle(stdout, x+l, y+l, x, y, x+l, y);
             x = x+l+20;
             l = l+10;
-            if (c < pa_magenta) c++; else c = pa_black;
-            if (c == pa_white) c++;
+            if (c < ami_magenta) c++; else c = ami_black;
+            if (c == ami_white) c++;
 
         }
         x = 20;
         y = y+l+20;
 
     }
-    pa_fcolor(stdout, pa_black);
-    pa_binvis(stdout);
-    prtcen(pa_maxy(stdout), "Filled triangle test 6");
+    ami_fcolor(stdout, ami_black);
+    ami_binvis(stdout);
+    prtcen(ami_maxy(stdout), "Filled triangle test 6");
     waitnext();
 
     /* ************************** Filled triangle test 7 ************************* */
 
     putchar('\f');
     grid();
-    c = pa_black;
-    pa_fcolor(stdout, c);
-    pa_ftriangle(stdout, 50, 50, 50, 100, 200, 50);
-    if (c < pa_magenta) c++; else c = pa_black;
-    if (c == pa_white) c++;
-    pa_fcolor(stdout, c);
-    pa_ftriangle(stdout, 50, 100, 300, 200, 200, 50);
-    if (c < pa_magenta) c++; else c = pa_black;
-    if (c == pa_white) c++;
-    pa_fcolor(stdout, c);
-    pa_ftriangle(stdout, 200, 50, 300, 200, 350, 100);
-    if (c < pa_magenta) c++; else c = pa_black;
-    if (c == pa_white) c++;
-    pa_fcolor(stdout, c);
-    pa_ftriangle(stdout, 350, 100, 400, 300, 300, 200);
-    if (c < pa_magenta) c++; else c = pa_black;
-    if (c == pa_white) c++;
-    pa_binvis(stdout);
-    pa_fcolor(stdout, pa_black);
-    prtcen(pa_maxy(stdout), "Filled triangle test 7");
+    c = ami_black;
+    ami_fcolor(stdout, c);
+    ami_ftriangle(stdout, 50, 50, 50, 100, 200, 50);
+    if (c < ami_magenta) c++; else c = ami_black;
+    if (c == ami_white) c++;
+    ami_fcolor(stdout, c);
+    ami_ftriangle(stdout, 50, 100, 300, 200, 200, 50);
+    if (c < ami_magenta) c++; else c = ami_black;
+    if (c == ami_white) c++;
+    ami_fcolor(stdout, c);
+    ami_ftriangle(stdout, 200, 50, 300, 200, 350, 100);
+    if (c < ami_magenta) c++; else c = ami_black;
+    if (c == ami_white) c++;
+    ami_fcolor(stdout, c);
+    ami_ftriangle(stdout, 350, 100, 400, 300, 300, 200);
+    if (c < ami_magenta) c++; else c = ami_black;
+    if (c == ami_white) c++;
+    ami_binvis(stdout);
+    ami_fcolor(stdout, ami_black);
+    prtcen(ami_maxy(stdout), "Filled triangle test 7");
     waitnext();
 
     /* ************************** Filled triangle test 8 ************************* */
 
     putchar('\f');
     grid();
-    pa_fcolor(stdout, pa_black);
-    pa_ftriangle(stdout, 50, 50, 50, 100, 200, 50);
-    pa_ftriangle(stdout, 50, 100, 300, 200, 200, 50);
-    pa_ftriangle(stdout, 200, 50, 300, 200, 350, 100);
-    pa_ftriangle(stdout, 350, 100, 400, 300, 300, 200);
-    pa_binvis(stdout);
-    prtcen(pa_maxy(stdout), "Filled triangle test 8");
+    ami_fcolor(stdout, ami_black);
+    ami_ftriangle(stdout, 50, 50, 50, 100, 200, 50);
+    ami_ftriangle(stdout, 50, 100, 300, 200, 200, 50);
+    ami_ftriangle(stdout, 200, 50, 300, 200, 350, 100);
+    ami_ftriangle(stdout, 350, 100, 400, 300, 300, 200);
+    ami_binvis(stdout);
+    prtcen(ami_maxy(stdout), "Filled triangle test 8");
     waitnext();
 
     /* **************************** Font sizing test *************************** */
 
     putchar('\f');
     grid();
-    fsiz = pa_chrsizy(stdout); /* save character size to restore */
+    fsiz = ami_chrsizy(stdout); /* save character size to restore */
     h = 10;
-    pa_auto(stdout, OFF);
-    pa_font(stdout, PA_FONT_SIGN);
-    c1 = pa_black;
-    c2 = pa_blue;
-    pa_bover(stdout);
-    while (pa_curyg(stdout)+pa_chrsizy(stdout) <= pa_maxyg(stdout)-20) {
+    ami_auto(stdout, OFF);
+    ami_font(stdout, PA_FONT_SIGN);
+    c1 = ami_black;
+    c2 = ami_blue;
+    ami_bover(stdout);
+    while (ami_curyg(stdout)+ami_chrsizy(stdout) <= ami_maxyg(stdout)-20) {
 
-        pa_fcolor(stdout, c1);
-        pa_bcolor(stdout, c2);
-        pa_fontsiz(stdout, h);
+        ami_fcolor(stdout, c1);
+        ami_bcolor(stdout, c2);
+        ami_fontsiz(stdout, h);
         puts(S2);
         h = h+5;
-        if (c1 < pa_magenta) c1++; else c1 = pa_black;
-        if (c1 == pa_white) c1++;
-        if (c2 < pa_magenta) c2++; else c2 = pa_black;
-        if (c2 == pa_white) c2++;
+        if (c1 < ami_magenta) c1++; else c1 = ami_black;
+        if (c1 == ami_white) c1++;
+        if (c2 < ami_magenta) c2++; else c2 = ami_black;
+        if (c2 == ami_white) c2++;
 
     }
-    pa_fontsiz(stdout, fsiz); /* restore font size */
-    pa_fcolor(stdout, pa_black);
-    pa_bcolor(stdout, pa_white);
-    pa_font(stdout, PA_FONT_TERM);
-    pa_binvis(stdout);
-    prtcen(pa_maxy(stdout), "Font sizing test");
+    ami_fontsiz(stdout, fsiz); /* restore font size */
+    ami_fcolor(stdout, ami_black);
+    ami_bcolor(stdout, ami_white);
+    ami_font(stdout, PA_FONT_TERM);
+    ami_binvis(stdout);
+    prtcen(ami_maxy(stdout), "Font sizing test");
     waitnext();
 
     /* ***************************** Font list test **************************** */
 
     putchar('\f');
     grid();
-    printf("Number of fonts: %d\n", pa_fonts(stdout));
+    printf("Number of fonts: %d\n", ami_fonts(stdout));
     printf("\n");
     i = 1;
-    cnt = pa_fonts(stdout);
+    cnt = ami_fonts(stdout);
     while (cnt > 0) {
 
         /* find defined font code */
         do {
 
-            pa_fontnam(stdout, i, fns, 100);
+            ami_fontnam(stdout, i, fns, 100);
             if (!strlen(fns)) i++;
 
         } while (!strlen(fns));
         printf("%d: %s\n", i, fns);
-        if (pa_cury(stdout) >= pa_maxy (stdout)) { /* screen overflows */
+        if (ami_cury(stdout) >= ami_maxy (stdout)) { /* screen overflows */
 
             printf("Press return to continue");
             waitnext();
@@ -2614,40 +2614,40 @@ int main(void)
 
     putchar('\f');
     grid();
-    pa_auto(stdout, OFF);
-    pa_bcolor(stdout, pa_cyan);
-    pa_bover(stdout);
+    ami_auto(stdout, OFF);
+    ami_bcolor(stdout, ami_cyan);
+    ami_bover(stdout);
     i = 1;
-    cnt = pa_fonts(stdout);
+    cnt = ami_fonts(stdout);
     while (cnt) {
 
         /* find defined font code */
         do {
 
-            pa_fontnam(stdout, i, fns, 100);
+            ami_fontnam(stdout, i, fns, 100);
             if (!strlen(fns)) i++;
 
         } while (!strlen(fns));
-        pa_font(stdout, i);
+        ami_font(stdout, i);
         printf("%d: %s\n", i, fns);
-        if (pa_cury(stdout) >= pa_maxy(stdout)) { /* screen overflows */
+        if (ami_cury(stdout) >= ami_maxy(stdout)) { /* screen overflows */
 
-            pa_font(stdout, PA_FONT_TERM);
+            ami_font(stdout, PA_FONT_TERM);
             printf("Press return to continue");
             waitnext();
-            pa_bcolor(stdout, pa_white);
+            ami_bcolor(stdout, ami_white);
             putchar('\f');
             grid();
-            pa_bcolor(stdout, pa_cyan);
+            ami_bcolor(stdout, ami_cyan);
 
         }
         i++; /* next font code */
         cnt--; /* count fonts */
 
     }
-    pa_bcolor(stdout, pa_white);
-    pa_font(stdout, PA_FONT_TERM);
-    pa_binvis(stdout);
+    ami_bcolor(stdout, ami_white);
+    ami_font(stdout, PA_FONT_TERM);
+    ami_binvis(stdout);
     printf("\n");
     printf("List complete\n");
     waitnext();
@@ -2656,94 +2656,94 @@ int main(void)
 
     putchar('\f');
     grid();
-    pa_auto(stdout, OFF);
-    pa_font(stdout, PA_FONT_SIGN);
-    pa_condensed(stdout, ON);
+    ami_auto(stdout, OFF);
+    ami_font(stdout, PA_FONT_SIGN);
+    ami_condensed(stdout, ON);
     printf("Condensed\n");
-    pa_condensed(stdout, OFF);
-    pa_extended(stdout, ON);
+    ami_condensed(stdout, OFF);
+    ami_extended(stdout, ON);
     printf("Extended\n");
-    pa_extended(stdout, OFF);
-    pa_xlight(stdout, ON);
+    ami_extended(stdout, OFF);
+    ami_xlight(stdout, ON);
     printf("Extra light\n");
-    pa_xlight(stdout, OFF);
-    pa_light(stdout, ON);
+    ami_xlight(stdout, OFF);
+    ami_light(stdout, ON);
     printf("Light\n");
-    pa_light(stdout, OFF);
-    pa_xbold(stdout, ON);
+    ami_light(stdout, OFF);
+    ami_xbold(stdout, ON);
     printf("Extra bold\n");
-    pa_xbold(stdout, OFF);
-    pa_hollow(stdout, ON);
+    ami_xbold(stdout, OFF);
+    ami_hollow(stdout, ON);
     printf("Hollow\n");
-    pa_hollow(stdout, OFF);
-    pa_raised(stdout, ON);
+    ami_hollow(stdout, OFF);
+    ami_raised(stdout, ON);
     printf("Raised\n");
-    pa_raised(stdout, OFF);
-    pa_font(stdout, PA_FONT_TERM);
-    prtcen(pa_maxy(stdout), "Extended effects test");
+    ami_raised(stdout, OFF);
+    ami_font(stdout, PA_FONT_TERM);
+    prtcen(ami_maxy(stdout), "Extended effects test");
     waitnext();
 
     /* ****************** Character sizes and positions test ******************* */
 
     putchar('\f');
     grid();
-    pa_auto(stdout, OFF);
-    fsiz = pa_chrsizy(stdout); /* save character size to restore */
-    pa_font(stdout, PA_FONT_SIGN);
-    pa_fontsiz(stdout, pa_maxyg(stdout)/12);
-    printf("Size of test string: %d\n", pa_strsiz(stdout, S3));
+    ami_auto(stdout, OFF);
+    fsiz = ami_chrsizy(stdout); /* save character size to restore */
+    ami_font(stdout, PA_FONT_SIGN);
+    ami_fontsiz(stdout, ami_maxyg(stdout)/12);
+    printf("Size of test string: %d\n", ami_strsiz(stdout, S3));
     printf("\n");
-    x = (pa_maxxg(stdout)/2)-(pa_strsiz(stdout, S3)/2);
-    pa_cursorg(stdout, x, pa_curyg(stdout)); /* go to centered */
-    pa_bcolor(stdout, pa_cyan);
-    pa_bover(stdout);
+    x = (ami_maxxg(stdout)/2)-(ami_strsiz(stdout, S3)/2);
+    ami_cursorg(stdout, x, ami_curyg(stdout)); /* go to centered */
+    ami_bcolor(stdout, ami_cyan);
+    ami_bover(stdout);
     printf("%s\n", S3);
-    pa_fcolor(stdout, pa_white);
-    pa_frect(stdout, x, pa_curyg(stdout), x+pa_strsiz(stdout, S3)-1,
-            pa_curyg(stdout)+pa_chrsizy(stdout)-1);
-    pa_fcolor(stdout, pa_black);
-    pa_rect(stdout, x, pa_curyg(stdout), x+pa_strsiz(stdout, S3)-1,
-            pa_curyg(stdout)+pa_chrsizy(stdout)-1);
+    ami_fcolor(stdout, ami_white);
+    ami_frect(stdout, x, ami_curyg(stdout), x+ami_strsiz(stdout, S3)-1,
+            ami_curyg(stdout)+ami_chrsizy(stdout)-1);
+    ami_fcolor(stdout, ami_black);
+    ami_rect(stdout, x, ami_curyg(stdout), x+ami_strsiz(stdout, S3)-1,
+            ami_curyg(stdout)+ami_chrsizy(stdout)-1);
     for (i = 0; i < strlen(S3); i++)
-        pa_line(stdout, x+pa_chrpos(stdout, S3, i), pa_curyg(stdout),
-                x+pa_chrpos(stdout, S3, i),
-                pa_curyg(stdout)+pa_chrsizy(stdout)-1);
+        ami_line(stdout, x+ami_chrpos(stdout, S3, i), ami_curyg(stdout),
+                x+ami_chrpos(stdout, S3, i),
+                ami_curyg(stdout)+ami_chrsizy(stdout)-1);
     printf("\n");
 
-    l = pa_strsiz(stdout, S4); /* get minimum sizing for string */
+    l = ami_strsiz(stdout, S4); /* get minimum sizing for string */
     justcenter(S4, l);
     justcenter(S4, l+40);
     justcenter(S4, l+80);
 
-    pa_fontsiz(stdout, fsiz); /* restore font size */
-    pa_font(stdout, PA_FONT_TERM);
-    pa_binvis(stdout);
-    prtcen(pa_maxy(stdout), "Character sizes and positions");
+    ami_fontsiz(stdout, fsiz); /* restore font size */
+    ami_font(stdout, PA_FONT_TERM);
+    ami_binvis(stdout);
+    prtcen(ami_maxy(stdout), "Character sizes and positions");
     waitnext();
-    pa_bcolor(stdout, pa_white);
+    ami_bcolor(stdout, ami_white);
 
     /* ************************* Graphical tabbing test ************************ */
 
     putchar('\f');
     grid();
-    pa_auto(stdout, OFF);
-    pa_font(stdout, PA_FONT_TERM);
+    ami_auto(stdout, OFF);
+    ami_font(stdout, PA_FONT_TERM);
     for (i = 1; i <= 5; i++) {
 
         for (x = 1; x <= i; x++) putchar('\t');
         printf("Terminal tab: %d\n", i);
 
     }
-    pa_clrtab(stdout);
-    for (i = 1; i <= 5; i++) pa_settabg(stdout, i*43);
+    ami_clrtab(stdout);
+    for (i = 1; i <= 5; i++) ami_settabg(stdout, i*43);
     for (i = 1; i <= 5; i++) {
 
         for (x = 1; x <= i; x++) putchar('\t');
         printf("Graphical tab number: %d position: %d\n", i, i*43);
 
     }
-    pa_restabg(stdout, 2*43);
-    pa_restabg(stdout, 4*43);
+    ami_restabg(stdout, 2*43);
+    ami_restabg(stdout, 4*43);
     printf("\n");
     printf("After removing tabs %d and %d\n", 2*43, 4*43);
     printf("\n");
@@ -2753,40 +2753,40 @@ int main(void)
         printf("Graphical tab number: %d\n", i);
 
     }
-    prtcen(pa_maxy(stdout), "Graphical tabbing test");
+    prtcen(ami_maxy(stdout), "Graphical tabbing test");
     waitnext();
 
     /* ************************** Picture draw test **************************** */
 
     putchar('\f');
     grid();
-    pa_maknam(fn, 100, "tests", "mypic", "");
-    pa_loadpict(stdout, 1, fn);
-    printf("Picture size for 1: x: %d y: %d\n", pa_pictsizx(stdout, 1),
-           pa_pictsizy(stdout, 1));
-    pa_maknam(fn, 100, "tests", "mypic1", "bmp");
-    pa_loadpict(stdout, 2, fn);
-    printf("Picture size for 2: x: %d y: %d\n", pa_pictsizx(stdout, 2),
-           pa_pictsizy(stdout, 2));
+    ami_maknam(fn, 100, "tests", "mypic", "");
+    ami_loadpict(stdout, 1, fn);
+    printf("Picture size for 1: x: %d y: %d\n", ami_pictsizx(stdout, 1),
+           ami_pictsizy(stdout, 1));
+    ami_maknam(fn, 100, "tests", "mypic1", "bmp");
+    ami_loadpict(stdout, 2, fn);
+    printf("Picture size for 2: x: %d y: %d\n", ami_pictsizx(stdout, 2),
+           ami_pictsizy(stdout, 2));
     printf("\n");
-    y = pa_curyg(stdout);
-    xspace = pa_maxxg(stdout)/20;
-    xsize = pa_maxxg(stdout)/6;
+    y = ami_curyg(stdout);
+    xspace = ami_maxxg(stdout)/20;
+    xsize = ami_maxxg(stdout)/6;
     yspace = xspace;
     ysize = xsize;
-    pa_picture(stdout, 1, xspace, y, xspace+xsize, y+ysize);
-    pa_picture(stdout, 1, xspace+xsize, y+ysize, xspace+xsize*2, y+ysize*2);
-    pa_picture(stdout, 1, xspace, y+ysize*2, xspace+xsize, y+ysize*3);
-    pa_picture(stdout, 2, xspace+pa_maxxg(stdout)/2, y,
-                          xspace+xsize+pa_maxxg(stdout)/2, y+ysize);
-    pa_picture(stdout, 2, xspace+xsize+pa_maxxg(stdout)/2, y+ysize,
-                          xspace+xsize*2+pa_maxxg(stdout)/2, y+ysize+ysize/2);
+    ami_picture(stdout, 1, xspace, y, xspace+xsize, y+ysize);
+    ami_picture(stdout, 1, xspace+xsize, y+ysize, xspace+xsize*2, y+ysize*2);
+    ami_picture(stdout, 1, xspace, y+ysize*2, xspace+xsize, y+ysize*3);
+    ami_picture(stdout, 2, xspace+ami_maxxg(stdout)/2, y,
+                          xspace+xsize+ami_maxxg(stdout)/2, y+ysize);
+    ami_picture(stdout, 2, xspace+xsize+ami_maxxg(stdout)/2, y+ysize,
+                          xspace+xsize*2+ami_maxxg(stdout)/2, y+ysize+ysize/2);
 
-    pa_picture(stdout, 2, xspace+pa_maxxg(stdout)/2, y+ysize*2,
-                          xspace+xsize/2+pa_maxxg(stdout)/2, y+ysize*3);
-    pa_delpict(stdout, 1);
-    pa_delpict(stdout, 2);
-    prtcen(pa_maxy(stdout), "Picture draw test");
+    ami_picture(stdout, 2, xspace+ami_maxxg(stdout)/2, y+ysize*2,
+                          xspace+xsize/2+ami_maxxg(stdout)/2, y+ysize*3);
+    ami_delpict(stdout, 1);
+    ami_delpict(stdout, 2);
+    prtcen(ami_maxy(stdout), "Picture draw test");
     waitnext();
 
     /* ********************** Invisible foreground test ************************ */
@@ -2794,101 +2794,101 @@ int main(void)
     putchar('\f');
     grid();
     printf("\n");
-    pa_bover(stdout);
-    pa_finvis(stdout);
+    ami_bover(stdout);
+    ami_finvis(stdout);
     graphtest(1);
-    pa_binvis(stdout);
-    pa_fover(stdout);
-    prtcen(pa_maxy(stdout), "Invisible foreground test");
+    ami_binvis(stdout);
+    ami_fover(stdout);
+    prtcen(ami_maxy(stdout), "Invisible foreground test");
     waitnext();
-    pa_fover(stdout);
+    ami_fover(stdout);
 
     /* ********************** Invisible background test ************************ */
 
     putchar('\f');
     grid();
     printf("\n");
-    pa_binvis(stdout);
-    pa_fover(stdout);
+    ami_binvis(stdout);
+    ami_fover(stdout);
     graphtest(1);
-    pa_binvis(stdout);
-    pa_fover(stdout);
-    prtcen(pa_maxy(stdout), "Invisible background test");
+    ami_binvis(stdout);
+    ami_fover(stdout);
+    prtcen(ami_maxy(stdout), "Invisible background test");
     waitnext();
-    pa_bover(stdout);
+    ami_bover(stdout);
 
     /* ************************** Xor foreground test ************************** */
 
     putchar('\f');
     grid();
     printf("\n");
-    pa_bover(stdout);
-    pa_fxor(stdout);
+    ami_bover(stdout);
+    ami_fxor(stdout);
     graphtest(1);
-    pa_binvis(stdout);
-    pa_fover(stdout);
-    prtcen(pa_maxy(stdout), "Xor foreground test");
+    ami_binvis(stdout);
+    ami_fover(stdout);
+    prtcen(ami_maxy(stdout), "Xor foreground test");
     waitnext();
-    pa_fover(stdout);
+    ami_fover(stdout);
 
     /* ************************* Xor background test *************************** */
 
     putchar('\f');
     grid();
     printf("\n");
-    pa_bxor(stdout);
-    pa_fover(stdout);
+    ami_bxor(stdout);
+    ami_fover(stdout);
     graphtest(1);
-    pa_binvis(stdout);
-    pa_fover(stdout);
-    prtcen(pa_maxy(stdout), "Xor background test");
+    ami_binvis(stdout);
+    ami_fover(stdout);
+    prtcen(ami_maxy(stdout), "Xor background test");
     waitnext();
-    pa_bover(stdout);
+    ami_bover(stdout);
 
     /* ************************** Graphical scrolling test **************************** */
 
     putchar('\f');
     grid();
-    pa_binvis(stdout);
+    ami_binvis(stdout);
     prtcen(1, "Use up, down, right && left keys to scroll by pixel");
     prtcen(2, "Hit enter to continue");
     prtcen(3, "Note that edges will clear to green as screen moves");
-    prtcen(pa_maxy(stdout), "Graphical scrolling test");
-    pa_bcolor(stdout, pa_green);
+    prtcen(ami_maxy(stdout), "Graphical scrolling test");
+    ami_bcolor(stdout, ami_green);
     do {
 
-        pa_event(stdin, &er);
-        if (er.etype == pa_etup) pa_scrollg(stdout, 0, -1);
-        if (er.etype == pa_etdown) pa_scrollg(stdout, 0, 1);
-        if (er.etype == pa_etright) pa_scrollg(stdout, 1, 0);
-        if (er.etype == pa_etleft) pa_scrollg(stdout, -1, 0);
-        if (er.etype == pa_etterm) longjmp(terminate_buf, 1);
+        ami_event(stdin, &er);
+        if (er.etype == ami_etup) ami_scrollg(stdout, 0, -1);
+        if (er.etype == ami_etdown) ami_scrollg(stdout, 0, 1);
+        if (er.etype == ami_etright) ami_scrollg(stdout, 1, 0);
+        if (er.etype == ami_etleft) ami_scrollg(stdout, -1, 0);
+        if (er.etype == ami_etterm) longjmp(terminate_buf, 1);
 
-    } while (er.etype != pa_etenter);
-    pa_bover(stdout);
-    pa_bcolor(stdout, pa_white);
+    } while (er.etype != ami_etenter);
+    ami_bover(stdout);
+    ami_bcolor(stdout, ami_white);
 
     /* ************************** Graphical mouse movement test **************************** */
 
     putchar('\f');
     prtcen(1, "Move the mouse around");
     prtcen(3, "Hit Enter to continue");
-    prtcen(pa_maxy(stdout), "Graphical mouse movement test");
+    prtcen(ami_maxy(stdout), "Graphical mouse movement test");
     x = -1;
     y = -1;
     do {
 
-        pa_event(stdin, &er);
-        if (er.etype == pa_etmoumovg) {
+        ami_event(stdin, &er);
+        if (er.etype == ami_etmoumovg) {
 
-            if (x > 0 && y > 0) pa_line(stdout, x, y, er.moupxg, er.moupyg);
+            if (x > 0 && y > 0) ami_line(stdout, x, y, er.moupxg, er.moupyg);
             x = er.moupxg;
             y = er.moupyg;
 
         }
-        if (er.etype == pa_etterm) longjmp(terminate_buf, 1);
+        if (er.etype == ami_etterm) longjmp(terminate_buf, 1);
 
-    } while (er.etype != pa_etenter);
+    } while (er.etype != ami_etenter);
 
     /* ************************** Animation test **************************** */
 
@@ -2898,37 +2898,37 @@ int main(void)
 
 #if 0 /* view offsets are not completely working */
     putchar('\f');
-    pa_auto(stdout, OFF);
-    pa_viewoffg(stdout, -(pa_maxxg(stdout)/2), -(pa_maxyg(stdout)/2));
+    ami_auto(stdout, OFF);
+    ami_viewoffg(stdout, -(ami_maxxg(stdout)/2), -(ami_maxyg(stdout)/2));
     grid();
-    pa_fcolor(stdout, PA_GREEN);
-    pa_frect(stdout, 0, 0, 100, 100);
-    pa_cursorg(stdout, 1, -(maxyg(stdout)/2));
-    pa_fcolor(stdout, pa_black);
+    ami_fcolor(stdout, PA_GREEN);
+    ami_frect(stdout, 0, 0, 100, 100);
+    ami_cursorg(stdout, 1, -(maxyg(stdout)/2));
+    ami_fcolor(stdout, ami_black);
     printf("View offset test\n");
     printf("\n");
     printf("The 1,1 origin is now at screen center\n");
     waitnext();
-    pa_viewoffg(stdout, 0, 0);
+    ami_viewoffg(stdout, 0, 0);
 #endif
 
    /* ************************** View scale test **************************** */
 
 #if 0 /* view scales are not completely working */
     putchar('\f');
-    pa_auto(stdout, OFF);
-    pa_viewscale(stdout, 0.5);
+    ami_auto(stdout, OFF);
+    ami_viewscale(stdout, 0.5);
     grid();
-    pa_fcolor(stdout, PA_GREEN);
-    pa_frect(stdout, 0, 0, 100, 100);
+    ami_fcolor(stdout, PA_GREEN);
+    ami_frect(stdout, 0, 0, 100, 100);
     prtcen(1, "Logical coordinates are now 1/2 size");
-    prtcen(pa_maxy(stdout), "View scale text");
+    prtcen(ami_maxy(stdout), "View scale text");
     waitnext();
 #endif
 
     /* ************************** Benchmarks **************************** */
 
-    pa_bover(stdout);
+    ami_bover(stdout);
 
     benchtest(linespeed, bnline1, 1);
     i = benchtab[bnline1].iter;
@@ -3026,22 +3026,22 @@ int main(void)
     printf("Filled triangle speed for width: 1, %d iterations %f seconds\n", i, s*0.0001);
     printf("Seconds per filled triangle %f\n", s*0.0001/i);
 
-    pa_bover(stdout);
-    pa_fover(stdout);
+    ami_bover(stdout);
+    ami_fover(stdout);
     benchtest(ftextspeed, bntext, 1);
     i = benchtab[bntext].iter;
     s = benchtab[bntext].time;
-    pa_home(stdout);
+    ami_home(stdout);
     printf("Text speed, with overwrite, %d iterations %f seconds\n", i, s*0.0001);
     printf("Seconds per write %f\n", s*0.0001/i);
 
-    pa_binvis(stdout);
-    pa_fover(stdout);
+    ami_binvis(stdout);
+    ami_fover(stdout);
     benchtest(ftextspeed, bntextbi, 1);
     i = benchtab[bntextbi].iter;
     s = benchtab[bntextbi].time;
-    pa_home(stdout);
-    pa_bover(stdout);
+    ami_home(stdout);
+    ami_bover(stdout);
     printf("Text speed, invisible background, %d iterations %f seconds\n", i, s*0.0001);
     printf("Seconds per write %f\n", s*0.0001/i);
 
@@ -3101,10 +3101,10 @@ int main(void)
     terminate: /* terminate */
 
     putchar('\f');
-    pa_auto(stdout, OFF);
-    pa_font(stdout, PA_FONT_SIGN);
-    pa_fontsiz(stdout, 50);
-    prtceng(pa_maxy(stdout)/2, "Test complete");
+    ami_auto(stdout, OFF);
+    ami_font(stdout, PA_FONT_SIGN);
+    ami_fontsiz(stdout, 50);
+    prtceng(ami_maxy(stdout)/2, "Test complete");
 
     return (0);
 

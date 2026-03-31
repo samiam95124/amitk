@@ -3,4 +3,4 @@
 #include <stdio.h>
 #include <terminal.h>
 
-void __keeper(void) { pa_maxx(stdout); }
+void __keeper(void) { ami_maxx(stdout); }

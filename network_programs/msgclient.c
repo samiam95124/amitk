@@ -22,7 +22,7 @@ int secure = FALSE;
 /* use IPv6 or IPv4 */
 int ipv6 = FALSE;
 
-pa_optrec opttbl[] = {
+ami_optrec opttbl[] = {
 
     { "secure", &secure, NULL, NULL, NULL },
     { "s",      &secure, NULL, NULL, NULL },
@@ -43,7 +43,7 @@ int main(int argc, char **argv)
     int port;
 
     /* parse user options */
-    pa_options(&argi, &argc, argv, opttbl, TRUE);
+    ami_options(&argi, &argc, argv, opttbl, TRUE);
 
     if (argc != 3) {
 
@@ -58,26 +58,26 @@ int main(int argc, char **argv)
     /* open the server file */
     if (ipv6) {
 
-        pa_addrnetv6(argv[argi], &addrh, &addrl);
-        fn = pa_openmsgv6(addrh, addrl, port, secure);
+        ami_addrnetv6(argv[argi], &addrh, &addrl);
+        fn = ami_openmsgv6(addrh, addrl, port, secure);
 
     } else {
 
-        pa_addrnet(argv[argi], &addr);
-        fn = pa_openmsg(addr, port, secure);
+        ami_addrnet(argv[argi], &addr);
+        fn = ami_openmsg(addr, port, secure);
 
     }
 
     /* send message to server */
-    pa_wrmsg(fn, "Hello, server", 13);
+    ami_wrmsg(fn, "Hello, server", 13);
 
     /* receive message from server */
-    len = pa_rdmsg(fn, buff, BUFLEN);
+    len = ami_rdmsg(fn, buff, BUFLEN);
     buff[len] = 0; /* terminate */
 
     printf("The message from server was: %.*s\n", len, buff);
 
-    pa_clsmsg(fn);
+    ami_clsmsg(fn);
 
     return (0);
 

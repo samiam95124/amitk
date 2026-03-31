@@ -22,7 +22,7 @@ int main(int argc, char **argv)
     int key;
     int sport;
     int dport;
-    pa_seqmsg sr;
+    ami_seqmsg sr;
 
     if (argc != 1 && argc != 3) {
 
@@ -44,17 +44,17 @@ int main(int argc, char **argv)
     }
 
     /* enable this for debugging dump of incoming midi */
-    //pa_setparamsynthin(7, "connect", "6");
+    //ami_setparamsynthin(7, "connect", "6");
 
     /* open target ports */
-    pa_opensynthin(sport);
-    pa_opensynthout(dport);
+    ami_opensynthin(sport);
+    ami_opensynthout(dport);
 
     /* transfer data continuously */
     while (1) {
 
-        pa_rdsynth(sport, &sr);
-        pa_wrsynth(dport, &sr);
+        ami_rdsynth(sport, &sr);
+        ami_wrsynth(dport, &sr);
 
     }
 

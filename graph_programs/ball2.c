@@ -17,7 +17,7 @@ int       x, y;
 int       nx, ny;
 int       lx, ly;
 int       xd, yd;
-pa_evtrec er;
+ami_evtrec er;
 int       tc;
 int       cd; /* current display flip select */
 int       ballsize;
@@ -27,24 +27,24 @@ int chkbrk(void)
 
 {
 
-    pa_evtrec er;
+    ami_evtrec er;
     int cancel;
 
     cancel = FALSE;
-    do { pa_event(stdin, &er); }
-    while (er.etype != pa_etframe && er.etype != pa_etterm);
-    if (er.etype == pa_etterm) cancel = TRUE;
+    do { ami_event(stdin, &er); }
+    while (er.etype != ami_etframe && er.etype != ami_etterm);
+    if (er.etype == ami_etterm) cancel = TRUE;
 
     return (cancel);
 
 }
 
-void drawball(pa_color c, int x, int y)
+void drawball(ami_color c, int x, int y)
 
 {
 
-    pa_fcolor(stdout, c); /* set color */
-    pa_fellipse(stdout, x-halfball+1, y-halfball+1, x+halfball-1, y+halfball-1);
+    ami_fcolor(stdout, c); /* set color */
+    ami_fellipse(stdout, x-halfball+1, y-halfball+1, x+halfball-1, y+halfball-1);
 
 }
 
@@ -52,8 +52,8 @@ int main(void)
 
 {
 
-    pa_curvis(stdout, FALSE); /* turn off cursor */
-    ballsize = pa_maxyg(stdout)/10; /* set ball size */
+    ami_curvis(stdout, FALSE); /* turn off cursor */
+    ballsize = ami_maxyg(stdout)/10; /* set ball size */
     halfball = ballsize/2; /* set half ball size */
     x = halfball; /* set initial ball location */
     y = halfball;
@@ -62,13 +62,13 @@ int main(void)
     lx = x; /* set last position to same */
     ly = y;
     cd = FALSE; /* set 1st display */
-    pa_frametimer(stdout, TRUE); /* set frame timer */
-    drawball(pa_green, x, y); /* place ball at first position */
+    ami_frametimer(stdout, TRUE); /* set frame timer */
+    drawball(ami_green, x, y); /* place ball at first position */
     while (TRUE) {
 
         /* select display and update surfaces */
-        pa_select(stdout, !cd+1, cd+1);
-        drawball(pa_white, lx, ly); /* erase ball at old position */
+        ami_select(stdout, !cd+1, cd+1);
+        drawball(ami_white, lx, ly); /* erase ball at old position */
         lx = x; /* save last position */
         ly = y;
         for (tc = 1; tc <= BALLACCEL; tc++) { /* move ball */
@@ -76,13 +76,13 @@ int main(void)
             nx = x+xd; /* trial move ball */
             ny = y+yd;
             /* check out of bounds and reverse direction */
-            if (nx < halfball || nx > pa_maxxg(stdout)-halfball+1) xd = -xd;
-            if (ny < halfball || ny > pa_maxyg(stdout)-halfball+1) yd = -yd;
+            if (nx < halfball || nx > ami_maxxg(stdout)-halfball+1) xd = -xd;
+            if (ny < halfball || ny > ami_maxyg(stdout)-halfball+1) yd = -yd;
             x = x+xd; /* move ball */
             y = y+yd;
 
         }
-        drawball(pa_green, x, y); /* place ball at new position */
+        drawball(ami_green, x, y); /* place ball at new position */
         cd = !cd; /* flip display and update surfaces */
         if (chkbrk()) goto terminate; /* wait */
 
@@ -90,6 +90,6 @@ int main(void)
 
     terminate:
 
-    pa_curvis(stdout, TRUE); /* turn on cursor */
+    ami_curvis(stdout, TRUE); /* turn on cursor */
 
 }

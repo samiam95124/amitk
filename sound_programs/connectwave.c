@@ -83,19 +83,19 @@ int main(int argc, char **argv)
     }
 
     /* open target ports */
-    pa_openwavein(sport);
-    pa_openwaveout(dport);
+    ami_openwavein(sport);
+    ami_openwaveout(dport);
 
     /* transfer input parameters to output port */
-    pa_chanwaveout(dport, pa_chanwavein(sport));
-    pa_ratewaveout(dport, pa_ratewavein(sport));
-    pa_lenwaveout(dport, pa_lenwavein(sport));
-    pa_sgnwaveout(dport, pa_sgnwavein(sport));
-    pa_endwaveout(dport, pa_endwavein(sport));
-    pa_fltwaveout(dport, pa_fltwavein(sport));
+    ami_chanwaveout(dport, ami_chanwavein(sport));
+    ami_ratewaveout(dport, ami_ratewavein(sport));
+    ami_lenwaveout(dport, ami_lenwavein(sport));
+    ami_sgnwaveout(dport, ami_sgnwavein(sport));
+    ami_endwaveout(dport, ami_endwavein(sport));
+    ami_fltwaveout(dport, ami_fltwavein(sport));
 
     /* find size of basic sample */
-    ssize = splsiz(pa_chanwavein(sport), pa_lenwavein(sport));
+    ssize = splsiz(ami_chanwavein(sport), ami_lenwavein(sport));
 
     /* find number of samples per buffer */
     sbuf = BUFLEN/ssize;
@@ -103,8 +103,8 @@ int main(int argc, char **argv)
     /* transfer data continuously */
     while (1) {
 
-        pa_rdwave(sport, buff, sbuf);
-        pa_wrwave(dport, buff, sbuf);
+        ami_rdwave(sport, buff, sbuf);
+        ami_wrwave(dport, buff, sbuf);
 
     }
 

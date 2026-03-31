@@ -99,7 +99,7 @@ midi codes are fed directly to Fluidsynth (source code analysis?).
 
 *******************************************************************************/
 
-static void writefluid(int p, pa_seqptr sp)
+static void writefluid(int p, ami_seqptr sp)
 
 {
 

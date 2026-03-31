@@ -18,14 +18,14 @@ Yes, its the standard annoying utility to turn your keyoard into an organ.
 #define SECOND  10000
 #define KEYDOWN 10
 
-pa_evtrec  er;    /* event record */
-pa_channel chan;  /* channel */
+ami_evtrec  er;    /* event record */
+ami_channel chan;  /* channel */
 int        velo;  /* velocity */
 int        keycnt[36];
 int        ki;
 int port = PA_SYNTH_OUT; /* set default synth out */
 
-pa_optrec opttbl[] = {
+ami_optrec opttbl[] = {
 
     { "port",  NULL, &port,  NULL, NULL   },
     { "p",     NULL, &port,  NULL, NULL   },
@@ -40,42 +40,42 @@ void keyon(int n)
     if (keycnt[n] == 0)/* key not already down */
        switch (n) { /* key */
 
-        case 1:  pa_noteon(port, 0, chan, PA_NOTE_C+PA_OCTAVE_4, velo);       break;
-        case 2:  pa_noteon(port, 0, chan, PA_NOTE_C_SHARP+PA_OCTAVE_4, velo); break;
-        case 3:  pa_noteon(port, 0, chan, PA_NOTE_D+PA_OCTAVE_4, velo);       break;
-        case 4:  pa_noteon(port, 0, chan, PA_NOTE_D_SHARP+PA_OCTAVE_4, velo); break;
-        case 5:  pa_noteon(port, 0, chan, PA_NOTE_E+PA_OCTAVE_4, velo);       break;
-        case 6:  pa_noteon(port, 0, chan, PA_NOTE_F+PA_OCTAVE_4, velo);       break;
-        case 7:  pa_noteon(port, 0, chan, PA_NOTE_F_SHARP+PA_OCTAVE_4, velo); break;
-        case 8:  pa_noteon(port, 0, chan, PA_NOTE_G+PA_OCTAVE_4, velo);       break;
-        case 9:  pa_noteon(port, 0, chan, PA_NOTE_G_SHARP+PA_OCTAVE_4, velo); break;
-        case 10: pa_noteon(port, 0, chan, PA_NOTE_A+PA_OCTAVE_4, velo);       break;
-        case 11: pa_noteon(port, 0, chan, PA_NOTE_A_SHARP+PA_OCTAVE_4, velo); break;
-        case 12: pa_noteon(port, 0, chan, PA_NOTE_B+PA_OCTAVE_4, velo);       break;
-        case 13: pa_noteon(port, 0, chan, PA_NOTE_C+PA_OCTAVE_5, velo);       break;
-        case 14: pa_noteon(port, 0, chan, PA_NOTE_C_SHARP+PA_OCTAVE_5, velo); break;
-        case 15: pa_noteon(port, 0, chan, PA_NOTE_D+PA_OCTAVE_5, velo);       break;
-        case 16: pa_noteon(port, 0, chan, PA_NOTE_D_SHARP+PA_OCTAVE_5, velo); break;
-        case 17: pa_noteon(port, 0, chan, PA_NOTE_E+PA_OCTAVE_5, velo);       break;
-        case 18: pa_noteon(port, 0, chan, PA_NOTE_F+PA_OCTAVE_5, velo);       break;
-        case 19: pa_noteon(port, 0, chan, PA_NOTE_F_SHARP+PA_OCTAVE_5, velo); break;
-        case 20: pa_noteon(port, 0, chan, PA_NOTE_G+PA_OCTAVE_5, velo);       break;
-        case 21: pa_noteon(port, 0, chan, PA_NOTE_G_SHARP+PA_OCTAVE_5, velo); break;
-        case 22: pa_noteon(port, 0, chan, PA_NOTE_A+PA_OCTAVE_5, velo);       break;
-        case 23: pa_noteon(port, 0, chan, PA_NOTE_A_SHARP+PA_OCTAVE_5, velo); break;
-        case 24: pa_noteon(port, 0, chan, PA_NOTE_B+PA_OCTAVE_5, velo);       break;
-        case 25: pa_noteon(port, 0, chan, PA_NOTE_C+PA_OCTAVE_6, velo);       break;
-        case 26: pa_noteon(port, 0, chan, PA_NOTE_C_SHARP+PA_OCTAVE_6, velo); break;
-        case 27: pa_noteon(port, 0, chan, PA_NOTE_D+PA_OCTAVE_6, velo);       break;
-        case 28: pa_noteon(port, 0, chan, PA_NOTE_D_SHARP+PA_OCTAVE_6, velo); break;
-        case 29: pa_noteon(port, 0, chan, PA_NOTE_E+PA_OCTAVE_6, velo);       break;
-        case 30: pa_noteon(port, 0, chan, PA_NOTE_F+PA_OCTAVE_6, velo);       break;
-        case 31: pa_noteon(port, 0, chan, PA_NOTE_F_SHARP+PA_OCTAVE_6, velo); break;
-        case 32: pa_noteon(port, 0, chan, PA_NOTE_G+PA_OCTAVE_6, velo);       break;
-        case 33: pa_noteon(port, 0, chan, PA_NOTE_G_SHARP+PA_OCTAVE_6, velo); break;
-        case 34: pa_noteon(port, 0, chan, PA_NOTE_A+PA_OCTAVE_6, velo);       break;
-        case 35: pa_noteon(port, 0, chan, PA_NOTE_A_SHARP+PA_OCTAVE_6, velo); break;
-        case 36: pa_noteon(port, 0, chan, PA_NOTE_B+PA_OCTAVE_6, velo);       break;
+        case 1:  ami_noteon(port, 0, chan, PA_NOTE_C+PA_OCTAVE_4, velo);       break;
+        case 2:  ami_noteon(port, 0, chan, PA_NOTE_C_SHARP+PA_OCTAVE_4, velo); break;
+        case 3:  ami_noteon(port, 0, chan, PA_NOTE_D+PA_OCTAVE_4, velo);       break;
+        case 4:  ami_noteon(port, 0, chan, PA_NOTE_D_SHARP+PA_OCTAVE_4, velo); break;
+        case 5:  ami_noteon(port, 0, chan, PA_NOTE_E+PA_OCTAVE_4, velo);       break;
+        case 6:  ami_noteon(port, 0, chan, PA_NOTE_F+PA_OCTAVE_4, velo);       break;
+        case 7:  ami_noteon(port, 0, chan, PA_NOTE_F_SHARP+PA_OCTAVE_4, velo); break;
+        case 8:  ami_noteon(port, 0, chan, PA_NOTE_G+PA_OCTAVE_4, velo);       break;
+        case 9:  ami_noteon(port, 0, chan, PA_NOTE_G_SHARP+PA_OCTAVE_4, velo); break;
+        case 10: ami_noteon(port, 0, chan, PA_NOTE_A+PA_OCTAVE_4, velo);       break;
+        case 11: ami_noteon(port, 0, chan, PA_NOTE_A_SHARP+PA_OCTAVE_4, velo); break;
+        case 12: ami_noteon(port, 0, chan, PA_NOTE_B+PA_OCTAVE_4, velo);       break;
+        case 13: ami_noteon(port, 0, chan, PA_NOTE_C+PA_OCTAVE_5, velo);       break;
+        case 14: ami_noteon(port, 0, chan, PA_NOTE_C_SHARP+PA_OCTAVE_5, velo); break;
+        case 15: ami_noteon(port, 0, chan, PA_NOTE_D+PA_OCTAVE_5, velo);       break;
+        case 16: ami_noteon(port, 0, chan, PA_NOTE_D_SHARP+PA_OCTAVE_5, velo); break;
+        case 17: ami_noteon(port, 0, chan, PA_NOTE_E+PA_OCTAVE_5, velo);       break;
+        case 18: ami_noteon(port, 0, chan, PA_NOTE_F+PA_OCTAVE_5, velo);       break;
+        case 19: ami_noteon(port, 0, chan, PA_NOTE_F_SHARP+PA_OCTAVE_5, velo); break;
+        case 20: ami_noteon(port, 0, chan, PA_NOTE_G+PA_OCTAVE_5, velo);       break;
+        case 21: ami_noteon(port, 0, chan, PA_NOTE_G_SHARP+PA_OCTAVE_5, velo); break;
+        case 22: ami_noteon(port, 0, chan, PA_NOTE_A+PA_OCTAVE_5, velo);       break;
+        case 23: ami_noteon(port, 0, chan, PA_NOTE_A_SHARP+PA_OCTAVE_5, velo); break;
+        case 24: ami_noteon(port, 0, chan, PA_NOTE_B+PA_OCTAVE_5, velo);       break;
+        case 25: ami_noteon(port, 0, chan, PA_NOTE_C+PA_OCTAVE_6, velo);       break;
+        case 26: ami_noteon(port, 0, chan, PA_NOTE_C_SHARP+PA_OCTAVE_6, velo); break;
+        case 27: ami_noteon(port, 0, chan, PA_NOTE_D+PA_OCTAVE_6, velo);       break;
+        case 28: ami_noteon(port, 0, chan, PA_NOTE_D_SHARP+PA_OCTAVE_6, velo); break;
+        case 29: ami_noteon(port, 0, chan, PA_NOTE_E+PA_OCTAVE_6, velo);       break;
+        case 30: ami_noteon(port, 0, chan, PA_NOTE_F+PA_OCTAVE_6, velo);       break;
+        case 31: ami_noteon(port, 0, chan, PA_NOTE_F_SHARP+PA_OCTAVE_6, velo); break;
+        case 32: ami_noteon(port, 0, chan, PA_NOTE_G+PA_OCTAVE_6, velo);       break;
+        case 33: ami_noteon(port, 0, chan, PA_NOTE_G_SHARP+PA_OCTAVE_6, velo); break;
+        case 34: ami_noteon(port, 0, chan, PA_NOTE_A+PA_OCTAVE_6, velo);       break;
+        case 35: ami_noteon(port, 0, chan, PA_NOTE_A_SHARP+PA_OCTAVE_6, velo); break;
+        case 36: ami_noteon(port, 0, chan, PA_NOTE_B+PA_OCTAVE_6, velo);       break;
 
     }
     keycnt[n] = KEYDOWN; /* start, or restart, key down count */
@@ -88,42 +88,42 @@ void keyoff(int n)
 
     switch (n) { /* key */
 
-        case 1:  pa_noteoff(port, 0, chan, PA_NOTE_C+PA_OCTAVE_4, velo);       break;
-        case 2:  pa_noteoff(port, 0, chan, PA_NOTE_C_SHARP+PA_OCTAVE_4, velo); break;
-        case 3:  pa_noteoff(port, 0, chan, PA_NOTE_D+PA_OCTAVE_4, velo);       break;
-        case 4:  pa_noteoff(port, 0, chan, PA_NOTE_D_SHARP+PA_OCTAVE_4, velo); break;
-        case 5:  pa_noteoff(port, 0, chan, PA_NOTE_E+PA_OCTAVE_4, velo);       break;
-        case 6:  pa_noteoff(port, 0, chan, PA_NOTE_F+PA_OCTAVE_4, velo);       break;
-        case 7:  pa_noteoff(port, 0, chan, PA_NOTE_F_SHARP+PA_OCTAVE_4, velo); break;
-        case 8:  pa_noteoff(port, 0, chan, PA_NOTE_G+PA_OCTAVE_4, velo);       break;
-        case 9:  pa_noteoff(port, 0, chan, PA_NOTE_G_SHARP+PA_OCTAVE_4, velo); break;
-        case 10: pa_noteoff(port, 0, chan, PA_NOTE_A+PA_OCTAVE_4, velo);       break;
-        case 11: pa_noteoff(port, 0, chan, PA_NOTE_A_SHARP+PA_OCTAVE_4, velo); break;
-        case 12: pa_noteoff(port, 0, chan, PA_NOTE_B+PA_OCTAVE_4, velo);       break;
-        case 13: pa_noteoff(port, 0, chan, PA_NOTE_C+PA_OCTAVE_5, velo);       break;
-        case 14: pa_noteoff(port, 0, chan, PA_NOTE_C_SHARP+PA_OCTAVE_5, velo); break;
-        case 15: pa_noteoff(port, 0, chan, PA_NOTE_D+PA_OCTAVE_5, velo);       break;
-        case 16: pa_noteoff(port, 0, chan, PA_NOTE_D_SHARP+PA_OCTAVE_5, velo); break;
-        case 17: pa_noteoff(port, 0, chan, PA_NOTE_E+PA_OCTAVE_5, velo);       break;
-        case 18: pa_noteoff(port, 0, chan, PA_NOTE_F+PA_OCTAVE_5, velo);       break;
-        case 19: pa_noteoff(port, 0, chan, PA_NOTE_F_SHARP+PA_OCTAVE_5, velo); break;
-        case 20: pa_noteoff(port, 0, chan, PA_NOTE_G+PA_OCTAVE_5, velo);       break;
-        case 21: pa_noteoff(port, 0, chan, PA_NOTE_G_SHARP+PA_OCTAVE_5, velo); break;
-        case 22: pa_noteoff(port, 0, chan, PA_NOTE_A+PA_OCTAVE_5, velo);       break;
-        case 23: pa_noteoff(port, 0, chan, PA_NOTE_A_SHARP+PA_OCTAVE_5, velo); break;
-        case 24: pa_noteoff(port, 0, chan, PA_NOTE_B+PA_OCTAVE_5, velo);       break;
-        case 25: pa_noteoff(port, 0, chan, PA_NOTE_C+PA_OCTAVE_6, velo);       break;
-        case 26: pa_noteoff(port, 0, chan, PA_NOTE_C_SHARP+PA_OCTAVE_6, velo); break;
-        case 27: pa_noteoff(port, 0, chan, PA_NOTE_D+PA_OCTAVE_6, velo);       break;
-        case 28: pa_noteoff(port, 0, chan, PA_NOTE_D_SHARP+PA_OCTAVE_6, velo); break;
-        case 29: pa_noteoff(port, 0, chan, PA_NOTE_E+PA_OCTAVE_6, velo);       break;
-        case 30: pa_noteoff(port, 0, chan, PA_NOTE_F+PA_OCTAVE_6, velo);       break;
-        case 31: pa_noteoff(port, 0, chan, PA_NOTE_F_SHARP+PA_OCTAVE_6, velo); break;
-        case 32: pa_noteoff(port, 0, chan, PA_NOTE_G+PA_OCTAVE_6, velo);       break;
-        case 33: pa_noteoff(port, 0, chan, PA_NOTE_G_SHARP+PA_OCTAVE_6, velo); break;
-        case 34: pa_noteoff(port, 0, chan, PA_NOTE_A+PA_OCTAVE_6, velo);       break;
-        case 35: pa_noteoff(port, 0, chan, PA_NOTE_A_SHARP+PA_OCTAVE_6, velo); break;
-        case 36: pa_noteoff(port, 0, chan, PA_NOTE_B+PA_OCTAVE_6, velo);       break;
+        case 1:  ami_noteoff(port, 0, chan, PA_NOTE_C+PA_OCTAVE_4, velo);       break;
+        case 2:  ami_noteoff(port, 0, chan, PA_NOTE_C_SHARP+PA_OCTAVE_4, velo); break;
+        case 3:  ami_noteoff(port, 0, chan, PA_NOTE_D+PA_OCTAVE_4, velo);       break;
+        case 4:  ami_noteoff(port, 0, chan, PA_NOTE_D_SHARP+PA_OCTAVE_4, velo); break;
+        case 5:  ami_noteoff(port, 0, chan, PA_NOTE_E+PA_OCTAVE_4, velo);       break;
+        case 6:  ami_noteoff(port, 0, chan, PA_NOTE_F+PA_OCTAVE_4, velo);       break;
+        case 7:  ami_noteoff(port, 0, chan, PA_NOTE_F_SHARP+PA_OCTAVE_4, velo); break;
+        case 8:  ami_noteoff(port, 0, chan, PA_NOTE_G+PA_OCTAVE_4, velo);       break;
+        case 9:  ami_noteoff(port, 0, chan, PA_NOTE_G_SHARP+PA_OCTAVE_4, velo); break;
+        case 10: ami_noteoff(port, 0, chan, PA_NOTE_A+PA_OCTAVE_4, velo);       break;
+        case 11: ami_noteoff(port, 0, chan, PA_NOTE_A_SHARP+PA_OCTAVE_4, velo); break;
+        case 12: ami_noteoff(port, 0, chan, PA_NOTE_B+PA_OCTAVE_4, velo);       break;
+        case 13: ami_noteoff(port, 0, chan, PA_NOTE_C+PA_OCTAVE_5, velo);       break;
+        case 14: ami_noteoff(port, 0, chan, PA_NOTE_C_SHARP+PA_OCTAVE_5, velo); break;
+        case 15: ami_noteoff(port, 0, chan, PA_NOTE_D+PA_OCTAVE_5, velo);       break;
+        case 16: ami_noteoff(port, 0, chan, PA_NOTE_D_SHARP+PA_OCTAVE_5, velo); break;
+        case 17: ami_noteoff(port, 0, chan, PA_NOTE_E+PA_OCTAVE_5, velo);       break;
+        case 18: ami_noteoff(port, 0, chan, PA_NOTE_F+PA_OCTAVE_5, velo);       break;
+        case 19: ami_noteoff(port, 0, chan, PA_NOTE_F_SHARP+PA_OCTAVE_5, velo); break;
+        case 20: ami_noteoff(port, 0, chan, PA_NOTE_G+PA_OCTAVE_5, velo);       break;
+        case 21: ami_noteoff(port, 0, chan, PA_NOTE_G_SHARP+PA_OCTAVE_5, velo); break;
+        case 22: ami_noteoff(port, 0, chan, PA_NOTE_A+PA_OCTAVE_5, velo);       break;
+        case 23: ami_noteoff(port, 0, chan, PA_NOTE_A_SHARP+PA_OCTAVE_5, velo); break;
+        case 24: ami_noteoff(port, 0, chan, PA_NOTE_B+PA_OCTAVE_5, velo);       break;
+        case 25: ami_noteoff(port, 0, chan, PA_NOTE_C+PA_OCTAVE_6, velo);       break;
+        case 26: ami_noteoff(port, 0, chan, PA_NOTE_C_SHARP+PA_OCTAVE_6, velo); break;
+        case 27: ami_noteoff(port, 0, chan, PA_NOTE_D+PA_OCTAVE_6, velo);       break;
+        case 28: ami_noteoff(port, 0, chan, PA_NOTE_D_SHARP+PA_OCTAVE_6, velo); break;
+        case 29: ami_noteoff(port, 0, chan, PA_NOTE_E+PA_OCTAVE_6, velo);       break;
+        case 30: ami_noteoff(port, 0, chan, PA_NOTE_F+PA_OCTAVE_6, velo);       break;
+        case 31: ami_noteoff(port, 0, chan, PA_NOTE_F_SHARP+PA_OCTAVE_6, velo); break;
+        case 32: ami_noteoff(port, 0, chan, PA_NOTE_G+PA_OCTAVE_6, velo);       break;
+        case 33: ami_noteoff(port, 0, chan, PA_NOTE_G_SHARP+PA_OCTAVE_6, velo); break;
+        case 34: ami_noteoff(port, 0, chan, PA_NOTE_A+PA_OCTAVE_6, velo);       break;
+        case 35: ami_noteoff(port, 0, chan, PA_NOTE_A_SHARP+PA_OCTAVE_6, velo); break;
+        case 36: ami_noteoff(port, 0, chan, PA_NOTE_B+PA_OCTAVE_6, velo);       break;
 
     }
 
@@ -152,7 +152,7 @@ int main(int argc, char **argv)
     int argi = 1;
 
     /* parse user options */
-    pa_options(&argi, &argc, argv, opttbl, TRUE);
+    ami_options(&argi, &argc, argv, opttbl, TRUE);
 
     if (argc != 1) {
 
@@ -162,15 +162,15 @@ int main(int argc, char **argv)
 
     }
 
-    pa_opensynthout(port); /* open main synthesiser */
+    ami_opensynthout(port); /* open main synthesiser */
     chan = 1; /* set channel 1 */
     velo = INT_MAX; /* set velocity */
     for (ki = 0; ki < 36; ki++) keycnt[ki] = 0; /* clear key down counts */
-    pa_timer(stdout, 1, SECOND/4/10, TRUE); /* set basic timer */
+    ami_timer(stdout, 1, SECOND/4/10, TRUE); /* set basic timer */
     do { /* events */
 
-        pa_event(stdin, &er); /* get next event */
-        if (er.etype == pa_etchar) /* its a standard key */
+        ami_event(stdin, &er); /* get next event */
+        if (er.etype == ami_etchar) /* its a standard key */
             switch (tolower(er.echar)) {
 
             case '1':  keyon(1); break;
@@ -209,24 +209,24 @@ int main(int argc, char **argv)
             case ';':  keyon(34); break;
             case '\'': keyon(35); break;
 
-        } else if (er.etype == pa_etenter) keyon(36);
-        else if (er.etype == pa_etfun) {
+        } else if (er.etype == ami_etenter) keyon(36);
+        else if (er.etype == ami_etfun) {
 
-            if (er.fkey == 1) pa_instchange(port, 0, 1, PA_INST_ACOUSTIC_GRAND);
-            else if (er.fkey == 2) pa_instchange(port, 0, 1, PA_INST_ELECTRIC_GRAND);
-            else if (er.fkey == 3) pa_instchange(port, 0, 1, PA_INST_ROCK_ORGAN);
-            else if (er.fkey == 4) pa_instchange(port, 0, 1, PA_INST_CHURCH_ORGAN);
-            else if (er.fkey == 5) pa_instchange(port, 0, 1, PA_INST_NYLON_STRING_GUITAR);
-            else if (er.fkey == 6) pa_instchange(port, 0, 1, PA_INST_OVERDRIVEN_GUITAR);
-            else if (er.fkey == 7) pa_instchange(port, 0, 1, PA_INST_TRUMPET);
-            else if (er.fkey == 8) pa_instchange(port, 0, 1, PA_INST_LEAD_1_SQUARE);
-            else if (er.fkey == 9) pa_instchange(port, 0, 1, PA_INST_LEAD_2_SAWTOOTH);
-            else if (er.fkey == 10) pa_instchange(port, 0, 1, PA_INST_PAD_1_NEW_AGE);
-            else if (er.fkey == 11) pa_instchange(port, 0, 1, PA_INST_PAD_3_POLYSYNTH);
-            else if (er.fkey == 12) pa_instchange(port, 0, 1, PA_INST_WOODBLOCK);
+            if (er.fkey == 1) ami_instchange(port, 0, 1, PA_INST_ACOUSTIC_GRAND);
+            else if (er.fkey == 2) ami_instchange(port, 0, 1, PA_INST_ELECTRIC_GRAND);
+            else if (er.fkey == 3) ami_instchange(port, 0, 1, PA_INST_ROCK_ORGAN);
+            else if (er.fkey == 4) ami_instchange(port, 0, 1, PA_INST_CHURCH_ORGAN);
+            else if (er.fkey == 5) ami_instchange(port, 0, 1, PA_INST_NYLON_STRING_GUITAR);
+            else if (er.fkey == 6) ami_instchange(port, 0, 1, PA_INST_OVERDRIVEN_GUITAR);
+            else if (er.fkey == 7) ami_instchange(port, 0, 1, PA_INST_TRUMPET);
+            else if (er.fkey == 8) ami_instchange(port, 0, 1, PA_INST_LEAD_1_SQUARE);
+            else if (er.fkey == 9) ami_instchange(port, 0, 1, PA_INST_LEAD_2_SAWTOOTH);
+            else if (er.fkey == 10) ami_instchange(port, 0, 1, PA_INST_PAD_1_NEW_AGE);
+            else if (er.fkey == 11) ami_instchange(port, 0, 1, PA_INST_PAD_3_POLYSYNTH);
+            else if (er.fkey == 12) ami_instchange(port, 0, 1, PA_INST_WOODBLOCK);
 
-        } else if (er.etype == pa_ettim) tick(); /* process key timers */
+        } else if (er.etype == ami_ettim) tick(); /* process key timers */
 
-    } while (er.etype != pa_etterm);
+    } while (er.etype != ami_etterm);
 
 }

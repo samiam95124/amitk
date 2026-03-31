@@ -22,16 +22,16 @@ static void chkbrk(void)
 
 {
 
-    pa_evtrec er; /* event record */
+    ami_evtrec er; /* event record */
 
     /* This is a dirty trick with PA. We set minimum time and check for
        user break because we want as much CPU time as possible to draw.
        A better solution would be to use another thread and set a flag for
        cancel. */
-    pa_timer(stdout, 1, 1, FALSE);
-    do { pa_event(stdin, &er); }
-    while (er.etype != pa_ettim && er.etype != pa_etterm);
-    if (er.etype == pa_etterm) { longjmp(terminate_buf, 1); }
+    ami_timer(stdout, 1, 1, FALSE);
+    do { ami_event(stdin, &er); }
+    while (er.etype != ami_ettim && er.etype != ami_etterm);
+    if (er.etype == ami_etterm) { longjmp(terminate_buf, 1); }
 
 }
 
@@ -41,10 +41,10 @@ int main(void)
 
     if (setjmp(terminate_buf)) goto terminate;
 
-    pa_auto(stdout, FALSE);
-    pa_curvis(stdout, FALSE);
-    pa_fcolor(stdout, pa_white);
-    pa_fxor(stdout);
+    ami_auto(stdout, FALSE);
+    ami_curvis(stdout, FALSE);
+    ami_fcolor(stdout, ami_white);
+    ami_fxor(stdout);
     x = 1;
     y = 1;
     xd = +1;
@@ -53,11 +53,11 @@ int main(void)
 
         for (i = 1; i <= ACCEL; i++) {
 
-            pa_setpixel(stdout, x, y);
+            ami_setpixel(stdout, x, y);
             x = x+xd;
             y = y+yd;
-            if (x == 1 || x == pa_maxxg(stdout)) xd = -xd;
-            if (y == 1 || y == pa_maxyg(stdout)) yd = -yd;
+            if (x == 1 || x == ami_maxxg(stdout)) xd = -xd;
+            if (y == 1 || y == ami_maxyg(stdout)) yd = -yd;
 
         }
         chkbrk();
@@ -66,7 +66,7 @@ int main(void)
 
 terminate: /* terminate */
 
-    pa_auto(stdout, TRUE);
-    pa_curvis(stdout, TRUE);
+    ami_auto(stdout, TRUE);
+    ami_curvis(stdout, TRUE);
 
 }

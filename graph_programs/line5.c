@@ -15,14 +15,14 @@ static int waitframe(void)
 
 {
 
-    pa_evtrec er; /* event record */
+    ami_evtrec er; /* event record */
     int cancel;
 
     cancel = FALSE;
-    pa_timer(stdout, 1, FRAMETIME, FALSE);
-    do { pa_event(stdin, &er); }
-    while (er.etype != pa_ettim && er.etype != pa_etterm);
-    if (er.etype == pa_etterm) cancel = TRUE;
+    ami_timer(stdout, 1, FRAMETIME, FALSE);
+    do { ami_event(stdin, &er); }
+    while (er.etype != ami_ettim && er.etype != ami_etterm);
+    if (er.etype == ami_etterm) cancel = TRUE;
 
     return (cancel);
 
@@ -48,21 +48,21 @@ int main(void)
 
 {
 
-    pa_auto(stdout, FALSE);
-    pa_curvis(stdout, FALSE);
-    pa_linewidth(stdout, 5);
+    ami_auto(stdout, FALSE);
+    ami_curvis(stdout, FALSE);
+    ami_linewidth(stdout, 5);
     while (TRUE) {
 
-        pa_fcolor(stdout, randn(pa_magenta+1-pa_red)+pa_red);
-        pa_line(stdout, randn(pa_maxxg(stdout)-1)+1, randn(pa_maxyg(stdout)-1)+1,
-                        randn(pa_maxxg(stdout)-1)+1, randn(pa_maxyg(stdout)-1)+1);
+        ami_fcolor(stdout, randn(ami_magenta+1-ami_red)+ami_red);
+        ami_line(stdout, randn(ami_maxxg(stdout)-1)+1, randn(ami_maxyg(stdout)-1)+1,
+                        randn(ami_maxxg(stdout)-1)+1, randn(ami_maxyg(stdout)-1)+1);
         if (waitframe()) goto terminate;
 
     }
 
     terminate:
 
-    pa_auto(stdout, TRUE);
-    pa_curvis(stdout, TRUE);
+    ami_auto(stdout, TRUE);
+    ami_curvis(stdout, TRUE);
 
 }

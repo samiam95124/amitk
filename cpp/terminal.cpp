@@ -5,7 +5,7 @@
  * Wraps the calls in terminal with C++ conventions. This brings several
  * advantages over C code:
  *
- * 1. The functions and other defintions do not need a "pa_" prefix, but rather
+ * 1. The functions and other defintions do not need a "ami_" prefix, but rather
  * we let the namespace feature handle namespace isolation.
  *
  * 2. Parameters like what file handle controls the terminal can be defaulted.
@@ -47,97 +47,97 @@ term* termoCB;
 pevthan termoeh;
 
 /* procedures and functions */
-void cursor(FILE* f, int x, int y) { pa_cursor(f, x, y); }
-void cursor(int x, int y) { pa_cursor(stdout, x, y); }
-int  maxx(FILE* f) { return pa_maxx(f); }
-int  maxx(void) { return pa_maxx(stdout); }
-int  maxy(FILE* f) { return pa_maxy(f); }
-int  maxy(void) { return pa_maxy(stdout); }
-void home(FILE* f) { pa_home(f); }
-void home(void) { pa_home(stdout); }
-void del(FILE* f) { pa_del(f); }
-void del(void) { pa_del(stdout); }
-void up(FILE* f) { pa_up(f); }
-void up(void) { pa_up(stdout); }
-void down(FILE* f) { pa_down(f); }
-void down(void) { pa_down(stdout); }
-void left(FILE* f) { pa_left(f); }
-void left(void) { pa_left(stdout); }
-void right(FILE* f) { pa_right(f); }
-void right(void) { pa_right(stdout); }
-void blink(FILE* f, int e) { pa_blink(f, e); }
-void blink(int e) { pa_blink(stdout, e); }
-void reverse(FILE* f, int e) { pa_reverse(f, e); }
-void reverse(int e) { pa_reverse(stdout, e); }
-void underline(FILE* f, int e) { pa_underline(f, e); }
-void underline(int e) { pa_underline(stdout, e); }
-void superscript(FILE* f, int e) { pa_superscript(f, e); }
-void superscript(int e) { pa_superscript(stdout, e); }
-void subscript(FILE* f, int e) { pa_subscript(f, e); }
-void subscript(int e) { pa_subscript(stdout, e); }
-void italic(FILE* f, int e) { pa_italic(f, e); }
-void italic(int e) { pa_italic(stdout, e); }
-void bold(FILE* f, int e) { pa_bold(f, e); }
-void bold(int e) { pa_bold(stdout, e); }
-void strikeout(FILE* f, int e) { pa_strikeout(f, e); }
-void strikeout(int e) { pa_strikeout(stdout, e); }
-void standout(FILE* f, int e) { pa_standout(f, e); }
-void standout(int e) { pa_standout(stdout, e); }
-void fcolor(FILE* f, color c) { pa_fcolor(f, (pa_color)c); }
-void fcolor(color c) { pa_fcolor(stdout, (pa_color)c); }
-void bcolor(FILE* f, color c) { pa_bcolor(f, (pa_color)c); }
-void bcolor(color c) { pa_bcolor(stdout, (pa_color)c); }
-void autom(FILE* f, int e) { pa_auto(f, e); }
-void autom(int e) { pa_auto(stdout, e); }
-void curvis(FILE* f, int e) { pa_curvis(f, e); }
-void curvis(int e) { pa_curvis(stdout, e); }
-void scroll(FILE* f, int x, int y) { pa_scroll(f, x, y); }
-void scroll(int x, int y) { pa_scroll(stdout, x, y); }
-int  curx(FILE* f) { return pa_curx(f); }
-int  curx(void) { return pa_curx(stdout); }
-int  cury(FILE* f) { return pa_cury(f); }
-int  cury(void) { return pa_cury(stdout); }
-int  curbnd(FILE* f) { return pa_curbnd(f); }
-int  curbnd(void) { return pa_curbnd(stdout); }
-void select(FILE *f, int u, int d) { pa_select(f, u, d); }
-void select(int u, int d) { pa_select(stdout, u, d); }
-void event(FILE* f, evtrec* er) { pa_event(f, (pa_evtptr)er); }
-void event(evtrec* er) { pa_event(stdin, (pa_evtptr)er); }
-void timer(FILE* f, int i, int t, int r) { pa_timer(f, i, t, r); }
-void timer(int i, int t, int r) { pa_timer(stdout, i, t, r); }
-void killtimer(FILE* f, int i) { pa_killtimer(f, i); }
-void killtimer(int i) { pa_killtimer(stdout, i); }
-int  mouse(FILE *f) { return pa_mouse(f); }
-int  mouse(void) { return pa_mouse(stdout); }
-int  mousebutton(FILE* f, int m) { return pa_mousebutton(f, m); }
-int  mousebutton(int m) { return pa_mousebutton(stdout, m); }
-int  joystick(FILE* f) { return pa_joystick(f); }
-int  joystick(void) { return pa_joystick(stdout); }
-int  joybutton(FILE* f, int j) { return pa_joybutton(f, j); }
-int  joybutton(int j) { return pa_joybutton(stdout, j); }
-int  joyaxis(FILE* f, int j) { return pa_joyaxis(f, j); }
-int  joyaxis(int j) { return pa_joyaxis(stdout, j); }
-void settab(FILE* f, int t) { pa_settab(f, t); }
-void settab(int t) { pa_settab(stdout, t); }
-void restab(FILE* f, int t) { pa_restab(f, t); }
-void restab(int t) { pa_restab(stdout, t); }
-void clrtab(FILE* f) { pa_clrtab(f); }
-void clrtab(void) { pa_clrtab(stdout); }
-int  funkey(FILE* f) { return pa_funkey(f); }
-int  funkey(void) { return pa_funkey(stdout); }
-void frametimer(FILE* f, int e) { pa_frametimer(f, e); }
-void frametimer(int e) { pa_frametimer(stdout, e); }
-void autohold(int e) { pa_autohold(e); }
-void wrtstr(FILE* f, char *s) { pa_wrtstr(f, s); }
-void wrtstr(char *s) { pa_wrtstr(stdout, s); }
-void wrtstr(FILE* f, char *s, int n) { pa_wrtstrn(f, s, n); }
-void wrtstr(char *s, int n) { pa_wrtstrn(stdout, s, n); }
-void wrtstrn(FILE* f, char *s, int n) { pa_wrtstrn(f, s, n); }
-void wrtstrn(char *s, int n) { pa_wrtstrn(stdout, s, n); }
-void sizbuf(FILE* f, int x, int y) { pa_sizbuf(f, x, y); }
-void sizbuf(int x, int y) { pa_sizbuf(stdout, x, y); }
-void eventover(evtcod e, pevthan eh, pevthan* oeh) { pa_eventover((pa_evtcod)e, (pa_pevthan)eh, (pa_pevthan*)oeh); }
-void eventsover(pevthan eh, pevthan* oeh) { pa_eventsover((pa_pevthan)eh, (pa_pevthan*)oeh); }
+void cursor(FILE* f, int x, int y) { ami_cursor(f, x, y); }
+void cursor(int x, int y) { ami_cursor(stdout, x, y); }
+int  maxx(FILE* f) { return ami_maxx(f); }
+int  maxx(void) { return ami_maxx(stdout); }
+int  maxy(FILE* f) { return ami_maxy(f); }
+int  maxy(void) { return ami_maxy(stdout); }
+void home(FILE* f) { ami_home(f); }
+void home(void) { ami_home(stdout); }
+void del(FILE* f) { ami_del(f); }
+void del(void) { ami_del(stdout); }
+void up(FILE* f) { ami_up(f); }
+void up(void) { ami_up(stdout); }
+void down(FILE* f) { ami_down(f); }
+void down(void) { ami_down(stdout); }
+void left(FILE* f) { ami_left(f); }
+void left(void) { ami_left(stdout); }
+void right(FILE* f) { ami_right(f); }
+void right(void) { ami_right(stdout); }
+void blink(FILE* f, int e) { ami_blink(f, e); }
+void blink(int e) { ami_blink(stdout, e); }
+void reverse(FILE* f, int e) { ami_reverse(f, e); }
+void reverse(int e) { ami_reverse(stdout, e); }
+void underline(FILE* f, int e) { ami_underline(f, e); }
+void underline(int e) { ami_underline(stdout, e); }
+void superscript(FILE* f, int e) { ami_superscript(f, e); }
+void superscript(int e) { ami_superscript(stdout, e); }
+void subscript(FILE* f, int e) { ami_subscript(f, e); }
+void subscript(int e) { ami_subscript(stdout, e); }
+void italic(FILE* f, int e) { ami_italic(f, e); }
+void italic(int e) { ami_italic(stdout, e); }
+void bold(FILE* f, int e) { ami_bold(f, e); }
+void bold(int e) { ami_bold(stdout, e); }
+void strikeout(FILE* f, int e) { ami_strikeout(f, e); }
+void strikeout(int e) { ami_strikeout(stdout, e); }
+void standout(FILE* f, int e) { ami_standout(f, e); }
+void standout(int e) { ami_standout(stdout, e); }
+void fcolor(FILE* f, color c) { ami_fcolor(f, (ami_color)c); }
+void fcolor(color c) { ami_fcolor(stdout, (ami_color)c); }
+void bcolor(FILE* f, color c) { ami_bcolor(f, (ami_color)c); }
+void bcolor(color c) { ami_bcolor(stdout, (ami_color)c); }
+void autom(FILE* f, int e) { ami_auto(f, e); }
+void autom(int e) { ami_auto(stdout, e); }
+void curvis(FILE* f, int e) { ami_curvis(f, e); }
+void curvis(int e) { ami_curvis(stdout, e); }
+void scroll(FILE* f, int x, int y) { ami_scroll(f, x, y); }
+void scroll(int x, int y) { ami_scroll(stdout, x, y); }
+int  curx(FILE* f) { return ami_curx(f); }
+int  curx(void) { return ami_curx(stdout); }
+int  cury(FILE* f) { return ami_cury(f); }
+int  cury(void) { return ami_cury(stdout); }
+int  curbnd(FILE* f) { return ami_curbnd(f); }
+int  curbnd(void) { return ami_curbnd(stdout); }
+void select(FILE *f, int u, int d) { ami_select(f, u, d); }
+void select(int u, int d) { ami_select(stdout, u, d); }
+void event(FILE* f, evtrec* er) { ami_event(f, (ami_evtptr)er); }
+void event(evtrec* er) { ami_event(stdin, (ami_evtptr)er); }
+void timer(FILE* f, int i, int t, int r) { ami_timer(f, i, t, r); }
+void timer(int i, int t, int r) { ami_timer(stdout, i, t, r); }
+void killtimer(FILE* f, int i) { ami_killtimer(f, i); }
+void killtimer(int i) { ami_killtimer(stdout, i); }
+int  mouse(FILE *f) { return ami_mouse(f); }
+int  mouse(void) { return ami_mouse(stdout); }
+int  mousebutton(FILE* f, int m) { return ami_mousebutton(f, m); }
+int  mousebutton(int m) { return ami_mousebutton(stdout, m); }
+int  joystick(FILE* f) { return ami_joystick(f); }
+int  joystick(void) { return ami_joystick(stdout); }
+int  joybutton(FILE* f, int j) { return ami_joybutton(f, j); }
+int  joybutton(int j) { return ami_joybutton(stdout, j); }
+int  joyaxis(FILE* f, int j) { return ami_joyaxis(f, j); }
+int  joyaxis(int j) { return ami_joyaxis(stdout, j); }
+void settab(FILE* f, int t) { ami_settab(f, t); }
+void settab(int t) { ami_settab(stdout, t); }
+void restab(FILE* f, int t) { ami_restab(f, t); }
+void restab(int t) { ami_restab(stdout, t); }
+void clrtab(FILE* f) { ami_clrtab(f); }
+void clrtab(void) { ami_clrtab(stdout); }
+int  funkey(FILE* f) { return ami_funkey(f); }
+int  funkey(void) { return ami_funkey(stdout); }
+void frametimer(FILE* f, int e) { ami_frametimer(f, e); }
+void frametimer(int e) { ami_frametimer(stdout, e); }
+void autohold(int e) { ami_autohold(e); }
+void wrtstr(FILE* f, char *s) { ami_wrtstr(f, s); }
+void wrtstr(char *s) { ami_wrtstr(stdout, s); }
+void wrtstr(FILE* f, char *s, int n) { ami_wrtstrn(f, s, n); }
+void wrtstr(char *s, int n) { ami_wrtstrn(stdout, s, n); }
+void wrtstrn(FILE* f, char *s, int n) { ami_wrtstrn(f, s, n); }
+void wrtstrn(char *s, int n) { ami_wrtstrn(stdout, s, n); }
+void sizbuf(FILE* f, int x, int y) { ami_sizbuf(f, x, y); }
+void sizbuf(int x, int y) { ami_sizbuf(stdout, x, y); }
+void eventover(evtcod e, pevthan eh, pevthan* oeh) { ami_eventover((ami_evtcod)e, (ami_pevthan)eh, (ami_pevthan*)oeh); }
+void eventsover(pevthan eh, pevthan* oeh) { ami_eventsover((ami_pevthan)eh, (ami_pevthan*)oeh); }
 
 /* methods */
 term::term(void)
@@ -151,51 +151,51 @@ term::term(void)
 
 }
 
-void term::cursor(int x, int y) { pa_cursor(outfile, x, y); }
-int  term::maxx(void) { return pa_maxx(outfile); }
-int  term::maxy(void) { return pa_maxy(outfile); }
-void term::home(void) { pa_home(outfile); }
-void term::del(void) { pa_del(outfile); }
-void term::up(void) { pa_up(outfile); }
-void term::down(void) { pa_down(outfile); }
-void term::left(void) { pa_left(outfile); }
-void term::right(void) { pa_right(outfile); }
-void term::blink(int e) { pa_blink(outfile, e); }
-void term::reverse(int e) { pa_reverse(outfile, e); }
-void term::underline(int e) { pa_underline(outfile, e); }
-void term::superscript(int e) { pa_superscript(outfile, e); }
-void term::subscript(int e) { pa_subscript(outfile, e); }
-void term::italic(int e) { pa_italic(outfile, e); }
-void term::bold(int e) { pa_bold(outfile, e); }
-void term::strikeout(int e) { pa_strikeout(outfile, e); }
-void term::standout(int e) { pa_standout(outfile, e); }
-void term::fcolor(color c) { pa_fcolor(outfile, (pa_color)c); }
-void term::bcolor(color c) { pa_bcolor(outfile, (pa_color)c); }
-void term::autom(int e) { pa_auto(outfile, e); }
-void term::curvis(int e) { pa_curvis(outfile, e); }
-void term::scroll(int x, int y) { pa_scroll(outfile, x, y); }
-int  term::curx(void) { return pa_curx(outfile); }
-int  term::cury(void) { return pa_cury(outfile); }
-int  term::curbnd(void) { return pa_curbnd(outfile); }
-void term::select(int u, int d) { pa_select(outfile, u, d); }
-void term::event(evtrec* er) { pa_event(infile, (pa_evtptr)er); }
-void term::timer(int i, int t, int r) { pa_timer(outfile, i, t, r); }
-void term::killtimer(int i) { pa_killtimer(outfile, i); }
-int  term::mouse(void) { return pa_mouse(outfile); }
-int  term::mousebutton(int m) { return pa_mousebutton(outfile, m); }
-int  term::joystick(void) { return pa_joystick(outfile); }
-int  term::joybutton(int j) { return pa_joybutton(outfile, j); }
-int  term::joyaxis(int j) { return pa_joyaxis(outfile, j); }
-void term::settab(int t) { pa_settab(outfile, t); }
-void term::restab(int t) { pa_restab(outfile, t); }
-void term::clrtab(void) { pa_clrtab(outfile); }
-int  term::funkey(void) { return pa_funkey(outfile); }
-void term::frametimer(int e) { pa_frametimer(outfile, e); }
-void term::autohold(int e) { pa_autohold(e); }
-void term::wrtstr(char *s) { pa_wrtstr(outfile, s); }
-void term::wrtstr(char *s, int n) { pa_wrtstrn(outfile, s, n); }
-void term::wrtstrn(char *s, int n) { pa_wrtstrn(outfile, s, n); }
-void term::sizbuf(int x, int y) { pa_sizbuf(outfile, x, y); }
+void term::cursor(int x, int y) { ami_cursor(outfile, x, y); }
+int  term::maxx(void) { return ami_maxx(outfile); }
+int  term::maxy(void) { return ami_maxy(outfile); }
+void term::home(void) { ami_home(outfile); }
+void term::del(void) { ami_del(outfile); }
+void term::up(void) { ami_up(outfile); }
+void term::down(void) { ami_down(outfile); }
+void term::left(void) { ami_left(outfile); }
+void term::right(void) { ami_right(outfile); }
+void term::blink(int e) { ami_blink(outfile, e); }
+void term::reverse(int e) { ami_reverse(outfile, e); }
+void term::underline(int e) { ami_underline(outfile, e); }
+void term::superscript(int e) { ami_superscript(outfile, e); }
+void term::subscript(int e) { ami_subscript(outfile, e); }
+void term::italic(int e) { ami_italic(outfile, e); }
+void term::bold(int e) { ami_bold(outfile, e); }
+void term::strikeout(int e) { ami_strikeout(outfile, e); }
+void term::standout(int e) { ami_standout(outfile, e); }
+void term::fcolor(color c) { ami_fcolor(outfile, (ami_color)c); }
+void term::bcolor(color c) { ami_bcolor(outfile, (ami_color)c); }
+void term::autom(int e) { ami_auto(outfile, e); }
+void term::curvis(int e) { ami_curvis(outfile, e); }
+void term::scroll(int x, int y) { ami_scroll(outfile, x, y); }
+int  term::curx(void) { return ami_curx(outfile); }
+int  term::cury(void) { return ami_cury(outfile); }
+int  term::curbnd(void) { return ami_curbnd(outfile); }
+void term::select(int u, int d) { ami_select(outfile, u, d); }
+void term::event(evtrec* er) { ami_event(infile, (ami_evtptr)er); }
+void term::timer(int i, int t, int r) { ami_timer(outfile, i, t, r); }
+void term::killtimer(int i) { ami_killtimer(outfile, i); }
+int  term::mouse(void) { return ami_mouse(outfile); }
+int  term::mousebutton(int m) { return ami_mousebutton(outfile, m); }
+int  term::joystick(void) { return ami_joystick(outfile); }
+int  term::joybutton(int j) { return ami_joybutton(outfile, j); }
+int  term::joyaxis(int j) { return ami_joyaxis(outfile, j); }
+void term::settab(int t) { ami_settab(outfile, t); }
+void term::restab(int t) { ami_restab(outfile, t); }
+void term::clrtab(void) { ami_clrtab(outfile); }
+int  term::funkey(void) { return ami_funkey(outfile); }
+void term::frametimer(int e) { ami_frametimer(outfile, e); }
+void term::autohold(int e) { ami_autohold(e); }
+void term::wrtstr(char *s) { ami_wrtstr(outfile, s); }
+void term::wrtstr(char *s, int n) { ami_wrtstrn(outfile, s, n); }
+void term::wrtstrn(char *s, int n) { ami_wrtstrn(outfile, s, n); }
+void term::sizbuf(int x, int y) { ami_sizbuf(outfile, x, y); }
 
 /* virtual callbacks */
 int term::evchar(char c) { return 0; }

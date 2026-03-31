@@ -22,7 +22,7 @@
 #define HOURSEC (60*60)      /* number of seconds in an hour */
 #define DAYSEC  (HOURSEC*24) /* number of seconds in a day */
 
-pa_evtrec er;  /* event record */
+ami_evtrec er;  /* event record */
 int       frm; /* frame on/off */
 
 /* find rectangular coordinates from polar, relative to center of circle,
@@ -56,8 +56,8 @@ void pline(int a,           /* angle of hand */
 
     rectcord(a, i, &sx, &sy); /* find startpoint of line */
     rectcord(a, o, &ex, &ey); /* find endpoint of line */
-    pa_linewidth(stdout, w); /* set width */
-    pa_line(stdout, cx+sx, cy-sy, cx+ex, cy-ey); /* draw second hand */
+    ami_linewidth(stdout, w); /* set width */
+    ami_line(stdout, cx+sx, cy-sy, cx+ex, cy-ey); /* draw second hand */
 
 }
 
@@ -76,8 +76,8 @@ void update(int cx, int cy, /* center of clock in x and y */
     char ds[100]; /* storage for date */
 
     /* break down time to seconds, minutes, hours */
-    t = pa_local(pa_time()); /* get local time */
-    pa_dates(ds, 100, t); /* get the date in ASCII from that */
+    t = ami_local(ami_time()); /* get local time */
+    ami_dates(ds, 100, t); /* get the date in ASCII from that */
     t = t%DAYSEC; /* find number of seconds in day */
     /* if before 2000, find from remaining seconds */
     if (t < 0) t = DAYSEC+t;
@@ -90,7 +90,7 @@ void update(int cx, int cy, /* center of clock in x and y */
     pline(m*(360 / 60), d, 0, cx, cy, 3); /* draw minute hand */
     pline(h*(360 / 12)+m / 2, d / 2, 0, cx, cy, 3); /* draw hour hand */
     /* place date centered, 1/4 down from the clock center (1/8 radius) */
-    pa_cursorg(stdout, cx-pa_strsiz(stdout, ds)/2, cy+d/8);
+    ami_cursorg(stdout, cx-ami_strsiz(stdout, ds)/2, cy+d/8);
     printf("%s", ds); /* write date to clock face */
 
 }
@@ -107,15 +107,15 @@ void drawclock(void)
     int t;      /* length of tick mark */
 
     /* erase background */
-    pa_fcolor(stdout, pa_white);
-    pa_frect(stdout, 1, 1, pa_maxxg(stdout), pa_maxyg(stdout));
-    pa_fcolor(stdout, pa_black);
+    ami_fcolor(stdout, ami_white);
+    ami_frect(stdout, 1, 1, ami_maxxg(stdout), ami_maxyg(stdout));
+    ami_fcolor(stdout, ami_black);
     /* find diameter of circle by shorter of two axies */
-    if (pa_maxxg(stdout) > pa_maxyg(stdout)) d = pa_maxyg(stdout)-20;
-    else d = pa_maxxg(stdout)-20;
+    if (ami_maxxg(stdout) > ami_maxyg(stdout)) d = ami_maxyg(stdout)-20;
+    else d = ami_maxxg(stdout)-20;
     /* find center of clock, in center of window */
-    cx = pa_maxxg(stdout)/2;
-    cy = pa_maxyg(stdout)/2;
+    cx = ami_maxxg(stdout)/2;
+    cy = ami_maxyg(stdout)/2;
     t = d/20; /* find tick mark length */
     /* draw tick marks on clock */
     for (i = 1; i <= 12; i++)
@@ -128,30 +128,30 @@ int main(void)
 
 {
 
-    pa_curvis(stdout, FALSE); /* turn off cursor */
-    pa_buffer(stdout, FALSE); /* turn off buffering */
-    pa_auto(stdout, FALSE); /* turn off wrap/scroll */
-    pa_binvis(stdout); /* set no background overwrite on text */
-    pa_font(stdout, PA_FONT_SIGN); /* use proportional font */
-    pa_bold(stdout, TRUE); /* turn on bold */
+    ami_curvis(stdout, FALSE); /* turn off cursor */
+    ami_buffer(stdout, FALSE); /* turn off buffering */
+    ami_auto(stdout, FALSE); /* turn off wrap/scroll */
+    ami_binvis(stdout); /* set no background overwrite on text */
+    ami_font(stdout, PA_FONT_SIGN); /* use proportional font */
+    ami_bold(stdout, TRUE); /* turn on bold */
     frm = TRUE; /* set frame on */
-    pa_timer(stdout, 1, 10000, TRUE); /* set second update timer */
+    ami_timer(stdout, 1, 10000, TRUE); /* set second update timer */
     /* loop for events */
     do {
 
-        pa_event(stdin, &er); /* get next event */
+        ami_event(stdin, &er); /* get next event */
         /* if either a redraw or a timer tick, draw the clock */
-        if (er.etype == pa_etredraw || er.etype == pa_ettim) drawclock();
+        if (er.etype == ami_etredraw || er.etype == ami_ettim) drawclock();
         /* if the user clicks the mouse anywhere in the clock, flip the frame
            on and off */
-        if (er.etype == pa_etmouba) {
+        if (er.etype == ami_etmouba) {
 
             frm = !frm; /* flip frame status */
-            pa_sizable(stdout, frm);
-            pa_sysbar(stdout, frm);
+            ami_sizable(stdout, frm);
+            ami_sysbar(stdout, frm);
 
         }
 
-    } while (er.etype != pa_etterm);
+    } while (er.etype != ami_etterm);
 
 }

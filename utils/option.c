@@ -41,7 +41,7 @@ quotes are present, nothing is done.
 
 *******************************************************************************/
 
-void pa_dequote(string s)
+void ami_dequote(string s)
 
 {
 
@@ -113,9 +113,9 @@ long mode options:
 
 *******************************************************************************/
 
-int pa_option(
+int ami_option(
     /* string to parse */                string    s,
-    /* option table */                   pa_optrec opts[],
+    /* option table */                   ami_optrec opts[],
     /* allow single character options */ int       single
 )
 
@@ -124,24 +124,24 @@ int pa_option(
     int       r;         /* return value */
     int       longopt;   /* option is long ("--") */
     char      buff[100]; /* buffer for character strings */
-    pa_optptr fp;        /* found option entry pointer */
+    ami_optptr fp;        /* found option entry pointer */
     string    ep;        /* end pointer */
-    pa_optptr op;        /* option table pointer */
+    ami_optptr op;        /* option table pointer */
     int       fo;        /* an option was found */
     int       mm;        /* mismatch found */
     int       i;
 
     r = 1; /* set error by default */
     longopt = FALSE;
-    if (s[0] == pa_optchr()) { /* there is an option */
+    if (s[0] == ami_optchr()) { /* there is an option */
 
         s++; /* skip option character */
-        if (single && pa_optchr() == '-' && *s == '-') {
+        if (single && ami_optchr() == '-' && *s == '-') {
 
             longopt = TRUE; /* set long option */
             s++; /* skip '-' */
 
-        } else if (pa_optchr() != '-')
+        } else if (ami_optchr() != '-')
             /* all other option characters besides '-' signify long */
             longopt = TRUE;
         if (*s && single && !longopt) { /* parse singles */
@@ -204,7 +204,7 @@ int pa_option(
                     if (fp->str) {
 
                         strcpy(fp->str, s); /* get string */
-                        pa_dequote(fp->str); /* remove any quotes */
+                        ami_dequote(fp->str); /* remove any quotes */
                         while (*s) s++; /* skip contents */
 
                     }
@@ -256,11 +256,11 @@ Returns 0 on success, 1 on failure.
 
 *******************************************************************************/
 
-int pa_options(
+int ami_options(
     /* argument index */                 int*      argi,
     /* argument count */                 int*      argc,
     /* arguments array */                char      **argv,
-    /* option table */                   pa_optrec opts[],
+    /* option table */                   ami_optrec opts[],
     /* allow single character options */ int       single
 )
 
@@ -269,9 +269,9 @@ int pa_options(
     int r;
 
     r = 0; /* set no error */
-    while (*argc > 1 && argv[*argi][0] == pa_optchr() && !r) {
+    while (*argc > 1 && argv[*argi][0] == ami_optchr() && !r) {
 
-        r = pa_option(argv[*argi], opts, single); /* parse options */
+        r = ami_option(argv[*argi], opts, single); /* parse options */
         if (!r) { /* success */
 
             (*argi)++; /* advance index */

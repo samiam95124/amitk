@@ -307,9 +307,9 @@ extern "C" {
 
 /* common types */
 
-typedef int pa_note;       /* 1..128  note number for midi */
-typedef int pa_channel;    /* 1..16   channel number */
-typedef int pa_instrument; /* 1..128  instrument number */
+typedef int ami_note;       /* 1..128  note number for midi */
+typedef int ami_channel;    /* 1..16   channel number */
+typedef int ami_instrument; /* 1..128  instrument number */
 
 /* sequencer message types. each routine with a sequenced option has a
   sequencer message assocated with it */
@@ -321,134 +321,134 @@ typedef enum {
     st_chorus, st_celeste, st_phaser, st_aftertouch, st_pressure,
     st_pitch, st_pitchrange, st_mono, st_poly, st_playsynth,
     st_playwave, st_volwave
-} pa_seqtyp;
+} ami_seqtyp;
 
 /* sequencer message */
 
-typedef struct pa_seqmsg {
+typedef struct ami_seqmsg {
 
-    struct pa_seqmsg* next; /* next message in list */
+    struct ami_seqmsg* next; /* next message in list */
     int               port; /* port to which message applies */
     int               time; /* time to execute message */
-    pa_seqtyp         st;   /* type of message */
+    ami_seqtyp         st;   /* type of message */
     union {
 
         /* st_noteon st_noteoff st_aftertouch st_pressure */
-        struct { pa_channel ntc; pa_note ntn; int ntv; };
-        /* st_instchange */ struct { pa_channel icc; pa_instrument ici; };
+        struct { ami_channel ntc; ami_note ntn; int ntv; };
+        /* st_instchange */ struct { ami_channel icc; ami_instrument ici; };
         /* st_attack, st_release, st_vibrato, st_volsynthchan, st_porttime,
            st_balance, st_pan, st_timbre, st_brightness, st_reverb, st_tremulo,
            st_chorus, st_celeste, st_phaser, st_pitch, st_pitchrange,
-           st_mono */ struct { pa_channel vsc; int vsv; };
-        /* st_poly */ pa_channel pc;
-        /* st_legato, st_portamento */ struct { pa_channel bsc; int bsb; };
+           st_mono */ struct { ami_channel vsc; int vsv; };
+        /* st_poly */ ami_channel pc;
+        /* st_legato, st_portamento */ struct { ami_channel bsc; int bsb; };
         /* st_playsynth */ int sid;
         /* st_playwave */ int wt;
         /* st_volwave */ int wv;
 
     };
 
-} pa_seqmsg;
+} ami_seqmsg;
 
 /* pointer to message */
 
-typedef pa_seqmsg* pa_seqptr;
+typedef ami_seqmsg* ami_seqptr;
 
 /* functions at this level */
 
-void pa_starttimeout(void);
-void pa_stoptimeout(void);
-int pa_curtimeout(void);
-void pa_starttimein(void);
-void pa_stoptimein(void);
-int pa_curtimein(void);
-int pa_synthout(void);
-int pa_synthin(void);
-void pa_opensynthout(int p);
-void pa_closesynthout(int p);
-void pa_opensynthin(int p);
-void pa_closesynthin(int p);
-void pa_noteon(int p, int t, pa_channel c, pa_note n, int v);
-void pa_noteoff(int p, int t, pa_channel c, pa_note n, int v);
-void pa_instchange(int p, int t, pa_channel c, pa_instrument i);
-void pa_attack(int p, int t, pa_channel c, int at);
-void pa_release(int p, int t, pa_channel c, int rt);
-void pa_legato(int p, int t, pa_channel c, int b);
-void pa_portamento(int p, int t, pa_channel c, int b);
-void pa_vibrato(int p, int t, pa_channel c, int v);
-void pa_volsynthchan(int p, int t, pa_channel c, int v);
-void pa_porttime(int p, int t, pa_channel c, int v);
-void pa_balance(int p, int t, pa_channel c, int b);
-void pa_pan(int p, int t, pa_channel c, int b);
-void pa_timbre(int p, int t, pa_channel c, int tb);
-void pa_brightness(int p, int t, pa_channel c, int b);
-void pa_reverb(int p, int t, pa_channel c, int r);
-void pa_tremulo(int p, int t, pa_channel c, int tr);
-void pa_chorus(int p, int t, pa_channel c, int cr);
-void pa_celeste(int p, int t, pa_channel c, int ce);
-void pa_phaser(int p, int t, pa_channel c, int ph);
-void pa_aftertouch(int p, int t, pa_channel c, pa_note n, int at);
-void pa_pressure(int p, int t, pa_channel c, int pr);
-void pa_pitch(int p, int t, pa_channel c, int pt);
-void pa_pitchrange(int p, int t, pa_channel c, int v);
-void pa_mono(int p, int t, pa_channel c, int ch);
-void pa_poly(int p, int t, pa_channel c);
-void pa_loadsynth(int s, string sf);
-void pa_playsynth(int p, int t, int s);
-void pa_delsynth(int s);
-void pa_waitsynth(int p);
-void pa_wrsynth(int p, pa_seqptr sp);
-void pa_rdsynth(int p, pa_seqptr sp);
-int pa_waveout(void);
-int pa_wavein(void);
-void pa_openwaveout(int p);
-void pa_closewaveout(int p);
-void pa_loadwave(int w, string fn);
-void pa_playwave(int p, int t, int w);
-void pa_delwave(int w);
-void pa_volwave(int p, int t, int v);
-void pa_waitwave(int p);
-void pa_chanwaveout(int p, int c);
-void pa_ratewaveout(int p, int r);
-void pa_lenwaveout(int p, int l);
-void pa_sgnwaveout(int p, int s);
-void pa_fltwaveout(int p, int f);
-void pa_endwaveout(int p, int e);
-void pa_wrwave(int p, byte* buff, int len);
-void pa_openwavein(int p);
-void pa_closewavein(int p);
-int pa_chanwavein(int p);
-int pa_ratewavein(int p);
-int pa_lenwavein(int p);
-int pa_sgnwavein(int p);
-int pa_endwavein(int p);
-int pa_fltwavein(int p);
-int pa_rdwave(int p, byte* buff, int len);
-void pa_synthoutname(int p, string name, int len);
-void pa_synthinname(int p, string name, int len);
-void pa_waveoutname(int p, string name, int len);
-void pa_waveinname(int p, string name, int len);
-int pa_setparamsynthin(int p, string name, string value);
-int pa_setparamsynthout(int p, string name, string value);
-int pa_setparamwavein(int p, string name, string value);
-int pa_setparamwaveout(int p, string name, string value);
-void pa_getparamsynthin(int p, string name, string value, int len);
-void pa_getparamsynthout(int p, string name, string value, int len);
-void pa_getparamwavein(int p, string name, string value, int len);
-void pa_getparamswaveout(int p, string name, string value, int len);
+void ami_starttimeout(void);
+void ami_stoptimeout(void);
+int ami_curtimeout(void);
+void ami_starttimein(void);
+void ami_stoptimein(void);
+int ami_curtimein(void);
+int ami_synthout(void);
+int ami_synthin(void);
+void ami_opensynthout(int p);
+void ami_closesynthout(int p);
+void ami_opensynthin(int p);
+void ami_closesynthin(int p);
+void ami_noteon(int p, int t, ami_channel c, ami_note n, int v);
+void ami_noteoff(int p, int t, ami_channel c, ami_note n, int v);
+void ami_instchange(int p, int t, ami_channel c, ami_instrument i);
+void ami_attack(int p, int t, ami_channel c, int at);
+void ami_release(int p, int t, ami_channel c, int rt);
+void ami_legato(int p, int t, ami_channel c, int b);
+void ami_portamento(int p, int t, ami_channel c, int b);
+void ami_vibrato(int p, int t, ami_channel c, int v);
+void ami_volsynthchan(int p, int t, ami_channel c, int v);
+void ami_porttime(int p, int t, ami_channel c, int v);
+void ami_balance(int p, int t, ami_channel c, int b);
+void ami_pan(int p, int t, ami_channel c, int b);
+void ami_timbre(int p, int t, ami_channel c, int tb);
+void ami_brightness(int p, int t, ami_channel c, int b);
+void ami_reverb(int p, int t, ami_channel c, int r);
+void ami_tremulo(int p, int t, ami_channel c, int tr);
+void ami_chorus(int p, int t, ami_channel c, int cr);
+void ami_celeste(int p, int t, ami_channel c, int ce);
+void ami_phaser(int p, int t, ami_channel c, int ph);
+void ami_aftertouch(int p, int t, ami_channel c, ami_note n, int at);
+void ami_pressure(int p, int t, ami_channel c, int pr);
+void ami_pitch(int p, int t, ami_channel c, int pt);
+void ami_pitchrange(int p, int t, ami_channel c, int v);
+void ami_mono(int p, int t, ami_channel c, int ch);
+void ami_poly(int p, int t, ami_channel c);
+void ami_loadsynth(int s, string sf);
+void ami_playsynth(int p, int t, int s);
+void ami_delsynth(int s);
+void ami_waitsynth(int p);
+void ami_wrsynth(int p, ami_seqptr sp);
+void ami_rdsynth(int p, ami_seqptr sp);
+int ami_waveout(void);
+int ami_wavein(void);
+void ami_openwaveout(int p);
+void ami_closewaveout(int p);
+void ami_loadwave(int w, string fn);
+void ami_playwave(int p, int t, int w);
+void ami_delwave(int w);
+void ami_volwave(int p, int t, int v);
+void ami_waitwave(int p);
+void ami_chanwaveout(int p, int c);
+void ami_ratewaveout(int p, int r);
+void ami_lenwaveout(int p, int l);
+void ami_sgnwaveout(int p, int s);
+void ami_fltwaveout(int p, int f);
+void ami_endwaveout(int p, int e);
+void ami_wrwave(int p, byte* buff, int len);
+void ami_openwavein(int p);
+void ami_closewavein(int p);
+int ami_chanwavein(int p);
+int ami_ratewavein(int p);
+int ami_lenwavein(int p);
+int ami_sgnwavein(int p);
+int ami_endwavein(int p);
+int ami_fltwavein(int p);
+int ami_rdwave(int p, byte* buff, int len);
+void ami_synthoutname(int p, string name, int len);
+void ami_synthinname(int p, string name, int len);
+void ami_waveoutname(int p, string name, int len);
+void ami_waveinname(int p, string name, int len);
+int ami_setparamsynthin(int p, string name, string value);
+int ami_setparamsynthout(int p, string name, string value);
+int ami_setparamwavein(int p, string name, string value);
+int ami_setparamwaveout(int p, string name, string value);
+void ami_getparamsynthin(int p, string name, string value, int len);
+void ami_getparamsynthout(int p, string name, string value, int len);
+void ami_getparamwavein(int p, string name, string value, int len);
+void ami_getparamswaveout(int p, string name, string value, int len);
 
 /* non-standard local access calls */
 
 /* register synth plug ins */
 void _pa_synthoutplug(int addend, string name,
                       void (*opnseq)(int p), void (*clsseq)(int p),
-                      void (*wrseq)(int p, pa_seqptr sp),
+                      void (*wrseq)(int p, ami_seqptr sp),
                       int (*setparam)(int p, string name, string value),
                       void (*getparam)(int p, string name, string value, int len)
                      );
 void _pa_synthinplug(int addend, string name,
                      void (*opnseq)(int p), void (*clsseq)(int p),
-                     void (*rdseq)(int p, pa_seqptr sp),
+                     void (*rdseq)(int p, ami_seqptr sp),
                      int (*setparam)(int p, string name, string value),
                      void (*getparam)(int p, string name, string value, int len)
                     );
@@ -475,7 +475,7 @@ void _pa_waveinplug(int addend, string name,
                    );
 
 /* execute sequencer entry in main code */
-void _pa_excseq(int p, pa_seqptr sp);
+void _pa_excseq(int p, ami_seqptr sp);
 
 #ifdef __cplusplus
 }

@@ -304,7 +304,7 @@ address is returned as an integer.
 
 *******************************************************************************/
 
-void pa_addrnet(const string name, unsigned long* addr)
+void ami_addrnet(const string name, unsigned long* addr)
 
 {
 
@@ -329,7 +329,7 @@ address is returned as an integer.
 
 *******************************************************************************/
 
-void pa_addrnetv6(string name, unsigned long long* addrh,
+void ami_addrnetv6(string name, unsigned long long* addrh,
                 unsigned long long* addrl)
 
 {
@@ -349,7 +349,7 @@ does not handle read/write on the same file well.
 
 *******************************************************************************/
 
-FILE* pa_opennet(/* IP address */      unsigned long addr,
+FILE* ami_opennet(/* IP address */      unsigned long addr,
                  /* port */            int port,
                  /* link is secured */ int secure
 )
@@ -383,7 +383,7 @@ FILE* pa_opennet(/* IP address */      unsigned long addr,
 
 }
 
-FILE* pa_opennetv6(
+FILE* ami_opennetv6(
     /* v6 address low */  unsigned long long addrh,
     /* v6 address high */ unsigned long long addrl,
     /* port */            int port,
@@ -406,7 +406,7 @@ DTLS, with fixed length messages.
 
 *******************************************************************************/
 
-int pa_openmsg(
+int ami_openmsg(
     /* ip address */      unsigned long addr,
     /* port */            int port,
     /* link is secured */ int secure
@@ -418,7 +418,7 @@ int pa_openmsg(
 
 }
 
-int pa_openmsgv6(
+int ami_openmsgv6(
     /* v6 address low */  unsigned long long addrh,
     /* v6 address high */ unsigned long long addrl,
     /* port */            int port,
@@ -443,7 +443,7 @@ another program tries to take the same port, it is blocked.
 
 *******************************************************************************/
 
-int pa_waitmsg(/* port number to wait on */ int port,
+int ami_waitmsg(/* port number to wait on */ int port,
                /* secure mode */            int secure
                )
 
@@ -467,7 +467,7 @@ packet breakage is possible.
 
 *******************************************************************************/
 
-int pa_maxmsg(unsigned long addr)
+int ami_maxmsg(unsigned long addr)
 
 {
 
@@ -489,7 +489,7 @@ packet breakage is possible.
 
 *******************************************************************************/
 
-int pa_maxmsgv6(unsigned long long addrh, unsigned long long addrl)
+int ami_maxmsgv6(unsigned long long addrh, unsigned long long addrl)
 
 {
 
@@ -502,11 +502,11 @@ int pa_maxmsgv6(unsigned long long addrh, unsigned long long addrl)
 Write message to message file
 
 Writes a message to the given message file. The message file must be open. Any
-size (including 0) up to pa_maxmsg() is allowed.
+size (including 0) up to ami_maxmsg() is allowed.
 
 *******************************************************************************/
 
-void pa_wrmsg(int fn, void* msg, unsigned long len)
+void ami_wrmsg(int fn, void* msg, unsigned long len)
 
 {
 
@@ -524,7 +524,7 @@ of the buffer should be equal to maxmsg to pass all possible messages, unless it
 is known that a given message size will never be exceeded.
 
 *******************************************************************************/
-int pa_rdmsg(int fn, void* msg, unsigned long len)
+int ami_rdmsg(int fn, void* msg, unsigned long len)
 
 {
 
@@ -540,7 +540,7 @@ Closes the given message file.
 
 *******************************************************************************/
 
-void pa_clsmsg(int fn)
+void ami_clsmsg(int fn)
 
 {
 
@@ -560,7 +560,7 @@ program tries to take the same port, it is blocked.
 
 *******************************************************************************/
 
-FILE* pa_waitnet(/* port number to wait on */ int port,
+FILE* ami_waitnet(/* port number to wait on */ int port,
                  /* secure mode */            int secure
                 )
 
@@ -589,7 +589,7 @@ carried on the wire. Thus it is reliable by definition.
 
 *******************************************************************************/
 
-int pa_relymsg(unsigned long addr)
+int ami_relymsg(unsigned long addr)
 
 {
 
@@ -597,7 +597,7 @@ int pa_relymsg(unsigned long addr)
 
 }
 
-int pa_relymsgv6(unsigned long long addrh, unsigned long long addrl)
+int ami_relymsgv6(unsigned long long addrh, unsigned long long addrl)
 
 {
 
@@ -633,7 +633,7 @@ line. Servers are required to provide certificates. Clients are not.
 
 *******************************************************************************/
 
-int pa_certmsg(int fn, int which, string buff, int len)
+int ami_certmsg(int fn, int which, string buff, int len)
 
 {
 
@@ -668,7 +668,7 @@ line. Servers are required to provide certificates. Clients are not.
 
 *******************************************************************************/
 
-int pa_certnet(FILE* f, int which, string buff, int len)
+int ami_certnet(FILE* f, int which, string buff, int len)
 
 {
 
@@ -704,7 +704,7 @@ and is easy to prune off.
 
 *******************************************************************************/
 
-void pa_certlistnet(FILE *f, int which, pa_certptr* list)
+void ami_certlistnet(FILE *f, int which, ami_certptr* list)
 
 {
 
@@ -736,7 +736,7 @@ line. Servers are required to provide certificates. Clients are not.
 
 *******************************************************************************/
 
-void pa_certlistmsg(int fn, int which, pa_certptr* list)
+void ami_certlistmsg(int fn, int which, ami_certptr* list)
 
 {
 
@@ -952,8 +952,8 @@ Network startup
 
 *******************************************************************************/
 
-static void pa_init_network (void) __attribute__((constructor (103)));
-static void pa_init_network()
+static void ami_init_network (void) __attribute__((constructor (103)));
+static void ami_init_network()
 
 {
 
@@ -989,8 +989,8 @@ Network shutdown
 
 *******************************************************************************/
 
-static void pa_deinit_network (void) __attribute__((destructor (103)));
-static void pa_deinit_network()
+static void ami_deinit_network (void) __attribute__((destructor (103)));
+static void ami_deinit_network()
 
 {
 

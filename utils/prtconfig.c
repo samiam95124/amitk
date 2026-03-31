@@ -14,13 +14,13 @@ int main()
 
 {
 
-    pa_valptr root;
+    ami_valptr root;
 
     printf("Petit-Ami configuration tree:\n");
     printf("\n");
 
     root = NULL; /* clear root */
-    pa_config(&root); /* parse and load the tree */
-    pa_prttre(root); /* print resulting tree */
+    ami_config(&root); /* parse and load the tree */
+    ami_prttre(root); /* print resulting tree */
 
 }

@@ -38,11 +38,11 @@ typedef struct {
     float*   fval; /* floating point value */
     string   str;  /* string value */
 
-} pa_optrec, *pa_optptr;
+} ami_optrec, *ami_optptr;
 
-void pa_dequote(string s);
-int pa_option(string s, pa_optrec opts[], int single);
-int pa_options(int* argi, int* argc, char **argv, pa_optrec  opts[], int single);
+void ami_dequote(string s);
+int ami_option(string s, ami_optrec opts[], int single);
+int ami_options(int* argi, int* argc, char **argv, ami_optrec  opts[], int single);
 
 #ifdef __cplusplus
 }

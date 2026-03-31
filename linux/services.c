@@ -15,9 +15,9 @@
 *                                                                              *
 * 1. This version is US english only. Need translations according to locale.   *
 *                                                                              *
-* Functions to be changed to translations: pa_dateorder(), pa_datesep(),       *
-* pa_timesep(), pa_currchar(), pa_timeorder(), pa_numbersep(), pa_decimal(),   *
-* pa_time24hour().                                                             *
+* Functions to be changed to translations: ami_dateorder(), ami_datesep(),       *
+* ami_timesep(), ami_currchar(), ami_timeorder(), ami_numbersep(), ami_decimal(),   *
+* ami_time24hour().                                                             *
 *                                                                              *
 *                          BSD LICENSE INFORMATION                             *
 *                                                                              *
@@ -127,14 +127,14 @@ typedef char bufstr[MAXSTR]; /* standard string buffer */
 
 /* these aren't locked because they are only set during init, read otherwise */
 static bufstr pthstr;   /* buffer for execution path */
-static bufstr langstr;  /* buffer for pa_language pa_country string (locale) */
-static int curlanguage; /* current pa_language */
-static int curcountry;  /* current pa_country */
+static bufstr langstr;  /* buffer for ami_language ami_country string (locale) */
+static int curlanguage; /* current ami_language */
+static int curcountry;  /* current ami_country */
 static char* prgpth;    /* program path */
 /* end of read-only group */
 
 static pthread_mutex_t  envlck;               /* environment list lock */
-static pa_envrec*       envlst;               /* our environment list */
+static ami_envrec*       envlst;               /* our environment list */
 /* end of environment lock group */
 
 static pthread_mutex_t  thdtbllck;            /* thread table lock */
@@ -408,10 +408,10 @@ If no files are matched, the returned list is nil.
 
 ********************************************************************************/
 
-void pa_listl(
+void ami_listl(
     /** file to search for */ char *f,
     /** length of file string */ int l,
-    /** file list returned */ pa_filrec **lp
+    /** file list returned */ ami_filrec **lp
 )
 
 {
@@ -419,13 +419,13 @@ void pa_listl(
     char buff[MAXSTR];
 
     cpstrl2z(buff, MAXSTR, f, l);
-    pa_list(buff, lp);
+    ami_list(buff, lp);
 
 }
 
-void pa_list(
+void ami_list(
     /** file to search for */ char *f,
-    /** file list returned */ pa_filrec **l
+    /** file list returned */ ami_filrec **l
 )
 
 {
@@ -434,8 +434,8 @@ void pa_list(
     DIR*           dd; /* directory file descriptor */
     int            r;  /* result code */
     struct stat    sr; /* stat() record */
-    pa_filrec*     fp; /* file entry pointer */
-    pa_filrec*     lp; /* last entry pointer */
+    ami_filrec*     fp; /* file entry pointer */
+    ami_filrec*     lp; /* last entry pointer */
     int            i;  /* name index */
     bufstr         p;  /* filename components */
     bufstr         n;
@@ -447,15 +447,15 @@ void pa_list(
 
     *l = NULL; /* clear destination list */
     lp = NULL; /* clear last pointer */
-    pa_brknam(f, p, MAXSTR, n, MAXSTR, e, MAXSTR); /* break up filename */
+    ami_brknam(f, p, MAXSTR, n, MAXSTR, e, MAXSTR); /* break up filename */
     /* check wildcards in path */
     if (strstr(p, "*") || strstr(p, "?")) error("Path cannot contain wildcards");
     /* construct name of containing directory */
-    if (*p == 0) pa_maknam(dn, MAXSTR, p, ".", "");
-    else pa_maknam(dn, MAXSTR, p, "", "");
+    if (*p == 0) ami_maknam(dn, MAXSTR, p, ".", "");
+    else ami_maknam(dn, MAXSTR, p, "", "");
     dd = opendir(dn); /* open the directory */
     if (!dd) unixerr(); /* process unix open error */
-    pa_maknam(fn, MAXSTR, "", n, e);   /* reform name without path */
+    ami_maknam(fn, MAXSTR, "", n, e);   /* reform name without path */
     do { /* read directory entries */
 
         errno = 0; /* clear any error */
@@ -465,13 +465,13 @@ void pa_list(
 
             if (match(fn, dr->d_name, 0, 0)) { /* matching filename, add to list */
 
-                fp = malloc(sizeof(pa_filrec)); /* create a new file entry */
+                fp = malloc(sizeof(ami_filrec)); /* create a new file entry */
                 /* copy to new filename string */
                 fp->name = malloc(strlen(dr->d_name)+1);
                 strcpy(fp->name, dr->d_name); /* copy to destination */
                 fp->namel = strlen(fp->name); /* set length */
-                pa_brknam(fp->name, p, MAXSTR, n, MAXSTR, e, MAXSTR); /* find name/extension */
-                pa_maknam(tn, MAXSTR, dn, n, e); /* add path */
+                ami_brknam(fp->name, p, MAXSTR, n, MAXSTR, e, MAXSTR); /* find name/extension */
+                ami_maknam(tn, MAXSTR, dn, n, e); /* add path */
                 r = stat(tn, &sr); /* get stat structure on file */
                 if (r < 0) unixerr(); /* process unix error */
                 /* file information in stat record, translate to our format */
@@ -481,50 +481,50 @@ void pa_list(
                 fp->alloc = sr.st_size;   /* place allocation */
                 fp->attr = 0;   /* clear attributes */
                 /* clear permissions to all is allowed */
-                fp->user = BIT(pa_pmread) | BIT(pa_pmwrite) | BIT(pa_pmexec) | BIT(pa_pmdel) |
-                           BIT(pa_pmvis) | BIT(pa_pmcopy) | BIT(pa_pmren);
-                fp->other = BIT(pa_pmread) | BIT(pa_pmwrite) | BIT(pa_pmexec) | BIT(pa_pmdel) |
-                            BIT(pa_pmvis) | BIT(pa_pmcopy) | BIT(pa_pmren);
-                fp->group = BIT(pa_pmread) | BIT(pa_pmwrite) | BIT(pa_pmexec) | BIT(pa_pmdel) |
-                            BIT(pa_pmvis) | BIT(pa_pmcopy) | BIT(pa_pmren);
+                fp->user = BIT(ami_pmread) | BIT(ami_pmwrite) | BIT(ami_pmexec) | BIT(ami_pmdel) |
+                           BIT(ami_pmvis) | BIT(ami_pmcopy) | BIT(ami_pmren);
+                fp->other = BIT(ami_pmread) | BIT(ami_pmwrite) | BIT(ami_pmexec) | BIT(ami_pmdel) |
+                            BIT(ami_pmvis) | BIT(ami_pmcopy) | BIT(ami_pmren);
+                fp->group = BIT(ami_pmread) | BIT(ami_pmwrite) | BIT(ami_pmexec) | BIT(ami_pmdel) |
+                            BIT(ami_pmvis) | BIT(ami_pmcopy) | BIT(ami_pmren);
                 /* check and set directory attribute */
-                if (sr.st_mode & S_IFDIR) fp->attr |= BIT(pa_atdir);
+                if (sr.st_mode & S_IFDIR) fp->attr |= BIT(ami_atdir);
                 /* check and set any system special file */
-                if (sr.st_mode & S_IFIFO) fp->attr |= BIT(pa_atsys);
-                if (sr.st_mode & S_IFCHR) fp->attr |= BIT(pa_atsys);
-                if (sr.st_mode & S_IFBLK) fp->attr |= BIT(pa_atsys);
+                if (sr.st_mode & S_IFIFO) fp->attr |= BIT(ami_atsys);
+                if (sr.st_mode & S_IFCHR) fp->attr |= BIT(ami_atsys);
+                if (sr.st_mode & S_IFBLK) fp->attr |= BIT(ami_atsys);
                 /* check hidden. in Unix, this is done with a leading '.'. We remove
                    visiblity priveledges */
                 if (dr->d_name[0] == '.') {
 
-                    fp->user &= ~BIT(pa_pmvis);
-                    fp->group &= ~BIT(pa_pmvis);
-                    fp->other &= ~BIT(pa_pmvis);
+                    fp->user &= ~BIT(ami_pmvis);
+                    fp->group &= ~BIT(ami_pmvis);
+                    fp->other &= ~BIT(ami_pmvis);
 
                 }
                 /* check and set executable attribute. Unix has separate executable
                    permissions for each permission type, we set executable if any of
                    them are true */
-                if (sr.st_mode & S_IXUSR) fp->attr |= BIT(pa_atexec);
+                if (sr.st_mode & S_IXUSR) fp->attr |= BIT(ami_atexec);
                 /* set execute permissions to user */
-                if (!(sr.st_mode & S_IXUSR)) fp->user &= ~BIT(pa_pmexec);
+                if (!(sr.st_mode & S_IXUSR)) fp->user &= ~BIT(ami_pmexec);
                 /* set read permissions to user */
-                if (!(sr.st_mode & S_IRUSR)) fp->user &= ~BIT(pa_pmread);
+                if (!(sr.st_mode & S_IRUSR)) fp->user &= ~BIT(ami_pmread);
                 /* set write permissions to user */
-                if (!(sr.st_mode & S_IWUSR)) fp->user &= ~BIT(pa_pmwrite);
+                if (!(sr.st_mode & S_IWUSR)) fp->user &= ~BIT(ami_pmwrite);
                 /* set execute permissions to group */
-                if (!(sr.st_mode & S_IXGRP)) fp->group &= ~BIT(pa_pmexec);
+                if (!(sr.st_mode & S_IXGRP)) fp->group &= ~BIT(ami_pmexec);
                 /* set read permissions to group */
-                if (!(sr.st_mode & S_IRGRP)) fp->group &= ~BIT(pa_pmread);
+                if (!(sr.st_mode & S_IRGRP)) fp->group &= ~BIT(ami_pmread);
                 /* set write permissions to group */
-                if (!(sr.st_mode & S_IWGRP)) fp->group &= ~BIT(pa_pmwrite);
+                if (!(sr.st_mode & S_IWGRP)) fp->group &= ~BIT(ami_pmwrite);
                 /* set execute permissions to other */
-                if (!(sr.st_mode & S_IXOTH)) fp->other &= ~BIT(pa_pmexec);
+                if (!(sr.st_mode & S_IXOTH)) fp->other &= ~BIT(ami_pmexec);
                 /* set read permissions to other */
-                if (!(sr.st_mode & S_IROTH)) fp->other &= ~BIT(pa_pmread);
+                if (!(sr.st_mode & S_IROTH)) fp->other &= ~BIT(ami_pmread);
                 /* set write permissions to other */
-                if (!(sr.st_mode & S_IWOTH)) fp->other &= ~BIT(pa_pmwrite);
-                /* set pa_times */
+                if (!(sr.st_mode & S_IWOTH)) fp->other &= ~BIT(ami_pmwrite);
+                /* set ami_times */
                 fp->create = sr.st_ctime-UNIXADJ;
                 fp->modify = sr.st_mtime-UNIXADJ;
                 fp->access = sr.st_atime-UNIXADJ;
@@ -553,7 +553,7 @@ Converts the given time into a string.
 
 ********************************************************************************/
 
-void pa_times(
+void ami_times(
     /** result string */           char *s,
     /** result string length */    int sl,
     /** time to convert */         int t
@@ -567,7 +567,7 @@ void pa_times(
     int  am;  /* am flag */
     int  pm;  /* pm flag */
 
-    if (sl < 11-(!pa_time24hour()*3)) /* string to small to hold result */
+    if (sl < 11-(!ami_time24hour()*3)) /* string to small to hold result */
         error("String buffer to small to hold time");
     /* because leap adjustments are made in terms of days, we just remove
        the days to find the time of day in seconds. this is completely
@@ -581,32 +581,32 @@ void pa_times(
     sec = t % 60;   /* find seconds */
     pm = 0; /* clear am and pm flags */
     am = 0;
-    if (!pa_time24hour()) { /* do am/pm adjustment */
+    if (!ami_time24hour()) { /* do am/pm adjustment */
 
         if (h == 0) h = 12; /* hour zero */
         else if (h > 12) { h -= 12; pm = 1; } /* 1 pm to 11 pm */
 
     }
     /* place hour:miniute:second */
-    switch (pa_timeorder()) {
+    switch (ami_timeorder()) {
 
         case 1:
-            s += sprintf(s, "%02d%c%02d%c%02d", h, pa_timesep(), m, pa_timesep(), sec);
+            s += sprintf(s, "%02d%c%02d%c%02d", h, ami_timesep(), m, ami_timesep(), sec);
             break;
         case 2:
-            s += sprintf(s, "%02d%c%02d%c%02d", h, pa_timesep(), sec, pa_timesep(), m);
+            s += sprintf(s, "%02d%c%02d%c%02d", h, ami_timesep(), sec, ami_timesep(), m);
             break;
         case 3:
-            s += sprintf(s, "%02d%c%02d%c%02d", m, pa_timesep(), h, pa_timesep(), sec);
+            s += sprintf(s, "%02d%c%02d%c%02d", m, ami_timesep(), h, ami_timesep(), sec);
             break;
         case 4:
-            s += sprintf(s, "%02d%c%02d%c%02d", m, pa_timesep(), sec, pa_timesep(), h);
+            s += sprintf(s, "%02d%c%02d%c%02d", m, ami_timesep(), sec, ami_timesep(), h);
             break;
         case 5:
-            s += sprintf(s, "%02d%c%02d%c%02d", sec, pa_timesep(), h, pa_timesep(), m);
+            s += sprintf(s, "%02d%c%02d%c%02d", sec, ami_timesep(), h, ami_timesep(), m);
             break;
         case 6:
-            s += sprintf(s, "%02d%c%02d%c%02d", sec, pa_timesep(), m, pa_timesep(), h);
+            s += sprintf(s, "%02d%c%02d%c%02d", sec, ami_timesep(), m, ami_timesep(), h);
             break;
 
     }
@@ -629,7 +629,7 @@ Converts the given date into a string.
  */
 #define LEAPYEAR(y) ((y & 3) == 0 && y % 100 != 0 || y % 400 == 0)
 
-void pa_dates(
+void ami_dates(
     /** string to place date into */   char *s,
     /** string to place date length */ int sl,
     /** time record to write from */   int t
@@ -695,25 +695,25 @@ void pa_dates(
 
     }
     /* place year/month/day */
-    switch (pa_dateorder()) { /* place according to current location format */
+    switch (ami_dateorder()) { /* place according to current location format */
 
         case 1:
-            s += sprintf(s, "%04d%c%02d%c%02d", y, pa_datesep(), m, pa_datesep(), d);
+            s += sprintf(s, "%04d%c%02d%c%02d", y, ami_datesep(), m, ami_datesep(), d);
             break;
         case 2:
-            s += sprintf(s, "%04d%c%02d%c%02d", y, pa_datesep(), d, pa_datesep(), m);
+            s += sprintf(s, "%04d%c%02d%c%02d", y, ami_datesep(), d, ami_datesep(), m);
             break;
         case 3:
-            s += sprintf(s, "%02d%c%02d%c%04d", m, pa_datesep(), d, pa_datesep(), y);
+            s += sprintf(s, "%02d%c%02d%c%04d", m, ami_datesep(), d, ami_datesep(), y);
             break;
         case 4:
-            s += sprintf(s, "%02d%c%04d%c%02d", m, pa_datesep(), y, pa_datesep(), d);
+            s += sprintf(s, "%02d%c%04d%c%02d", m, ami_datesep(), y, ami_datesep(), d);
             break;
         case 5:
-            s += sprintf(s, "%02d%c%02d%c%04d", d, pa_datesep(), m, pa_datesep(), y);
+            s += sprintf(s, "%02d%c%02d%c%04d", d, ami_datesep(), m, ami_datesep(), y);
             break;
         case 6:
-            s += sprintf(s, "%02d%c%04d%c%02d", d, pa_datesep(), y, pa_datesep(), m);
+            s += sprintf(s, "%02d%c%04d%c%02d", d, ami_datesep(), y, ami_datesep(), m);
             break;
 
     }
@@ -729,7 +729,7 @@ Writes the time to a given file, from a time record.
 
 ********************************************************************************/
 
-void pa_writetime(
+void ami_writetime(
         /** file to write to */ FILE *f,
         /** time record to write from */ int t
 )
@@ -738,7 +738,7 @@ void pa_writetime(
 
     bufstr s;
 
-    pa_times(s, MAXSTR, t);   /* convert time to string form */
+    ami_times(s, MAXSTR, t);   /* convert time to string form */
     fputs(s, f);   /* output */
 
 }
@@ -753,7 +753,7 @@ used by windows.
 
 ********************************************************************************/
 
-void pa_writedate(
+void ami_writedate(
         /* file to write to */ FILE *f,
         /* time record to write from */ int t
 )
@@ -762,7 +762,7 @@ void pa_writedate(
 
     char s[MAXSTR];
 
-    pa_dates(s, MAXSTR, t);   /* convert date to string form */
+    ami_dates(s, MAXSTR, t);   /* convert date to string form */
     fputs(s, f);   /* output */
 
 }
@@ -775,7 +775,7 @@ Finds the current time as an S2000 integer.
 
 ********************************************************************************/
 
-long pa_time(void)
+long ami_time(void)
 
 {
 
@@ -799,10 +799,10 @@ timezones.
 
 ********************************************************************************/
 
-long pa_local(long t)
+long ami_local(long t)
 {
 
-    return t+pa_timezone()+pa_daysave()*HOURSEC;
+    return t+ami_timezone()+ami_daysave()*HOURSEC;
 
 }
 
@@ -827,7 +827,7 @@ has more than enough precision to count from 0 AD to present.
 
 ********************************************************************************/
 
-long pa_clock(void)
+long ami_clock(void)
 
 {
 
@@ -846,15 +846,15 @@ long pa_clock(void)
 
 /********************************************************************************
 
-Find pa_elapsed time
+Find ami_elapsed time
 
-Finds the time pa_elapsed since a reference time. The reference time should be
-obtained from "clock". Rollover is properly handled, but the maximum pa_elapsed
+Finds the time ami_elapsed since a reference time. The reference time should be
+obtained from "clock". Rollover is properly handled, but the maximum ami_elapsed
 time that can be measured is 24 hours.
 
 ********************************************************************************/
 
-long pa_elapsed(long r)
+long ami_elapsed(long r)
 {
 
     /* reference time */
@@ -880,7 +880,7 @@ is null or all blanks
 
 ********************************************************************************/
 
-int pa_validfilel(
+int ami_validfilel(
     /** string to validate */ char *s,
     /** length of filename string */ int l
 )
@@ -890,11 +890,11 @@ int pa_validfilel(
     char buff[MAXSTR];
 
     cpstrl2z(buff, MAXSTR, s, l);
-    return (pa_validfile(buff));
+    return (ami_validfile(buff));
 
 }
 
-int pa_validfile(
+int ami_validfile(
     /* string to validate */ char *s
 )
 
@@ -921,7 +921,7 @@ filename that is null or all blanks
 
 ********************************************************************************/
 
-int pa_validpathl(
+int ami_validpathl(
     /** string to validate */ char *s,
     /** length of filename string */ int l
 )
@@ -931,11 +931,11 @@ int pa_validpathl(
     char buff[MAXSTR];
 
     cpstrl2z(buff, MAXSTR, s, l);
-    return (pa_validpath(buff));
+    return (ami_validpath(buff));
 
 }
 
-int pa_validpath(
+int ami_validpath(
     /* string to validate */ char *s
 )
 
@@ -961,7 +961,7 @@ on that directory.
 
 ********************************************************************************/
 
-int pa_wildl(
+int ami_wildl(
     /** filename */ char *s,
     /** length of filename string */ int l
 )
@@ -971,11 +971,11 @@ int pa_wildl(
     char buff[MAXSTR];
 
     cpstrl2z(buff, MAXSTR, s, l);
-    return (pa_wild(buff));
+    return (ami_wild(buff));
 
 }
 
-int pa_wild(
+int ami_wild(
     /* filename */ char *s
 )
 
@@ -991,7 +991,7 @@ int pa_wild(
 
         /* search and flag wildcard characters */
         for (i = 0; i < ln; i++) { if (s[i] == '*' || s[i] == '?') r = 1; }
-        if (s[ln-1] == pa_pthchr()) r = 1; /* last was '/', it's wild */
+        if (s[ln-1] == ami_pthchr()) r = 1; /* last was '/', it's wild */
 
     }
 
@@ -1012,12 +1012,12 @@ Expects the environment lock to be on.
 
 static void fndenv(
     /* string name */                      char*       esn,
-    /* returns environment string entry */ pa_envptr*  ep
+    /* returns environment string entry */ ami_envptr*  ep
 )
 
 {
 
-    pa_envptr p; /* pointer to environment entry */
+    ami_envptr p; /* pointer to environment entry */
 
     p = envlst; /* index top of environment list */
     *ep = NULL; /* set no string found */
@@ -1038,7 +1038,7 @@ Returns an environment string by name.
 
 *******************************************************************************/
 
-void pa_getenvl(
+void ami_getenvl(
     /** string name */        char* esn,
     /** name length  */       int esnl,
     /** string data */        char* esd,
@@ -1050,18 +1050,18 @@ void pa_getenvl(
     char buff[MAXSTR];
 
     cpstrl2z(buff, MAXSTR, esn, esnl);
-    pa_getenv(buff, esd, esdl);
+    ami_getenv(buff, esd, esdl);
 
 }
 
-void pa_getenv(
+void ami_getenv(
     /** string name */        char* esn,
     /** string data */        char* esd,
     /** string data length */ int esdl
 )
 {
 
-    pa_envrec *p;
+    ami_envrec *p;
 
     pthread_mutex_lock(&envlck); /* lock environment list */
     *esd = 0;
@@ -1089,7 +1089,7 @@ Sets an environment string by name.
 
 ********************************************************************************/
 
-void pa_setenvl(
+void ami_setenvl(
     /** name of string */      char *sn,
     /** length of name */      int snl,
     /** value of string */     char *sd,
@@ -1103,18 +1103,18 @@ void pa_setenvl(
 
     cpstrl2z(buff1, MAXSTR, sn, snl);
     cpstrl2z(buff2, MAXSTR, sd, sdl);
-    pa_setenv(buff1, buff2);
+    ami_setenv(buff1, buff2);
 
 }
 
-void pa_setenv(
+void ami_setenv(
     /** name of string */ char *sn,
     /** value of string */char *sd
 )
 
 {
 
-    pa_envrec *p;   /* pointer to environment entry */
+    ami_envrec *p;   /* pointer to environment entry */
 
     pthread_mutex_lock(&envlck); /* lock environment list */
     fndenv(sn, &p); /* find environment string */
@@ -1133,7 +1133,7 @@ void pa_setenv(
 
     } else {
 
-        p = malloc(sizeof(pa_envrec)); /* get a new environment entry */
+        p = malloc(sizeof(ami_envrec)); /* get a new environment entry */
         if (!p) {
 
             pthread_mutex_unlock(&envlck); /* unlock environment list */
@@ -1174,7 +1174,7 @@ Removes an environment string by name.
 
 ********************************************************************************/
 
-void pa_remenvl(
+void ami_remenvl(
     /** name of string */ char *sn,
     /** length of name string */ int snl  
 )
@@ -1184,18 +1184,18 @@ void pa_remenvl(
     char buff[MAXSTR];
 
     cpstrl2z(buff, MAXSTR, sn, snl);
-    pa_remenv(buff);
+    ami_remenv(buff);
 
 }
 
 
-void pa_remenv(
+void ami_remenv(
         /* name of string */ char *sn
 )
 
 {
 
-    pa_envrec *p, *l; /* pointer to environment entry */
+    ami_envrec *p, *l; /* pointer to environment entry */
 
     pthread_mutex_lock(&envlck); /* lock environment list */
     fndenv(sn, &p);   /* find environment string */
@@ -1235,13 +1235,13 @@ a copy.
 
 ********************************************************************************/
 
-void pa_allenv(
-    /* environment table */ pa_envrec **el
+void ami_allenv(
+    /* environment table */ ami_envrec **el
 )
 
 {
 
-    pa_envrec *p, *lp, *tp; /* environment pointers */
+    ami_envrec *p, *lp, *tp; /* environment pointers */
 
     pthread_mutex_lock(&envlck); /* lock environment list */
     /* copy current environment list */
@@ -1249,7 +1249,7 @@ void pa_allenv(
     tp = NULL; /* clear destination */
     while (lp != NULL) {  /* copy entries */
 
-        p = malloc(sizeof(pa_envrec)); /* create a new entry */
+        p = malloc(sizeof(ami_envrec)); /* create a new entry */
         p->next = tp;   /* push onto list */
         tp = p;
         p->name = (char *) malloc(strlen(lp->name)+1);
@@ -1317,7 +1317,7 @@ Expects the environment lock to be active. Drops it on error.
 ********************************************************************************/
 
 void cpyenv(
-    /* services environment list */ pa_envptr env,
+    /* services environment list */ ami_envptr env,
     /* Linux environment array */   char *envp[],
     /* Linux environment array length */ int envpl
 )
@@ -1371,14 +1371,14 @@ void cmdpth(
 
     strcpy(ncn, cn); /* copy command to temp */
     /* perform pathing search */
-    pa_brknam(cn, p, MAXSTR, n, MAXSTR, e, MAXSTR); /* break down the name */
+    ami_brknam(cn, p, MAXSTR, n, MAXSTR, e, MAXSTR); /* break down the name */
     if (*p == 0 && *pthstr != 0) { /* no path on name and environment path exists */
 
         strcpy(pc, pthstr);   /* make a copy of the path */
         trim(pc);   /* make sure left aligned */
         while (*pc != 0) {  /* match path components */
 
-            cp = strchr(pc, ':' /*pa_pthchr()*/); /* find next path separator */
+            cp = strchr(pc, ':' /*ami_pthchr()*/); /* find next path separator */
             if (!cp) {  /* none left, use entire remaining */
 
                 strcpy(p, pc); /* none left, use entire remaining */
@@ -1391,7 +1391,7 @@ void cmdpth(
                 trim(pc); /* make sure left aligned */
 
             }
-            pa_maknam(ncn, MAXSTR, p, n, e);   /* create filename */
+            ami_maknam(ncn, MAXSTR, p, n, e);   /* create filename */
             if (exists(ncn)) *pc = 0;  /* found, indicate stop */
 
         }
@@ -1415,7 +1415,7 @@ Executes a program by name. Does not wait for the program to complete.
 
 ********************************************************************************/
 
-void pa_execl(
+void ami_execl(
     /** program name to execute */ char *cmd,
     /** length of name string */ int cmdl
 )
@@ -1425,11 +1425,11 @@ void pa_execl(
     char buff[MAXSTR];
 
     cpstrl2z(buff, MAXSTR, cmd, cmdl);
-    pa_exec(buff);
+    ami_exec(buff);
 
 }
 
-void pa_exec(
+void ami_exec(
     /* program name to execute */ char *cmd
 )
 
@@ -1449,7 +1449,7 @@ void pa_exec(
     fflush(NULL); /* sync any pending I/O */
     /* on fork, the child is going to see a zero return, and the parent will
        get the process id. Although this seems dangerous, forked processes
-       are truly independent, and so don't care what pa_language is running */
+       are truly independent, and so don't care what ami_language is running */
     pid = fork(); /* start subprocess */
     if (pid == 0) { /* we are the child */
 
@@ -1477,7 +1477,7 @@ Executes a program by name. Waits for the program to complete.
 
 ********************************************************************************/
 
-void pa_execwl(
+void ami_execwl(
     /** program name to execute */ char *cmd,
     /** length of name string */ int cmdl,
     /** return error */ int *err
@@ -1488,11 +1488,11 @@ void pa_execwl(
     char buff[MAXSTR];
 
     cpstrl2z(buff, MAXSTR, cmd, cmdl);
-    pa_execw(buff, err);
+    ami_execw(buff, err);
 
 }
 
-void pa_execw(
+void ami_execw(
     /** program name to execute */ char *cmd,
     /** return error */ int *err
 )
@@ -1513,7 +1513,7 @@ void pa_execw(
     fflush(NULL); /* sync any pending I/O */
     /* on fork, the child is going to see a zero return, and the parent will
        get the process id. Although this seems dangerous, forked processes
-       are truly independent, and so don't care what pa_language is running */
+       are truly independent, and so don't care what ami_language is running */
     pid = fork(); /* start subprocess */
     if (pid == 0) { /* we are the child */
 
@@ -1547,10 +1547,10 @@ the program environment.
 
 ********************************************************************************/
 
-void pa_execel(
+void ami_execel(
     /** program name to execute */ char *cmd,
     /** length of name string */   int cmdl,
-    /** environment */             pa_envrec *el
+    /** environment */             ami_envrec *el
 )
 
 {
@@ -1558,13 +1558,13 @@ void pa_execel(
     char buff[MAXSTR];
 
     cpstrl2z(buff, MAXSTR, cmd, cmdl);
-    pa_exece(buff, el);
+    ami_exece(buff, el);
 
 }
 
-void pa_exece(
+void ami_exece(
     /** program name to execute */ char      *cmd,
-    /** environment */             pa_envrec *el
+    /** environment */             ami_envrec *el
 )
 
 {
@@ -1583,7 +1583,7 @@ void pa_exece(
     fflush(NULL); /* sync any pending I/O */
     /* on fork, the child is going to see a zero return, and the parent will
        get the process id. Although this seems dangerous, forked processes
-       are truly independent, and so don't care what pa_language is running */
+       are truly independent, and so don't care what ami_language is running */
     pid = fork(); /* start subprocess */
     if (pid == 0) { /* we are the child */
 
@@ -1611,10 +1611,10 @@ program environment.
 
 ********************************************************************************/
 
-void pa_execewl(
+void ami_execewl(
     /** program name to execute */ char *cmd,
     /** length of name string */   int cmdl,
-    /** environment */             pa_envrec *el,
+    /** environment */             ami_envrec *el,
     /** return error */            int *err
 )
 
@@ -1623,13 +1623,13 @@ void pa_execewl(
     char buff[MAXSTR];
 
     cpstrl2z(buff, MAXSTR, cmd, cmdl);
-    pa_execew(buff, el, err);
+    ami_execew(buff, el, err);
 
 }
 
-void pa_execew(
+void ami_execew(
         /** program name to execute */ char *cmd,
-        /** environment */             pa_envrec *el,
+        /** environment */             ami_envrec *el,
         /** return error */            int *err
 )
 
@@ -1649,7 +1649,7 @@ void pa_execew(
     fflush(NULL); /* sync any pending I/O */
     /* on fork, the child is going to see a zero return, and the parent will
        get the process id. Although this seems dangerous, forked processes
-       are truly independent, and so don't care what pa_language is running */
+       are truly independent, and so don't care what ami_language is running */
     pid = fork(); /* start subprocess */
     if (pid == 0) { /* we are the child */
 
@@ -1679,7 +1679,7 @@ Returns the current path in the given padded string.
 
 ********************************************************************************/
 
-void pa_getcur(
+void ami_getcur(
         /** buffer to get path */ char *fn,
         /** length of buffer */   int l
 )
@@ -1699,7 +1699,7 @@ Sets the current path from the given string.
 
 ********************************************************************************/
 
-void pa_setcurl(
+void ami_setcurl(
     /** path to set */ char *fn,
     /** length of path string */ int fnl
 
@@ -1710,11 +1710,11 @@ void pa_setcurl(
     char buff[MAXSTR];
 
     cpstrl2z(buff, MAXSTR, fn, fnl);
-    pa_setcur(buff);
+    ami_setcur(buff);
 
 }
 
-void pa_setcur(
+void ami_setcur(
     /** path to set */ char *fn
 )
 
@@ -1744,13 +1744,13 @@ as a path, including any embedded spaces or "." characters.
 
 Unix allows any number of "." characters, so we consider the extension to be
 only the last such section, which could be null. Unix does not technically
-consider "." to be a special character, but if the pa_brknam and pa_maknam procedures
+consider "." to be a special character, but if the ami_brknam and ami_maknam procedures
 are properly paired, it will effectively be treated the same as if the "."
 were a normal character.
 
 ********************************************************************************/
 
-void pa_brknaml(
+void ami_brknaml(
     /** file specification */ char *fn,
     /** file name length */   int fnl,
     /** path */               char *p, int pl,
@@ -1763,11 +1763,11 @@ void pa_brknaml(
     char buff[MAXSTR];
 
     cpstrl2z(buff, MAXSTR, fn, fnl);
-    pa_brknam(buff, p, pl, n, nl, e, el);
+    ami_brknam(buff, p, pl, n, nl, e, el);
 
 }
 
-void pa_brknam(
+void ami_brknam(
     /** file specification */ char *fn,
     /** path */               char *p, int pl,
     /** name */               char *n, int nl,
@@ -1788,7 +1788,7 @@ void pa_brknam(
     /* skip spaces */
     while (*s1 && *s1 == ' ') s1++;
     /* find last '/' that will mark the path */
-    s2 = strrchr(s1, pa_pthchr());
+    s2 = strrchr(s1, ami_pthchr());
     if (s2) {
 
         /* there was a path, store that */
@@ -1852,7 +1852,7 @@ concatenating.
 
 ********************************************************************************/
 
-void pa_maknaml(
+void ami_maknaml(
     /** file specification to build */ char *fn,
     /** file specification length */   int fnl,
     /** path */                        char *p,
@@ -1872,11 +1872,11 @@ void pa_maknaml(
     cpstrl2z(buff1, MAXSTR, p, pl);
     cpstrl2z(buff2, MAXSTR, n, nl);
     cpstrl2z(buff3, MAXSTR, e, el);
-    pa_maknam(fn, fnl, buff1, buff2, buff3);
+    ami_maknam(fn, fnl, buff1, buff2, buff3);
 
 }
 
-void pa_maknam(
+void ami_maknam(
     /** file specification to build */ char *fn,
     /** file specification length */   int fnl,
     /** path */                        char *p,
@@ -1895,10 +1895,10 @@ void pa_maknam(
     /* check path properly terminated */
     i = strlen(p);   /* find length */
     if (*p) /* not null */
-        if (p[i-1] != pa_pthchr()) {
+        if (p[i-1] != ami_pthchr()) {
 
         if (strlen(fn)+1 > fnl) error("String too large for desination");
-        s[0] = pa_pthchr();
+        s[0] = ami_pthchr();
         s[1] = 0;
         strcat(fn, s); /* add path separator */
 
@@ -1927,7 +1927,7 @@ No validity check is done. Garbage in, garbage out.
 
 ********************************************************************************/
 
-void pa_fulnam(
+void ami_fulnam(
     /** filename */        char *fn,
     /** filename length */ int fnl
 )
@@ -1936,15 +1936,15 @@ void pa_fulnam(
     /* file specification */
     bufstr p, n, e, ps;   /* filespec components */
 
-    pa_brknam(fn, p, MAXSTR, n, MAXSTR, e, MAXSTR);   /* break spec down */
+    ami_brknam(fn, p, MAXSTR, n, MAXSTR, e, MAXSTR);   /* break spec down */
     /* if the path is blank, then default to current */
     if (!*p) strcpy(p, ".");
-    pa_getcur(ps, MAXSTR);   /* save current path */
-    pa_setcur(p);   /* set candidate path */
-    pa_getcur(p, MAXSTR);   /* get washed path */
-    pa_setcur(ps);   /* reset old path */
+    ami_getcur(ps, MAXSTR);   /* save current path */
+    ami_setcur(p);   /* set candidate path */
+    ami_getcur(p, MAXSTR);   /* get washed path */
+    ami_setcur(ps);   /* reset old path */
     /* reassemble */
-    pa_maknam(fn, fnl, p, n, e);
+    ami_maknam(fn, fnl, p, n, e);
 
 }
 
@@ -1962,7 +1962,7 @@ Note: this does not work for standard CLIB programs. We need another solution.
 
 ********************************************************************************/
 
-void pa_getpgm(
+void ami_getpgm(
     /** program path */        char* p,
     /** program path length */ int   pl
 )
@@ -1982,8 +1982,8 @@ void pa_getpgm(
     _NSGetExecutablePath(pn, &bl);
 #endif
     cmdpth(pn, pcn, MAXSTR); /* get fully pathed command*/
-    pa_fulnam(pcn, MAXSTR);   /* clean that */
-    pa_brknam(pcn, p, pl, n, MAXSTR, e, MAXSTR); /* extract path from that */
+    ami_fulnam(pcn, MAXSTR);   /* clean that */
+    ami_brknam(pcn, p, pl, n, MAXSTR, e, MAXSTR); /* extract path from that */
 
 }
 
@@ -2010,7 +2010,7 @@ directory.
 
 ********************************************************************************/
 
-void pa_getusr(
+void ami_getusr(
     /** pathname */        char *fn,
     /** pathname length */ int fnl
 )
@@ -2026,7 +2026,7 @@ void pa_getusr(
     /* find applicable environment names, in order */
     for (i = 0, f = -1; envnam[i] && f == -1; i++) {
 
-        pa_getenv(envnam[i], b, MAXSTR);
+        ami_getenv(envnam[i], b, MAXSTR);
         if (*b && f < 0) f = i;
 
     }
@@ -2045,7 +2045,7 @@ void pa_getusr(
     } else {
 
         /* all fails, set to program path */
-        pa_getpgm(b, MAXSTR);
+        ami_getpgm(b, MAXSTR);
 
     }
     strcpy(fn, b); /* place result */
@@ -2057,14 +2057,14 @@ void pa_getusr(
 Set attributes on file
 
 Sets any of several attributes on a file. Set directory attribute is not
-possible. This is done with pa_makpth.
+possible. This is done with ami_makpth.
 
 ********************************************************************************/
 
-void pa_setatrl(
+void ami_setatrl(
     /** filename */ char *fn, 
     /** filename length */ int fnl,
-    /** attributes */ pa_attrset a
+    /** attributes */ ami_attrset a
 )
 
 {
@@ -2072,11 +2072,11 @@ void pa_setatrl(
     char buff[MAXSTR];
 
     cpstrl2z(buff, MAXSTR, fn, fnl);
-    pa_setatr(buff, a);
+    ami_setatr(buff, a);
 
 }
 
-void pa_setatr(char *fn, pa_attrset a)
+void ami_setatr(char *fn, ami_attrset a)
 {
 
     /* no unix attributes can be set */
@@ -2092,10 +2092,10 @@ possible.
 
 ********************************************************************************/
 
-void pa_resatrl(
+void ami_resatrl(
     /** filename */ char *fn, 
     /** filename length */ int fnl,
-    /** attributes */ pa_attrset a
+    /** attributes */ ami_attrset a
 )
 
 {
@@ -2103,13 +2103,13 @@ void pa_resatrl(
     char buff[MAXSTR];
 
     cpstrl2z(buff, MAXSTR, fn, fnl);
-    pa_resatr(buff, a);
+    ami_resatr(buff, a);
 
 }
 
-void pa_resatr(
+void ami_resatr(
     /** filename */ char *fn, 
-    /** attributes */ pa_attrset a
+    /** attributes */ ami_attrset a
 )
 
 {
@@ -2127,7 +2127,7 @@ which effectively means "back this file up now".
 
 ********************************************************************************/
 
-void pa_bakupdl(
+void ami_bakupdl(
     /** filename */ char *fn,
     /** filename length */ int fnl
 )
@@ -2137,17 +2137,17 @@ void pa_bakupdl(
     char buff[MAXSTR];
 
     cpstrl2z(buff, MAXSTR, fn, fnl);
-    pa_bakupd(buff);
+    ami_bakupd(buff);
 
 }
 
-void pa_bakupd(
+void ami_bakupd(
     /** filename */ char *fn
 )
 
 {
 
-    pa_setatr(fn, BIT(pa_atarc));
+    ami_setatr(fn, BIT(ami_atarc));
 
 }
 
@@ -2159,10 +2159,10 @@ Sets user permisions
 
 ********************************************************************************/
 
-void pa_setuperl(
+void ami_setuperl(
     /** filename */ char *fn, 
     /** filename length */ int fnl,
-    /** permissions */ pa_permset p
+    /** permissions */ ami_permset p
 )
 
 {
@@ -2170,13 +2170,13 @@ void pa_setuperl(
     char buff[MAXSTR];
 
     cpstrl2z(buff, MAXSTR, fn, fnl);
-    pa_setuper(buff, p);
+    ami_setuper(buff, p);
 
 }
 
-void pa_setuper(
+void ami_setuper(
     /** filename */ char *fn, 
-    /** permissions */ pa_permset p
+    /** permissions */ ami_permset p
 )
 
 {
@@ -2188,9 +2188,9 @@ void pa_setuper(
     if (r < 0)   /* process unix error */
     unixerr();
     sr.st_mode &= 0777; /* mask permissions */
-    if (BIT(pa_pmread) & p) sr.st_mode |= S_IRUSR; /* set read */
-    if (BIT(pa_pmwrite) & p) sr.st_mode |= S_IWUSR; /* set write */
-    if (BIT(pa_pmexec) & p) sr.st_mode |= S_IXUSR; /* set execute */
+    if (BIT(ami_pmread) & p) sr.st_mode |= S_IRUSR; /* set read */
+    if (BIT(ami_pmwrite) & p) sr.st_mode |= S_IWUSR; /* set write */
+    if (BIT(ami_pmexec) & p) sr.st_mode |= S_IXUSR; /* set execute */
     r = chmod(fn, sr.st_mode); /* set mode */
     if (r < 0) unixerr();  /* process unix error */
 
@@ -2205,10 +2205,10 @@ Resets user permissions.
 
 ********************************************************************************/
 
-void pa_resuperl(
+void ami_resuperl(
     /** filename */ char *fn, 
     /** filename length */ int fnl,
-    /** permissions */ pa_permset p
+    /** permissions */ ami_permset p
 )
 
 {
@@ -2216,13 +2216,13 @@ void pa_resuperl(
     char buff[MAXSTR];
 
     cpstrl2z(buff, MAXSTR, fn, fnl);
-    pa_resuper(buff, p);
+    ami_resuper(buff, p);
 
 }
 
-void pa_resuper(
+void ami_resuper(
     /** filename */ char *fn, 
-    /** permissions */ pa_permset p
+    /** permissions */ ami_permset p
 )
 
 {
@@ -2233,9 +2233,9 @@ void pa_resuper(
     r = stat(fn, &sr);   /* get stat structure on file */
     if (r < 0) unixerr();  /* process unix error */
     sr.st_mode &= 0777;   /* mask permissions */
-    if (BIT(pa_pmread) & p) sr.st_mode &= ~S_IRUSR; /* set read */
-    if (BIT(pa_pmwrite) & p) sr.st_mode &= ~S_IWUSR; /* set write */
-    if (BIT(pa_pmexec) & p) sr.st_mode &= ~S_IXUSR; /* set execute */
+    if (BIT(ami_pmread) & p) sr.st_mode &= ~S_IRUSR; /* set read */
+    if (BIT(ami_pmwrite) & p) sr.st_mode &= ~S_IWUSR; /* set write */
+    if (BIT(ami_pmexec) & p) sr.st_mode &= ~S_IXUSR; /* set execute */
     r = chmod(fn, sr.st_mode);   /* set mode */
     if (r < 0) unixerr();  /* process unix error */
 
@@ -2250,10 +2250,10 @@ Sets group permissions.
 
 ********************************************************************************/
 
-void pa_setgperl(
+void ami_setgperl(
     /** filename */ char *fn, 
     /** filename length */ int fnl,
-    /** permissions */ pa_permset p
+    /** permissions */ ami_permset p
 )
 
 {
@@ -2261,13 +2261,13 @@ void pa_setgperl(
     char buff[MAXSTR];
 
     cpstrl2z(buff, MAXSTR, fn, fnl);
-    pa_setgper(buff, p);
+    ami_setgper(buff, p);
 
 }
 
-void pa_setgper(
+void ami_setgper(
     /** filename */ char *fn, 
-    /** permissions */ pa_permset p
+    /** permissions */ ami_permset p
 )
 
 {
@@ -2278,9 +2278,9 @@ void pa_setgper(
     r = stat(fn, &sr); /* get stat structure on file */
     if (r < 0) unixerr(); /* process unix error */
     sr.st_mode &= 0777;   /* mask permissions */
-    if (BIT(pa_pmread) & p) sr.st_mode |= S_IRGRP;  /* set read */
-    if (BIT(pa_pmwrite) & p) sr.st_mode |= S_IWGRP;  /* set write */
-    if (BIT(pa_pmexec) & p) sr.st_mode |= S_IXGRP;  /* set execute */
+    if (BIT(ami_pmread) & p) sr.st_mode |= S_IRGRP;  /* set read */
+    if (BIT(ami_pmwrite) & p) sr.st_mode |= S_IWGRP;  /* set write */
+    if (BIT(ami_pmexec) & p) sr.st_mode |= S_IXGRP;  /* set execute */
     r = chmod(fn, sr.st_mode);   /* set mode */
     if (r < 0) unixerr();  /* process unix error */
 
@@ -2295,10 +2295,10 @@ Resets group permissions.
 
 ********************************************************************************/
 
-void pa_resgperl(
+void ami_resgperl(
     /** filename */ char *fn, 
     /** filename length */ int fnl,
-    /** permissions */ pa_permset p
+    /** permissions */ ami_permset p
 )
 
 {
@@ -2306,13 +2306,13 @@ void pa_resgperl(
     char buff[MAXSTR];
 
     cpstrl2z(buff, MAXSTR, fn, fnl);
-    pa_resgper(buff, p);
+    ami_resgper(buff, p);
 
 }
 
-void pa_resgper(
+void ami_resgper(
     /** filename */ char *fn, 
-    /** permissions */ pa_permset p
+    /** permissions */ ami_permset p
 )
 
 {
@@ -2322,9 +2322,9 @@ void pa_resgper(
     r = stat(fn, &sr); /* get stat structure on file */
     if (r < 0) unixerr(); /* process unix error */
     sr.st_mode &= 0777;   /* mask permissions */
-    if (BIT(pa_pmread) & p)  sr.st_mode &= ~S_IRGRP; /* set read */
-    if (BIT(pa_pmwrite) & p) sr.st_mode &= ~S_IWGRP;  /* set write */
-    if (BIT(pa_pmexec) & p) sr.st_mode &= ~S_IXGRP;  /* set execute */
+    if (BIT(ami_pmread) & p)  sr.st_mode &= ~S_IRGRP; /* set read */
+    if (BIT(ami_pmwrite) & p) sr.st_mode &= ~S_IWGRP;  /* set write */
+    if (BIT(ami_pmexec) & p) sr.st_mode &= ~S_IXGRP;  /* set execute */
     r = chmod(fn, sr.st_mode);   /* set mode */
     if (r < 0) unixerr();  /* process unix error */
 
@@ -2338,10 +2338,10 @@ Sets other permissions.
 
 ********************************************************************************/
 
-void pa_setoperl(
+void ami_setoperl(
     /** filename */ char *fn, 
     /** filename length */ int fnl,
-    /** permissions */ pa_permset p
+    /** permissions */ ami_permset p
 )
 
 {
@@ -2349,13 +2349,13 @@ void pa_setoperl(
     char buff[MAXSTR];
 
     cpstrl2z(buff, MAXSTR, fn, fnl);
-    pa_setoper(buff, p);
+    ami_setoper(buff, p);
 
 }
 
-void pa_setoper(
+void ami_setoper(
     /** filename */ char *fn, 
-    /** permissions */ pa_permset p
+    /** permissions */ ami_permset p
 )
 
 {
@@ -2366,9 +2366,9 @@ void pa_setoper(
     r = stat(fn, &sr);   /* get stat structure on file */
     if (r < 0) unixerr();  /* process unix error */
     sr.st_mode &= 0777;   /* mask permissions */
-    if (BIT(pa_pmread) & p) sr.st_mode |= S_IROTH;  /* set read */
-    if (BIT(pa_pmwrite) & p) sr.st_mode |= S_IWOTH;  /* set write */
-    if (BIT(pa_pmexec) & p) sr.st_mode |= S_IXOTH;  /* set execute */
+    if (BIT(ami_pmread) & p) sr.st_mode |= S_IROTH;  /* set read */
+    if (BIT(ami_pmwrite) & p) sr.st_mode |= S_IWOTH;  /* set write */
+    if (BIT(ami_pmexec) & p) sr.st_mode |= S_IXOTH;  /* set execute */
     r = chmod(fn, sr.st_mode);   /* set mode */
     if (r < 0) unixerr();  /* process unix error */
 
@@ -2382,10 +2382,10 @@ Resets other permissions.
 
 ********************************************************************************/
 
-void pa_resoperl(
+void ami_resoperl(
     /** filename */ char *fn, 
     /** filename length */ int fnl,
-    /** permissions */ pa_permset p
+    /** permissions */ ami_permset p
 )
 
 {
@@ -2393,13 +2393,13 @@ void pa_resoperl(
     char buff[MAXSTR];
 
     cpstrl2z(buff, MAXSTR, fn, fnl);
-    pa_resoper(buff, p);
+    ami_resoper(buff, p);
 
 }
 
-void pa_resoper(
+void ami_resoper(
     /** filename */ char *fn, 
-    /** permissions */ pa_permset p
+    /** permissions */ ami_permset p
 )
 
 {
@@ -2410,9 +2410,9 @@ void pa_resoper(
     r = stat(fn, &sr); /* get stat structure on file */
     if (r < 0) unixerr(); /* process unix error */
     sr.st_mode &= 0777; /* mask permissions */
-    if (BIT(pa_pmread) & p) sr.st_mode &= ~S_IROTH; /* set read */
-    if (BIT(pa_pmwrite) & p) sr.st_mode &= ~S_IWOTH; /* set write */
-    if (BIT(pa_pmexec) & p) sr.st_mode &= ~S_IXOTH; /* set execute */
+    if (BIT(ami_pmread) & p) sr.st_mode &= ~S_IROTH; /* set read */
+    if (BIT(ami_pmwrite) & p) sr.st_mode &= ~S_IWOTH; /* set write */
+    if (BIT(ami_pmexec) & p) sr.st_mode &= ~S_IXOTH; /* set execute */
     r = chmod(fn, sr.st_mode); /* set mode */
     if (r < 0) unixerr(); /* process unix error */
 
@@ -2426,7 +2426,7 @@ Create a new path. Only one new level at a time may be created.
 
 ********************************************************************************/
 
-void pa_makpthl(
+void ami_makpthl(
     /** pathname */ char *fn,
     /** pathname length */ int fnl
 )
@@ -2436,11 +2436,11 @@ void pa_makpthl(
     char buff[MAXSTR];
 
     cpstrl2z(buff, MAXSTR, fn, fnl);
-    pa_makpth(buff);
+    ami_makpth(buff);
 
 }
 
-void pa_makpth(
+void ami_makpth(
     /** pathname */ char *fn
 )
 
@@ -2464,7 +2464,7 @@ Create a new path. Only one new level at a time may be deleted.
 
 ********************************************************************************/
 
-void pa_rempthl(
+void ami_rempthl(
     /** pathname */ char *fn,
     /** pathname length */ int fnl
 )
@@ -2474,11 +2474,11 @@ void pa_rempthl(
     char buff[MAXSTR];
 
     cpstrl2z(buff, MAXSTR, fn, fnl);
-    pa_rempth(buff);
+    ami_rempth(buff);
 
 }
 
-void pa_rempth(
+void ami_rempth(
     /** pathname */ char *fn
 )
 
@@ -2515,7 +2515,7 @@ specials in these cases.
 
 ********************************************************************************/
 
-void pa_filchr(pa_chrset fc)
+void ami_filchr(ami_chrset fc)
 {
 
     int i;
@@ -2538,7 +2538,7 @@ is overly cute and not common.
 
 ********************************************************************************/
 
-char pa_optchr(void)
+char ami_optchr(void)
 {
     return '-';
 
@@ -2556,7 +2556,7 @@ separator as '\\'.
 
 *******************************************************************************/
 
-char pa_pthchr(void)
+char ami_pthchr(void)
 {
 
     return '/';
@@ -2565,9 +2565,9 @@ char pa_pthchr(void)
 
 /** ****************************************************************************
 
-Find pa_latitude
+Find ami_latitude
 
-Finds the pa_latitude of the host. Returns the pa_latitude as a ratioed integer:
+Finds the ami_latitude of the host. Returns the ami_latitude as a ratioed integer:
 
 0           Equator
 INT_MAX     North pole
@@ -2586,7 +2586,7 @@ host location.
 
 *******************************************************************************/
 
-int pa_latitude(void)
+int ami_latitude(void)
 
 {
 
@@ -2596,9 +2596,9 @@ int pa_latitude(void)
 
 /** ****************************************************************************
 
-Find pa_longitude
+Find ami_longitude
 
-Finds the pa_longitude of the host. Returns the pa_longitude as a ratioed integer:
+Finds the ami_longitude of the host. Returns the ami_longitude as a ratioed integer:
 
 0           The prime meridian (Greenwitch)
 INT_MAX     The prime meridian eastward around the world
@@ -2613,7 +2613,7 @@ A mobile host is constantly reading its location (usually from a GPS).
 
 *******************************************************************************/
 
-int pa_longitude(void)
+int ami_longitude(void)
 
 {
 
@@ -2623,9 +2623,9 @@ int pa_longitude(void)
 
 /** ****************************************************************************
 
-Find pa_altitude
+Find ami_altitude
 
-Finds the pa_altitude of the host. Returns the pa_altitude as a ratioed integer:
+Finds the ami_altitude of the host. Returns the ami_altitude as a ratioed integer:
 
 0           MSL
 INT_MAX     100km high
@@ -2638,7 +2638,7 @@ establishes GPS as the main reference MSL surface, which typically must be
 corrected for the exact local system in use, which could be:
 
 1. Local MSL.
-2. Presure pa_altitude.
+2. Presure ami_altitude.
 
 Or another system.
 
@@ -2648,7 +2648,7 @@ A mobile host is constantly reading its location (usually from a GPS).
 
 *******************************************************************************/
 
-int pa_altitude(void)
+int ami_altitude(void)
 
 {
 
@@ -2658,15 +2658,15 @@ int pa_altitude(void)
 
 /** ****************************************************************************
 
-Find pa_country code
+Find ami_country code
 
-Gives the ISO 3166-1 1 to 3 digit numeric code for the pa_country of the host
-computer. Note that the pa_country of host may be set by the user, or may be
-determined by pa_latitude/pa_longitude.
+Gives the ISO 3166-1 1 to 3 digit numeric code for the ami_country of the host
+computer. Note that the ami_country of host may be set by the user, or may be
+determined by ami_latitude/ami_longitude.
 
 *******************************************************************************/
 
-int pa_country(void)
+int ami_country(void)
 
 {
 
@@ -2676,13 +2676,13 @@ int pa_country(void)
 
 /** ****************************************************************************
 
-Find pa_country identifier string
+Find ami_country identifier string
 
-Finds the identifier string for the given ISO 3166-1 pa_country code. If the string
+Finds the identifier string for the given ISO 3166-1 ami_country code. If the string
 does not fit into the string provided, an error results.
 
-3166-1 pa_country codes are both numeric codes, 2 letter pa_country codes, and 3
-letter pa_country codes. We only use the 2 letter codes.
+3166-1 ami_country codes are both numeric codes, 2 letter ami_country codes, and 3
+letter ami_country codes. We only use the 2 letter codes.
 
 Note that the 2 letter codes happen to also be the Internet location codes
 (like company.us or company.au).
@@ -2692,8 +2692,8 @@ Note that the 2 letter codes happen to also be the Internet location codes
 typedef struct {
 
     char *countrystr;   /* name of counry (full) */
-    char countrya2c[2]; /* 2 letter pa_country code */
-    int  countrynum;    /* numeric code for pa_country */
+    char countrya2c[2]; /* 2 letter ami_country code */
+    int  countrynum;    /* numeric code for ami_country */
 
 } countryety;
 
@@ -2953,14 +2953,14 @@ countryety countrytab[] = {
 
 };
 
-void pa_countrys(
+void ami_countrys(
     /** string buffer */           char* s,
     /** length of buffer */        int len,
-    /** ISO 3166-1 pa_country code */ int c)
+    /** ISO 3166-1 ami_country code */ int c)
 
 {
 
-    countryety* p; /* pointer to pa_country entry */
+    countryety* p; /* pointer to ami_country entry */
 
     p = countrytab;
     while (p->countrynum && p->countrynum != c) p++;
@@ -2979,7 +2979,7 @@ negative for zones west of the prime meridian, and positive for zones east.
 
 *******************************************************************************/
 
-int pa_timezone(void)
+int ami_timezone(void)
 
 {
 
@@ -3005,7 +3005,7 @@ Finds if daylight savings time is in effect. It returns true if daylight savings
 time is in effect at the present time, which in the majority of locations means
 to add one hour to the local time (some locations offset by 30 minutes).
 
-pa_daysave() is automatically adjusted for time of year. That is, if the location
+ami_daysave() is automatically adjusted for time of year. That is, if the location
 uses daylight savings time, but it is not currently in effect, the function
 returns false.
 
@@ -3013,7 +3013,7 @@ Note that local() already takes daylight savings into account.
 
 *******************************************************************************/
 
-int pa_daysave(void)
+int ami_daysave(void)
 
 
 {
@@ -3036,7 +3036,7 @@ Returns true if 24 hour time is in use in the current host location.
 
 *******************************************************************************/
 
-int pa_time24hour(void)
+int ami_time24hour(void)
 
 {
 
@@ -3046,17 +3046,17 @@ int pa_time24hour(void)
 
 /** ****************************************************************************
 
-Find pa_language code
+Find ami_language code
 
-Finds a numeric code for the host pa_language using the ISO 639-1 pa_language list.
-639-1 does not prescribe a numeric code for pa_languages, so the exact code is
+Finds a numeric code for the host ami_language using the ISO 639-1 ami_language list.
+639-1 does not prescribe a numeric code for ami_languages, so the exact code is
 defined by the Petit Ami standard from an alphabetic list of the 639-1
-pa_languages. This unfortunately means that any changes or additions must
+ami_languages. This unfortunately means that any changes or additions must
 necessarily be added at the end, and thus out of order.
 
 *******************************************************************************/
 
-int pa_language(void)
+int ami_language(void)
 
 {
 
@@ -3066,18 +3066,18 @@ int pa_language(void)
 
 /** ****************************************************************************
 
-Find pa_language identifier string from pa_language code
+Find ami_language identifier string from ami_language code
 
-Finds a pa_language identifier string from a given pa_language code. If the identifier
+Finds a ami_language identifier string from a given ami_language code. If the identifier
 string is too long for the string buffer, an error results.
 
-The pa_language codes are from the ISO 639-1 standard. It describes pa_languages with
+The ami_language codes are from the ISO 639-1 standard. It describes ami_languages with
 2 and 3 letter codes. We use only the two letter codes here.
 
-The ISO 639-1 standard does not assign logical numbers to the pa_languages
+The ISO 639-1 standard does not assign logical numbers to the ami_languages
 (unlike the ISO 3166-1 standard), so the numbering here is simply a sequential
-numbering of the pa_languages. However, we will keep the numbering system for any
-additions. Once a pa_language is assigned a number it keeps it.
+numbering of the ami_languages. However, we will keep the numbering system for any
+additions. Once a ami_language is assigned a number it keeps it.
 
 *******************************************************************************/
 
@@ -3280,15 +3280,15 @@ static langety langtab[] = {
 
 };
 
-void pa_languages(
+void ami_languages(
     /** string buffer */ char* s, 
     /** length of buffer */ int len, 
-    /** pa_language code */ int l
+    /** ami_language code */ int l
 )
 
 {
 
-    langety* p; /* pointer to pa_language entry */
+    langety* p; /* pointer to ami_language entry */
 
     p = langtab;
     while (p->langnum && p->langnum != l) p++;
@@ -3300,13 +3300,13 @@ void pa_languages(
 
 /** ****************************************************************************
 
-Find the current pa_decimal point character
+Find the current ami_decimal point character
 
-Finds the pa_decimal point character of the host, which is generally '.' or ','.
+Finds the ami_decimal point character of the host, which is generally '.' or ','.
 
 *******************************************************************************/
 
-char pa_decimal(void)
+char ami_decimal(void)
 
 {
 
@@ -3323,7 +3323,7 @@ generally used to mark 3 digit groups, ie., 3,000,000.
 
 *******************************************************************************/
 
-char pa_numbersep(void)
+char ami_numbersep(void)
 
 {
 
@@ -3348,11 +3348,11 @@ The #1 format is the recommended standard for international exchange and is
 compatible with computer sorting. Thus it can be common to override the local
 presentation with it for archival use.
 
-Note that pa_times() compensates for this.
+Note that ami_times() compensates for this.
 
 *******************************************************************************/
 
-int pa_timeorder(void)
+int ami_timeorder(void)
 
 {
 
@@ -3380,11 +3380,11 @@ presentation with it for archival use.
 The representation of year as 2 digits is depreciated, due to year 2000 issues
 and because it makes the ordering of y-m-d more obvious.
 
-Note that pa_dates() compensates for this.
+Note that ami_dates() compensates for this.
 
 *******************************************************************************/
 
-int pa_dateorder(void)
+int ami_dateorder(void)
 
 {
 
@@ -3397,11 +3397,11 @@ Find date separator character
 
 Finds the date separator character of the host.
 
-Note that pa_dates() uses this character.
+Note that ami_dates() uses this character.
 
 *******************************************************************************/
 
-char pa_datesep(void)
+char ami_datesep(void)
 
 {
 
@@ -3415,11 +3415,11 @@ Find time separator character
 
 Finds the time separator character of the host.
 
-Note that pa_times() uses this character.
+Note that ami_times() uses this character.
 
 *******************************************************************************/
 
-char pa_timesep(void)
+char ami_timesep(void)
 
 {
 
@@ -3431,11 +3431,11 @@ char pa_timesep(void)
 
 Find the currency marker character
 
-Finds the currency symbol of the host pa_country.
+Finds the currency symbol of the host ami_country.
 
 *******************************************************************************/
 
-char pa_currchr(void)
+char ami_currchr(void)
 
 {
 
@@ -3467,7 +3467,7 @@ static void* dummystart(void *function)
 
 }
 
-int pa_newthread(void (*threadmain)(void))
+int ami_newthread(void (*threadmain)(void))
 
 {
 
@@ -3508,7 +3508,7 @@ Creates a new concurrency lock and returns the logical id for it.
 
 *******************************************************************************/
 
-int pa_initlock(void)
+int ami_initlock(void)
 
 {
 
@@ -3551,7 +3551,7 @@ Releases a concurrency lock by logical id.
 
 *******************************************************************************/
 
-void pa_deinitlock(int ln)
+void ami_deinitlock(int ln)
 
 {
 
@@ -3580,7 +3580,7 @@ come first served.
 
 *******************************************************************************/
 
-void pa_lock(int ln)
+void ami_lock(int ln)
 
 {
 
@@ -3607,7 +3607,7 @@ lock and that is in a runnable state is set to run.
 
 *******************************************************************************/
 
-void pa_unlock(int ln)
+void ami_unlock(int ln)
 
 {
 
@@ -3632,7 +3632,7 @@ Creates a new concurrency signal and returns the logical id for it.
 
 *******************************************************************************/
 
-int pa_initsig(void)
+int ami_initsig(void)
 
 {
 
@@ -3675,7 +3675,7 @@ Releases a concurrency lock by logical id.
 
 *******************************************************************************/
 
-void pa_deinitsig(int sn)
+void ami_deinitsig(int sn)
 
 {
 
@@ -3703,7 +3703,7 @@ signal or just one is set to run by a signal.
 
 *******************************************************************************/
 
-void pa_sendsig(int sn)
+void ami_sendsig(int sn)
 
 {
 
@@ -3728,13 +3728,13 @@ Flags an event to the given signal by logical id. Only one thread is signaled
 to run. This version of signal is used when only one waiter can use the
 event signaled.
 
-Note that it is possible for this call to be equivalent to pa_signal() on a
+Note that it is possible for this call to be equivalent to ami_signal() on a
 given implementation. Thus programs should check if the signaled event is
 still active, and not just assume it.
 
 *******************************************************************************/
 
-void pa_sendsigone(int sn)
+void ami_sendsigone(int sn)
 
 {
 
@@ -3765,7 +3765,7 @@ run, and thus the wait and signal operations are synchronized together.
 
 *******************************************************************************/
 
-void pa_waitsig(int ln, int sn)
+void ami_waitsig(int ln, int sn)
 
 {
 
@@ -3801,8 +3801,8 @@ Note the environment is unordered.
 
 *******************************************************************************/
 
-static void pa_init_services (int argc, char* argv[]) __attribute__((constructor (102)));
-static void pa_init_services(int argc, char* argv[])
+static void ami_init_services (int argc, char* argv[]) __attribute__((constructor (102)));
+static void ami_init_services(int argc, char* argv[])
 
 {
 
@@ -3810,10 +3810,10 @@ static void pa_init_services(int argc, char* argv[])
     char**      ep;     /* unix environment string table */
     int         ei;     /* index for string table */
     int         si;     /* index for strings */
-    pa_envrec*  p;      /* environment entry pointer */
-    langety*    lp;     /* pointer to pa_language entry */
-    countryety* ctp;    /* pointer to pa_language entry */
-    pa_envrec*  p1;
+    ami_envrec*  p;      /* environment entry pointer */
+    langety*    lp;     /* pointer to ami_language entry */
+    countryety* ctp;    /* pointer to ami_language entry */
+    ami_envrec*  p1;
     char*       cp;
     int         l;
     int         i;
@@ -3824,7 +3824,7 @@ static void pa_init_services(int argc, char* argv[])
     ep = environ;   /* get unix environment pointers */
     while (*ep != NULL) {  /* copy environment strings */
 
-        p = malloc(sizeof(pa_envrec)); /* get a new environment entry */
+        p = malloc(sizeof(ami_envrec)); /* get a new environment entry */
         p->next = envlst; /* push onto environment list */
         envlst = p;
         cp = strchr(*ep, '='); /* find location of '=' */
@@ -3851,12 +3851,12 @@ static void pa_init_services(int argc, char* argv[])
         envlst = p1;
 
      }
-    pa_getenv("PATH", pthstr, MAXSTR); /* load up the current path */
+    ami_getenv("PATH", pthstr, MAXSTR); /* load up the current path */
     trim(pthstr); /* make sure left aligned */
-    pa_getenv("LANG", langstr, MAXSTR); /* get locale */
+    ami_getenv("LANG", langstr, MAXSTR); /* get locale */
     trim(langstr); /* clean */
 
-    /* set default pa_language and pa_country */
+    /* set default ami_language and ami_country */
     curlanguage = 30; /* english */
     curcountry = 840; /* USA */
 
@@ -3865,13 +3865,13 @@ static void pa_init_services(int argc, char* argv[])
 
            ll_cc.UTF-8
 
-       Where pa_language is ll, and pa_country cc. It used to end with the local
+       Where ami_language is ll, and ami_country cc. It used to end with the local
        character set, but that is obsolete, and is always UTF-* now.
 
-       We perform a few validation checks, then set the pa_language and pa_country
-       according to the code. From the pa_country code, all of the other location
+       We perform a few validation checks, then set the ami_language and ami_country
+       according to the code. From the ami_country code, all of the other location
        dependent characteristics are derived, such as date and time format,
-       currency symbol, pa_decimal point character, numbers separator, etc.
+       currency symbol, ami_decimal point character, numbers separator, etc.
 
        Note that if the $LANG variable is not found, or not formatted correctly,
        or does not contain valid contents, we fall back to defaults above.
@@ -3879,7 +3879,7 @@ static void pa_init_services(int argc, char* argv[])
 
     if (strlen(langstr) >= 6 && langstr[2] == '_' && langstr[5] == '.') {
 
-        /* search pa_language */
+        /* search ami_language */
         lp = langtab;
         while (lp && lp->langnum) {
 
@@ -3892,7 +3892,7 @@ static void pa_init_services(int argc, char* argv[])
 
         }
 
-        /* search pa_country */
+        /* search ami_country */
         ctp = countrytab;
         while (ctp && ctp->countrynum) {
 
@@ -3941,13 +3941,13 @@ Not used at present
 
 *******************************************************************************/
 
-static void pa_deinit_services (void) __attribute__((destructor (102)));
-static void pa_deinit_services()
+static void ami_deinit_services (void) __attribute__((destructor (102)));
+static void ami_deinit_services()
 
 {
 
     int        ti; /* index for timers */
-    pa_envrec* p;  /* environment entry pointer */
+    ami_envrec* p;  /* environment entry pointer */
     int        r;
 
     while (envlst) {

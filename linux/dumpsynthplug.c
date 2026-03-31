@@ -52,7 +52,7 @@ static void opendump(int p)
     if (p < 1 || p > MAXINST) error("Invalid synth handle");
     if (!sport) error("No input port set to dump");
 
-    pa_opensynthin(sport); /* open the monitored device */
+    ami_opensynthin(sport); /* open the monitored device */
 
 }
 
@@ -71,7 +71,7 @@ static void closedump(int p)
     if (p < 1 || p > MAXINST) error("Invalid synth handle");
     if (!sport) error("No input port set to dump");
 
-    pa_closesynthin(sport); /* close the monitored device */
+    ami_closesynthin(sport); /* close the monitored device */
 
 }
 
@@ -84,14 +84,14 @@ device in the table, then that is dumped and returned to the caller.
 
 *******************************************************************************/
 
-static void readdump(int p, pa_seqptr sp)
+static void readdump(int p, ami_seqptr sp)
 
 {
 
     if (p < 1 || p > MAXINST) error("Invalid synth handle");
     if (!sport) error("No input port set to dump");
 
-    pa_rdsynth(sport, sp); /* get seq record */
+    ami_rdsynth(sport, sp); /* get seq record */
     /* now just dump the message */
     switch (sp->st) { /* sequencer message type */
 
