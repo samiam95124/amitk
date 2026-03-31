@@ -1,0 +1,162 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Amitk</title>
+<style>
+body { font-family: "Lucida Grande", Geneva, Helvetica, Arial, sans-serif; font-size: 14px; margin: 0; padding: 0; background: #fff; color: #333; line-height: 1.6; }
+.page-header { background: linear-gradient(to bottom, #D5DDEC 0%, #CAD4E8 50%, #B2C0DD 100%); border-bottom: 1px solid #A3B4D7; padding: 20px 40px; display: flex; align-items: center; justify-content: space-between; }
+.header-text { flex: 1; }
+.page-title { font-size: 280%; color: #1C2941; font-weight: bold; margin: 0; }
+.page-subtitle { font-size: 15px; color: #364D7C; margin-top: 4px; }
+.content { max-width: 900px; margin: 0 auto; padding: 30px 40px; }
+h2 { color: #253555; font-size: 150%; border-bottom: 2px solid #879ECB; padding-bottom: 6px; margin-top: 35px; }
+.section { margin: 15px 0 25px 0; }
+.link-item { padding: 6px 0; }
+.link-item a { color: #3D578C; text-decoration: none; font-size: 14px; }
+.link-item a:hover { text-decoration: underline; color: #1C2941; }
+.link-desc { color: #666; font-size: 13px; margin-left: 8px; }
+p { margin: 10px 0; }
+.overview { background: #F9FAFC; border: 1px solid #C4CFE5; border-radius: 4px; padding: 15px 20px; margin: 20px 0; }
+.page-footer { background: linear-gradient(to bottom, #D5DDEC 0%, #CAD4E8 50%, #B2C0DD 100%); border-top: 1px solid #A3B4D7; color: #364D7C; padding: 8px 40px; font-size: 11px; text-align: center; margin-top: 40px; }
+h3 { color: #253555; font-size: 120%; margin-top: 25px; }
+.faq-q { font-weight: bold; color: #253555; margin-top: 15px; margin-bottom: 2px; }
+.faq-a { margin-top: 2px; margin-bottom: 15px; }
+ul { margin: 10px 0; padding-left: 25px; }
+li { margin: 4px 0; }
+pre { background: #F5F7FA; border: 1px solid #C4CFE5; border-radius: 4px; padding: 12px 16px; font-family: "Lucida Console", Monaco, monospace; font-size: 12px; overflow-x: auto; }
+</style>
+</head>
+<body>
+<div class="page-header">
+<div class="header-text">
+<div class="page-title">Amitk</div>
+<div class="page-subtitle">A portable, paradigm-carrying display toolkit</div>
+</div>
+</div>
+<div class="content">
+
+<div class="overview">
+<p>Amitk is a toolkit based on the idea that carefully crafted display paradigms
+can carry forward. Amitk starts with the serial display paradigm and carries that
+into a terminal oriented paradigm, then to a fully graphical and windowed
+paradigm.</p>
+<p>The toolkit provides a unified API across display models, so the same source
+code can target serial console, terminal, or graphical output. It includes
+modules for terminal I/O, graphics, sound, networking, and system services,
+along with games, editors, and test programs that demonstrate its
+capabilities.</p>
+<p>Amitk runs on Linux, Windows, Mac OS X, and FreeBSD.</p>
+<p>See the <a href="https://github.com/samiam95124/amitk/blob/master/README">README</a>
+for quick start instructions and
+<a href="https://github.com/samiam95124/amitk/blob/master/INSTALL">INSTALL</a>
+for setup details.</p>
+</div>
+
+<h2>Repository</h2>
+<div class="section">
+<div class="link-item">
+<a href="https://github.com/samiam95124/amitk">https://github.com/samiam95124/amitk</a>
+<span class="link-desc">Source code, releases, and issue tracking on GitHub</span>
+</div>
+</div>
+
+<h2>Documentation</h2>
+<div class="section">
+<div class="link-item">
+<a href="doc/petit_ami.pdf">Amitk Reference Manual</a>
+<span class="link-desc">The main reference document covering architecture, API, and usage (PDF)</span>
+</div>
+</div>
+
+<h2>Display Models</h2>
+<div class="section">
+<p>Amitk provides three display models, each building on the previous:</p>
+<ul>
+<li><strong>Serial</strong> &mdash; Basic sequential character I/O, compatible with any
+terminal or console. Programs using only serial calls run everywhere.</li>
+<li><strong>Terminal</strong> &mdash; Adds cursor positioning, color, attributes, and
+keyboard/mouse events on top of the serial model.</li>
+<li><strong>Graphical</strong> &mdash; Full pixel-addressed graphics with windows, widgets,
+fonts, and drawing primitives. Terminal programs can be promoted to graphical
+mode without source changes.</li>
+</ul>
+</div>
+
+<h2>Modules</h2>
+<div class="section">
+<ul>
+<li><strong>Services</strong> &mdash; File system, directories, time, environment, program
+execution, and locale.</li>
+<li><strong>Terminal</strong> &mdash; Cursor control, colors, attributes, scrolling, tabs,
+keyboard and joystick events.</li>
+<li><strong>Graphics</strong> &mdash; Drawing, images, fonts, windows, menus, dialogs, and
+widgets.</li>
+<li><strong>Sound</strong> &mdash; MIDI synthesis, wave audio input/output, and sequencing.</li>
+<li><strong>Network</strong> &mdash; TCP/IP sockets, TLS, and message-based networking.</li>
+</ul>
+</div>
+
+<h2>Sample Programs</h2>
+<div class="section">
+<h3>Terminal Games</h3>
+<ul>
+<li><strong>snake</strong> &mdash; Classic snake game</li>
+<li><strong>mine</strong> &mdash; Minesweeper</li>
+<li><strong>pong</strong> &mdash; Pong (terminal and graphical versions)</li>
+</ul>
+<h3>Graphical Programs</h3>
+<ul>
+<li><strong>breakout</strong> &mdash; Breakout game</li>
+<li><strong>clock</strong> &mdash; Resizable analog clock</li>
+<li><strong>ball1&ndash;ball6</strong> &mdash; Bouncing ball demos</li>
+<li><strong>line1&ndash;line5</strong> &mdash; Moving line demos</li>
+<li><strong>pixel</strong> &mdash; Pixel set/reset demo</li>
+</ul>
+<h3>Utilities</h3>
+<ul>
+<li><strong>editor</strong> &mdash; Text editor (terminal and graphical)</li>
+<li><strong>wator</strong> &mdash; Wa-Tor population simulation</li>
+<li><strong>prtconfig</strong> &mdash; Print configuration tree</li>
+</ul>
+</div>
+
+<h2>Building</h2>
+<div class="section">
+<h3>Linux</h3>
+<pre>. setpath
+./configure
+make</pre>
+<h3>Windows</h3>
+<pre>setpath
+configure
+make</pre>
+<h3>FreeBSD</h3>
+<pre>. setpath
+./configure
+gmake</pre>
+</div>
+
+<h2>FAQs</h2>
+<div class="section">
+<div class="faq-q">Q: What does "Ami" mean?</div>
+<div class="faq-a">A: "Ami" is French for "friend". The toolkit was originally
+called "Petit Ami" (little friend).</div>
+<div class="faq-q">Q: Why was the prefix changed from pa_ to ami_?</div>
+<div class="faq-a">A: The pa_ prefix conflicted with Pulse Audio, which uses the
+same prefix for its API. The ami_ prefix is unique to this project.</div>
+<div class="faq-q">Q: Can I use the same source for terminal and graphical output?</div>
+<div class="faq-a">A: Yes. Programs written to the terminal API can be compiled
+against either the terminal or graphical library. The graphical version
+promotes terminal operations to a graphical window automatically.</div>
+<div class="faq-q">Q: What platforms are supported?</div>
+<div class="faq-a">A: Linux, Windows, Mac OS X, and FreeBSD.</div>
+</div>
+
+</div>
+<div class="page-footer">
+Copyright &copy; 2019 Scott A. Franco &mdash; BSD License
+</div>
+</body>
+</html>
