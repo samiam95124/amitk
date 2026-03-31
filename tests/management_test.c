@@ -1393,7 +1393,7 @@ int main(void)
     c3 = pa_blue;
     putchar('\f');
     printf("Child windows torture test pixel\n");
-    t = services_clock(); /* get base time */
+    t = pa_clock(); /* get base time */
     for (i = 1; i <= 100; i++) {
 
         pa_openwin(&stdin, &win2, stdout, 2);
@@ -1425,7 +1425,7 @@ int main(void)
         fclose(win4);
 
     }
-    et = services_elapsed(t);
+    et = pa_elapsed(t);
     pa_home(stdout);
     pa_bover(stdout);
     printf("Child windows should all be closed\n");

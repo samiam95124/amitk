@@ -15,9 +15,9 @@
 *                                                                              *
 * 1. This version is US english only. Need translations according to locale.   *
 *                                                                              *
-* Functions to be changed to translations: services_dateorder(), services_datesep(),       *
-* services_timesep(), services_currchar(), services_timeorder(), services_numbersep(), services_decimal(),   *
-* services_time24hour().                                                             *
+* Functions to be changed to translations: pa_dateorder(), pa_datesep(),       *
+* pa_timesep(), pa_currchar(), pa_timeorder(), pa_numbersep(), pa_decimal(),   *
+* pa_time24hour().                                                             *
 *                                                                              *
 *                          BSD LICENSE INFORMATION                             *
 *                                                                              *
@@ -127,14 +127,14 @@ typedef char bufstr[MAXSTR]; /* standard string buffer */
 
 /* these aren't locked because they are only set during init, read otherwise */
 static bufstr pthstr;   /* buffer for execution path */
-static bufstr langstr;  /* buffer for services_language services_country string (locale) */
-static int curlanguage; /* current services_language */
-static int curcountry;  /* current services_country */
+static bufstr langstr;  /* buffer for pa_language pa_country string (locale) */
+static int curlanguage; /* current pa_language */
+static int curcountry;  /* current pa_country */
 static char* prgpth;    /* program path */
 /* end of read-only group */
 
 static pthread_mutex_t  envlck;               /* environment list lock */
-static services_envrec*       envlst;               /* our environment list */
+static pa_envrec*       envlst;               /* our environment list */
 /* end of environment lock group */
 
 static pthread_mutex_t  thdtbllck;            /* thread table lock */
@@ -408,10 +408,10 @@ If no files are matched, the returned list is nil.
 
 ********************************************************************************/
 
-void services_listl(
+void pa_listl(
     /** file to search for */ char *f,
     /** length of file string */ int l,
-    /** file list returned */ services_filrec **lp
+    /** file list returned */ pa_filrec **lp
 )
 
 {
@@ -419,13 +419,13 @@ void services_listl(
     char buff[MAXSTR];
 
     cpstrl2z(buff, MAXSTR, f, l);
-    services_list(buff, lp);
+    pa_list(buff, lp);
 
 }
 
-void services_list(
+void pa_list(
     /** file to search for */ char *f,
-    /** file list returned */ services_filrec **l
+    /** file list returned */ pa_filrec **l
 )
 
 {
@@ -434,8 +434,8 @@ void services_list(
     DIR*           dd; /* directory file descriptor */
     int            r;  /* result code */
     struct stat    sr; /* stat() record */
-    services_filrec*     fp; /* file entry pointer */
-    services_filrec*     lp; /* last entry pointer */
+    pa_filrec*     fp; /* file entry pointer */
+    pa_filrec*     lp; /* last entry pointer */
     int            i;  /* name index */
     bufstr         p;  /* filename components */
     bufstr         n;
@@ -447,15 +447,15 @@ void services_list(
 
     *l = NULL; /* clear destination list */
     lp = NULL; /* clear last pointer */
-    services_brknam(f, p, MAXSTR, n, MAXSTR, e, MAXSTR); /* break up filename */
+    pa_brknam(f, p, MAXSTR, n, MAXSTR, e, MAXSTR); /* break up filename */
     /* check wildcards in path */
     if (strstr(p, "*") || strstr(p, "?")) error("Path cannot contain wildcards");
     /* construct name of containing directory */
-    if (*p == 0) services_maknam(dn, MAXSTR, p, ".", "");
-    else services_maknam(dn, MAXSTR, p, "", "");
+    if (*p == 0) pa_maknam(dn, MAXSTR, p, ".", "");
+    else pa_maknam(dn, MAXSTR, p, "", "");
     dd = opendir(dn); /* open the directory */
     if (!dd) unixerr(); /* process unix open error */
-    services_maknam(fn, MAXSTR, "", n, e);   /* reform name without path */
+    pa_maknam(fn, MAXSTR, "", n, e);   /* reform name without path */
     do { /* read directory entries */
 
         errno = 0; /* clear any error */
@@ -465,13 +465,13 @@ void services_list(
 
             if (match(fn, dr->d_name, 0, 0)) { /* matching filename, add to list */
 
-                fp = malloc(sizeof(services_filrec)); /* create a new file entry */
+                fp = malloc(sizeof(pa_filrec)); /* create a new file entry */
                 /* copy to new filename string */
                 fp->name = malloc(strlen(dr->d_name)+1);
                 strcpy(fp->name, dr->d_name); /* copy to destination */
                 fp->namel = strlen(fp->name); /* set length */
-                services_brknam(fp->name, p, MAXSTR, n, MAXSTR, e, MAXSTR); /* find name/extension */
-                services_maknam(tn, MAXSTR, dn, n, e); /* add path */
+                pa_brknam(fp->name, p, MAXSTR, n, MAXSTR, e, MAXSTR); /* find name/extension */
+                pa_maknam(tn, MAXSTR, dn, n, e); /* add path */
                 r = stat(tn, &sr); /* get stat structure on file */
                 if (r < 0) unixerr(); /* process unix error */
                 /* file information in stat record, translate to our format */
@@ -481,50 +481,50 @@ void services_list(
                 fp->alloc = sr.st_size;   /* place allocation */
                 fp->attr = 0;   /* clear attributes */
                 /* clear permissions to all is allowed */
-                fp->user = BIT(services_pmread) | BIT(services_pmwrite) | BIT(services_pmexec) | BIT(services_pmdel) |
-                           BIT(services_pmvis) | BIT(services_pmcopy) | BIT(services_pmren);
-                fp->other = BIT(services_pmread) | BIT(services_pmwrite) | BIT(services_pmexec) | BIT(services_pmdel) |
-                            BIT(services_pmvis) | BIT(services_pmcopy) | BIT(services_pmren);
-                fp->group = BIT(services_pmread) | BIT(services_pmwrite) | BIT(services_pmexec) | BIT(services_pmdel) |
-                            BIT(services_pmvis) | BIT(services_pmcopy) | BIT(services_pmren);
+                fp->user = BIT(pa_pmread) | BIT(pa_pmwrite) | BIT(pa_pmexec) | BIT(pa_pmdel) |
+                           BIT(pa_pmvis) | BIT(pa_pmcopy) | BIT(pa_pmren);
+                fp->other = BIT(pa_pmread) | BIT(pa_pmwrite) | BIT(pa_pmexec) | BIT(pa_pmdel) |
+                            BIT(pa_pmvis) | BIT(pa_pmcopy) | BIT(pa_pmren);
+                fp->group = BIT(pa_pmread) | BIT(pa_pmwrite) | BIT(pa_pmexec) | BIT(pa_pmdel) |
+                            BIT(pa_pmvis) | BIT(pa_pmcopy) | BIT(pa_pmren);
                 /* check and set directory attribute */
-                if (sr.st_mode & S_IFDIR) fp->attr |= BIT(services_atdir);
+                if (sr.st_mode & S_IFDIR) fp->attr |= BIT(pa_atdir);
                 /* check and set any system special file */
-                if (sr.st_mode & S_IFIFO) fp->attr |= BIT(services_atsys);
-                if (sr.st_mode & S_IFCHR) fp->attr |= BIT(services_atsys);
-                if (sr.st_mode & S_IFBLK) fp->attr |= BIT(services_atsys);
+                if (sr.st_mode & S_IFIFO) fp->attr |= BIT(pa_atsys);
+                if (sr.st_mode & S_IFCHR) fp->attr |= BIT(pa_atsys);
+                if (sr.st_mode & S_IFBLK) fp->attr |= BIT(pa_atsys);
                 /* check hidden. in Unix, this is done with a leading '.'. We remove
                    visiblity priveledges */
                 if (dr->d_name[0] == '.') {
 
-                    fp->user &= ~BIT(services_pmvis);
-                    fp->group &= ~BIT(services_pmvis);
-                    fp->other &= ~BIT(services_pmvis);
+                    fp->user &= ~BIT(pa_pmvis);
+                    fp->group &= ~BIT(pa_pmvis);
+                    fp->other &= ~BIT(pa_pmvis);
 
                 }
                 /* check and set executable attribute. Unix has separate executable
                    permissions for each permission type, we set executable if any of
                    them are true */
-                if (sr.st_mode & S_IXUSR) fp->attr |= BIT(services_atexec);
+                if (sr.st_mode & S_IXUSR) fp->attr |= BIT(pa_atexec);
                 /* set execute permissions to user */
-                if (!(sr.st_mode & S_IXUSR)) fp->user &= ~BIT(services_pmexec);
+                if (!(sr.st_mode & S_IXUSR)) fp->user &= ~BIT(pa_pmexec);
                 /* set read permissions to user */
-                if (!(sr.st_mode & S_IRUSR)) fp->user &= ~BIT(services_pmread);
+                if (!(sr.st_mode & S_IRUSR)) fp->user &= ~BIT(pa_pmread);
                 /* set write permissions to user */
-                if (!(sr.st_mode & S_IWUSR)) fp->user &= ~BIT(services_pmwrite);
+                if (!(sr.st_mode & S_IWUSR)) fp->user &= ~BIT(pa_pmwrite);
                 /* set execute permissions to group */
-                if (!(sr.st_mode & S_IXGRP)) fp->group &= ~BIT(services_pmexec);
+                if (!(sr.st_mode & S_IXGRP)) fp->group &= ~BIT(pa_pmexec);
                 /* set read permissions to group */
-                if (!(sr.st_mode & S_IRGRP)) fp->group &= ~BIT(services_pmread);
+                if (!(sr.st_mode & S_IRGRP)) fp->group &= ~BIT(pa_pmread);
                 /* set write permissions to group */
-                if (!(sr.st_mode & S_IWGRP)) fp->group &= ~BIT(services_pmwrite);
+                if (!(sr.st_mode & S_IWGRP)) fp->group &= ~BIT(pa_pmwrite);
                 /* set execute permissions to other */
-                if (!(sr.st_mode & S_IXOTH)) fp->other &= ~BIT(services_pmexec);
+                if (!(sr.st_mode & S_IXOTH)) fp->other &= ~BIT(pa_pmexec);
                 /* set read permissions to other */
-                if (!(sr.st_mode & S_IROTH)) fp->other &= ~BIT(services_pmread);
+                if (!(sr.st_mode & S_IROTH)) fp->other &= ~BIT(pa_pmread);
                 /* set write permissions to other */
-                if (!(sr.st_mode & S_IWOTH)) fp->other &= ~BIT(services_pmwrite);
-                /* set services_times */
+                if (!(sr.st_mode & S_IWOTH)) fp->other &= ~BIT(pa_pmwrite);
+                /* set pa_times */
                 fp->create = sr.st_ctime-UNIXADJ;
                 fp->modify = sr.st_mtime-UNIXADJ;
                 fp->access = sr.st_atime-UNIXADJ;
@@ -553,7 +553,7 @@ Converts the given time into a string.
 
 ********************************************************************************/
 
-void services_times(
+void pa_times(
     /** result string */           char *s,
     /** result string length */    int sl,
     /** time to convert */         int t
@@ -567,7 +567,7 @@ void services_times(
     int  am;  /* am flag */
     int  pm;  /* pm flag */
 
-    if (sl < 11-(!services_time24hour()*3)) /* string to small to hold result */
+    if (sl < 11-(!pa_time24hour()*3)) /* string to small to hold result */
         error("String buffer to small to hold time");
     /* because leap adjustments are made in terms of days, we just remove
        the days to find the time of day in seconds. this is completely
@@ -581,32 +581,32 @@ void services_times(
     sec = t % 60;   /* find seconds */
     pm = 0; /* clear am and pm flags */
     am = 0;
-    if (!services_time24hour()) { /* do am/pm adjustment */
+    if (!pa_time24hour()) { /* do am/pm adjustment */
 
         if (h == 0) h = 12; /* hour zero */
         else if (h > 12) { h -= 12; pm = 1; } /* 1 pm to 11 pm */
 
     }
     /* place hour:miniute:second */
-    switch (services_timeorder()) {
+    switch (pa_timeorder()) {
 
         case 1:
-            s += sprintf(s, "%02d%c%02d%c%02d", h, services_timesep(), m, services_timesep(), sec);
+            s += sprintf(s, "%02d%c%02d%c%02d", h, pa_timesep(), m, pa_timesep(), sec);
             break;
         case 2:
-            s += sprintf(s, "%02d%c%02d%c%02d", h, services_timesep(), sec, services_timesep(), m);
+            s += sprintf(s, "%02d%c%02d%c%02d", h, pa_timesep(), sec, pa_timesep(), m);
             break;
         case 3:
-            s += sprintf(s, "%02d%c%02d%c%02d", m, services_timesep(), h, services_timesep(), sec);
+            s += sprintf(s, "%02d%c%02d%c%02d", m, pa_timesep(), h, pa_timesep(), sec);
             break;
         case 4:
-            s += sprintf(s, "%02d%c%02d%c%02d", m, services_timesep(), sec, services_timesep(), h);
+            s += sprintf(s, "%02d%c%02d%c%02d", m, pa_timesep(), sec, pa_timesep(), h);
             break;
         case 5:
-            s += sprintf(s, "%02d%c%02d%c%02d", sec, services_timesep(), h, services_timesep(), m);
+            s += sprintf(s, "%02d%c%02d%c%02d", sec, pa_timesep(), h, pa_timesep(), m);
             break;
         case 6:
-            s += sprintf(s, "%02d%c%02d%c%02d", sec, services_timesep(), m, services_timesep(), h);
+            s += sprintf(s, "%02d%c%02d%c%02d", sec, pa_timesep(), m, pa_timesep(), h);
             break;
 
     }
@@ -629,7 +629,7 @@ Converts the given date into a string.
  */
 #define LEAPYEAR(y) ((y & 3) == 0 && y % 100 != 0 || y % 400 == 0)
 
-void services_dates(
+void pa_dates(
     /** string to place date into */   char *s,
     /** string to place date length */ int sl,
     /** time record to write from */   int t
@@ -695,25 +695,25 @@ void services_dates(
 
     }
     /* place year/month/day */
-    switch (services_dateorder()) { /* place according to current location format */
+    switch (pa_dateorder()) { /* place according to current location format */
 
         case 1:
-            s += sprintf(s, "%04d%c%02d%c%02d", y, services_datesep(), m, services_datesep(), d);
+            s += sprintf(s, "%04d%c%02d%c%02d", y, pa_datesep(), m, pa_datesep(), d);
             break;
         case 2:
-            s += sprintf(s, "%04d%c%02d%c%02d", y, services_datesep(), d, services_datesep(), m);
+            s += sprintf(s, "%04d%c%02d%c%02d", y, pa_datesep(), d, pa_datesep(), m);
             break;
         case 3:
-            s += sprintf(s, "%02d%c%02d%c%04d", m, services_datesep(), d, services_datesep(), y);
+            s += sprintf(s, "%02d%c%02d%c%04d", m, pa_datesep(), d, pa_datesep(), y);
             break;
         case 4:
-            s += sprintf(s, "%02d%c%04d%c%02d", m, services_datesep(), y, services_datesep(), d);
+            s += sprintf(s, "%02d%c%04d%c%02d", m, pa_datesep(), y, pa_datesep(), d);
             break;
         case 5:
-            s += sprintf(s, "%02d%c%02d%c%04d", d, services_datesep(), m, services_datesep(), y);
+            s += sprintf(s, "%02d%c%02d%c%04d", d, pa_datesep(), m, pa_datesep(), y);
             break;
         case 6:
-            s += sprintf(s, "%02d%c%04d%c%02d", d, services_datesep(), y, services_datesep(), m);
+            s += sprintf(s, "%02d%c%04d%c%02d", d, pa_datesep(), y, pa_datesep(), m);
             break;
 
     }
@@ -729,7 +729,7 @@ Writes the time to a given file, from a time record.
 
 ********************************************************************************/
 
-void services_writetime(
+void pa_writetime(
         /** file to write to */ FILE *f,
         /** time record to write from */ int t
 )
@@ -738,7 +738,7 @@ void services_writetime(
 
     bufstr s;
 
-    services_times(s, MAXSTR, t);   /* convert time to string form */
+    pa_times(s, MAXSTR, t);   /* convert time to string form */
     fputs(s, f);   /* output */
 
 }
@@ -753,7 +753,7 @@ used by windows.
 
 ********************************************************************************/
 
-void services_writedate(
+void pa_writedate(
         /* file to write to */ FILE *f,
         /* time record to write from */ int t
 )
@@ -762,7 +762,7 @@ void services_writedate(
 
     char s[MAXSTR];
 
-    services_dates(s, MAXSTR, t);   /* convert date to string form */
+    pa_dates(s, MAXSTR, t);   /* convert date to string form */
     fputs(s, f);   /* output */
 
 }
@@ -775,7 +775,7 @@ Finds the current time as an S2000 integer.
 
 ********************************************************************************/
 
-long services_time(void)
+long pa_time(void)
 
 {
 
@@ -799,10 +799,10 @@ timezones.
 
 ********************************************************************************/
 
-long services_local(long t)
+long pa_local(long t)
 {
 
-    return t+services_timezone()+services_daysave()*HOURSEC;
+    return t+pa_timezone()+pa_daysave()*HOURSEC;
 
 }
 
@@ -827,7 +827,7 @@ has more than enough precision to count from 0 AD to present.
 
 ********************************************************************************/
 
-long services_clock(void)
+long pa_clock(void)
 
 {
 
@@ -846,15 +846,15 @@ long services_clock(void)
 
 /********************************************************************************
 
-Find services_elapsed time
+Find pa_elapsed time
 
-Finds the time services_elapsed since a reference time. The reference time should be
-obtained from "clock". Rollover is properly handled, but the maximum services_elapsed
+Finds the time pa_elapsed since a reference time. The reference time should be
+obtained from "clock". Rollover is properly handled, but the maximum pa_elapsed
 time that can be measured is 24 hours.
 
 ********************************************************************************/
 
-long services_elapsed(long r)
+long pa_elapsed(long r)
 {
 
     /* reference time */
@@ -880,7 +880,7 @@ is null or all blanks
 
 ********************************************************************************/
 
-int services_validfilel(
+int pa_validfilel(
     /** string to validate */ char *s,
     /** length of filename string */ int l
 )
@@ -890,11 +890,11 @@ int services_validfilel(
     char buff[MAXSTR];
 
     cpstrl2z(buff, MAXSTR, s, l);
-    return (services_validfile(buff));
+    return (pa_validfile(buff));
 
 }
 
-int services_validfile(
+int pa_validfile(
     /* string to validate */ char *s
 )
 
@@ -921,7 +921,7 @@ filename that is null or all blanks
 
 ********************************************************************************/
 
-int services_validpathl(
+int pa_validpathl(
     /** string to validate */ char *s,
     /** length of filename string */ int l
 )
@@ -931,11 +931,11 @@ int services_validpathl(
     char buff[MAXSTR];
 
     cpstrl2z(buff, MAXSTR, s, l);
-    return (services_validpath(buff));
+    return (pa_validpath(buff));
 
 }
 
-int services_validpath(
+int pa_validpath(
     /* string to validate */ char *s
 )
 
@@ -961,7 +961,7 @@ on that directory.
 
 ********************************************************************************/
 
-int services_wildl(
+int pa_wildl(
     /** filename */ char *s,
     /** length of filename string */ int l
 )
@@ -971,11 +971,11 @@ int services_wildl(
     char buff[MAXSTR];
 
     cpstrl2z(buff, MAXSTR, s, l);
-    return (services_wild(buff));
+    return (pa_wild(buff));
 
 }
 
-int services_wild(
+int pa_wild(
     /* filename */ char *s
 )
 
@@ -991,7 +991,7 @@ int services_wild(
 
         /* search and flag wildcard characters */
         for (i = 0; i < ln; i++) { if (s[i] == '*' || s[i] == '?') r = 1; }
-        if (s[ln-1] == services_pthchr()) r = 1; /* last was '/', it's wild */
+        if (s[ln-1] == pa_pthchr()) r = 1; /* last was '/', it's wild */
 
     }
 
@@ -1012,12 +1012,12 @@ Expects the environment lock to be on.
 
 static void fndenv(
     /* string name */                      char*       esn,
-    /* returns environment string entry */ services_envptr*  ep
+    /* returns environment string entry */ pa_envptr*  ep
 )
 
 {
 
-    services_envptr p; /* pointer to environment entry */
+    pa_envptr p; /* pointer to environment entry */
 
     p = envlst; /* index top of environment list */
     *ep = NULL; /* set no string found */
@@ -1038,7 +1038,7 @@ Returns an environment string by name.
 
 *******************************************************************************/
 
-void services_getenvl(
+void pa_getenvl(
     /** string name */        char* esn,
     /** name length  */       int esnl,
     /** string data */        char* esd,
@@ -1050,18 +1050,18 @@ void services_getenvl(
     char buff[MAXSTR];
 
     cpstrl2z(buff, MAXSTR, esn, esnl);
-    services_getenv(buff, esd, esdl);
+    pa_getenv(buff, esd, esdl);
 
 }
 
-void services_getenv(
+void pa_getenv(
     /** string name */        char* esn,
     /** string data */        char* esd,
     /** string data length */ int esdl
 )
 {
 
-    services_envrec *p;
+    pa_envrec *p;
 
     pthread_mutex_lock(&envlck); /* lock environment list */
     *esd = 0;
@@ -1089,7 +1089,7 @@ Sets an environment string by name.
 
 ********************************************************************************/
 
-void services_setenvl(
+void pa_setenvl(
     /** name of string */      char *sn,
     /** length of name */      int snl,
     /** value of string */     char *sd,
@@ -1103,18 +1103,18 @@ void services_setenvl(
 
     cpstrl2z(buff1, MAXSTR, sn, snl);
     cpstrl2z(buff2, MAXSTR, sd, sdl);
-    services_setenv(buff1, buff2);
+    pa_setenv(buff1, buff2);
 
 }
 
-void services_setenv(
+void pa_setenv(
     /** name of string */ char *sn,
     /** value of string */char *sd
 )
 
 {
 
-    services_envrec *p;   /* pointer to environment entry */
+    pa_envrec *p;   /* pointer to environment entry */
 
     pthread_mutex_lock(&envlck); /* lock environment list */
     fndenv(sn, &p); /* find environment string */
@@ -1133,7 +1133,7 @@ void services_setenv(
 
     } else {
 
-        p = malloc(sizeof(services_envrec)); /* get a new environment entry */
+        p = malloc(sizeof(pa_envrec)); /* get a new environment entry */
         if (!p) {
 
             pthread_mutex_unlock(&envlck); /* unlock environment list */
@@ -1174,7 +1174,7 @@ Removes an environment string by name.
 
 ********************************************************************************/
 
-void services_remenvl(
+void pa_remenvl(
     /** name of string */ char *sn,
     /** length of name string */ int snl  
 )
@@ -1184,18 +1184,18 @@ void services_remenvl(
     char buff[MAXSTR];
 
     cpstrl2z(buff, MAXSTR, sn, snl);
-    services_remenv(buff);
+    pa_remenv(buff);
 
 }
 
 
-void services_remenv(
+void pa_remenv(
         /* name of string */ char *sn
 )
 
 {
 
-    services_envrec *p, *l; /* pointer to environment entry */
+    pa_envrec *p, *l; /* pointer to environment entry */
 
     pthread_mutex_lock(&envlck); /* lock environment list */
     fndenv(sn, &p);   /* find environment string */
@@ -1235,13 +1235,13 @@ a copy.
 
 ********************************************************************************/
 
-void services_allenv(
-    /* environment table */ services_envrec **el
+void pa_allenv(
+    /* environment table */ pa_envrec **el
 )
 
 {
 
-    services_envrec *p, *lp, *tp; /* environment pointers */
+    pa_envrec *p, *lp, *tp; /* environment pointers */
 
     pthread_mutex_lock(&envlck); /* lock environment list */
     /* copy current environment list */
@@ -1249,7 +1249,7 @@ void services_allenv(
     tp = NULL; /* clear destination */
     while (lp != NULL) {  /* copy entries */
 
-        p = malloc(sizeof(services_envrec)); /* create a new entry */
+        p = malloc(sizeof(pa_envrec)); /* create a new entry */
         p->next = tp;   /* push onto list */
         tp = p;
         p->name = (char *) malloc(strlen(lp->name)+1);
@@ -1317,7 +1317,7 @@ Expects the environment lock to be active. Drops it on error.
 ********************************************************************************/
 
 void cpyenv(
-    /* services environment list */ services_envptr env,
+    /* services environment list */ pa_envptr env,
     /* Linux environment array */   char *envp[],
     /* Linux environment array length */ int envpl
 )
@@ -1371,14 +1371,14 @@ void cmdpth(
 
     strcpy(ncn, cn); /* copy command to temp */
     /* perform pathing search */
-    services_brknam(cn, p, MAXSTR, n, MAXSTR, e, MAXSTR); /* break down the name */
+    pa_brknam(cn, p, MAXSTR, n, MAXSTR, e, MAXSTR); /* break down the name */
     if (*p == 0 && *pthstr != 0) { /* no path on name and environment path exists */
 
         strcpy(pc, pthstr);   /* make a copy of the path */
         trim(pc);   /* make sure left aligned */
         while (*pc != 0) {  /* match path components */
 
-            cp = strchr(pc, ':' /*services_pthchr()*/); /* find next path separator */
+            cp = strchr(pc, ':' /*pa_pthchr()*/); /* find next path separator */
             if (!cp) {  /* none left, use entire remaining */
 
                 strcpy(p, pc); /* none left, use entire remaining */
@@ -1391,7 +1391,7 @@ void cmdpth(
                 trim(pc); /* make sure left aligned */
 
             }
-            services_maknam(ncn, MAXSTR, p, n, e);   /* create filename */
+            pa_maknam(ncn, MAXSTR, p, n, e);   /* create filename */
             if (exists(ncn)) *pc = 0;  /* found, indicate stop */
 
         }
@@ -1415,7 +1415,7 @@ Executes a program by name. Does not wait for the program to complete.
 
 ********************************************************************************/
 
-void services_execl(
+void pa_execl(
     /** program name to execute */ char *cmd,
     /** length of name string */ int cmdl
 )
@@ -1425,11 +1425,11 @@ void services_execl(
     char buff[MAXSTR];
 
     cpstrl2z(buff, MAXSTR, cmd, cmdl);
-    services_exec(buff);
+    pa_exec(buff);
 
 }
 
-void services_exec(
+void pa_exec(
     /* program name to execute */ char *cmd
 )
 
@@ -1449,7 +1449,7 @@ void services_exec(
     fflush(NULL); /* sync any pending I/O */
     /* on fork, the child is going to see a zero return, and the parent will
        get the process id. Although this seems dangerous, forked processes
-       are truly independent, and so don't care what services_language is running */
+       are truly independent, and so don't care what pa_language is running */
     pid = fork(); /* start subprocess */
     if (pid == 0) { /* we are the child */
 
@@ -1477,7 +1477,7 @@ Executes a program by name. Waits for the program to complete.
 
 ********************************************************************************/
 
-void services_execwl(
+void pa_execwl(
     /** program name to execute */ char *cmd,
     /** length of name string */ int cmdl,
     /** return error */ int *err
@@ -1488,11 +1488,11 @@ void services_execwl(
     char buff[MAXSTR];
 
     cpstrl2z(buff, MAXSTR, cmd, cmdl);
-    services_execw(buff, err);
+    pa_execw(buff, err);
 
 }
 
-void services_execw(
+void pa_execw(
     /** program name to execute */ char *cmd,
     /** return error */ int *err
 )
@@ -1513,7 +1513,7 @@ void services_execw(
     fflush(NULL); /* sync any pending I/O */
     /* on fork, the child is going to see a zero return, and the parent will
        get the process id. Although this seems dangerous, forked processes
-       are truly independent, and so don't care what services_language is running */
+       are truly independent, and so don't care what pa_language is running */
     pid = fork(); /* start subprocess */
     if (pid == 0) { /* we are the child */
 
@@ -1547,10 +1547,10 @@ the program environment.
 
 ********************************************************************************/
 
-void services_execel(
+void pa_execel(
     /** program name to execute */ char *cmd,
     /** length of name string */   int cmdl,
-    /** environment */             services_envrec *el
+    /** environment */             pa_envrec *el
 )
 
 {
@@ -1558,13 +1558,13 @@ void services_execel(
     char buff[MAXSTR];
 
     cpstrl2z(buff, MAXSTR, cmd, cmdl);
-    services_exece(buff, el);
+    pa_exece(buff, el);
 
 }
 
-void services_exece(
+void pa_exece(
     /** program name to execute */ char      *cmd,
-    /** environment */             services_envrec *el
+    /** environment */             pa_envrec *el
 )
 
 {
@@ -1583,7 +1583,7 @@ void services_exece(
     fflush(NULL); /* sync any pending I/O */
     /* on fork, the child is going to see a zero return, and the parent will
        get the process id. Although this seems dangerous, forked processes
-       are truly independent, and so don't care what services_language is running */
+       are truly independent, and so don't care what pa_language is running */
     pid = fork(); /* start subprocess */
     if (pid == 0) { /* we are the child */
 
@@ -1611,10 +1611,10 @@ program environment.
 
 ********************************************************************************/
 
-void services_execewl(
+void pa_execewl(
     /** program name to execute */ char *cmd,
     /** length of name string */   int cmdl,
-    /** environment */             services_envrec *el,
+    /** environment */             pa_envrec *el,
     /** return error */            int *err
 )
 
@@ -1623,13 +1623,13 @@ void services_execewl(
     char buff[MAXSTR];
 
     cpstrl2z(buff, MAXSTR, cmd, cmdl);
-    services_execew(buff, el, err);
+    pa_execew(buff, el, err);
 
 }
 
-void services_execew(
+void pa_execew(
         /** program name to execute */ char *cmd,
-        /** environment */             services_envrec *el,
+        /** environment */             pa_envrec *el,
         /** return error */            int *err
 )
 
@@ -1649,7 +1649,7 @@ void services_execew(
     fflush(NULL); /* sync any pending I/O */
     /* on fork, the child is going to see a zero return, and the parent will
        get the process id. Although this seems dangerous, forked processes
-       are truly independent, and so don't care what services_language is running */
+       are truly independent, and so don't care what pa_language is running */
     pid = fork(); /* start subprocess */
     if (pid == 0) { /* we are the child */
 
@@ -1679,7 +1679,7 @@ Returns the current path in the given padded string.
 
 ********************************************************************************/
 
-void services_getcur(
+void pa_getcur(
         /** buffer to get path */ char *fn,
         /** length of buffer */   int l
 )
@@ -1699,7 +1699,7 @@ Sets the current path from the given string.
 
 ********************************************************************************/
 
-void services_setcurl(
+void pa_setcurl(
     /** path to set */ char *fn,
     /** length of path string */ int fnl
 
@@ -1710,11 +1710,11 @@ void services_setcurl(
     char buff[MAXSTR];
 
     cpstrl2z(buff, MAXSTR, fn, fnl);
-    services_setcur(buff);
+    pa_setcur(buff);
 
 }
 
-void services_setcur(
+void pa_setcur(
     /** path to set */ char *fn
 )
 
@@ -1744,13 +1744,13 @@ as a path, including any embedded spaces or "." characters.
 
 Unix allows any number of "." characters, so we consider the extension to be
 only the last such section, which could be null. Unix does not technically
-consider "." to be a special character, but if the services_brknam and services_maknam procedures
+consider "." to be a special character, but if the pa_brknam and pa_maknam procedures
 are properly paired, it will effectively be treated the same as if the "."
 were a normal character.
 
 ********************************************************************************/
 
-void services_brknaml(
+void pa_brknaml(
     /** file specification */ char *fn,
     /** file name length */   int fnl,
     /** path */               char *p, int pl,
@@ -1763,11 +1763,11 @@ void services_brknaml(
     char buff[MAXSTR];
 
     cpstrl2z(buff, MAXSTR, fn, fnl);
-    services_brknam(buff, p, pl, n, nl, e, el);
+    pa_brknam(buff, p, pl, n, nl, e, el);
 
 }
 
-void services_brknam(
+void pa_brknam(
     /** file specification */ char *fn,
     /** path */               char *p, int pl,
     /** name */               char *n, int nl,
@@ -1788,7 +1788,7 @@ void services_brknam(
     /* skip spaces */
     while (*s1 && *s1 == ' ') s1++;
     /* find last '/' that will mark the path */
-    s2 = strrchr(s1, services_pthchr());
+    s2 = strrchr(s1, pa_pthchr());
     if (s2) {
 
         /* there was a path, store that */
@@ -1852,7 +1852,7 @@ concatenating.
 
 ********************************************************************************/
 
-void services_maknaml(
+void pa_maknaml(
     /** file specification to build */ char *fn,
     /** file specification length */   int fnl,
     /** path */                        char *p,
@@ -1872,11 +1872,11 @@ void services_maknaml(
     cpstrl2z(buff1, MAXSTR, p, pl);
     cpstrl2z(buff2, MAXSTR, n, nl);
     cpstrl2z(buff3, MAXSTR, e, el);
-    services_maknam(fn, fnl, buff1, buff2, buff3);
+    pa_maknam(fn, fnl, buff1, buff2, buff3);
 
 }
 
-void services_maknam(
+void pa_maknam(
     /** file specification to build */ char *fn,
     /** file specification length */   int fnl,
     /** path */                        char *p,
@@ -1895,10 +1895,10 @@ void services_maknam(
     /* check path properly terminated */
     i = strlen(p);   /* find length */
     if (*p) /* not null */
-        if (p[i-1] != services_pthchr()) {
+        if (p[i-1] != pa_pthchr()) {
 
         if (strlen(fn)+1 > fnl) error("String too large for desination");
-        s[0] = services_pthchr();
+        s[0] = pa_pthchr();
         s[1] = 0;
         strcat(fn, s); /* add path separator */
 
@@ -1927,7 +1927,7 @@ No validity check is done. Garbage in, garbage out.
 
 ********************************************************************************/
 
-void services_fulnam(
+void pa_fulnam(
     /** filename */        char *fn,
     /** filename length */ int fnl
 )
@@ -1936,15 +1936,15 @@ void services_fulnam(
     /* file specification */
     bufstr p, n, e, ps;   /* filespec components */
 
-    services_brknam(fn, p, MAXSTR, n, MAXSTR, e, MAXSTR);   /* break spec down */
+    pa_brknam(fn, p, MAXSTR, n, MAXSTR, e, MAXSTR);   /* break spec down */
     /* if the path is blank, then default to current */
     if (!*p) strcpy(p, ".");
-    services_getcur(ps, MAXSTR);   /* save current path */
-    services_setcur(p);   /* set candidate path */
-    services_getcur(p, MAXSTR);   /* get washed path */
-    services_setcur(ps);   /* reset old path */
+    pa_getcur(ps, MAXSTR);   /* save current path */
+    pa_setcur(p);   /* set candidate path */
+    pa_getcur(p, MAXSTR);   /* get washed path */
+    pa_setcur(ps);   /* reset old path */
     /* reassemble */
-    services_maknam(fn, fnl, p, n, e);
+    pa_maknam(fn, fnl, p, n, e);
 
 }
 
@@ -1962,7 +1962,7 @@ Note: this does not work for standard CLIB programs. We need another solution.
 
 ********************************************************************************/
 
-void services_getpgm(
+void pa_getpgm(
     /** program path */        char* p,
     /** program path length */ int   pl
 )
@@ -1982,8 +1982,8 @@ void services_getpgm(
     _NSGetExecutablePath(pn, &bl);
 #endif
     cmdpth(pn, pcn, MAXSTR); /* get fully pathed command*/
-    services_fulnam(pcn, MAXSTR);   /* clean that */
-    services_brknam(pcn, p, pl, n, MAXSTR, e, MAXSTR); /* extract path from that */
+    pa_fulnam(pcn, MAXSTR);   /* clean that */
+    pa_brknam(pcn, p, pl, n, MAXSTR, e, MAXSTR); /* extract path from that */
 
 }
 
@@ -2010,7 +2010,7 @@ directory.
 
 ********************************************************************************/
 
-void services_getusr(
+void pa_getusr(
     /** pathname */        char *fn,
     /** pathname length */ int fnl
 )
@@ -2026,7 +2026,7 @@ void services_getusr(
     /* find applicable environment names, in order */
     for (i = 0, f = -1; envnam[i] && f == -1; i++) {
 
-        services_getenv(envnam[i], b, MAXSTR);
+        pa_getenv(envnam[i], b, MAXSTR);
         if (*b && f < 0) f = i;
 
     }
@@ -2045,7 +2045,7 @@ void services_getusr(
     } else {
 
         /* all fails, set to program path */
-        services_getpgm(b, MAXSTR);
+        pa_getpgm(b, MAXSTR);
 
     }
     strcpy(fn, b); /* place result */
@@ -2057,14 +2057,14 @@ void services_getusr(
 Set attributes on file
 
 Sets any of several attributes on a file. Set directory attribute is not
-possible. This is done with services_makpth.
+possible. This is done with pa_makpth.
 
 ********************************************************************************/
 
-void services_setatrl(
+void pa_setatrl(
     /** filename */ char *fn, 
     /** filename length */ int fnl,
-    /** attributes */ services_attrset a
+    /** attributes */ pa_attrset a
 )
 
 {
@@ -2072,11 +2072,11 @@ void services_setatrl(
     char buff[MAXSTR];
 
     cpstrl2z(buff, MAXSTR, fn, fnl);
-    services_setatr(buff, a);
+    pa_setatr(buff, a);
 
 }
 
-void services_setatr(char *fn, services_attrset a)
+void pa_setatr(char *fn, pa_attrset a)
 {
 
     /* no unix attributes can be set */
@@ -2092,10 +2092,10 @@ possible.
 
 ********************************************************************************/
 
-void services_resatrl(
+void pa_resatrl(
     /** filename */ char *fn, 
     /** filename length */ int fnl,
-    /** attributes */ services_attrset a
+    /** attributes */ pa_attrset a
 )
 
 {
@@ -2103,13 +2103,13 @@ void services_resatrl(
     char buff[MAXSTR];
 
     cpstrl2z(buff, MAXSTR, fn, fnl);
-    services_resatr(buff, a);
+    pa_resatr(buff, a);
 
 }
 
-void services_resatr(
+void pa_resatr(
     /** filename */ char *fn, 
-    /** attributes */ services_attrset a
+    /** attributes */ pa_attrset a
 )
 
 {
@@ -2127,7 +2127,7 @@ which effectively means "back this file up now".
 
 ********************************************************************************/
 
-void services_bakupdl(
+void pa_bakupdl(
     /** filename */ char *fn,
     /** filename length */ int fnl
 )
@@ -2137,17 +2137,17 @@ void services_bakupdl(
     char buff[MAXSTR];
 
     cpstrl2z(buff, MAXSTR, fn, fnl);
-    services_bakupd(buff);
+    pa_bakupd(buff);
 
 }
 
-void services_bakupd(
+void pa_bakupd(
     /** filename */ char *fn
 )
 
 {
 
-    services_setatr(fn, BIT(services_atarc));
+    pa_setatr(fn, BIT(pa_atarc));
 
 }
 
@@ -2159,10 +2159,10 @@ Sets user permisions
 
 ********************************************************************************/
 
-void services_setuperl(
+void pa_setuperl(
     /** filename */ char *fn, 
     /** filename length */ int fnl,
-    /** permissions */ services_permset p
+    /** permissions */ pa_permset p
 )
 
 {
@@ -2170,13 +2170,13 @@ void services_setuperl(
     char buff[MAXSTR];
 
     cpstrl2z(buff, MAXSTR, fn, fnl);
-    services_setuper(buff, p);
+    pa_setuper(buff, p);
 
 }
 
-void services_setuper(
+void pa_setuper(
     /** filename */ char *fn, 
-    /** permissions */ services_permset p
+    /** permissions */ pa_permset p
 )
 
 {
@@ -2188,9 +2188,9 @@ void services_setuper(
     if (r < 0)   /* process unix error */
     unixerr();
     sr.st_mode &= 0777; /* mask permissions */
-    if (BIT(services_pmread) & p) sr.st_mode |= S_IRUSR; /* set read */
-    if (BIT(services_pmwrite) & p) sr.st_mode |= S_IWUSR; /* set write */
-    if (BIT(services_pmexec) & p) sr.st_mode |= S_IXUSR; /* set execute */
+    if (BIT(pa_pmread) & p) sr.st_mode |= S_IRUSR; /* set read */
+    if (BIT(pa_pmwrite) & p) sr.st_mode |= S_IWUSR; /* set write */
+    if (BIT(pa_pmexec) & p) sr.st_mode |= S_IXUSR; /* set execute */
     r = chmod(fn, sr.st_mode); /* set mode */
     if (r < 0) unixerr();  /* process unix error */
 
@@ -2205,10 +2205,10 @@ Resets user permissions.
 
 ********************************************************************************/
 
-void services_resuperl(
+void pa_resuperl(
     /** filename */ char *fn, 
     /** filename length */ int fnl,
-    /** permissions */ services_permset p
+    /** permissions */ pa_permset p
 )
 
 {
@@ -2216,13 +2216,13 @@ void services_resuperl(
     char buff[MAXSTR];
 
     cpstrl2z(buff, MAXSTR, fn, fnl);
-    services_resuper(buff, p);
+    pa_resuper(buff, p);
 
 }
 
-void services_resuper(
+void pa_resuper(
     /** filename */ char *fn, 
-    /** permissions */ services_permset p
+    /** permissions */ pa_permset p
 )
 
 {
@@ -2233,9 +2233,9 @@ void services_resuper(
     r = stat(fn, &sr);   /* get stat structure on file */
     if (r < 0) unixerr();  /* process unix error */
     sr.st_mode &= 0777;   /* mask permissions */
-    if (BIT(services_pmread) & p) sr.st_mode &= ~S_IRUSR; /* set read */
-    if (BIT(services_pmwrite) & p) sr.st_mode &= ~S_IWUSR; /* set write */
-    if (BIT(services_pmexec) & p) sr.st_mode &= ~S_IXUSR; /* set execute */
+    if (BIT(pa_pmread) & p) sr.st_mode &= ~S_IRUSR; /* set read */
+    if (BIT(pa_pmwrite) & p) sr.st_mode &= ~S_IWUSR; /* set write */
+    if (BIT(pa_pmexec) & p) sr.st_mode &= ~S_IXUSR; /* set execute */
     r = chmod(fn, sr.st_mode);   /* set mode */
     if (r < 0) unixerr();  /* process unix error */
 
@@ -2250,10 +2250,10 @@ Sets group permissions.
 
 ********************************************************************************/
 
-void services_setgperl(
+void pa_setgperl(
     /** filename */ char *fn, 
     /** filename length */ int fnl,
-    /** permissions */ services_permset p
+    /** permissions */ pa_permset p
 )
 
 {
@@ -2261,13 +2261,13 @@ void services_setgperl(
     char buff[MAXSTR];
 
     cpstrl2z(buff, MAXSTR, fn, fnl);
-    services_setgper(buff, p);
+    pa_setgper(buff, p);
 
 }
 
-void services_setgper(
+void pa_setgper(
     /** filename */ char *fn, 
-    /** permissions */ services_permset p
+    /** permissions */ pa_permset p
 )
 
 {
@@ -2278,9 +2278,9 @@ void services_setgper(
     r = stat(fn, &sr); /* get stat structure on file */
     if (r < 0) unixerr(); /* process unix error */
     sr.st_mode &= 0777;   /* mask permissions */
-    if (BIT(services_pmread) & p) sr.st_mode |= S_IRGRP;  /* set read */
-    if (BIT(services_pmwrite) & p) sr.st_mode |= S_IWGRP;  /* set write */
-    if (BIT(services_pmexec) & p) sr.st_mode |= S_IXGRP;  /* set execute */
+    if (BIT(pa_pmread) & p) sr.st_mode |= S_IRGRP;  /* set read */
+    if (BIT(pa_pmwrite) & p) sr.st_mode |= S_IWGRP;  /* set write */
+    if (BIT(pa_pmexec) & p) sr.st_mode |= S_IXGRP;  /* set execute */
     r = chmod(fn, sr.st_mode);   /* set mode */
     if (r < 0) unixerr();  /* process unix error */
 
@@ -2295,10 +2295,10 @@ Resets group permissions.
 
 ********************************************************************************/
 
-void services_resgperl(
+void pa_resgperl(
     /** filename */ char *fn, 
     /** filename length */ int fnl,
-    /** permissions */ services_permset p
+    /** permissions */ pa_permset p
 )
 
 {
@@ -2306,13 +2306,13 @@ void services_resgperl(
     char buff[MAXSTR];
 
     cpstrl2z(buff, MAXSTR, fn, fnl);
-    services_resgper(buff, p);
+    pa_resgper(buff, p);
 
 }
 
-void services_resgper(
+void pa_resgper(
     /** filename */ char *fn, 
-    /** permissions */ services_permset p
+    /** permissions */ pa_permset p
 )
 
 {
@@ -2322,9 +2322,9 @@ void services_resgper(
     r = stat(fn, &sr); /* get stat structure on file */
     if (r < 0) unixerr(); /* process unix error */
     sr.st_mode &= 0777;   /* mask permissions */
-    if (BIT(services_pmread) & p)  sr.st_mode &= ~S_IRGRP; /* set read */
-    if (BIT(services_pmwrite) & p) sr.st_mode &= ~S_IWGRP;  /* set write */
-    if (BIT(services_pmexec) & p) sr.st_mode &= ~S_IXGRP;  /* set execute */
+    if (BIT(pa_pmread) & p)  sr.st_mode &= ~S_IRGRP; /* set read */
+    if (BIT(pa_pmwrite) & p) sr.st_mode &= ~S_IWGRP;  /* set write */
+    if (BIT(pa_pmexec) & p) sr.st_mode &= ~S_IXGRP;  /* set execute */
     r = chmod(fn, sr.st_mode);   /* set mode */
     if (r < 0) unixerr();  /* process unix error */
 
@@ -2338,10 +2338,10 @@ Sets other permissions.
 
 ********************************************************************************/
 
-void services_setoperl(
+void pa_setoperl(
     /** filename */ char *fn, 
     /** filename length */ int fnl,
-    /** permissions */ services_permset p
+    /** permissions */ pa_permset p
 )
 
 {
@@ -2349,13 +2349,13 @@ void services_setoperl(
     char buff[MAXSTR];
 
     cpstrl2z(buff, MAXSTR, fn, fnl);
-    services_setoper(buff, p);
+    pa_setoper(buff, p);
 
 }
 
-void services_setoper(
+void pa_setoper(
     /** filename */ char *fn, 
-    /** permissions */ services_permset p
+    /** permissions */ pa_permset p
 )
 
 {
@@ -2366,9 +2366,9 @@ void services_setoper(
     r = stat(fn, &sr);   /* get stat structure on file */
     if (r < 0) unixerr();  /* process unix error */
     sr.st_mode &= 0777;   /* mask permissions */
-    if (BIT(services_pmread) & p) sr.st_mode |= S_IROTH;  /* set read */
-    if (BIT(services_pmwrite) & p) sr.st_mode |= S_IWOTH;  /* set write */
-    if (BIT(services_pmexec) & p) sr.st_mode |= S_IXOTH;  /* set execute */
+    if (BIT(pa_pmread) & p) sr.st_mode |= S_IROTH;  /* set read */
+    if (BIT(pa_pmwrite) & p) sr.st_mode |= S_IWOTH;  /* set write */
+    if (BIT(pa_pmexec) & p) sr.st_mode |= S_IXOTH;  /* set execute */
     r = chmod(fn, sr.st_mode);   /* set mode */
     if (r < 0) unixerr();  /* process unix error */
 
@@ -2382,10 +2382,10 @@ Resets other permissions.
 
 ********************************************************************************/
 
-void services_resoperl(
+void pa_resoperl(
     /** filename */ char *fn, 
     /** filename length */ int fnl,
-    /** permissions */ services_permset p
+    /** permissions */ pa_permset p
 )
 
 {
@@ -2393,13 +2393,13 @@ void services_resoperl(
     char buff[MAXSTR];
 
     cpstrl2z(buff, MAXSTR, fn, fnl);
-    services_resoper(buff, p);
+    pa_resoper(buff, p);
 
 }
 
-void services_resoper(
+void pa_resoper(
     /** filename */ char *fn, 
-    /** permissions */ services_permset p
+    /** permissions */ pa_permset p
 )
 
 {
@@ -2410,9 +2410,9 @@ void services_resoper(
     r = stat(fn, &sr); /* get stat structure on file */
     if (r < 0) unixerr(); /* process unix error */
     sr.st_mode &= 0777; /* mask permissions */
-    if (BIT(services_pmread) & p) sr.st_mode &= ~S_IROTH; /* set read */
-    if (BIT(services_pmwrite) & p) sr.st_mode &= ~S_IWOTH; /* set write */
-    if (BIT(services_pmexec) & p) sr.st_mode &= ~S_IXOTH; /* set execute */
+    if (BIT(pa_pmread) & p) sr.st_mode &= ~S_IROTH; /* set read */
+    if (BIT(pa_pmwrite) & p) sr.st_mode &= ~S_IWOTH; /* set write */
+    if (BIT(pa_pmexec) & p) sr.st_mode &= ~S_IXOTH; /* set execute */
     r = chmod(fn, sr.st_mode); /* set mode */
     if (r < 0) unixerr(); /* process unix error */
 
@@ -2426,7 +2426,7 @@ Create a new path. Only one new level at a time may be created.
 
 ********************************************************************************/
 
-void services_makpthl(
+void pa_makpthl(
     /** pathname */ char *fn,
     /** pathname length */ int fnl
 )
@@ -2436,11 +2436,11 @@ void services_makpthl(
     char buff[MAXSTR];
 
     cpstrl2z(buff, MAXSTR, fn, fnl);
-    services_makpth(buff);
+    pa_makpth(buff);
 
 }
 
-void services_makpth(
+void pa_makpth(
     /** pathname */ char *fn
 )
 
@@ -2464,7 +2464,7 @@ Create a new path. Only one new level at a time may be deleted.
 
 ********************************************************************************/
 
-void services_rempthl(
+void pa_rempthl(
     /** pathname */ char *fn,
     /** pathname length */ int fnl
 )
@@ -2474,11 +2474,11 @@ void services_rempthl(
     char buff[MAXSTR];
 
     cpstrl2z(buff, MAXSTR, fn, fnl);
-    services_rempth(buff);
+    pa_rempth(buff);
 
 }
 
-void services_rempth(
+void pa_rempth(
     /** pathname */ char *fn
 )
 
@@ -2515,7 +2515,7 @@ specials in these cases.
 
 ********************************************************************************/
 
-void services_filchr(services_chrset fc)
+void pa_filchr(pa_chrset fc)
 {
 
     int i;
@@ -2538,7 +2538,7 @@ is overly cute and not common.
 
 ********************************************************************************/
 
-char services_optchr(void)
+char pa_optchr(void)
 {
     return '-';
 
@@ -2556,7 +2556,7 @@ separator as '\\'.
 
 *******************************************************************************/
 
-char services_pthchr(void)
+char pa_pthchr(void)
 {
 
     return '/';
@@ -2565,9 +2565,9 @@ char services_pthchr(void)
 
 /** ****************************************************************************
 
-Find services_latitude
+Find pa_latitude
 
-Finds the services_latitude of the host. Returns the services_latitude as a ratioed integer:
+Finds the pa_latitude of the host. Returns the pa_latitude as a ratioed integer:
 
 0           Equator
 INT_MAX     North pole
@@ -2586,7 +2586,7 @@ host location.
 
 *******************************************************************************/
 
-int services_latitude(void)
+int pa_latitude(void)
 
 {
 
@@ -2596,9 +2596,9 @@ int services_latitude(void)
 
 /** ****************************************************************************
 
-Find services_longitude
+Find pa_longitude
 
-Finds the services_longitude of the host. Returns the services_longitude as a ratioed integer:
+Finds the pa_longitude of the host. Returns the pa_longitude as a ratioed integer:
 
 0           The prime meridian (Greenwitch)
 INT_MAX     The prime meridian eastward around the world
@@ -2613,7 +2613,7 @@ A mobile host is constantly reading its location (usually from a GPS).
 
 *******************************************************************************/
 
-int services_longitude(void)
+int pa_longitude(void)
 
 {
 
@@ -2623,9 +2623,9 @@ int services_longitude(void)
 
 /** ****************************************************************************
 
-Find services_altitude
+Find pa_altitude
 
-Finds the services_altitude of the host. Returns the services_altitude as a ratioed integer:
+Finds the pa_altitude of the host. Returns the pa_altitude as a ratioed integer:
 
 0           MSL
 INT_MAX     100km high
@@ -2638,7 +2638,7 @@ establishes GPS as the main reference MSL surface, which typically must be
 corrected for the exact local system in use, which could be:
 
 1. Local MSL.
-2. Presure services_altitude.
+2. Presure pa_altitude.
 
 Or another system.
 
@@ -2648,7 +2648,7 @@ A mobile host is constantly reading its location (usually from a GPS).
 
 *******************************************************************************/
 
-int services_altitude(void)
+int pa_altitude(void)
 
 {
 
@@ -2658,15 +2658,15 @@ int services_altitude(void)
 
 /** ****************************************************************************
 
-Find services_country code
+Find pa_country code
 
-Gives the ISO 3166-1 1 to 3 digit numeric code for the services_country of the host
-computer. Note that the services_country of host may be set by the user, or may be
-determined by services_latitude/services_longitude.
+Gives the ISO 3166-1 1 to 3 digit numeric code for the pa_country of the host
+computer. Note that the pa_country of host may be set by the user, or may be
+determined by pa_latitude/pa_longitude.
 
 *******************************************************************************/
 
-int services_country(void)
+int pa_country(void)
 
 {
 
@@ -2676,13 +2676,13 @@ int services_country(void)
 
 /** ****************************************************************************
 
-Find services_country identifier string
+Find pa_country identifier string
 
-Finds the identifier string for the given ISO 3166-1 services_country code. If the string
+Finds the identifier string for the given ISO 3166-1 pa_country code. If the string
 does not fit into the string provided, an error results.
 
-3166-1 services_country codes are both numeric codes, 2 letter services_country codes, and 3
-letter services_country codes. We only use the 2 letter codes.
+3166-1 pa_country codes are both numeric codes, 2 letter pa_country codes, and 3
+letter pa_country codes. We only use the 2 letter codes.
 
 Note that the 2 letter codes happen to also be the Internet location codes
 (like company.us or company.au).
@@ -2692,8 +2692,8 @@ Note that the 2 letter codes happen to also be the Internet location codes
 typedef struct {
 
     char *countrystr;   /* name of counry (full) */
-    char countrya2c[2]; /* 2 letter services_country code */
-    int  countrynum;    /* numeric code for services_country */
+    char countrya2c[2]; /* 2 letter pa_country code */
+    int  countrynum;    /* numeric code for pa_country */
 
 } countryety;
 
@@ -2953,14 +2953,14 @@ countryety countrytab[] = {
 
 };
 
-void services_countrys(
+void pa_countrys(
     /** string buffer */           char* s,
     /** length of buffer */        int len,
-    /** ISO 3166-1 services_country code */ int c)
+    /** ISO 3166-1 pa_country code */ int c)
 
 {
 
-    countryety* p; /* pointer to services_country entry */
+    countryety* p; /* pointer to pa_country entry */
 
     p = countrytab;
     while (p->countrynum && p->countrynum != c) p++;
@@ -2979,7 +2979,7 @@ negative for zones west of the prime meridian, and positive for zones east.
 
 *******************************************************************************/
 
-int services_timezone(void)
+int pa_timezone(void)
 
 {
 
@@ -3005,7 +3005,7 @@ Finds if daylight savings time is in effect. It returns true if daylight savings
 time is in effect at the present time, which in the majority of locations means
 to add one hour to the local time (some locations offset by 30 minutes).
 
-services_daysave() is automatically adjusted for time of year. That is, if the location
+pa_daysave() is automatically adjusted for time of year. That is, if the location
 uses daylight savings time, but it is not currently in effect, the function
 returns false.
 
@@ -3013,7 +3013,7 @@ Note that local() already takes daylight savings into account.
 
 *******************************************************************************/
 
-int services_daysave(void)
+int pa_daysave(void)
 
 
 {
@@ -3036,7 +3036,7 @@ Returns true if 24 hour time is in use in the current host location.
 
 *******************************************************************************/
 
-int services_time24hour(void)
+int pa_time24hour(void)
 
 {
 
@@ -3046,17 +3046,17 @@ int services_time24hour(void)
 
 /** ****************************************************************************
 
-Find services_language code
+Find pa_language code
 
-Finds a numeric code for the host services_language using the ISO 639-1 services_language list.
-639-1 does not prescribe a numeric code for services_languages, so the exact code is
+Finds a numeric code for the host pa_language using the ISO 639-1 pa_language list.
+639-1 does not prescribe a numeric code for pa_languages, so the exact code is
 defined by the Petit Ami standard from an alphabetic list of the 639-1
-services_languages. This unfortunately means that any changes or additions must
+pa_languages. This unfortunately means that any changes or additions must
 necessarily be added at the end, and thus out of order.
 
 *******************************************************************************/
 
-int services_language(void)
+int pa_language(void)
 
 {
 
@@ -3066,18 +3066,18 @@ int services_language(void)
 
 /** ****************************************************************************
 
-Find services_language identifier string from services_language code
+Find pa_language identifier string from pa_language code
 
-Finds a services_language identifier string from a given services_language code. If the identifier
+Finds a pa_language identifier string from a given pa_language code. If the identifier
 string is too long for the string buffer, an error results.
 
-The services_language codes are from the ISO 639-1 standard. It describes services_languages with
+The pa_language codes are from the ISO 639-1 standard. It describes pa_languages with
 2 and 3 letter codes. We use only the two letter codes here.
 
-The ISO 639-1 standard does not assign logical numbers to the services_languages
+The ISO 639-1 standard does not assign logical numbers to the pa_languages
 (unlike the ISO 3166-1 standard), so the numbering here is simply a sequential
-numbering of the services_languages. However, we will keep the numbering system for any
-additions. Once a services_language is assigned a number it keeps it.
+numbering of the pa_languages. However, we will keep the numbering system for any
+additions. Once a pa_language is assigned a number it keeps it.
 
 *******************************************************************************/
 
@@ -3280,15 +3280,15 @@ static langety langtab[] = {
 
 };
 
-void services_languages(
+void pa_languages(
     /** string buffer */ char* s, 
     /** length of buffer */ int len, 
-    /** services_language code */ int l
+    /** pa_language code */ int l
 )
 
 {
 
-    langety* p; /* pointer to services_language entry */
+    langety* p; /* pointer to pa_language entry */
 
     p = langtab;
     while (p->langnum && p->langnum != l) p++;
@@ -3300,13 +3300,13 @@ void services_languages(
 
 /** ****************************************************************************
 
-Find the current services_decimal point character
+Find the current pa_decimal point character
 
-Finds the services_decimal point character of the host, which is generally '.' or ','.
+Finds the pa_decimal point character of the host, which is generally '.' or ','.
 
 *******************************************************************************/
 
-char services_decimal(void)
+char pa_decimal(void)
 
 {
 
@@ -3323,7 +3323,7 @@ generally used to mark 3 digit groups, ie., 3,000,000.
 
 *******************************************************************************/
 
-char services_numbersep(void)
+char pa_numbersep(void)
 
 {
 
@@ -3348,11 +3348,11 @@ The #1 format is the recommended standard for international exchange and is
 compatible with computer sorting. Thus it can be common to override the local
 presentation with it for archival use.
 
-Note that services_times() compensates for this.
+Note that pa_times() compensates for this.
 
 *******************************************************************************/
 
-int services_timeorder(void)
+int pa_timeorder(void)
 
 {
 
@@ -3380,11 +3380,11 @@ presentation with it for archival use.
 The representation of year as 2 digits is depreciated, due to year 2000 issues
 and because it makes the ordering of y-m-d more obvious.
 
-Note that services_dates() compensates for this.
+Note that pa_dates() compensates for this.
 
 *******************************************************************************/
 
-int services_dateorder(void)
+int pa_dateorder(void)
 
 {
 
@@ -3397,11 +3397,11 @@ Find date separator character
 
 Finds the date separator character of the host.
 
-Note that services_dates() uses this character.
+Note that pa_dates() uses this character.
 
 *******************************************************************************/
 
-char services_datesep(void)
+char pa_datesep(void)
 
 {
 
@@ -3415,11 +3415,11 @@ Find time separator character
 
 Finds the time separator character of the host.
 
-Note that services_times() uses this character.
+Note that pa_times() uses this character.
 
 *******************************************************************************/
 
-char services_timesep(void)
+char pa_timesep(void)
 
 {
 
@@ -3431,11 +3431,11 @@ char services_timesep(void)
 
 Find the currency marker character
 
-Finds the currency symbol of the host services_country.
+Finds the currency symbol of the host pa_country.
 
 *******************************************************************************/
 
-char services_currchr(void)
+char pa_currchr(void)
 
 {
 
@@ -3467,7 +3467,7 @@ static void* dummystart(void *function)
 
 }
 
-int services_newthread(void (*threadmain)(void))
+int pa_newthread(void (*threadmain)(void))
 
 {
 
@@ -3508,7 +3508,7 @@ Creates a new concurrency lock and returns the logical id for it.
 
 *******************************************************************************/
 
-int services_initlock(void)
+int pa_initlock(void)
 
 {
 
@@ -3551,7 +3551,7 @@ Releases a concurrency lock by logical id.
 
 *******************************************************************************/
 
-void services_deinitlock(int ln)
+void pa_deinitlock(int ln)
 
 {
 
@@ -3580,7 +3580,7 @@ come first served.
 
 *******************************************************************************/
 
-void services_lock(int ln)
+void pa_lock(int ln)
 
 {
 
@@ -3607,7 +3607,7 @@ lock and that is in a runnable state is set to run.
 
 *******************************************************************************/
 
-void services_unlock(int ln)
+void pa_unlock(int ln)
 
 {
 
@@ -3632,7 +3632,7 @@ Creates a new concurrency signal and returns the logical id for it.
 
 *******************************************************************************/
 
-int services_initsig(void)
+int pa_initsig(void)
 
 {
 
@@ -3675,7 +3675,7 @@ Releases a concurrency lock by logical id.
 
 *******************************************************************************/
 
-void services_deinitsig(int sn)
+void pa_deinitsig(int sn)
 
 {
 
@@ -3703,7 +3703,7 @@ signal or just one is set to run by a signal.
 
 *******************************************************************************/
 
-void services_sendsig(int sn)
+void pa_sendsig(int sn)
 
 {
 
@@ -3734,7 +3734,7 @@ still active, and not just assume it.
 
 *******************************************************************************/
 
-void services_sendsigone(int sn)
+void pa_sendsigone(int sn)
 
 {
 
@@ -3765,7 +3765,7 @@ run, and thus the wait and signal operations are synchronized together.
 
 *******************************************************************************/
 
-void services_waitsig(int ln, int sn)
+void pa_waitsig(int ln, int sn)
 
 {
 
@@ -3801,8 +3801,8 @@ Note the environment is unordered.
 
 *******************************************************************************/
 
-static void services_init_services (int argc, char* argv[]) __attribute__((constructor (102)));
-static void services_init_services(int argc, char* argv[])
+static void pa_init_services (int argc, char* argv[]) __attribute__((constructor (102)));
+static void pa_init_services(int argc, char* argv[])
 
 {
 
@@ -3810,10 +3810,10 @@ static void services_init_services(int argc, char* argv[])
     char**      ep;     /* unix environment string table */
     int         ei;     /* index for string table */
     int         si;     /* index for strings */
-    services_envrec*  p;      /* environment entry pointer */
-    langety*    lp;     /* pointer to services_language entry */
-    countryety* ctp;    /* pointer to services_language entry */
-    services_envrec*  p1;
+    pa_envrec*  p;      /* environment entry pointer */
+    langety*    lp;     /* pointer to pa_language entry */
+    countryety* ctp;    /* pointer to pa_language entry */
+    pa_envrec*  p1;
     char*       cp;
     int         l;
     int         i;
@@ -3824,7 +3824,7 @@ static void services_init_services(int argc, char* argv[])
     ep = environ;   /* get unix environment pointers */
     while (*ep != NULL) {  /* copy environment strings */
 
-        p = malloc(sizeof(services_envrec)); /* get a new environment entry */
+        p = malloc(sizeof(pa_envrec)); /* get a new environment entry */
         p->next = envlst; /* push onto environment list */
         envlst = p;
         cp = strchr(*ep, '='); /* find location of '=' */
@@ -3851,12 +3851,12 @@ static void services_init_services(int argc, char* argv[])
         envlst = p1;
 
      }
-    services_getenv("PATH", pthstr, MAXSTR); /* load up the current path */
+    pa_getenv("PATH", pthstr, MAXSTR); /* load up the current path */
     trim(pthstr); /* make sure left aligned */
-    services_getenv("LANG", langstr, MAXSTR); /* get locale */
+    pa_getenv("LANG", langstr, MAXSTR); /* get locale */
     trim(langstr); /* clean */
 
-    /* set default services_language and services_country */
+    /* set default pa_language and pa_country */
     curlanguage = 30; /* english */
     curcountry = 840; /* USA */
 
@@ -3865,13 +3865,13 @@ static void services_init_services(int argc, char* argv[])
 
            ll_cc.UTF-8
 
-       Where services_language is ll, and services_country cc. It used to end with the local
+       Where pa_language is ll, and pa_country cc. It used to end with the local
        character set, but that is obsolete, and is always UTF-* now.
 
-       We perform a few validation checks, then set the services_language and services_country
-       according to the code. From the services_country code, all of the other location
+       We perform a few validation checks, then set the pa_language and pa_country
+       according to the code. From the pa_country code, all of the other location
        dependent characteristics are derived, such as date and time format,
-       currency symbol, services_decimal point character, numbers separator, etc.
+       currency symbol, pa_decimal point character, numbers separator, etc.
 
        Note that if the $LANG variable is not found, or not formatted correctly,
        or does not contain valid contents, we fall back to defaults above.
@@ -3879,7 +3879,7 @@ static void services_init_services(int argc, char* argv[])
 
     if (strlen(langstr) >= 6 && langstr[2] == '_' && langstr[5] == '.') {
 
-        /* search services_language */
+        /* search pa_language */
         lp = langtab;
         while (lp && lp->langnum) {
 
@@ -3892,7 +3892,7 @@ static void services_init_services(int argc, char* argv[])
 
         }
 
-        /* search services_country */
+        /* search pa_country */
         ctp = countrytab;
         while (ctp && ctp->countrynum) {
 
@@ -3941,13 +3941,13 @@ Not used at present
 
 *******************************************************************************/
 
-static void services_deinit_services (void) __attribute__((destructor (102)));
-static void services_deinit_services()
+static void pa_deinit_services (void) __attribute__((destructor (102)));
+static void pa_deinit_services()
 
 {
 
     int        ti; /* index for timers */
-    services_envrec* p;  /* environment entry pointer */
+    pa_envrec* p;  /* environment entry pointer */
     int        r;
 
     while (envlst) {
