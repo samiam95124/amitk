@@ -39,7 +39,7 @@ struct {
 
 } world[MAXDIM][MAXDIM];
 
-pa_evtrec er; /* event input record */
+ami_evtrec er; /* event input record */
 int i;
 int x;
 
@@ -64,11 +64,11 @@ void display(void)
     int y;
 
     /* scan screen */
-    pa_home(stdout);
-    for (y = 0; y < pa_maxy(stdout); y++) {
+    ami_home(stdout);
+    for (y = 0; y < ami_maxy(stdout); y++) {
 
-        pa_cursor(stdout, 1, y+1);
-        for (x = 0; x < pa_maxx(stdout); x++)
+        ami_cursor(stdout, 1, y+1);
+        for (x = 0; x < ami_maxx(stdout); x++)
             switch (world[x][y].typ) { /* object */
 
             case none:  putchar(' '); break;
@@ -115,15 +115,15 @@ void clear(void)
     int y;
     int n;
 
-    for (x = 0; x < pa_maxx(stdout); x++)
-        for (y = 0; y < pa_maxy(stdout); y++)
+    for (x = 0; x < ami_maxx(stdout); x++)
+        for (y = 0; y < ami_maxy(stdout); y++)
             world[x][y].typ = none;
     for (n = 0; n < NFISH; n++) {
 
         do {
 
-            x = randn(pa_maxx(stdout)-1);
-            y = randn(pa_maxy(stdout)-1);
+            x = randn(ami_maxx(stdout)-1);
+            y = randn(ami_maxy(stdout)-1);
 
         } while (world[x][y].typ != none);
         world[x][y].typ = fish;
@@ -135,8 +135,8 @@ void clear(void)
 
         do {
 
-            x = randn(pa_maxx(stdout)-1);
-            y = randn(pa_maxy(stdout)-1);
+            x = randn(ami_maxx(stdout)-1);
+            y = randn(ami_maxy(stdout)-1);
 
         } while (world[x][y].typ != none);
         world[x][y].typ = shark;
@@ -191,10 +191,10 @@ void fndadj(int* x, int* y, object obj)
         xn = *x+offset[i].x; /* find neighbor locations */
         yn = *y+offset[i].y;
         /* wrap overflows */
-        if (xn < 0) xn = pa_maxx(stdout)-1;
-        if (xn >= pa_maxx(stdout)) xn = 0;
-        if (yn < 0) yn = pa_maxy(stdout)-1;
-        if (yn >= pa_maxy(stdout)) yn = 0;
+        if (xn < 0) xn = ami_maxx(stdout)-1;
+        if (xn >= ami_maxx(stdout)) xn = 0;
+        if (yn < 0) yn = ami_maxy(stdout)-1;
+        if (yn >= ami_maxy(stdout)) yn = 0;
         if (world[xn][yn].typ == obj) {
 
             found[top].x = xn;
@@ -232,8 +232,8 @@ void dofish(void)
     int x, nx;
     int y, ny;
 
-    for (x = 0; x < pa_maxx(stdout); x++)
-        for (y = 0; y < pa_maxy(stdout); y++)
+    for (x = 0; x < ami_maxx(stdout); x++)
+        for (y = 0; y < ami_maxy(stdout); y++)
             if (world[x][y].typ == fish && !world[x][y].moved) {
 
         nx = x;
@@ -281,8 +281,8 @@ void doshark(void)
     int x, nx;
     int y, ny;
 
-    for (x = 0; x < pa_maxx(stdout); x++)
-        for (y = 0; y < pa_maxy(stdout); y++)
+    for (x = 0; x < ami_maxx(stdout); x++)
+        for (y = 0; y < ami_maxy(stdout); y++)
             if (world[x][y].typ == shark && !world[x][y].moved) {
 
         if (world[x][y].hunger == STARVE) world[x][y].typ = none;
@@ -350,8 +350,8 @@ void clock(void)
     int x;
     int y;
 
-    for (x = 0; x < pa_maxx(stdout); x++)
-        for (y = 0; y < pa_maxy(stdout); y++)
+    for (x = 0; x < ami_maxx(stdout); x++)
+        for (y = 0; y < ami_maxy(stdout); y++)
             if (world[x][y].typ != none) {
 
        world[x][y].age++;
@@ -379,20 +379,20 @@ int main(void)
 
 {
 
-    pa_select(stdout, 2, 2); /* switch screens */
-    pa_auto(stdout, FALSE); /* turn off scrolling */
-    pa_curvis(stdout, FALSE); /* turn off cursor */
+    ami_select(stdout, 2, 2); /* switch screens */
+    ami_auto(stdout, FALSE); /* turn off scrolling */
+    ami_curvis(stdout, FALSE); /* turn off cursor */
     putchar('\f'); /* clear screen */
     clear();
     display();
     /* set cycle to rate limit at 10 times a second */
-    pa_timer(stdout, 1, 1000, TRUE);
+    ami_timer(stdout, 1, 1000, TRUE);
     do {
 
         /* get next interesting event */
-        do { pa_event(stdin, &er);
-        } while (er.etype != pa_ettim && er.etype != pa_etterm);
-        if (er.etype == pa_ettim) { /* timer event, run cycle */
+        do { ami_event(stdin, &er);
+        } while (er.etype != ami_ettim && er.etype != ami_etterm);
+        if (er.etype == ami_ettim) { /* timer event, run cycle */
 
             dofish();
             doshark();
@@ -401,9 +401,9 @@ int main(void)
 
         }
 
-    } while (er.etype != pa_etterm);
-    pa_curvis(stdout, TRUE); /* turn cursor back on */
-    pa_auto(stdout, TRUE); /* turn on scrolling */
+    } while (er.etype != ami_etterm);
+    ami_curvis(stdout, TRUE); /* turn cursor back on */
+    ami_auto(stdout, TRUE); /* turn on scrolling */
     putchar('\f'); /* clear screen */
 
     return (0); /* exit no error */

@@ -21,9 +21,9 @@
 
 #define BALMOV   50                /* ball move timer */
 #define NEWBAL   (100*2)           /* wait for new ball time, 1 sec (in ball units) */
-#define BALLCLR  pa_blue              /* ball color */
-#define WALLCLR  pa_cyan              /* WALL color */
-#define PADCLR   pa_green             /* paddle color */
+#define BALLCLR  ami_blue              /* ball color */
+#define WALLCLR  ami_cyan              /* WALL color */
+#define PADCLR   ami_green             /* paddle color */
 #define BNCENOTE 5                 /* time to play bounce note */
 #define WALLNOTE (PA_NOTE_D+PA_OCTAVE_6) /* note to play off WALL */
 #define FAILTIME 30                /* note to play on failure */
@@ -48,7 +48,7 @@ int         bdy;          /* ball direction y */
 int         bsx;          /* ball position save x */
 int         bsy;          /* ball position save y */
 int         baltim;       /* ball start timer */
-pa_evtrec   er;           /* event record */
+ami_evtrec   er;           /* event record */
 int         jchr;         /* number of pixels to joystick movement */
 int         score;        /* score */
 int         scrsiz;       /* score size */
@@ -73,7 +73,7 @@ void writexy(int x, int y,   /* position to write to */
 
 {
 
-    pa_cursorg(stdout, x, y); /* position cursor */
+    ami_cursorg(stdout, x, y); /* position cursor */
     puts(s); /* stdout string */
 
 }
@@ -94,7 +94,7 @@ void wrtcen(int          y, /* y position of string */
 
     int off; /* string offset */
 
-    off = pa_maxxg(stdout)/2-pa_strsiz(stdout, s)/2;
+    off = ami_maxxg(stdout)/2-ami_strsiz(stdout, s)/2;
     writexy(off, y, s); /* write out contents */
 
 }
@@ -107,12 +107,12 @@ Draws a filled rectangle, in the given color.
 
 ********************************************************************************/
 
-void drwrect(rectangle* r, pa_color c)
+void drwrect(rectangle* r, ami_color c)
 
 {
 
-    pa_fcolor(stdout, c); /* set color */
-    pa_frect(stdout, r->x1, r->y1, r->x2, r->y2);
+    ami_fcolor(stdout, c); /* set color */
+    ami_frect(stdout, r->x1, r->y1, r->x2, r->y2);
 
 }
 
@@ -244,8 +244,8 @@ void drwscn(void)
     drwrect(&walll, WALLCLR); /* left */
     drwrect(&wallr, WALLCLR); /* right */
     drwrect(&wallb, WALLCLR); /* bottom */
-    pa_fcolor(stdout, pa_black);
-    wrtcen(pa_maxyg(stdout)-wall+1, "PONG VS. 1.0");
+    ami_fcolor(stdout, ami_black);
+    wrtcen(ami_maxyg(stdout)-wall+1, "PONG VS. 1.0");
 
 }
 
@@ -264,12 +264,12 @@ void padpos(int x)
     if (x-hpadw <= walll.x2) x = walll.x2+hpadw+1; /* clip to ends */
     if (x+hpadw >= wallr.x1) x = wallr.x1-hpadw-1;
     /* erase old location */
-    pa_fcolor(stdout, pa_white);
-    pa_frect(stdout, padx-hpadw, pa_maxyg(stdout)-wall-padh-pwdis,
-                     padx+hpadw, pa_maxyg(stdout)-wall-pwdis);
+    ami_fcolor(stdout, ami_white);
+    ami_frect(stdout, padx-hpadw, ami_maxyg(stdout)-wall-padh-pwdis,
+                     padx+hpadw, ami_maxyg(stdout)-wall-pwdis);
     padx = x; /* set new location */
-    setrct(&paddle, x-hpadw, pa_maxyg(stdout)-wall-padh-pwdis,
-                    x+hpadw, pa_maxyg(stdout)-wall-pwdis);
+    setrct(&paddle, x-hpadw, ami_maxyg(stdout)-wall-padh-pwdis,
+                    x+hpadw, ami_maxyg(stdout)-wall-pwdis);
     drwrect(&paddle, PADCLR); /* draw paddle */
 
 }
@@ -280,38 +280,38 @@ int main(void)
 
     nottim = 0; /* clear bounce note timer */
     failtimer = 0; /* clear fail timer */
-    pa_opensynthout(PA_SYNTH_OUT); /* open synthesizer */
-    pa_instchange(PA_SYNTH_OUT, 0, 1, PA_INST_LEAD_1_SQUARE);
-    jchr = INT_MAX/((pa_maxxg(stdout)-2)/2); /* find basic joystick increment */
-    pa_curvis(stdout, FALSE); /* remove drawing cursor */
-    pa_auto(stdout, FALSE); /* turn off scrolling */
-    pa_font(stdout, PA_FONT_SIGN); /* sign font */
-    wall = pa_maxyg(stdout)/20; /* set wall thickness */
-    balls = pa_maxyg(stdout)/20; /* set ball size */
+    ami_opensynthout(PA_SYNTH_OUT); /* open synthesizer */
+    ami_instchange(PA_SYNTH_OUT, 0, 1, PA_INST_LEAD_1_SQUARE);
+    jchr = INT_MAX/((ami_maxxg(stdout)-2)/2); /* find basic joystick increment */
+    ami_curvis(stdout, FALSE); /* remove drawing cursor */
+    ami_auto(stdout, FALSE); /* turn off scrolling */
+    ami_font(stdout, PA_FONT_SIGN); /* sign font */
+    wall = ami_maxyg(stdout)/20; /* set wall thickness */
+    balls = ami_maxyg(stdout)/20; /* set ball size */
     hballs = balls/2; /* set half ball size */
-    padh = pa_maxyg(stdout)/22; /* set paddle thickness */
+    padh = ami_maxyg(stdout)/22; /* set paddle thickness */
     pwdis = padh/4; /* set distance of paddle to wall */
-    padw = pa_maxxg(stdout)/8; /* set paddle width */
+    padw = ami_maxxg(stdout)/8; /* set paddle width */
     hpadw = padw/2; /* half paddle width */
-    pa_bold(stdout, TRUE);
-    pa_fontsiz(stdout, wall-2); /* font fits in the wall */
-    pa_binvis(stdout); /* no background writes */
-    pa_timer(stdout, 1, BALMOV, TRUE); /* enable timer */
+    ami_bold(stdout, TRUE);
+    ami_fontsiz(stdout, wall-2); /* font fits in the wall */
+    ami_binvis(stdout); /* no background writes */
+    ami_timer(stdout, 1, BALMOV, TRUE); /* enable timer */
 
     newgame: /* start new game */
 
-    padx = pa_maxxg(stdout)/2; /* find initial paddle position */
+    padx = ami_maxxg(stdout)/2; /* find initial paddle position */
     padpos(padx); /* display paddle */
     clrrect(&ball); /* set ball not on screen */
     baltim = 0; /* set ball ready to start */
     /* set up wall rectangles */
-    setrct(&wallt, 1, 1, pa_maxxg(stdout), wall); /* top */
-    setrct(&walll, 1, 1, wall, pa_maxyg(stdout)); /* left */
+    setrct(&wallt, 1, 1, ami_maxxg(stdout), wall); /* top */
+    setrct(&walll, 1, 1, wall, ami_maxyg(stdout)); /* left */
     /* right */
-    setrct(&wallr, pa_maxxg(stdout)-wall, 1, pa_maxxg(stdout), pa_maxyg(stdout));
+    setrct(&wallr, ami_maxxg(stdout)-wall, 1, ami_maxxg(stdout), ami_maxyg(stdout));
     /* bottom */
-    setrct(&wallb, 1, pa_maxyg(stdout)-wall, pa_maxxg(stdout), pa_maxyg(stdout));
-    scrsiz = pa_strsiz(stdout, "SCORE 0000"); /* set nominal size of score string */
+    setrct(&wallb, 1, ami_maxyg(stdout)-wall, ami_maxxg(stdout), ami_maxyg(stdout));
+    scrsiz = ami_strsiz(stdout, "SCORE 0000"); /* set nominal size of score string */
     scrchg = TRUE; /* set score changed */
     drwscn(); /* draw game screen */
     do { /* game loop */
@@ -319,12 +319,12 @@ int main(void)
         if (ball.x1 == 0 && baltim == 0) {
 
             /* ball not on screen, and time to wait expired, send out ball */
-            setrct(&ball, wall+1, pa_maxyg(stdout)-4*wall-balls,
-                          wall+1+balls, pa_maxyg(stdout)-4*wall);
-            bdx = +pa_maxxg(stdout)/300; /* set direction of travel */
-            bdy = -pa_maxyg(stdout)/150;
+            setrct(&ball, wall+1, ami_maxyg(stdout)-4*wall-balls,
+                          wall+1+balls, ami_maxyg(stdout)-4*wall);
+            bdx = +ami_maxxg(stdout)/300; /* set direction of travel */
+            bdy = -ami_maxyg(stdout)/150;
             /* draw the ball */
-            pa_fcolor(stdout, BALLCLR);
+            ami_fcolor(stdout, BALLCLR);
             drwrect(&ball, BALLCLR);
             score = 0; /* clear score */
             scrchg = TRUE; /* set changed */
@@ -333,28 +333,28 @@ int main(void)
         if (scrchg) { /* process score change */
 
             /* erase score */
-            pa_fcolor(stdout, WALLCLR);
-            pa_frect(stdout, pa_maxxg(stdout)/2-scrsiz/2, 1,
-                          pa_maxxg(stdout)/2+scrsiz/2, wall);
+            ami_fcolor(stdout, WALLCLR);
+            ami_frect(stdout, ami_maxxg(stdout)/2-scrsiz/2, 1,
+                          ami_maxxg(stdout)/2+scrsiz/2, wall);
             /* place updated score on screen */
-            pa_fcolor(stdout, pa_black);
-            pa_cursorg(stdout, pa_maxxg(stdout)/2-scrsiz/2, 2);
+            ami_fcolor(stdout, ami_black);
+            ami_cursorg(stdout, ami_maxxg(stdout)/2-scrsiz/2, 2);
             printf("SCORE %5d\n", score);
             scrchg = FALSE; /* reset score change flag */
 
         }
-        do { pa_event(stdin, &er); /* wait relevant events */
-        } while (er.etype != pa_etterm && er.etype != pa_etleft &&
-                 er.etype != pa_etright && er.etype != pa_etfun &&
-                 er.etype != pa_ettim && er.etype != pa_etjoymov);
-        if (er.etype == pa_etterm) goto endgame; /* game exits */
-        if (er.etype == pa_etfun) goto newgame; /* restart game */
+        do { ami_event(stdin, &er); /* wait relevant events */
+        } while (er.etype != ami_etterm && er.etype != ami_etleft &&
+                 er.etype != ami_etright && er.etype != ami_etfun &&
+                 er.etype != ami_ettim && er.etype != ami_etjoymov);
+        if (er.etype == ami_etterm) goto endgame; /* game exits */
+        if (er.etype == ami_etfun) goto newgame; /* restart game */
         /* process paddle movements */
-        if (er.etype == pa_etleft) padpos(padx-5); /* move left */
-	    else if (er.etype == pa_etright) padpos(padx+5); /* move right */
-        else if (er.etype == pa_etjoymov) /* move joystick */
-            padpos(pa_maxxg(stdout)/2+er.joypx/jchr);
-        else if (er.etype == pa_ettim) { /* move timer */
+        if (er.etype == ami_etleft) padpos(padx-5); /* move left */
+	    else if (er.etype == ami_etright) padpos(padx+5); /* move right */
+        else if (er.etype == ami_etjoymov) /* move joystick */
+            padpos(ami_maxxg(stdout)/2+er.joypx/jchr);
+        else if (er.etype == ami_ettim) { /* move timer */
 
             if (er.timnum == 1) { /* ball timer */
 
@@ -363,7 +363,7 @@ int main(void)
 
                   	nottim--; /* derement */
                    	if (nottim == 0) /* times up, turn note off */
-                      	pa_noteoff(PA_SYNTH_OUT, 0, 1, WALLNOTE, INT_MAX);
+                      	ami_noteoff(PA_SYNTH_OUT, 0, 1, WALLNOTE, INT_MAX);
 
                 }
                 /* if the fail note timer is running, decrement it */
@@ -371,7 +371,7 @@ int main(void)
 
                    	failtimer = failtimer-1; /* derement */
                    	if (!failtimer) /* times up, turn note off */
-                      	pa_noteoff(PA_SYNTH_OUT, 0, 1, FAILNOTE, INT_MAX);
+                      	ami_noteoff(PA_SYNTH_OUT, 0, 1, FAILNOTE, INT_MAX);
 
                 }
                 if (ball.x1 > 0) { /* ball on screen */
@@ -386,7 +386,7 @@ int main(void)
                       	bdx = -bdx; /* change direction */
                       	offrect(&ball, bdx, bdy); /* recalculate */
                       	/* start bounce note */
-                      	pa_noteon(PA_SYNTH_OUT, 0, 1, WALLNOTE, INT_MAX);
+                      	ami_noteon(PA_SYNTH_OUT, 0, 1, WALLNOTE, INT_MAX);
                       	nottim = BNCENOTE; /* set timer */
 
                    } else if (intrect(&ball, &wallt)) { /* hits top */
@@ -395,7 +395,7 @@ int main(void)
                       	bdy = -bdy; /* change direction */
                      	offrect(&ball, bdx, bdy); /* recalculate */
                       	/* start bounce note */
-                      	pa_noteon(PA_SYNTH_OUT, 0, 1, WALLNOTE, INT_MAX);
+                      	ami_noteon(PA_SYNTH_OUT, 0, 1, WALLNOTE, INT_MAX);
                       	nottim = BNCENOTE; /* set timer */
 
                    } else if (intrect(&ball, &paddle)) {
@@ -411,34 +411,34 @@ int main(void)
                       	score = score+1; /* count hits */
                       	scrchg = TRUE; /* set changed */
                       	/* start bounce note */
-                      	pa_noteon(PA_SYNTH_OUT, 0, 1, WALLNOTE, INT_MAX);
+                      	ami_noteon(PA_SYNTH_OUT, 0, 1, WALLNOTE, INT_MAX);
                       	nottim = BNCENOTE; /* set timer */
 
                    }
                    if (intrect(&ball, &wallb)) { /* ball out of bounds */
 
-                        drwrect(&balsav, pa_white);
+                        drwrect(&balsav, ami_white);
                         clrrect(&ball); /* set ball not on screen */
                         baltim = NEWBAL; /* start time on new ball wait */
                         /* start fail note */
-                        pa_noteon(PA_SYNTH_OUT, 0, 1, FAILNOTE, INT_MAX);
+                        ami_noteon(PA_SYNTH_OUT, 0, 1, FAILNOTE, INT_MAX);
                         failtimer = FAILTIME; /* set timer */
 
                    } else { /* ball in play */
 
                         /* erase only the leftover part of the old ball */
-                        pa_fcolor(stdout, pa_white);
+                        ami_fcolor(stdout, ami_white);
                         if (bdx < 0) /* ball move left */
-                            pa_frect(stdout, ball.x2+1, balsav.y1,
+                            ami_frect(stdout, ball.x2+1, balsav.y1,
                                              balsav.x2, balsav.y2);
                         else /* move move right */
-                            pa_frect(stdout, balsav.x1, balsav.y1,
+                            ami_frect(stdout, balsav.x1, balsav.y1,
                                              ball.x1-1, balsav.y2);
                         if (bdy < 0) /* ball move up */
-                            pa_frect(stdout, balsav.x1, ball.y2+1,
+                            ami_frect(stdout, balsav.x1, ball.y2+1,
                                              balsav.x2, balsav.y2);
                         else /* move move down */
-                            pa_frect(stdout, balsav.x1, balsav.y1,
+                            ami_frect(stdout, balsav.x1, balsav.y1,
                                              balsav.x2, ball.y1-1);
                         drwrect(&ball, BALLCLR); /* redraw the ball */
 
@@ -456,7 +456,7 @@ int main(void)
 
     endgame: /* exit game */
 
-    pa_closesynthout(PA_SYNTH_OUT); /* close synthesizer */
+    ami_closesynthout(PA_SYNTH_OUT); /* close synthesizer */
 
 }
 

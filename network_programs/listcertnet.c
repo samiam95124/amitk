@@ -29,7 +29,7 @@ and or select any number of specific fields in the certificate tree.
 #define INDENTLVL 4
 
 void prtcert(
-    /* certificate tree */          pa_certptr cp,
+    /* certificate tree */          ami_certptr cp,
     /* current indentation level */ int        indent
 )
 
@@ -87,7 +87,7 @@ int main(
 
     /* server IPv4 address */ unsigned long addr;
     /* server SSL file */     FILE*         fp;
-    /* certificate tree */    pa_certptr    list;
+    /* certificate tree */    ami_certptr    list;
     /* port number */         int           port;
     int num;
 
@@ -102,13 +102,13 @@ int main(
     num = atoi(argv[3]); /* get which certificate to fetch */
 
     /* open server SSL */
-    pa_addrnet(argv[1], &addr);
-    fp = pa_opennet(addr, port, TRUE);
+    ami_addrnet(argv[1], &addr);
+    fp = ami_opennet(addr, port, TRUE);
 
     /* Get the certificate indicated. Note that if you only want certain
        entries from the tree, fill the names in with NULL data pointers. */
     list = NULL;
-    pa_certlistnet(fp, 1, &list);
+    ami_certlistnet(fp, 1, &list);
 
     /* print certificate tree at 0 indent */
     prtcert(list, 0);

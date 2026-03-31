@@ -51,7 +51,7 @@ int       centerx;             /* center of screen position x */
 int       centery;             /* center of screen position y */
 int       cursorx;             /* cursor location x */
 int       cursory;             /* cursor location y */
-pa_evtrec er;                  /* event record */
+ami_evtrec er;                  /* event record */
 int       badguess;            /* bad guess display flag */
 int       mousex;              /* mouse position x */
 int       mousey;              /* mouse position y */
@@ -162,11 +162,11 @@ void display(void)
     int cnt; /* count of adjacent mines */
 
     /* scan screen */
-    pa_bcolor(stdout, pa_yellow); /* set background color */
+    ami_bcolor(stdout, ami_yellow); /* set background color */
     for (y = 0; y < MAXYS; y++)
       for (x = 0; x < MAXXS; x++) {
 
-        pa_cursor(stdout, centerx+x, centery+y); /* set start of next line */
+        ami_cursor(stdout, centerx+x, centery+y); /* set start of next line */
         if (board[x][y].vis) {
 
             if (board[x][y].mine) putchar('*'); else {
@@ -236,15 +236,15 @@ Clears the specified line to spaces in the specified color.
 *******************************************************************************/
 
 void clrlin(int      y,   /* line to clear */
-            pa_color clr) /* color to clear to */
+            ami_color clr) /* color to clear to */
 
 {
 
     int i;
 
-    pa_cursor(stdout, 1, y); /* position to specified line */
-    pa_bcolor(stdout, clr); /* set color */
-    for (i = 1; i <= pa_maxx(stdout); i++) putchar(' '); /* clear line */
+    ami_cursor(stdout, 1, y); /* position to specified line */
+    ami_bcolor(stdout, clr); /* set color */
+    for (i = 1; i <= ami_maxx(stdout); i++) putchar(' '); /* clear line */
 
 }
 
@@ -261,7 +261,7 @@ void prtmid(int    y, /* line to print on */
 
 {
 
-    pa_cursor(stdout, pa_maxx(stdout)/2-strlen(s)/2, y); /* position to start */
+    ami_cursor(stdout, ami_maxx(stdout)/2-strlen(s)/2, y); /* position to start */
     puts(s); /* output the string */
 
 }
@@ -278,28 +278,28 @@ The colors are not saved or restored.
 void tbox(int sx, int sy, /* coordinates of box upper left */
          int ex, int ey, /* coordinates of box lower left */
          char c,         /* character to draw */
-         pa_color  bclr, /* background color of character */
-         pa_color  fclr) /* foreground color of character */
+         ami_color  bclr, /* background color of character */
+         ami_color  fclr) /* foreground color of character */
 
 {
 
     int x, y; /* coordinates */
 
-    pa_bcolor(stdout, bclr);
-    pa_fcolor(stdout, fclr);
-    pa_cursor(stdout, sx, sy); /* position at box top left */
+    ami_bcolor(stdout, bclr);
+    ami_fcolor(stdout, fclr);
+    ami_cursor(stdout, sx, sy); /* position at box top left */
     for (x = sx; x <= ex; x++) putchar(c); /* draw box top */
-    pa_cursor(stdout, sx, ey); /* position at box lower left */
+    ami_cursor(stdout, sx, ey); /* position at box lower left */
     for (x = sx; x <= ex; x++) putchar(c); /* draw box bottom */
     for (y = sy+1; y <= ey-1; y++) { /* draw box left side */
 
-        pa_cursor(stdout, sx, y); /* place cursor */
+        ami_cursor(stdout, sx, y); /* place cursor */
         putchar(c); /* place character */
 
     }
     for (y = sy+1; y <= ey-1; y++) { /* draw box left side */
 
-        pa_cursor(stderr, ex, y); /* place cursor */
+        ami_cursor(stderr, ex, y); /* place cursor */
         putchar(c); /* place character */
 
     }
@@ -320,15 +320,15 @@ void replay(void)
 {
 
     /* ask user for replay */
-    pa_bcolor(stdout, pa_cyan);
-    prtmid(pa_maxy(stdout), "PLAY AGAIN (Y/N) ?");
+    ami_bcolor(stdout, ami_cyan);
+    prtmid(ami_maxy(stdout), "PLAY AGAIN (Y/N) ?");
     do { /* wait for response */
 
         /* wait till a character is pressed */
-        do { pa_event(stdout, &er); }
-        while (er.etype != pa_etchar && er.etype != pa_etterm);
-        if (er.etype == pa_etterm) /* force a quit */
-            { er.etype = pa_etchar; er.echar = 'n'; }
+        do { ami_event(stdout, &er); }
+        while (er.etype != ami_etchar && er.etype != ami_etterm);
+        if (er.etype == ami_etterm) /* force a quit */
+            { er.etype = ami_etchar; er.echar = 'n'; }
 
     } while (er.echar != 'y' && er.echar != 'Y' &&
              er.echar != 'n' && er.echar != 'N');
@@ -336,8 +336,8 @@ void replay(void)
     else {
 
         /* clear old messages */
-        clrlin(pa_maxy(stdout)-2, pa_cyan);
-        clrlin(pa_maxy(stdout), pa_cyan);
+        clrlin(ami_maxy(stdout)-2, ami_cyan);
+        clrlin(ami_maxy(stdout), ami_cyan);
         /* start new game */
         clear(); /* set up board */
         cursorx = centerx; /* set inital cursor position */
@@ -374,8 +374,8 @@ void hit(int x, int y)
         badguess = TRUE; /* set bad guesses visable */
         display(); /* redisplay board */
         /* announce that to the player */
-        pa_bcolor(stdout, pa_red);
-        prtmid(pa_maxy(stdout)-2, "*** YOU HIT A MINE ! ***");
+        ami_bcolor(stdout, ami_red);
+        prtmid(ami_maxy(stdout)-2, "*** YOU HIT A MINE ! ***");
         replay(); /* process replay */
 
     } else { /* valid hit */
@@ -393,8 +393,8 @@ void hit(int x, int y)
 
             display(); /* redisplay board */
             /* announce that to the player */
-            pa_bcolor(stdout, pa_red);
-            prtmid(pa_maxy(stdout)-2, "*** YOU WIN ! ***");
+            ami_bcolor(stdout, ami_red);
+            prtmid(ami_maxy(stdout)-2, "*** YOU WIN ! ***");
             replay(); /* process replay */
 
         }
@@ -414,19 +414,19 @@ int main(void)
 
 {
 
-    pa_select(stdout, 2, 2); /* switch screens */
-    pa_auto(stdout, FALSE); /* automatic terminal off */
-    pa_bcolor(stdout, pa_cyan); /* color the background */
+    ami_select(stdout, 2, 2); /* switch screens */
+    ami_auto(stdout, FALSE); /* automatic terminal off */
+    ami_bcolor(stdout, ami_cyan); /* color the background */
     putchar('\f'); /* clear to that */
-    pa_bcolor(stdout, pa_magenta);
+    ami_bcolor(stdout, ami_magenta);
     prtmid(1, "******* Mine game 1.0 ********"); /* output title */
     /* find center board position */
-    centerx = pa_maxx(stdout)/2-MAXXS/2;
-    centery = pa_maxy(stdout)/2-MAXYS/2;
+    centerx = ami_maxx(stdout)/2-MAXXS/2;
+    centery = ami_maxy(stdout)/2-MAXYS/2;
     /* draw a border around that */
-    tbox(centerx-1, centery-1, centerx+MAXXS, centery+MAXYS, ' ', pa_blue,
-         pa_black);
-    pa_bcolor(stdout, pa_white); /* restore the background */
+    tbox(centerx-1, centery-1, centerx+MAXXS, centery+MAXYS, ' ', ami_blue,
+         ami_black);
+    ami_bcolor(stdout, ami_white); /* restore the background */
     rndseq = 1;
     clear(); /* set up board */
     display(); /* display board */
@@ -436,33 +436,33 @@ int main(void)
     badguess = FALSE; /* set bad guesses invisible */
     do { /* enter user moves */
 
-        pa_cursor(stdout, cursorx, cursory); /* place cursor */
+        ami_cursor(stdout, cursorx, cursory); /* place cursor */
         x = cursorx-centerx; /* set location on board */
         y = cursory-centery;
-        pa_event(stdin, &er); /* get the next event */
+        ami_event(stdin, &er); /* get the next event */
         switch (er.etype) { /* event */
 
-            case pa_ettab: /* process flag */
+            case ami_ettab: /* process flag */
                 /* reverse flagging on location */
                 board[x][y].flag = !board[x][y].flag;
                 display(); /* redisplay board */
                 break;
-            case pa_etenter: hit(x, y); break; /* process hit */
+            case ami_etenter: hit(x, y); break; /* process hit */
             /* move up */
-            case pa_etup: if (cursory > centery) cursory--; break;
+            case ami_etup: if (cursory > centery) cursory--; break;
             /* move left */
-            case pa_etleft: if (cursorx > centerx) cursorx--; break;
+            case ami_etleft: if (cursorx > centerx) cursorx--; break;
             /* move down */
-            case pa_etdown: if (cursory < centery+MAXYS-1) cursory++;
+            case ami_etdown: if (cursory < centery+MAXYS-1) cursory++;
                 break;
             /* move right */
-            case pa_etright: if (cursorx < centerx+MAXXS-1) cursorx++;
+            case ami_etright: if (cursorx < centerx+MAXXS-1) cursorx++;
                 break;
-            case pa_etmoumov: /* mouse movement */
+            case ami_etmoumov: /* mouse movement */
                 mousex = er.moupx; /* set new mouse position */
                 mousey = er.moupy;
                 break;
-            case pa_etmouba: /* mouse button 1, hit */
+            case ami_etmouba: /* mouse button 1, hit */
                 if (mousex >= centerx && mousex <= centerx+MAXXS-1 &&
                     mousey >= centery && mousey <= centery+MAXYS-1) {
 
@@ -486,9 +486,9 @@ int main(void)
 
         }
 
-    } while (!done && er.etype != pa_etterm); /* game complete */
-    pa_auto(stdout, TRUE); /* automatic terminal off */
-    pa_select(stdout, 1, 1); /* restore screen */
+    } while (!done && er.etype != ami_etterm); /* game complete */
+    ami_auto(stdout, TRUE); /* automatic terminal off */
+    ami_select(stdout, 1, 1); /* restore screen */
 
     return (0); /* exit no error */
 

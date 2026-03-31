@@ -25,9 +25,9 @@ late 1970's-early 1980's.
 #define SECOND 10000
 
 int dport = PA_SYNTH_OUT; /* set default synth out */
-pa_instrument inst = PA_INST_ACOUSTIC_GRAND; /* set default instrument */
+ami_instrument inst = PA_INST_ACOUSTIC_GRAND; /* set default instrument */
 
-pa_optrec opttbl[] = {
+ami_optrec opttbl[] = {
 
     { "port", NULL, &dport,  NULL, NULL },
     { "p",    NULL, &dport,  NULL, NULL },
@@ -41,11 +41,11 @@ void waittime(int t)
 
 {
 
-    pa_evtrec er; /* event record */
+    ami_evtrec er; /* event record */
 
-    pa_timer(stdin, 1, t, FALSE);
-    do { pa_event(stdin, &er); } while (er.etype != pa_ettim && er.etype != pa_etterm);
-    if (er.etype == pa_etterm) exit(0);
+    ami_timer(stdin, 1, t, FALSE);
+    do { ami_event(stdin, &er); } while (er.etype != ami_ettim && er.etype != ami_etterm);
+    if (er.etype == ami_etterm) exit(0);
 
 }
 
@@ -59,7 +59,7 @@ int main(int argc, char **argv)
 
 
     /* parse user options */
-    pa_options(&argi, &argc, argv, opttbl, TRUE);
+    ami_options(&argi, &argc, argv, opttbl, TRUE);
 
     if (argc != 1) {
 
@@ -70,21 +70,21 @@ int main(int argc, char **argv)
 
     }
 
-    pa_opensynthout(dport);
-    pa_instchange(dport, 0, 1, inst);
+    ami_opensynthout(dport);
+    ami_instchange(dport, 0, 1, inst);
     srand(42);
     for( i = 0; i < 1000; i++) {
 
         /* Generate a random key */
         key = 60 + (int)(12.0f * rand() / (float) RAND_MAX)-1;
         /* Play a note */
-        pa_noteon(dport, 0, 1, key, INT_MAX);
+        ami_noteon(dport, 0, 1, key, INT_MAX);
         /* Sleep for .1 second */
         waittime(SECOND/10);
         /* Stop the note */
-        pa_noteoff(dport, 0, 1, key, 0);
+        ami_noteoff(dport, 0, 1, key, 0);
 
     }
-    pa_closesynthout(dport);
+    ami_closesynthout(dport);
 
 }

@@ -31,13 +31,13 @@ int main(int argc, char **argv)
 
     port = atoi(argv[2]);
 
-    pa_addrnet(argv[1], &addr);
-    fp = pa_opennet(addr, port, TRUE);
+    ami_addrnet(argv[1], &addr);
+    fp = ami_opennet(addr, port, TRUE);
 
     i = 1; /* set 1st certificate */
     do {
 
-       len = pa_certnet(fp, i, cbuff, sizeof(cbuff));
+       len = ami_certnet(fp, i, cbuff, sizeof(cbuff));
        if (len) {
 
            printf("Certificate %d:\n", i);

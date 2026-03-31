@@ -42,7 +42,7 @@ int square = FALSE; /* set not square wave */
 
 double angle;
 
-pa_optrec opttbl[] = {
+ami_optrec opttbl[] = {
 
     { "port",   NULL,    &dport, NULL, NULL },
     { "p",      NULL,    &dport, NULL, NULL },
@@ -63,7 +63,7 @@ int main(int argc, char **argv)
     int argi = 1;
 
     /* parse user options */
-    pa_options(&argi, &argc, argv, opttbl, TRUE);
+    ami_options(&argi, &argc, argv, opttbl, TRUE);
 
     if (argc != 1) {
 
@@ -80,13 +80,13 @@ int main(int argc, char **argv)
 
     rate = 44100; /* set sample rate */
 
-    pa_openwaveout(dport);         /* open output wave port */
-    pa_chanwaveout(dport, 1);      /* one channel */
-    pa_ratewaveout(dport, rate);   /* CD sample rate */
-    pa_lenwaveout(dport,  16);     /* 16 bits */
-    pa_sgnwaveout(dport,  TRUE);   /* signed */
-    pa_endwaveout(dport,  FALSE);  /* little endian */
-    pa_fltwaveout(dport,  FALSE);  /* integer */
+    ami_openwaveout(dport);         /* open output wave port */
+    ami_chanwaveout(dport, 1);      /* one channel */
+    ami_ratewaveout(dport, rate);   /* CD sample rate */
+    ami_lenwaveout(dport,  16);     /* 16 bits */
+    ami_sgnwaveout(dport,  TRUE);   /* signed */
+    ami_endwaveout(dport,  FALSE);  /* little endian */
+    ami_fltwaveout(dport,  FALSE);  /* integer */
 
     while (1) {
 
@@ -98,7 +98,7 @@ int main(int argc, char **argv)
             if (angle > 2 * PI) angle -= 2*PI;
 
         }
-        pa_wrwave(dport, (byte*)buf, SIZEBUF);
+        ami_wrwave(dport, (byte*)buf, SIZEBUF);
 
     }
 

@@ -222,7 +222,7 @@ static filptr opnfil[MAXFIL];  /* open files table */
 static pthread_mutex_t oflock; /* lock for this structure */
 static filptr frefil;          /* free file entries list */
 static pthread_mutex_t fflock; /* lock for this structure */
-static pa_certptr frecert;     /* free certificate name/value entries list */
+static ami_certptr frecert;     /* free certificate name/value entries list */
 
 /*
  * openSSL variables
@@ -552,18 +552,18 @@ Recycles or allocates a name/value entry.
 
 *******************************************************************************/
 
-static pa_certptr getcert(void)
+static ami_certptr getcert(void)
 
 {
 
-    pa_certptr cp;
+    ami_certptr cp;
 
     if (frecert) { /* there are free cert entries */
 
         cp = frecert; /* get top entry */
         frecert = cp->next; /* remove from free list */
 
-    } else cp = malloc(sizeof(pa_certfield));
+    } else cp = malloc(sizeof(ami_certfield));
     if (!cp) error(enomem); /* cannot allocate entry */
     /* clear fields */
     cp->name = NULL;
@@ -589,11 +589,11 @@ If a tree structured entry is passed, then the entire tree is freed.
 
 *******************************************************************************/
 
-static void putcert(pa_certptr cp)
+static void putcert(ami_certptr cp)
 
 {
 
-    pa_certptr p;
+    ami_certptr p;
 
     /* release strings space */
     free(cp->name);
@@ -820,7 +820,7 @@ address is returned as an integer.
 
 *******************************************************************************/
 
-void pa_addrnet(string name, unsigned long* addr)
+void ami_addrnet(string name, unsigned long* addr)
 
 {
 
@@ -922,7 +922,7 @@ address is returned as an integer.
 
 *******************************************************************************/
 
-void pa_addrnetv6(string name, unsigned long long* addrh,
+void ami_addrnetv6(string name, unsigned long long* addrh,
                 unsigned long long* addrl)
 
 {
@@ -1035,7 +1035,7 @@ static FILE* opennet(
 
 }
 
-FILE* pa_opennet(/* IP address */      unsigned long addr,
+FILE* ami_opennet(/* IP address */      unsigned long addr,
                  /* port */            int port,
                  /* link is secured */ int secure
 )
@@ -1064,7 +1064,7 @@ FILE* pa_opennet(/* IP address */      unsigned long addr,
 
 }
 
-FILE* pa_opennetv6(
+FILE* ami_opennetv6(
     /* v6 address low */  unsigned long long addrh,
     /* v6 address high */ unsigned long long addrl,
     /* port */            int port,
@@ -1106,7 +1106,7 @@ DTLS, with fixed length messages.
 
 *******************************************************************************/
 
-int pa_openmsg(
+int ami_openmsg(
     /* ip address */      unsigned long addr,
     /* port */            int port,
     /* link is secured */ int secure
@@ -1186,7 +1186,7 @@ int pa_openmsg(
 
 }
 
-int pa_openmsgv6(
+int ami_openmsgv6(
     /* v6 address low */  unsigned long long addrh,
     /* v6 address high */ unsigned long long addrl,
     /* port */            int port,
@@ -1279,7 +1279,7 @@ another program tries to take the same port, it is blocked.
 
 *******************************************************************************/
 
-int pa_waitmsg(/* port number to wait on */ int port,
+int ami_waitmsg(/* port number to wait on */ int port,
                /* secure mode */            int secure
                )
 
@@ -1389,7 +1389,7 @@ packet breakage is possible.
 
 *******************************************************************************/
 
-int pa_maxmsg(unsigned long addr)
+int ami_maxmsg(unsigned long addr)
 
 {
 
@@ -1438,7 +1438,7 @@ packet breakage is possible.
 
 *******************************************************************************/
 
-int pa_maxmsgv6(unsigned long long addrh, unsigned long long addrl)
+int ami_maxmsgv6(unsigned long long addrh, unsigned long long addrl)
 
 {
 
@@ -1478,11 +1478,11 @@ int pa_maxmsgv6(unsigned long long addrh, unsigned long long addrl)
 Write message to message file
 
 Writes a message to the given message file. The message file must be open. Any
-size (including 0) up to pa_maxmsg() is allowed.
+size (including 0) up to ami_maxmsg() is allowed.
 
 *******************************************************************************/
 
-void pa_wrmsg(int fn, void* msg, unsigned long len)
+void ami_wrmsg(int fn, void* msg, unsigned long len)
 
 {
 
@@ -1528,7 +1528,7 @@ is known that a given message size will never be exceeded.
 
 *******************************************************************************/
 
-int pa_rdmsg(int fn, void* msg, unsigned long len)
+int ami_rdmsg(int fn, void* msg, unsigned long len)
 
 {
 
@@ -1579,7 +1579,7 @@ Closes the given message file.
 
 *******************************************************************************/
 
-void pa_clsmsg(int fn)
+void ami_clsmsg(int fn)
 
 {
 
@@ -1607,7 +1607,7 @@ program tries to take the same port, it is blocked.
 
 *******************************************************************************/
 
-FILE* pa_waitnet(/* port number to wait on */ int port,
+FILE* ami_waitnet(/* port number to wait on */ int port,
                  /* secure mode */            int secure
                 )
 
@@ -1716,7 +1716,7 @@ carried on the wire. Thus it is reliable by definition.
 
 *******************************************************************************/
 
-int pa_relymsg(unsigned long addr)
+int ami_relymsg(unsigned long addr)
 
 {
 
@@ -1724,7 +1724,7 @@ int pa_relymsg(unsigned long addr)
 
 }
 
-int pa_relymsgv6(unsigned long long addrh, unsigned long long addrl)
+int ami_relymsgv6(unsigned long long addrh, unsigned long long addrl)
 
 {
 
@@ -1760,7 +1760,7 @@ line. Servers are required to provide certificates. Clients are not.
 
 *******************************************************************************/
 
-int pa_certmsg(int fn, int which, string buff, int len)
+int ami_certmsg(int fn, int which, string buff, int len)
 
 {
 
@@ -1848,7 +1848,7 @@ line. Servers are required to provide certificates. Clients are not.
 
 *******************************************************************************/
 
-int pa_certnet(FILE* f, int which, string buff, int len)
+int ami_certnet(FILE* f, int which, string buff, int len)
 
 {
 
@@ -1857,7 +1857,7 @@ int pa_certnet(FILE* f, int which, string buff, int len)
     fn = fileno(f); /* get fid */
 
     /* with the fid, the call is the same as for messaging */
-    return (pa_certmsg(fn, which, buff, len));
+    return (ami_certmsg(fn, which, buff, len));
 
 }
 
@@ -1932,11 +1932,11 @@ static int getbio(BIO *bp, char* buff, int len)
 
 /* make certificate node */
 
-static pa_certptr maknode(string name)
+static ami_certptr maknode(string name)
 
 {
 
-    pa_certptr p;
+    ami_certptr p;
 
     p = getcert(); /* get a new certificate d/v entry */
     p->name = malloc(strlen(name)+1); /* get string entry for name */
@@ -1948,7 +1948,7 @@ static pa_certptr maknode(string name)
 
 /* fill data value */
 
-static void filldata(pa_certptr cp, const char* value)
+static void filldata(ami_certptr cp, const char* value)
 
 {
 
@@ -1959,11 +1959,11 @@ static void filldata(pa_certptr cp, const char* value)
 
 /* add new entry to end of list */
 
-static pa_certptr addend(pa_certptr* list, string name)
+static ami_certptr addend(ami_certptr* list, string name)
 
 {
 
-    pa_certptr p, p2;
+    ami_certptr p, p2;
 
     p = maknode(name); /* create entry */
     /* append to end of list */
@@ -2077,7 +2077,7 @@ concatenated, with the \n line endings left intact.
 
 */
 
-static void getnamval(char* buff, pa_certptr* list, int ident)
+static void getnamval(char* buff, ami_certptr* list, int ident)
 
 {
 
@@ -2085,7 +2085,7 @@ static void getnamval(char* buff, pa_certptr* list, int ident)
     char vbuff[CVBUFSIZ]; /* value output buffer */
     char name[1024]; /* name */
     char* cp; /* output buffer pointer */
-    pa_certptr cdp; /* current name/val being worked on */
+    ami_certptr cdp; /* current name/val being worked on */
     int l;
 
 dbg_printf(dlinfo, "getnamval: buff:\n%s\n", buff);
@@ -2124,7 +2124,7 @@ dbg_printf(dlinfo, "getnamval: key found: %s\n", name);
 
 }
 
-void pa_certlistnet(FILE *f, int which, pa_certptr* list)
+void ami_certlistnet(FILE *f, int which, ami_certptr* list)
 
 {
 
@@ -2152,12 +2152,12 @@ void pa_certlistnet(FILE *f, int which, pa_certptr* list)
     const X509_ALGOR *sig_alg;
     const ASN1_BIT_STRING *sig;
     /* branch placeholders */
-    pa_certptr certificate;
-    pa_certptr data;
-    pa_certptr sigal;
-    pa_certptr validity;
-    pa_certptr extensions;
-    pa_certptr cdp, cdp2;
+    ami_certptr certificate;
+    ami_certptr data;
+    ami_certptr sigal;
+    ami_certptr validity;
+    ami_certptr extensions;
+    ami_certptr cdp, cdp2;
 
     error(eunimp);
 
@@ -2341,7 +2341,7 @@ line. Servers are required to provide certificates. Clients are not.
 
 *******************************************************************************/
 
-void pa_certlistmsg(int fn, int which, pa_certptr* list)
+void ami_certlistmsg(int fn, int which, ami_certptr* list)
 
 {
 
@@ -2642,8 +2642,8 @@ Network startup
 
 *******************************************************************************/
 
-static void pa_init_network (void) __attribute__((constructor (103)));
-static void pa_init_network()
+static void ami_init_network (void) __attribute__((constructor (103)));
+static void ami_init_network()
 
 {
 
@@ -2719,8 +2719,8 @@ Network shutdown
 
 *******************************************************************************/
 
-static void pa_deinit_network (void) __attribute__((destructor (103)));
-static void pa_deinit_network()
+static void ami_deinit_network (void) __attribute__((destructor (103)));
+static void ami_deinit_network()
 
 {
 

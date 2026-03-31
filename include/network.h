@@ -61,39 +61,39 @@ extern "C" {
 #include <localdefs.h>
 
 /* name - value pair list */
-typedef struct pa_certfield {
+typedef struct ami_certfield {
 
     string               name;     /* name of field */
     string               data;     /* content of field */
     int              critical; /* is a critical X509 field */
-    struct pa_certfield* fork;     /* sublist */
-    struct pa_certfield* next;     /* next entry in list */
+    struct ami_certfield* fork;     /* sublist */
+    struct ami_certfield* next;     /* next entry in list */
 
-} pa_certfield, *pa_certptr;
+} ami_certfield, *ami_certptr;
 
-void pa_addrnet(const string name, unsigned long* addr);
-void pa_addrnetv6(const string name, unsigned long long* addrh,
+void ami_addrnet(const string name, unsigned long* addr);
+void ami_addrnetv6(const string name, unsigned long long* addrh,
                   unsigned long long* addrl);
-FILE* pa_opennet(unsigned long addr, int port, int secure);
-FILE* pa_opennetv6(unsigned long long addrh, unsigned long long addrl,
+FILE* ami_opennet(unsigned long addr, int port, int secure);
+FILE* ami_opennetv6(unsigned long long addrh, unsigned long long addrl,
                    int port, int secure);
-int pa_maxmsg(unsigned long addr);
-int pa_maxmsgv6(unsigned long long addrh, unsigned long long addrl);
-int pa_relymsg(unsigned long addr);
-int pa_relymsgv6(unsigned long long addrh, unsigned long long addrl);
-int pa_openmsg(unsigned long addr, int port, int secure);
-int pa_openmsgv6(unsigned long long addrh, unsigned long long addrl, int port,
+int ami_maxmsg(unsigned long addr);
+int ami_maxmsgv6(unsigned long long addrh, unsigned long long addrl);
+int ami_relymsg(unsigned long addr);
+int ami_relymsgv6(unsigned long long addrh, unsigned long long addrl);
+int ami_openmsg(unsigned long addr, int port, int secure);
+int ami_openmsgv6(unsigned long long addrh, unsigned long long addrl, int port,
                  int secure);
-void pa_wrmsg(int fn, void* msg, unsigned long len);
-int pa_rdmsg(int fn, void* msg, unsigned long len);
-void pa_clsmsg(int f);
-FILE* pa_waitnet(int port, int secure);
-int pa_waitmsg(int port, int secure);
-int pa_certnet(FILE* f, int which, string cert, int len);
-int pa_certmsg(int fn, int which, string cert, int len);
-void pa_certlistnet(FILE *f, int which, pa_certptr* list);
-void pa_certlistmsg(int fn, int which, pa_certptr* list);
-void pa_certlistfree(pa_certptr* list);
+void ami_wrmsg(int fn, void* msg, unsigned long len);
+int ami_rdmsg(int fn, void* msg, unsigned long len);
+void ami_clsmsg(int f);
+FILE* ami_waitnet(int port, int secure);
+int ami_waitmsg(int port, int secure);
+int ami_certnet(FILE* f, int which, string cert, int len);
+int ami_certmsg(int fn, int which, string cert, int len);
+void ami_certlistnet(FILE *f, int which, ami_certptr* list);
+void ami_certlistmsg(int fn, int which, ami_certptr* list);
+void ami_certlistfree(ami_certptr* list);
 
 #ifdef __cplusplus
 }

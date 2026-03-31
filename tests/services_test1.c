@@ -14,7 +14,7 @@ int main(void)
 
     char s[MAXSTR];
 
-    pa_getenv("bark", s, MAXSTR);
+    ami_getenv("bark", s, MAXSTR);
 
     printf("This is services_test1 \"%s\"\n", s);
 

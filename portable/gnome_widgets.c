@@ -100,8 +100,8 @@ static enum { /* debug levels */
 #define ENDSPACE 6
 #define ENDLEDSPC 10 /* space at start and end of text edit box */
 /* user defined messages */
-#define WMC_LGTFOC pa_etwidget+0 /* widget message code: light up focus */
-#define WMC_DRKFOC pa_etwidget+1 /* widget message code: turn off focus */
+#define WMC_LGTFOC ami_etwidget+0 /* widget message code: light up focus */
+#define WMC_DRKFOC ami_etwidget+1 /* widget message code: turn off focus */
 #define TABHGT 2 /* tab bar tab height * char size y */
 
 /* macro to make a color from RGB values */
@@ -371,14 +371,14 @@ typedef struct wigrec {
     /** up button pressed */                  int       uppress;
     /** down buton pressed */                 int       downpress;
     /** progress bar position */              int       ppos;
-    /** string list */                        pa_strptr strlst;
+    /** string list */                        ami_strptr strlst;
     /** string selected, 0 if none */         int       ss;
     /** string hovered, 0 if none */          int       sh;
     /** position of widget in parent */       int       px, py;
     /** child window id */                    int       cid;
     /** mouse grabs scrollbar/slider */       int       grab;
     /** tick marks on slider */               int       ticks;
-    /** Tab orientation */                    pa_tabori tor;
+    /** Tab orientation */                    ami_tabori tor;
     /** Character based */                    int       charb;
 
     /** Configurable button fields */         ccolorp   cbc;
@@ -397,97 +397,97 @@ static pclose_t  ofpclose_nocancel;
 /*
  * Saved vectors for entry calls for widgets.
  */
-static pa_getwigid_t        getwigid_vect;
-static pa_killwidget_t      killwidget_vect;
-static pa_selectwidget_t    selectwidget_vect;
-static pa_enablewidget_t    enablewidget_vect;
-static pa_getwidgettext_t   getwidgettext_vect;
-static pa_putwidgettext_t   putwidgettext_vect;
-static pa_sizwidget_t       sizwidget_vect;
-static pa_sizwidgetg_t      sizwidgetg_vect;
-static pa_poswidget_t       poswidget_vect;
-static pa_poswidgetg_t      poswidgetg_vect;
-static pa_backwidget_t      backwidget_vect;
-static pa_frontwidget_t     frontwidget_vect;
-static pa_focuswidget_t     focuswidget_vect;
-static pa_buttonsiz_t       buttonsiz_vect;
-static pa_buttonsizg_t      buttonsizg_vect;
-static pa_button_t          button_vect;
-static pa_buttong_t         buttong_vect;
-static pa_checkboxsiz_t     checkboxsiz_vect;
-static pa_checkboxsizg_t    checkboxsizg_vect;
-static pa_checkbox_t        checkbox_vect;
-static pa_checkboxg_t       checkboxg_vect;
-static pa_radiobuttonsiz_t  radiobuttonsiz_vect;
-static pa_radiobuttonsizg_t radiobuttonsizg_vect;
-static pa_radiobutton_t     radiobutton_vect;
-static pa_radiobuttong_t    radiobuttong_vect;
-static pa_groupsizg_t       groupsizg_vect;
-static pa_groupsiz_t        groupsiz_vect;
-static pa_group_t           group_vect;
-static pa_groupg_t          groupg_vect;
-static pa_background_t      background_vect;
-static pa_backgroundg_t     backgroundg_vect;
-static pa_scrollvertsizg_t  scrollvertsizg_vect;
-static pa_scrollvertsiz_t   scrollvertsiz_vect;
-static pa_scrollvert_t      scrollvert_vect;
-static pa_scrollvertg_t     scrollvertg_vect;
-static pa_scrollhorizsizg_t scrollhorizsizg_vect;
-static pa_scrollhorizsiz_t  scrollhorizsiz_vect;
-static pa_scrollhoriz_t     scrollhoriz_vect;
-static pa_scrollhorizg_t    scrollhorizg_vect;
-static pa_scrollpos_t       scrollpos_vect;
-static pa_scrollsiz_t       scrollsiz_vect;
-static pa_numselboxsizg_t   numselboxsizg_vect;
-static pa_numselboxsiz_t    numselboxsiz_vect;
-static pa_numselbox_t       numselbox_vect;
-static pa_numselboxg_t      numselboxg_vect;
-static pa_editboxsizg_t     editboxsizg_vect;
-static pa_editboxsiz_t      editboxsiz_vect;
-static pa_editbox_t         editbox_vect;
-static pa_editboxg_t        editboxg_vect;
-static pa_progbarsizg_t     progbarsizg_vect;
-static pa_progbarsiz_t      progbarsiz_vect;
-static pa_progbar_t         progbar_vect;
-static pa_progbarg_t        progbarg_vect;
-static pa_progbarpos_t      progbarpos_vect;
-static pa_listboxsizg_t     listboxsizg_vect;
-static pa_listboxsiz_t      listboxsiz_vect;
-static pa_listbox_t         listbox_vect;
-static pa_listboxg_t        listboxg_vect;
-static pa_dropboxsizg_t     dropboxsizg_vect;
-static pa_dropboxsiz_t      dropboxsiz_vect;
-static pa_dropbox_t         dropbox_vect;
-static pa_dropboxg_t        dropboxg_vect;
-static pa_dropeditboxsizg_t dropeditboxsizg_vect;
-static pa_dropeditboxsiz_t  dropeditboxsiz_vect;
-static pa_dropeditbox_t     dropeditbox_vect;
-static pa_dropeditboxg_t    dropeditboxg_vect;
-static pa_slidehorizsizg_t  slidehorizsizg_vect;
-static pa_slidehorizsiz_t   slidehorizsiz_vect;
-static pa_slidehoriz_t      slidehoriz_vect;
-static pa_slidehorizg_t     slidehorizg_vect;
-static pa_slidevertsizg_t   slidevertsizg_vect;
-static pa_slidevertsiz_t    slidevertsiz_vect;
-static pa_slidevert_t       slidevert_vect;
-static pa_slidevertg_t      slidevertg_vect;
-static pa_tabbarsizg_t      tabbarsizg_vect;
-static pa_tabbarsiz_t       tabbarsiz_vect;
-static pa_tabbarclientg_t   tabbarclientg_vect;
-static pa_tabbarclient_t    tabbarclient_vect;
-static pa_tabbar_t          tabbar_vect;
-static pa_tabbarg_t         tabbarg_vect;
-static pa_tabsel_t          tabsel_vect;
-static pa_alert_t           alert_vect;
-static pa_querycolor_t      querycolor_vect;
-static pa_queryopen_t       queryopen_vect;
-static pa_querysave_t       querysave_vect;
-static pa_querysave_t       querysave_vect;
-static pa_querysave_t       querysave_vect;
-static pa_querysave_t       querysave_vect;
-static pa_queryfind_t       queryfind_vect;
-static pa_queryfindrep_t    queryfindrep_vect;
-static pa_queryfont_t       queryfont_vect;
+static ami_getwigid_t        getwigid_vect;
+static ami_killwidget_t      killwidget_vect;
+static ami_selectwidget_t    selectwidget_vect;
+static ami_enablewidget_t    enablewidget_vect;
+static ami_getwidgettext_t   getwidgettext_vect;
+static ami_putwidgettext_t   putwidgettext_vect;
+static ami_sizwidget_t       sizwidget_vect;
+static ami_sizwidgetg_t      sizwidgetg_vect;
+static ami_poswidget_t       poswidget_vect;
+static ami_poswidgetg_t      poswidgetg_vect;
+static ami_backwidget_t      backwidget_vect;
+static ami_frontwidget_t     frontwidget_vect;
+static ami_focuswidget_t     focuswidget_vect;
+static ami_buttonsiz_t       buttonsiz_vect;
+static ami_buttonsizg_t      buttonsizg_vect;
+static ami_button_t          button_vect;
+static ami_buttong_t         buttong_vect;
+static ami_checkboxsiz_t     checkboxsiz_vect;
+static ami_checkboxsizg_t    checkboxsizg_vect;
+static ami_checkbox_t        checkbox_vect;
+static ami_checkboxg_t       checkboxg_vect;
+static ami_radiobuttonsiz_t  radiobuttonsiz_vect;
+static ami_radiobuttonsizg_t radiobuttonsizg_vect;
+static ami_radiobutton_t     radiobutton_vect;
+static ami_radiobuttong_t    radiobuttong_vect;
+static ami_groupsizg_t       groupsizg_vect;
+static ami_groupsiz_t        groupsiz_vect;
+static ami_group_t           group_vect;
+static ami_groupg_t          groupg_vect;
+static ami_background_t      background_vect;
+static ami_backgroundg_t     backgroundg_vect;
+static ami_scrollvertsizg_t  scrollvertsizg_vect;
+static ami_scrollvertsiz_t   scrollvertsiz_vect;
+static ami_scrollvert_t      scrollvert_vect;
+static ami_scrollvertg_t     scrollvertg_vect;
+static ami_scrollhorizsizg_t scrollhorizsizg_vect;
+static ami_scrollhorizsiz_t  scrollhorizsiz_vect;
+static ami_scrollhoriz_t     scrollhoriz_vect;
+static ami_scrollhorizg_t    scrollhorizg_vect;
+static ami_scrollpos_t       scrollpos_vect;
+static ami_scrollsiz_t       scrollsiz_vect;
+static ami_numselboxsizg_t   numselboxsizg_vect;
+static ami_numselboxsiz_t    numselboxsiz_vect;
+static ami_numselbox_t       numselbox_vect;
+static ami_numselboxg_t      numselboxg_vect;
+static ami_editboxsizg_t     editboxsizg_vect;
+static ami_editboxsiz_t      editboxsiz_vect;
+static ami_editbox_t         editbox_vect;
+static ami_editboxg_t        editboxg_vect;
+static ami_progbarsizg_t     progbarsizg_vect;
+static ami_progbarsiz_t      progbarsiz_vect;
+static ami_progbar_t         progbar_vect;
+static ami_progbarg_t        progbarg_vect;
+static ami_progbarpos_t      progbarpos_vect;
+static ami_listboxsizg_t     listboxsizg_vect;
+static ami_listboxsiz_t      listboxsiz_vect;
+static ami_listbox_t         listbox_vect;
+static ami_listboxg_t        listboxg_vect;
+static ami_dropboxsizg_t     dropboxsizg_vect;
+static ami_dropboxsiz_t      dropboxsiz_vect;
+static ami_dropbox_t         dropbox_vect;
+static ami_dropboxg_t        dropboxg_vect;
+static ami_dropeditboxsizg_t dropeditboxsizg_vect;
+static ami_dropeditboxsiz_t  dropeditboxsiz_vect;
+static ami_dropeditbox_t     dropeditbox_vect;
+static ami_dropeditboxg_t    dropeditboxg_vect;
+static ami_slidehorizsizg_t  slidehorizsizg_vect;
+static ami_slidehorizsiz_t   slidehorizsiz_vect;
+static ami_slidehoriz_t      slidehoriz_vect;
+static ami_slidehorizg_t     slidehorizg_vect;
+static ami_slidevertsizg_t   slidevertsizg_vect;
+static ami_slidevertsiz_t    slidevertsiz_vect;
+static ami_slidevert_t       slidevert_vect;
+static ami_slidevertg_t      slidevertg_vect;
+static ami_tabbarsizg_t      tabbarsizg_vect;
+static ami_tabbarsiz_t       tabbarsiz_vect;
+static ami_tabbarclientg_t   tabbarclientg_vect;
+static ami_tabbarclient_t    tabbarclient_vect;
+static ami_tabbar_t          tabbar_vect;
+static ami_tabbarg_t         tabbarg_vect;
+static ami_tabsel_t          tabsel_vect;
+static ami_alert_t           alert_vect;
+static ami_querycolor_t      querycolor_vect;
+static ami_queryopen_t       queryopen_vect;
+static ami_querysave_t       querysave_vect;
+static ami_querysave_t       querysave_vect;
+static ami_querysave_t       querysave_vect;
+static ami_querysave_t       querysave_vect;
+static ami_queryfind_t       queryfind_vect;
+static ami_queryfindrep_t    queryfindrep_vect;
+static ami_queryfont_t       queryfont_vect;
 
 /* File tracking.
   Files can be passthrough to the OS, or can be associated with a window. If
@@ -502,7 +502,7 @@ typedef struct filrec {
 
 } filrec;
 
-static pa_pevthan    widget_event_old;   /* previous event vector save */
+static ami_pevthan    widget_event_old;   /* previous event vector save */
 static wigptr        wigfre;             /* free widget entry list */
 static filptr        opnfil[MAXFIL];     /* open files table */
 static wigptr        xltwig[MAXFIL*2+1]; /* widget entry equivalence table */
@@ -524,7 +524,7 @@ static void error(
 {
 
 #ifdef USEDLG
-    pa_alert("Error: widgets", es);
+    ami_alert("Error: widgets", es);
 #else
     fprintf(stderr, "Error: widgets: %s\n", es);
     fflush(stderr);
@@ -543,86 +543,86 @@ A diagnostic, print the given event code as a symbol to the error file.
 ******************************************************************************/
 
 static void prtevtt(
-    /** Error code */ pa_evtcod e
+    /** Error code */ ami_evtcod e
 )
 
 {
 
     switch (e) {
 
-        case pa_etchar:    fprintf(stderr, "etchar   "); break;
-        case pa_etup:      fprintf(stderr, "etup     "); break;
-        case pa_etdown:    fprintf(stderr, "etdown   "); break;
-        case pa_etleft:    fprintf(stderr, "etleft   "); break;
-        case pa_etright:   fprintf(stderr, "etright  "); break;
-        case pa_etleftw:   fprintf(stderr, "etleftw  "); break;
-        case pa_etrightw:  fprintf(stderr, "etrightw "); break;
-        case pa_ethome:    fprintf(stderr, "ethome   "); break;
-        case pa_ethomes:   fprintf(stderr, "ethomes  "); break;
-        case pa_ethomel:   fprintf(stderr, "ethomel  "); break;
-        case pa_etend:     fprintf(stderr, "etend    "); break;
-        case pa_etends:    fprintf(stderr, "etends   "); break;
-        case pa_etendl:    fprintf(stderr, "etendl   "); break;
-        case pa_etscrl:    fprintf(stderr, "etscrl   "); break;
-        case pa_etscrr:    fprintf(stderr, "etscrr   "); break;
-        case pa_etscru:    fprintf(stderr, "etscru   "); break;
-        case pa_etscrd:    fprintf(stderr, "etscrd   "); break;
-        case pa_etpagd:    fprintf(stderr, "etpagd   "); break;
-        case pa_etpagu:    fprintf(stderr, "etpagu   "); break;
-        case pa_ettab:     fprintf(stderr, "ettab    "); break;
-        case pa_etenter:   fprintf(stderr, "etenter  "); break;
-        case pa_etinsert:  fprintf(stderr, "etinsert "); break;
-        case pa_etinsertl: fprintf(stderr, "etinsertl"); break;
-        case pa_etinsertt: fprintf(stderr, "etinsertt"); break;
-        case pa_etdel:     fprintf(stderr, "etdel    "); break;
-        case pa_etdell:    fprintf(stderr, "etdell   "); break;
-        case pa_etdelcf:   fprintf(stderr, "etdelcf  "); break;
-        case pa_etdelcb:   fprintf(stderr, "etdelcb  "); break;
-        case pa_etcopy:    fprintf(stderr, "etcopy   "); break;
-        case pa_etcopyl:   fprintf(stderr, "etcopyl  "); break;
-        case pa_etcan:     fprintf(stderr, "etcan    "); break;
-        case pa_etstop:    fprintf(stderr, "etstop   "); break;
-        case pa_etcont:    fprintf(stderr, "etcont   "); break;
-        case pa_etprint:   fprintf(stderr, "etprint  "); break;
-        case pa_etprintb:  fprintf(stderr, "etprintb "); break;
-        case pa_etprints:  fprintf(stderr, "etprints "); break;
-        case pa_etfun:     fprintf(stderr, "etfun    "); break;
-        case pa_etmenu:    fprintf(stderr, "etmenu   "); break;
-        case pa_etmouba:   fprintf(stderr, "etmouba  "); break;
-        case pa_etmoubd:   fprintf(stderr, "etmoubd  "); break;
-        case pa_etmoumov:  fprintf(stderr, "etmoumov "); break;
-        case pa_ettim:     fprintf(stderr, "ettim    "); break;
-        case pa_etjoyba:   fprintf(stderr, "etjoyba  "); break;
-        case pa_etjoybd:   fprintf(stderr, "etjoybd  "); break;
-        case pa_etjoymov:  fprintf(stderr, "etjoymov "); break;
-        case pa_etresize:  fprintf(stderr, "etresize "); break;
-        case pa_etterm:    fprintf(stderr, "etterm   "); break;
-        case pa_etmoumovg: fprintf(stderr, "etmoumovg"); break;
-        case pa_etframe:   fprintf(stderr, "etframe  "); break;
-        case pa_etredraw:  fprintf(stderr, "etredraw "); break;
-        case pa_etmin:     fprintf(stderr, "etmin    "); break;
-        case pa_etmax:     fprintf(stderr, "etmax    "); break;
-        case pa_etnorm:    fprintf(stderr, "etnorm   "); break;
-        case pa_etfocus:   fprintf(stderr, "etfocus  "); break;
-        case pa_etnofocus: fprintf(stderr, "etnofocus"); break;
-        case pa_ethover:   fprintf(stderr, "ethover  "); break;
-        case pa_etnohover: fprintf(stderr, "etnohover"); break;
-        case pa_etmenus:   fprintf(stderr, "etmenus  "); break;
-        case pa_etbutton:  fprintf(stderr, "etbutton "); break;
-        case pa_etchkbox:  fprintf(stderr, "etchkbox "); break;
-        case pa_etradbut:  fprintf(stderr, "etradbut "); break;
-        case pa_etsclull:  fprintf(stderr, "etsclull "); break;
-        case pa_etscldrl:  fprintf(stderr, "etscldrl "); break;
-        case pa_etsclulp:  fprintf(stderr, "etsclulp "); break;
-        case pa_etscldrp:  fprintf(stderr, "etscldrp "); break;
-        case pa_etsclpos:  fprintf(stderr, "etsclpos "); break;
-        case pa_etedtbox:  fprintf(stderr, "etedtbox "); break;
-        case pa_etnumbox:  fprintf(stderr, "etnumbox "); break;
-        case pa_etlstbox:  fprintf(stderr, "etlstbox "); break;
-        case pa_etdrpbox:  fprintf(stderr, "etdrpbox "); break;
-        case pa_etdrebox:  fprintf(stderr, "etdrebox "); break;
-        case pa_etsldpos:  fprintf(stderr, "etsldpos "); break;
-        case pa_ettabbar:  fprintf(stderr, "ettabbar "); break;
+        case ami_etchar:    fprintf(stderr, "etchar   "); break;
+        case ami_etup:      fprintf(stderr, "etup     "); break;
+        case ami_etdown:    fprintf(stderr, "etdown   "); break;
+        case ami_etleft:    fprintf(stderr, "etleft   "); break;
+        case ami_etright:   fprintf(stderr, "etright  "); break;
+        case ami_etleftw:   fprintf(stderr, "etleftw  "); break;
+        case ami_etrightw:  fprintf(stderr, "etrightw "); break;
+        case ami_ethome:    fprintf(stderr, "ethome   "); break;
+        case ami_ethomes:   fprintf(stderr, "ethomes  "); break;
+        case ami_ethomel:   fprintf(stderr, "ethomel  "); break;
+        case ami_etend:     fprintf(stderr, "etend    "); break;
+        case ami_etends:    fprintf(stderr, "etends   "); break;
+        case ami_etendl:    fprintf(stderr, "etendl   "); break;
+        case ami_etscrl:    fprintf(stderr, "etscrl   "); break;
+        case ami_etscrr:    fprintf(stderr, "etscrr   "); break;
+        case ami_etscru:    fprintf(stderr, "etscru   "); break;
+        case ami_etscrd:    fprintf(stderr, "etscrd   "); break;
+        case ami_etpagd:    fprintf(stderr, "etpagd   "); break;
+        case ami_etpagu:    fprintf(stderr, "etpagu   "); break;
+        case ami_ettab:     fprintf(stderr, "ettab    "); break;
+        case ami_etenter:   fprintf(stderr, "etenter  "); break;
+        case ami_etinsert:  fprintf(stderr, "etinsert "); break;
+        case ami_etinsertl: fprintf(stderr, "etinsertl"); break;
+        case ami_etinsertt: fprintf(stderr, "etinsertt"); break;
+        case ami_etdel:     fprintf(stderr, "etdel    "); break;
+        case ami_etdell:    fprintf(stderr, "etdell   "); break;
+        case ami_etdelcf:   fprintf(stderr, "etdelcf  "); break;
+        case ami_etdelcb:   fprintf(stderr, "etdelcb  "); break;
+        case ami_etcopy:    fprintf(stderr, "etcopy   "); break;
+        case ami_etcopyl:   fprintf(stderr, "etcopyl  "); break;
+        case ami_etcan:     fprintf(stderr, "etcan    "); break;
+        case ami_etstop:    fprintf(stderr, "etstop   "); break;
+        case ami_etcont:    fprintf(stderr, "etcont   "); break;
+        case ami_etprint:   fprintf(stderr, "etprint  "); break;
+        case ami_etprintb:  fprintf(stderr, "etprintb "); break;
+        case ami_etprints:  fprintf(stderr, "etprints "); break;
+        case ami_etfun:     fprintf(stderr, "etfun    "); break;
+        case ami_etmenu:    fprintf(stderr, "etmenu   "); break;
+        case ami_etmouba:   fprintf(stderr, "etmouba  "); break;
+        case ami_etmoubd:   fprintf(stderr, "etmoubd  "); break;
+        case ami_etmoumov:  fprintf(stderr, "etmoumov "); break;
+        case ami_ettim:     fprintf(stderr, "ettim    "); break;
+        case ami_etjoyba:   fprintf(stderr, "etjoyba  "); break;
+        case ami_etjoybd:   fprintf(stderr, "etjoybd  "); break;
+        case ami_etjoymov:  fprintf(stderr, "etjoymov "); break;
+        case ami_etresize:  fprintf(stderr, "etresize "); break;
+        case ami_etterm:    fprintf(stderr, "etterm   "); break;
+        case ami_etmoumovg: fprintf(stderr, "etmoumovg"); break;
+        case ami_etframe:   fprintf(stderr, "etframe  "); break;
+        case ami_etredraw:  fprintf(stderr, "etredraw "); break;
+        case ami_etmin:     fprintf(stderr, "etmin    "); break;
+        case ami_etmax:     fprintf(stderr, "etmax    "); break;
+        case ami_etnorm:    fprintf(stderr, "etnorm   "); break;
+        case ami_etfocus:   fprintf(stderr, "etfocus  "); break;
+        case ami_etnofocus: fprintf(stderr, "etnofocus"); break;
+        case ami_ethover:   fprintf(stderr, "ethover  "); break;
+        case ami_etnohover: fprintf(stderr, "etnohover"); break;
+        case ami_etmenus:   fprintf(stderr, "etmenus  "); break;
+        case ami_etbutton:  fprintf(stderr, "etbutton "); break;
+        case ami_etchkbox:  fprintf(stderr, "etchkbox "); break;
+        case ami_etradbut:  fprintf(stderr, "etradbut "); break;
+        case ami_etsclull:  fprintf(stderr, "etsclull "); break;
+        case ami_etscldrl:  fprintf(stderr, "etscldrl "); break;
+        case ami_etsclulp:  fprintf(stderr, "etsclulp "); break;
+        case ami_etscldrp:  fprintf(stderr, "etscldrp "); break;
+        case ami_etsclpos:  fprintf(stderr, "etsclpos "); break;
+        case ami_etedtbox:  fprintf(stderr, "etedtbox "); break;
+        case ami_etnumbox:  fprintf(stderr, "etnumbox "); break;
+        case ami_etlstbox:  fprintf(stderr, "etlstbox "); break;
+        case ami_etdrpbox:  fprintf(stderr, "etdrpbox "); break;
+        case ami_etdrebox:  fprintf(stderr, "etdrebox "); break;
+        case ami_etsldpos:  fprintf(stderr, "etsldpos "); break;
+        case ami_ettabbar:  fprintf(stderr, "ettabbar "); break;
 
         default: fprintf(stderr, "???");
 
@@ -643,7 +643,7 @@ before calling this routine.
 ******************************************************************************/
 
 static void prtevt(
-    /** Event record */ pa_evtptr er
+    /** Event record */ ami_evtptr er
 )
 
 {
@@ -652,51 +652,51 @@ static void prtevt(
     prtevtt(er->etype);
     switch (er->etype) {
 
-        case pa_etchar: fprintf(stderr, ": char: %c", er->echar); break;
-        case pa_ettim: fprintf(stderr, ": timer: %d", er->timnum); break;
-        case pa_etmoumov: fprintf(stderr, ": mouse: %d x: %4d y: %4d",
+        case ami_etchar: fprintf(stderr, ": char: %c", er->echar); break;
+        case ami_ettim: fprintf(stderr, ": timer: %d", er->timnum); break;
+        case ami_etmoumov: fprintf(stderr, ": mouse: %d x: %4d y: %4d",
                                   er->mmoun, er->moupx, er->moupy); break;
-        case pa_etmouba: fprintf(stderr, ": mouse: %d button: %d",
+        case ami_etmouba: fprintf(stderr, ": mouse: %d button: %d",
                                  er->amoun, er->amoubn); break;
-        case pa_etmoubd: fprintf(stderr, ": mouse: %d button: %d",
+        case ami_etmoubd: fprintf(stderr, ": mouse: %d button: %d",
                                  er->dmoun, er->dmoubn); break;
-        case pa_etjoyba: fprintf(stderr, ": joystick: %d button: %d",
+        case ami_etjoyba: fprintf(stderr, ": joystick: %d button: %d",
                                  er->ajoyn, er->ajoybn); break;
-        case pa_etjoybd: fprintf(stderr, ": joystick: %d button: %d",
+        case ami_etjoybd: fprintf(stderr, ": joystick: %d button: %d",
                                  er->djoyn, er->djoybn); break;
-        case pa_etjoymov: fprintf(stderr, ": joystick: %d x: %4d y: %4d z: %4d "
+        case ami_etjoymov: fprintf(stderr, ": joystick: %d x: %4d y: %4d z: %4d "
                                   "a4: %4d a5: %4d a6: %4d", er->mjoyn,
                                   er->joypx, er->joypy, er->joypz,
                                   er->joyp4, er->joyp5, er->joyp6); break;
-        case pa_etresize: fprintf(stderr, ": x: %d y: %d xg: %d yg: %d",
+        case ami_etresize: fprintf(stderr, ": x: %d y: %d xg: %d yg: %d",
                                   er->rszx, er->rszy,
                                   er->rszxg, er->rszyg); break;
-        case pa_etfun: fprintf(stderr, ": key: %d", er->fkey); break;
-        case pa_etmoumovg: fprintf(stderr, ": mouse: %d x: %4d y: %4d",
+        case ami_etfun: fprintf(stderr, ": key: %d", er->fkey); break;
+        case ami_etmoumovg: fprintf(stderr, ": mouse: %d x: %4d y: %4d",
                                    er->mmoung, er->moupxg, er->moupyg); break;
-        case pa_etredraw: fprintf(stderr, ": sx: %4d sy: %4d ex: %4d ey: %4d",
+        case ami_etredraw: fprintf(stderr, ": sx: %4d sy: %4d ex: %4d ey: %4d",
                                   er->rsx, er->rsy, er->rex, er->rey); break;
-        case pa_etmenus: fprintf(stderr, ": id: %d", er->menuid); break;
-        case pa_etbutton: fprintf(stderr, ": id: %d", er->butid); break;
-        case pa_etchkbox: fprintf(stderr, ": id: %d", er->ckbxid); break;
-        case pa_etradbut: fprintf(stderr, ": id: %d", er->radbid); break;
-        case pa_etsclull: fprintf(stderr, ": id: %d", er->sclulid); break;
-        case pa_etscldrl: fprintf(stderr, ": id: %d", er->scldrid); break;
-        case pa_etsclulp: fprintf(stderr, ": id: %d", er->sclupid); break;
-        case pa_etscldrp: fprintf(stderr, ": id: %d", er->scldpid); break;
-        case pa_etsclpos: fprintf(stderr, ": id: %d position: %d",
+        case ami_etmenus: fprintf(stderr, ": id: %d", er->menuid); break;
+        case ami_etbutton: fprintf(stderr, ": id: %d", er->butid); break;
+        case ami_etchkbox: fprintf(stderr, ": id: %d", er->ckbxid); break;
+        case ami_etradbut: fprintf(stderr, ": id: %d", er->radbid); break;
+        case ami_etsclull: fprintf(stderr, ": id: %d", er->sclulid); break;
+        case ami_etscldrl: fprintf(stderr, ": id: %d", er->scldrid); break;
+        case ami_etsclulp: fprintf(stderr, ": id: %d", er->sclupid); break;
+        case ami_etscldrp: fprintf(stderr, ": id: %d", er->scldpid); break;
+        case ami_etsclpos: fprintf(stderr, ": id: %d position: %d",
                                   er->sclpid, er->sclpos); break;
-        case pa_etedtbox: fprintf(stderr, ": id: %d", er->edtbid); break;
-        case pa_etnumbox: fprintf(stderr, ": id: %d number: %d",
+        case ami_etedtbox: fprintf(stderr, ": id: %d", er->edtbid); break;
+        case ami_etnumbox: fprintf(stderr, ": id: %d number: %d",
                                   er->numbid, er->numbsl); break;
-        case pa_etlstbox: fprintf(stderr, ": id: %d select: %d",
+        case ami_etlstbox: fprintf(stderr, ": id: %d select: %d",
                                   er->lstbid, er->lstbsl); break;
-        case pa_etdrpbox: fprintf(stderr, ": id: %d select: %d",
+        case ami_etdrpbox: fprintf(stderr, ": id: %d select: %d",
                                   er->drpbid, er->drpbsl); break;
-        case pa_etdrebox: fprintf(stderr, ": id: %d", er->drebid); break;
-        case pa_etsldpos: fprintf(stderr, ": id: %d postion: %d",
+        case ami_etdrebox: fprintf(stderr, ": id: %d", er->drebid); break;
+        case ami_etsldpos: fprintf(stderr, ": id: %d postion: %d",
                                   er->sldpid, er->sldpos); break;
-        case pa_ettabbar: fprintf(stderr, ": id: %d select: %d",
+        case ami_ettabbar: fprintf(stderr, ": id: %d select: %d",
                                   er->tabid, er->tabsel); break;
         default: ;
 
@@ -738,20 +738,20 @@ Makes a copy of a string list
 *******************************************************************************/
 
 static void cpystrlst(
-    /** Destination string list */ pa_strptr* dp,
-    /** Source string list */      pa_strptr  sp
+    /** Destination string list */ ami_strptr* dp,
+    /** Source string list */      ami_strptr  sp
 )
 
 {
 
-    pa_strptr sp1;
-    pa_strptr lh, lhs, p;
+    ami_strptr sp1;
+    ami_strptr lh, lhs, p;
 
     /* make a copy of the list */
     lh = NULL;
     while (sp) { /* traverse the list */
 
-        sp1 = malloc(sizeof(pa_strrec)); /* get string entry */
+        sp1 = malloc(sizeof(ami_strrec)); /* get string entry */
         sp1->str = str(sp->str); /* copy the string */
         sp1->next = lh; /* push to list */
         lh = sp1;
@@ -783,12 +783,12 @@ Recycles a string list
 *******************************************************************************/
 
 static void frestrlst(
-    /** String list */ pa_strptr sp
+    /** String list */ ami_strptr sp
 )
 
 {
 
-    pa_strptr sp1;
+    ami_strptr sp1;
 
     while (sp) { /* list not empty */
 
@@ -906,7 +906,7 @@ static wigptr getwig(void)
     wp->cid = 0; /* clear child id */
     wp->grab = FALSE; /* set no scrollbar/slider grab */
     wp->ticks = 0; /* set no tick marks on slider */
-    wp->tor = pa_totop; /* set tab orientation top */
+    wp->tor = ami_totop; /* set tab orientation top */
     wp->charb = FALSE; /* widget based on character grid */
     wp->check = FALSE; /* do not use check instead of text */
 
@@ -983,14 +983,14 @@ static void widget_redraw(
 
 {
 
-    pa_evtrec ev;  /* outbound menu event */
+    ami_evtrec ev;  /* outbound menu event */
 
-    ev.etype = pa_etredraw; /* set redraw event */
+    ev.etype = ami_etredraw; /* set redraw event */
     ev.rsx = 1; /* set extent */
     ev.rsy = 1;
-    ev.rex = pa_maxxg(wp->wf);
-    ev.rey = pa_maxyg(wp->wf);
-    pa_sendevent(wp->wf, &ev); /* send to widget window */
+    ev.rex = ami_maxxg(wp->wf);
+    ev.rey = ami_maxyg(wp->wf);
+    ami_sendevent(wp->wf, &ev); /* send to widget window */
 
 }
 
@@ -1009,7 +1009,7 @@ static void fcolorp(
 
 {
 
-    pa_fcolorg(f, RED(c), GREEN(c), BLUE(c));
+    ami_fcolorg(f, RED(c), GREEN(c), BLUE(c));
 
 }
 
@@ -1029,7 +1029,7 @@ static void bcolorp(
 
 {
 
-    pa_bcolorg(f, RED(c), GREEN(c), BLUE(c));
+    ami_bcolorg(f, RED(c), GREEN(c), BLUE(c));
 
 }
 
@@ -1127,8 +1127,8 @@ static void intkillwidget(
     if (!opnfil[fn]->widgets[wid+MAXWIG]) error("No widget by given id");
     wp = opnfil[fn]->widgets[wid+MAXWIG]; /* index that */
     /* if there is a subwidget, kill that as well */
-    if (wp->cw) pa_killwidget(wp->cw->pw->wf, wp->cw->id);
-    if (wp->cw2) pa_killwidget(wp->cw2->pw->wf, wp->cw2->id);
+    if (wp->cw) ami_killwidget(wp->cw->pw->wf, wp->cw->id);
+    if (wp->cw2) ami_killwidget(wp->cw2->pw->wf, wp->cw2->id);
     fclose(wp->wf); /* close the window file */
     opnfil[fn]->widgets[wid+MAXWIG] = NULL; /* clear widget slot  */
     putwig(wp); /* release widget data */
@@ -1173,19 +1173,19 @@ static void widget(
     opnfil[fn]->widgets[id+MAXWIG] = wp; /* set widget entry */
 
     wp->face = str(s); /* place face */
-    wp->wid = pa_getwinid(); /* allocate a buried wid */
-    pa_openwin(&stdin, &wp->wf, f, wp->wid); /* open widget window */
+    wp->wid = ami_getwinid(); /* allocate a buried wid */
+    ami_openwin(&stdin, &wp->wf, f, wp->wid); /* open widget window */
     wp->parent = f; /* save parent file */
     xltwig[wp->wid+MAXFIL] = wp; /* set the tracking entry for the window */
     wp->id = id; /* set button widget id */
-    pa_buffer(wp->wf, FALSE); /* turn off buffering */
-    pa_auto(wp->wf, FALSE); /* turn off auto */
-    pa_curvis(wp->wf, FALSE); /* turn off cursor */
-    pa_font(wp->wf, PA_FONT_SIGN); /* set sign font */
-    pa_frame(wp->wf, FALSE); /* turn off frame */
-    pa_setposg(wp->wf, x1, y1); /* place at position */
-    pa_setsizg(wp->wf, x2-x1, y2-y1); /* set size */
-    pa_binvis(wp->wf); /* no background write */
+    ami_buffer(wp->wf, FALSE); /* turn off buffering */
+    ami_auto(wp->wf, FALSE); /* turn off auto */
+    ami_curvis(wp->wf, FALSE); /* turn off cursor */
+    ami_font(wp->wf, PA_FONT_SIGN); /* set sign font */
+    ami_frame(wp->wf, FALSE); /* turn off frame */
+    ami_setposg(wp->wf, x1, y1); /* place at position */
+    ami_setsizg(wp->wf, x2-x1, y2-y1); /* set size */
+    ami_binvis(wp->wf); /* no background write */
     wp->typ = typ; /* place type */
     wp->enb = TRUE; /* set is enabled */
     wp->sclsiz = INT_MAX/10; /* set default size scrollbar */
@@ -1220,34 +1220,34 @@ static void cbutton_draw(
     /* color the background */
     if (wg->pressed) fcolorp(wg->wf, wg->cbc->bbp);
     else fcolorp(wg->wf, wg->cbc->bbn);
-    pa_frrect(wg->wf, 1, 1, pa_maxxg(wg->wf), pa_maxyg(wg->wf), 20, 20);
+    ami_frrect(wg->wf, 1, 1, ami_maxxg(wg->wf), ami_maxyg(wg->wf), 20, 20);
     /* outline */
-    pa_linewidth(wg->wf, 3);
+    ami_linewidth(wg->wf, 3);
     if (wg->focus) fcolorp(wg->wf, wg->cbc->bof);
     else fcolorp(wg->wf, wg->cbc->bon);
-    pa_rrect(wg->wf, 2, 2, pa_maxxg(wg->wf)-1, pa_maxyg(wg->wf)-1, 20, 20);
+    ami_rrect(wg->wf, 2, 2, ami_maxxg(wg->wf)-1, ami_maxyg(wg->wf)-1, 20, 20);
     if (wg->enb) fcolorp(wg->wf, wg->cbc->btn);
     else fcolorp(wg->wf, wg->cbc->btd);
     if (wg->select && wg->check) { /* use check instead of text */
 
         /* set size of square as ratio of font height */
-        sq = 0.80*pa_chrsizy(wg->wf);
-        md = pa_maxyg(wg->wf)/2; /* set middle line of checkbox */
-        sqm = pa_maxxg(wg->wf)/2; /* set square middle x */
+        sq = 0.80*ami_chrsizy(wg->wf);
+        md = ami_maxyg(wg->wf)/2; /* set middle line of checkbox */
+        sqm = ami_maxxg(wg->wf)/2; /* set square middle x */
         cb = sq*.70; /* set bounding box of check figure */
         /* place selected checkmark */
-        pa_linewidth(wg->wf, 4);
-        pa_line(wg->wf, sqm-cb/2, md-cb*.10,
+        ami_linewidth(wg->wf, 4);
+        ami_line(wg->wf, sqm-cb/2, md-cb*.10,
                         sqm, md+cb*.25);
-        pa_line(wg->wf, sqm-1, md+cb*.25-1,
+        ami_line(wg->wf, sqm-1, md+cb*.25-1,
                         sqm+cb/2, md-cb*.4);
-        pa_linewidth(wg->wf, 1);
+        ami_linewidth(wg->wf, 1);
 
     } else { /* use text */
 
-        pa_cursorg(wg->wf,
-                   pa_maxxg(wg->wf)/2-pa_strsiz(wg->wf, wg->face)/2,
-                   pa_maxyg(wg->wf)/2-pa_chrsizy(wg->wf)/2);
+        ami_cursorg(wg->wf,
+                   ami_maxxg(wg->wf)/2-ami_strsiz(wg->wf, wg->face)/2,
+                   ami_maxyg(wg->wf)/2-ami_chrsizy(wg->wf)/2);
         fprintf(wg->wf, "%s", wg->face); /* place button face */
 
     }
@@ -1263,23 +1263,23 @@ Handles the events posted to buttons.
 *******************************************************************************/
 
 static void cbutton_event(
-    /** Event record pointer */ pa_evtrec* ev,
+    /** Event record pointer */ ami_evtrec* ev,
     /** Widget data pointer */  wigptr     wg
 )
 
 {
 
-    pa_evtrec er; /* outbound button event */
+    ami_evtrec er; /* outbound button event */
 
-    if (ev->etype == pa_etredraw) cbutton_draw(wg); /* redraw the window */
-    else if (ev->etype == pa_etmouba && ev->amoubn == 1) {
+    if (ev->etype == ami_etredraw) cbutton_draw(wg); /* redraw the window */
+    else if (ev->etype == ami_etmouba && ev->amoubn == 1) {
 
         if (wg->enb) { /* enabled */
 
             /* send event back to parent window */
-            er.etype = pa_etbutton; /* set button event */
+            er.etype = ami_etbutton; /* set button event */
             er.butid = wg->id; /* set id */
-            pa_sendevent(wg->parent, &er); /* send the event to the parent */
+            ami_sendevent(wg->parent, &er); /* send the event to the parent */
 
         }
 
@@ -1287,27 +1287,27 @@ static void cbutton_event(
         wg->pressed = TRUE;
         cbutton_draw(wg); /* redraw the window */
 
-    } else if (ev->etype == pa_etmoubd  && ev->dmoubn == 1) {
+    } else if (ev->etype == ami_etmoubd  && ev->dmoubn == 1) {
 
         wg->pressed = FALSE;
         cbutton_draw(wg); /* redraw the window */
 
-    } else if (ev->etype == pa_etfocus) {
+    } else if (ev->etype == ami_etfocus) {
 
         wg->focus = 1; /* in focus */
         cbutton_draw(wg); /* redraw the window */
 
-    } else if (ev->etype == pa_etnofocus) {
+    } else if (ev->etype == ami_etnofocus) {
 
         wg->focus = 0; /* out of focus */
         cbutton_draw(wg); /* redraw the window */
 
-    } else if (ev->etype == pa_ethover) {
+    } else if (ev->etype == ami_ethover) {
 
         wg->hover = 1; /* hovered */
         cbutton_draw(wg); /* redraw the window */
 
-    } else if (ev->etype == pa_etnohover) {
+    } else if (ev->etype == ami_etnohover) {
 
         wg->hover = 0; /* not hovered */
         cbutton_draw(wg); /* redraw the window */
@@ -1333,19 +1333,19 @@ static void button_draw(
     /* color the background */
     if (wg->pressed) fcolort(wg->wf, th_backpressed);
     else fcolort(wg->wf, th_back);
-    pa_frect(wg->wf, 1, 1, pa_maxxg(wg->wf),
-              pa_maxyg(wg->wf));
+    ami_frect(wg->wf, 1, 1, ami_maxxg(wg->wf),
+              ami_maxyg(wg->wf));
     /* outline */
-    pa_linewidth(wg->wf, 4);
+    ami_linewidth(wg->wf, 4);
     if (wg->focus) fcolort(wg->wf, th_focus);
     else fcolort(wg->wf, th_outline1);
-    pa_rrect(wg->wf, 2, 2, pa_maxxg(wg->wf)-1,
-             pa_maxyg(wg->wf)-1, 20, 20);
+    ami_rrect(wg->wf, 2, 2, ami_maxxg(wg->wf)-1,
+             ami_maxyg(wg->wf)-1, 20, 20);
     if (wg->enb) fcolort(wg->wf, th_text);
     else fcolort(wg->wf, th_textdis);
-    pa_cursorg(wg->wf,
-               pa_maxxg(wg->wf)/2-pa_strsiz(wg->wf, wg->face)/2,
-               pa_maxyg(wg->wf)/2-pa_chrsizy(wg->wf)/2);
+    ami_cursorg(wg->wf,
+               ami_maxxg(wg->wf)/2-ami_strsiz(wg->wf, wg->face)/2,
+               ami_maxyg(wg->wf)/2-ami_chrsizy(wg->wf)/2);
     fprintf(wg->wf, "%s", wg->face); /* place button face */
 
 }
@@ -1359,23 +1359,23 @@ Handles the events posted to buttons.
 *******************************************************************************/
 
 static void button_event(
-    /** Event record pointer */ pa_evtrec* ev,
+    /** Event record pointer */ ami_evtrec* ev,
     /** Widget data pointer */  wigptr     wg
 )
 
 {
 
-    pa_evtrec er; /* outbound button event */
+    ami_evtrec er; /* outbound button event */
 
-    if (ev->etype == pa_etredraw) button_draw(wg); /* redraw the window */
-    else if (ev->etype == pa_etmouba && ev->amoubn == 1) {
+    if (ev->etype == ami_etredraw) button_draw(wg); /* redraw the window */
+    else if (ev->etype == ami_etmouba && ev->amoubn == 1) {
 
         if (wg->enb) { /* enabled */
 
             /* send event back to parent window */
-            er.etype = pa_etbutton; /* set button event */
+            er.etype = ami_etbutton; /* set button event */
             er.butid = wg->id; /* set id */
-            pa_sendevent(wg->parent, &er); /* send the event to the parent */
+            ami_sendevent(wg->parent, &er); /* send the event to the parent */
 
         }
 
@@ -1383,17 +1383,17 @@ static void button_event(
         wg->pressed = TRUE;
         button_draw(wg); /* redraw the window */
 
-    } else if (ev->etype == pa_etmoubd  && ev->dmoubn == 1) {
+    } else if (ev->etype == ami_etmoubd  && ev->dmoubn == 1) {
 
         wg->pressed = FALSE;
         button_draw(wg); /* redraw the window */
 
-    } else if (ev->etype == pa_etfocus) {
+    } else if (ev->etype == ami_etfocus) {
 
         wg->focus = 1; /* in focus */
         button_draw(wg); /* redraw the window */
 
-    } else if (ev->etype == pa_etnofocus) {
+    } else if (ev->etype == ami_etnofocus) {
 
         wg->focus = 0; /* out of focus */
         button_draw(wg); /* redraw the window */
@@ -1423,27 +1423,27 @@ static void checkbox_draw(
     int cb; /* bounding box of check figure */
 
     /* color the background */
-    pa_fcolor(wg->wf, pa_backcolor);
-    pa_frect(wg->wf, 1, 1, pa_maxxg(wg->wf), pa_maxyg(wg->wf));
+    ami_fcolor(wg->wf, ami_backcolor);
+    ami_frect(wg->wf, 1, 1, ami_maxxg(wg->wf), ami_maxyg(wg->wf));
     /* outline */
-    pa_linewidth(wg->wf, 4);
+    ami_linewidth(wg->wf, 4);
     if (wg->focus) {
 
         fcolort(wg->wf, th_focus);
-        pa_rrect(wg->wf, 2, 2, pa_maxxg(wg->wf)-1,
-                 pa_maxyg(wg->wf)-1, 20, 20);
+        ami_rrect(wg->wf, 2, 2, ami_maxxg(wg->wf)-1,
+                 ami_maxyg(wg->wf)-1, 20, 20);
 
     }
     /* draw text */
     if (wg->enb) fcolort(wg->wf, th_text);
     else fcolort(wg->wf, th_textdis);
-    pa_cursorg(wg->wf, pa_chrsizy(wg->wf)+pa_chrsizy(wg->wf)/2,
-                       pa_maxyg(wg->wf)/2-pa_chrsizy(wg->wf)/2);
+    ami_cursorg(wg->wf, ami_chrsizy(wg->wf)+ami_chrsizy(wg->wf)/2,
+                       ami_maxyg(wg->wf)/2-ami_chrsizy(wg->wf)/2);
     fprintf(wg->wf, "%s", wg->face); /* place button face */
     /* set size of square as ratio of font height */
-    sq = 0.80*pa_chrsizy(wg->wf);
-    md = pa_maxyg(wg->wf)/2; /* set middle line of checkbox */
-    sqo = pa_maxyg(wg->wf)/4; /* set offset of square from left */
+    sq = 0.80*ami_chrsizy(wg->wf);
+    md = ami_maxyg(wg->wf)/2; /* set middle line of checkbox */
+    sqo = ami_maxyg(wg->wf)/4; /* set offset of square from left */
     sqm = sqo+sq/2; /* set square middle x */
     cb = sq*.70; /* set bounding box of check figure */
 
@@ -1451,23 +1451,23 @@ static void checkbox_draw(
 
         /* place selected checkmark */
         fcolort(wg->wf, th_chkrad);
-        pa_frrect(wg->wf, sqo, md-sq/2, sqo+sq, md+sq/2, 10, 10);
-        pa_fcolor(wg->wf, pa_white);
-        pa_linewidth(wg->wf, 4);
-        pa_line(wg->wf, sqm-cb/2, md-cb*.10,
+        ami_frrect(wg->wf, sqo, md-sq/2, sqo+sq, md+sq/2, 10, 10);
+        ami_fcolor(wg->wf, ami_white);
+        ami_linewidth(wg->wf, 4);
+        ami_line(wg->wf, sqm-cb/2, md-cb*.10,
                         sqm, md+cb*.25);
-        pa_line(wg->wf, sqm-1, md+cb*.25-1,
+        ami_line(wg->wf, sqm-1, md+cb*.25-1,
                         sqm+cb/2, md-cb*.4);
-        pa_linewidth(wg->wf, 1);
+        ami_linewidth(wg->wf, 1);
 
     } else {
 
         /* place non-selected checkmark background */
-        pa_fcolor(wg->wf, pa_white);
-        pa_frrect(wg->wf, sqo, md-sq/2, sqo+sq, md+sq/2, 10, 10);
-        pa_linewidth(wg->wf, 2);
+        ami_fcolor(wg->wf, ami_white);
+        ami_frrect(wg->wf, sqo, md-sq/2, sqo+sq, md+sq/2, 10, 10);
+        ami_linewidth(wg->wf, 2);
         fcolort(wg->wf, th_chkradout);
-        pa_rrect(wg->wf, sqo, md-sq/2, sqo+sq, md+sq/2, 10, 10);
+        ami_rrect(wg->wf, sqo, md-sq/2, sqo+sq, md+sq/2, 10, 10);
 
     }
 
@@ -1482,34 +1482,34 @@ Handles the events posted to checkboxes.
 *******************************************************************************/
 
 static void checkbox_event(
-    /** Event record pointer */ pa_evtrec* ev,
+    /** Event record pointer */ ami_evtrec* ev,
     /** Widget data pointer */  wigptr     wg
 )
 
 {
 
-    pa_evtrec er; /* outbound checkbox event */
+    ami_evtrec er; /* outbound checkbox event */
 
-    if (ev->etype == pa_etredraw) checkbox_draw(wg); /* redraw the window */
-    else if (ev->etype == pa_etmouba && ev->amoubn == 1) {
+    if (ev->etype == ami_etredraw) checkbox_draw(wg); /* redraw the window */
+    else if (ev->etype == ami_etmouba && ev->amoubn == 1) {
 
         if (wg->enb) { /* enabled */
 
             /* send event back to parent window */
-            er.etype = pa_etchkbox; /* set checkbox event */
+            er.etype = ami_etchkbox; /* set checkbox event */
             er.butid = wg->id; /* set id */
-            pa_sendevent(wg->parent, &er); /* send the event to the parent */
+            ami_sendevent(wg->parent, &er); /* send the event to the parent */
 
         }
         checkbox_draw(wg);
 
-    } else if (ev->etype == pa_etmoubd && ev->amoubn == 1) checkbox_draw(wg);
-    else if (ev->etype == pa_etfocus) {
+    } else if (ev->etype == ami_etmoubd && ev->amoubn == 1) checkbox_draw(wg);
+    else if (ev->etype == ami_etfocus) {
 
         wg->focus = 1; /* in focus */
         checkbox_draw(wg); /* redraw the window */
 
-    } else if (ev->etype == pa_etnofocus) {
+    } else if (ev->etype == ami_etnofocus) {
 
         wg->focus = 0; /* out of focus */
         checkbox_draw(wg); /* redraw the window */
@@ -1538,79 +1538,79 @@ static void radiobutton_draw(
     int md; /* radiobutton center line */
 
     /* color the background */
-    pa_fcolor(wg->wf, pa_backcolor);
-    pa_frect(wg->wf, 1, 1, pa_maxxg(wg->wf), pa_maxyg(wg->wf));
+    ami_fcolor(wg->wf, ami_backcolor);
+    ami_frect(wg->wf, 1, 1, ami_maxxg(wg->wf), ami_maxyg(wg->wf));
     /* outline */
-    pa_linewidth(wg->wf, 4);
+    ami_linewidth(wg->wf, 4);
     if (wg->focus) {
 
         fcolort(wg->wf, th_focus);
-        pa_rrect(wg->wf, 2, 2, pa_maxxg(wg->wf)-1,
-                 pa_maxyg(wg->wf)-1, 20, 20);
+        ami_rrect(wg->wf, 2, 2, ami_maxxg(wg->wf)-1,
+                 ami_maxyg(wg->wf)-1, 20, 20);
 
     }
     /* draw text */
     if (wg->enb) fcolort(wg->wf, th_text);
     else fcolort(wg->wf, th_textdis);
-    pa_cursorg(wg->wf, pa_chrsizy(wg->wf)+pa_chrsizy(wg->wf)/2,
-                       pa_maxyg(wg->wf)/2-pa_chrsizy(wg->wf)/2);
+    ami_cursorg(wg->wf, ami_chrsizy(wg->wf)+ami_chrsizy(wg->wf)/2,
+                       ami_maxyg(wg->wf)/2-ami_chrsizy(wg->wf)/2);
     fprintf(wg->wf, "%s", wg->face); /* place button face */
     /* set size of circle as ratio of font height */
-    cr = 0.80*pa_chrsizy(wg->wf);
-    md = pa_maxyg(wg->wf)/2; /* set middle line of radiobutton */
-    cro = pa_maxyg(wg->wf)/4; /* set offset of circle from left */
+    cr = 0.80*ami_chrsizy(wg->wf);
+    md = ami_maxyg(wg->wf)/2; /* set middle line of radiobutton */
+    cro = ami_maxyg(wg->wf)/4; /* set offset of circle from left */
     crm = cro+cr/2; /* set circle middle x */
 
     if (wg->select) {
 
         /* place select figure */
         fcolort(wg->wf, th_chkrad);
-        pa_fellipse(wg->wf, cro, md-cr/2, cro+cr, md+cr/2);
-        pa_fcolor(wg->wf, pa_white);
-        pa_fellipse(wg->wf, crm-cr/6, md-cr/6, crm+cr/6, md+cr/6);
+        ami_fellipse(wg->wf, cro, md-cr/2, cro+cr, md+cr/2);
+        ami_fcolor(wg->wf, ami_white);
+        ami_fellipse(wg->wf, crm-cr/6, md-cr/6, crm+cr/6, md+cr/6);
 
     } else {
 
         /* place non-selected background */
-        pa_fcolor(wg->wf, pa_white);
-        pa_fellipse(wg->wf, cro, md-cr/2, cro+cr, md+cr/2);
-        pa_linewidth(wg->wf, 2);
+        ami_fcolor(wg->wf, ami_white);
+        ami_fellipse(wg->wf, cro, md-cr/2, cro+cr, md+cr/2);
+        ami_linewidth(wg->wf, 2);
         fcolort(wg->wf, th_chkradout);
-        pa_ellipse(wg->wf, cro, md-cr/2, cro+cr, md+cr/2);
+        ami_ellipse(wg->wf, cro, md-cr/2, cro+cr, md+cr/2);
 
     }
 
 }
 
 static void radiobutton_event(
-    /** Event record pointer */ pa_evtrec* ev,
+    /** Event record pointer */ ami_evtrec* ev,
     /** Widget data pointer */  wigptr     wg
 )
 
 {
 
-    pa_evtrec er; /* outbound radiobutton event */
+    ami_evtrec er; /* outbound radiobutton event */
 
-    if (ev->etype == pa_etredraw) radiobutton_draw(wg); /* redraw the window */
-    else if (ev->etype == pa_etmouba && ev->amoubn == 1) {
+    if (ev->etype == ami_etredraw) radiobutton_draw(wg); /* redraw the window */
+    else if (ev->etype == ami_etmouba && ev->amoubn == 1) {
 
         if (wg->enb) { /* enabled */
 
             /* send event back to parent window */
-            er.etype = pa_etradbut; /* set button event */
+            er.etype = ami_etradbut; /* set button event */
             er.butid = wg->id; /* set id */
-            pa_sendevent(wg->parent, &er); /* send the event to the parent */
+            ami_sendevent(wg->parent, &er); /* send the event to the parent */
 
         }
         radiobutton_draw(wg);
 
-    } else if (ev->etype == pa_etmoubd) radiobutton_draw(wg);
-    else if (ev->etype == pa_etfocus) {
+    } else if (ev->etype == ami_etmoubd) radiobutton_draw(wg);
+    else if (ev->etype == ami_etfocus) {
 
         wg->focus = 1; /* in focus */
         radiobutton_draw(wg); /* redraw the window */
 
-    } else if (ev->etype == pa_etnofocus) {
+    } else if (ev->etype == ami_etnofocus) {
 
         wg->focus = 0; /* out of focus */
         radiobutton_draw(wg); /* redraw the window */
@@ -1639,11 +1639,11 @@ static void scrollvert_draw(
     int       botposp; /* bottom position of slider */
     int       inbar;   /* mouse is in scroll bar */
     int       sclpos;  /* new scrollbar position */
-    pa_evtrec er;      /* outbound button event */
+    ami_evtrec er;      /* outbound button event */
     int       y;
 
     /* find net total slider space */
-    totsizp = pa_maxyg(wg->wf)-ENDSPACE-ENDSPACE;
+    totsizp = ami_maxyg(wg->wf)-ENDSPACE-ENDSPACE;
     /* find size of slider in pixels */
     sclsizp = round((double)totsizp*wg->sclsiz/INT_MAX);
     /* find remaining size after slider */
@@ -1667,10 +1667,10 @@ static void scrollvert_draw(
             /* find new ratioed position */
             sclpos = round((double)INT_MAX*y/remsizp);
             /* send event back to parent window */
-            er.etype = pa_etsclpos; /* set scroll position event */
+            er.etype = ami_etsclpos; /* set scroll position event */
             er.sclpid = wg->id; /* set id */
             er.sclpos = sclpos; /* set scrollbar position */
-            pa_sendevent(wg->parent, &er); /* send the event to the parent */
+            ami_sendevent(wg->parent, &er); /* send the event to the parent */
             wg->grab = TRUE; /* set we grabbed the scrollbar */
 
         }
@@ -1679,14 +1679,14 @@ static void scrollvert_draw(
 
     /* color the background */
     fcolort(wg->wf, th_scrollback);
-    pa_frect(wg->wf, 1, 1, pa_maxxg(wg->wf), pa_maxyg(wg->wf));
+    ami_frect(wg->wf, 1, 1, ami_maxxg(wg->wf), ami_maxyg(wg->wf));
     if (wg->pressed && (inbar || wg->grab))
         /* color as pressed */
         fcolort(wg->wf, th_scrollbarpressed);
     else
         /* color as not pressed */
         fcolort(wg->wf, th_scrollbar);
-    pa_frrect(wg->wf, ENDSPACE, ENDSPACE+sclposp, pa_maxxg(wg->wf)-ENDSPACE, ENDSPACE+sclposp+sclsizp,
+    ami_frrect(wg->wf, ENDSPACE, ENDSPACE+sclposp, ami_maxxg(wg->wf)-ENDSPACE, ENDSPACE+sclposp+sclsizp,
               10, 10);
 
 }
@@ -1700,7 +1700,7 @@ Handles the events posted to vertical scrollbars.
 *******************************************************************************/
 
 static void scrollvert_event(
-    /** Event record pointer */ pa_evtrec* ev,
+    /** Event record pointer */ ami_evtrec* ev,
     /** Widget data pointer */  wigptr     wg
 )
 
@@ -1710,16 +1710,16 @@ static void scrollvert_event(
     int       sclsizp; /* size of slider in pixels */
     int       remsizp; /* remaining space after slider in pixels */
     int       totsizp; /* total size of slider space after padding */
-    pa_evtrec er;      /* outbound button event */
+    ami_evtrec er;      /* outbound button event */
     int       y;
 
-    if (ev->etype == pa_etredraw) scrollvert_draw(wg); /* redraw the window */
-    else if (ev->etype == pa_etmouba && ev->amoubn == 1) {
+    if (ev->etype == ami_etredraw) scrollvert_draw(wg); /* redraw the window */
+    else if (ev->etype == ami_etmouba && ev->amoubn == 1) {
 
         wg->lpressed = wg->pressed; /* save last pressed state */
         wg->pressed = TRUE; /* set is pressed */
         /* find net total slider space */
-        totsizp = pa_maxyg(wg->wf)-ENDSPACE-ENDSPACE;
+        totsizp = ami_maxyg(wg->wf)-ENDSPACE-ENDSPACE;
         /* find size of slider in pixels */
         sclsizp = round((double)totsizp*wg->sclsiz/INT_MAX);
         /* find remaining size after slider */
@@ -1727,24 +1727,24 @@ static void scrollvert_event(
         /* find new top for click */
         y = wg->mpy-sclsizp/2;
         if (y < ENDSPACE) y = ENDSPACE; /* limit top travel */
-        else if (y+sclsizp > pa_maxyg(wg->wf)-ENDSPACE)
-            y = pa_maxyg(wg->wf)-sclsizp-ENDSPACE;
+        else if (y+sclsizp > ami_maxyg(wg->wf)-ENDSPACE)
+            y = ami_maxyg(wg->wf)-sclsizp-ENDSPACE;
         /* find new ratioed position */
         sclpos = round((double)INT_MAX*(y-ENDSPACE)/remsizp);
         /* send event back to parent window */
-        er.etype = pa_etsclpos; /* set scroll position event */
+        er.etype = ami_etsclpos; /* set scroll position event */
         er.sclpid = wg->id; /* set id */
         er.sclpos = sclpos; /* set scrollbar position */
-        pa_sendevent(wg->parent, &er); /* send the event to the parent */
+        ami_sendevent(wg->parent, &er); /* send the event to the parent */
         scrollvert_draw(wg);
 
-    } else if (ev->etype == pa_etmoubd) {
+    } else if (ev->etype == ami_etmoubd) {
 
         wg->lpressed = wg->pressed; /* save last pressed state */
         wg->pressed = FALSE; /* set not pressed */
         scrollvert_draw(wg);
 
-    } else if (ev->etype == pa_etmoumovg) {
+    } else if (ev->etype == ami_etmoumovg) {
 
         wg->lpressed = wg->pressed; /* save last pressed state */
         /* mouse moved, track position */
@@ -1781,11 +1781,11 @@ static void scrollhoriz_draw(
     int       botposp; /* bottom position of slider */
     int       inbar;   /* mouse is in scroll bar */
     int       sclpos;  /* new scrollbar position */
-    pa_evtrec er;      /* outbound event */
+    ami_evtrec er;      /* outbound event */
     int       x;
 
     /* find net total slider space */
-    totsizp = pa_maxxg(wg->wf)-ENDSPACE-ENDSPACE;
+    totsizp = ami_maxxg(wg->wf)-ENDSPACE-ENDSPACE;
     /* find size of slider in pixels */
     sclsizp = round((double)totsizp*wg->sclsiz/INT_MAX);
     /* find remaining size after slider */
@@ -1808,24 +1808,24 @@ static void scrollhoriz_draw(
         /* find new ratioed position */
         sclpos = round((double)INT_MAX*x/remsizp);
         /* send event back to parent window */
-        er.etype = pa_etsclpos; /* set scroll position event */
+        er.etype = ami_etsclpos; /* set scroll position event */
         er.sclpid = wg->id; /* set id */
         er.sclpos = sclpos; /* set scrollbar position */
-        pa_sendevent(wg->parent, &er); /* send the event to the parent */
+        ami_sendevent(wg->parent, &er); /* send the event to the parent */
         wg->grab = TRUE; /* set we grabbed the scrollbar */
 
     } else if (!wg->pressed) wg->grab = FALSE;
 
     /* color the background */
     fcolort(wg->wf, th_scrollback);
-    pa_frect(wg->wf, 1, 1, pa_maxxg(wg->wf), pa_maxyg(wg->wf));
+    ami_frect(wg->wf, 1, 1, ami_maxxg(wg->wf), ami_maxyg(wg->wf));
     if (wg->pressed && (inbar || wg->grab))
         /* color as pressed */
         fcolort(wg->wf, th_scrollbarpressed);
     else
         /* color as not pressed */
         fcolort(wg->wf, th_scrollbar);
-    pa_frrect(wg->wf, ENDSPACE+sclposp, ENDSPACE, ENDSPACE+sclposp+sclsizp, pa_maxyg(wg->wf)-ENDSPACE,
+    ami_frrect(wg->wf, ENDSPACE+sclposp, ENDSPACE, ENDSPACE+sclposp+sclsizp, ami_maxyg(wg->wf)-ENDSPACE,
               10, 10);
 
 }
@@ -1839,7 +1839,7 @@ Handles the events posted to horizontal scrollbars.
 *******************************************************************************/
 
 static void scrollhoriz_event(
-    /** Event record pointer */ pa_evtrec* ev,
+    /** Event record pointer */ ami_evtrec* ev,
     /** Widget data pointer */  wigptr     wg
 )
 
@@ -1849,15 +1849,15 @@ static void scrollhoriz_event(
     int       sclsizp; /* size of slider in pixels */
     int       remsizp; /* remaining space after slider in pixels */
     int       totsizp; /* total size of slider space after padding */
-    pa_evtrec er;      /* outbound button event */
+    ami_evtrec er;      /* outbound button event */
     int       x;
 
-    if (ev->etype == pa_etredraw) scrollhoriz_draw(wg); /* redraw the window */
-    else if (ev->etype == pa_etmouba && ev->amoubn == 1) {
+    if (ev->etype == ami_etredraw) scrollhoriz_draw(wg); /* redraw the window */
+    else if (ev->etype == ami_etmouba && ev->amoubn == 1) {
 
         wg->lpressed = wg->pressed; /* save last pressed state */
         wg->pressed = TRUE; /* set is pressed */
-        totsizp = pa_maxxg(wg->wf)-ENDSPACE-ENDSPACE; /* find net total slider space */
+        totsizp = ami_maxxg(wg->wf)-ENDSPACE-ENDSPACE; /* find net total slider space */
         /* find size of slider in pixels */
         sclsizp = round((double)totsizp*wg->sclsiz/INT_MAX);
         /* find remaining size after slider */
@@ -1865,25 +1865,25 @@ static void scrollhoriz_event(
         /* find new top for click */
         x = wg->mpx-sclsizp/2;
         if (x < ENDSPACE) x = ENDSPACE; /* limit left travel */
-        else if (x+sclsizp > pa_maxxg(wg->wf)-ENDSPACE)
-            x = pa_maxxg(wg->wf)-sclsizp-ENDSPACE;
+        else if (x+sclsizp > ami_maxxg(wg->wf)-ENDSPACE)
+            x = ami_maxxg(wg->wf)-sclsizp-ENDSPACE;
         /* find new ratioed position */
         sclpos = round((double)INT_MAX*(x-ENDSPACE)/remsizp);
         /* send event back to parent window */
-        er.etype = pa_etsclpos; /* set scroll position event */
+        er.etype = ami_etsclpos; /* set scroll position event */
         er.sclpid = wg->id; /* set id */
         er.sclpos = sclpos; /* set scrollbar position */
-        pa_sendevent(wg->parent, &er); /* send the event to the parent */
+        ami_sendevent(wg->parent, &er); /* send the event to the parent */
 
         scrollhoriz_draw(wg);
 
-    } else if (ev->etype == pa_etmoubd) {
+    } else if (ev->etype == ami_etmoubd) {
 
         wg->lpressed = wg->pressed; /* save last pressed state */
         wg->pressed = FALSE; /* set not pressed */
         scrollhoriz_draw(wg);
 
-    } else if (ev->etype == pa_etmoumovg) {
+    } else if (ev->etype == ami_etmoumovg) {
 
         wg->lpressed = wg->pressed; /* save last pressed state */
         /* mouse moved, track position */
@@ -1914,15 +1914,15 @@ static void group_draw(
 {
 
     /* color the background */
-    pa_fcolor(wg->wf, pa_backcolor);
-    pa_frect(wg->wf, 1, 1, pa_maxxg(wg->wf), pa_maxyg(wg->wf));
+    ami_fcolor(wg->wf, ami_backcolor);
+    ami_frect(wg->wf, 1, 1, ami_maxxg(wg->wf), ami_maxyg(wg->wf));
     fcolort(wg->wf, th_outline1);
-    pa_linewidth(wg->wf, 2);
-    pa_rect(wg->wf, 2, pa_chrsizy(wg->wf)/2, pa_maxxg(wg->wf), pa_maxyg(wg->wf));
-    pa_fcolor(wg->wf, pa_black);
-    pa_cursorg(wg->wf, 1, 1);
-    pa_bover(wg->wf);
-    pa_bcolor(wg->wf, pa_backcolor);
+    ami_linewidth(wg->wf, 2);
+    ami_rect(wg->wf, 2, ami_chrsizy(wg->wf)/2, ami_maxxg(wg->wf), ami_maxyg(wg->wf));
+    ami_fcolor(wg->wf, ami_black);
+    ami_cursorg(wg->wf, 1, 1);
+    ami_bover(wg->wf);
+    ami_bcolor(wg->wf, ami_backcolor);
     fprintf(wg->wf, "%s", wg->face); /* place button face */
 
 
@@ -1937,13 +1937,13 @@ Handles the events posted to group boxes.
 *******************************************************************************/
 
 static void group_event(
-    /** Event record pointer */ pa_evtrec* ev,
+    /** Event record pointer */ ami_evtrec* ev,
     /** Widget data pointer */  wigptr     wg
 )
 
 {
 
-    if (ev->etype == pa_etredraw) group_draw(wg); /* redraw the window */
+    if (ev->etype == ami_etredraw) group_draw(wg); /* redraw the window */
 
 }
 
@@ -1962,9 +1962,9 @@ static void background_draw(
 {
 
     /* color the background */
-    pa_fcolor(wg->wf, pa_backcolor);
-    pa_frect(wg->wf, 1, 1, pa_maxxg(wg->wf), pa_maxyg(wg->wf));
-    pa_fcolor(wg->wf, pa_black);
+    ami_fcolor(wg->wf, ami_backcolor);
+    ami_frect(wg->wf, 1, 1, ami_maxxg(wg->wf), ami_maxyg(wg->wf));
+    ami_fcolor(wg->wf, ami_black);
 
 }
 
@@ -1977,13 +1977,13 @@ Handles the events posted to backgrounds.
 *******************************************************************************/
 
 static void background_event(
-    /** Event record pointer */ pa_evtrec* ev,
+    /** Event record pointer */ ami_evtrec* ev,
     /** Widget data pointer */  wigptr     wg
 )
 
 {
 
-    if (ev->etype == pa_etredraw) background_draw(wg); /* redraw the window */
+    if (ev->etype == ami_etredraw) background_draw(wg); /* redraw the window */
 
 }
 
@@ -2016,24 +2016,24 @@ static void editbox_draw(
 
     }
     /* color the background */
-    pa_fcolor(wg->wf, pa_white);
-    pa_frect(wg->wf, 1, 1, pa_maxxg(wg->wf), pa_maxyg(wg->wf));
+    ami_fcolor(wg->wf, ami_white);
+    ami_frect(wg->wf, 1, 1, ami_maxxg(wg->wf), ami_maxyg(wg->wf));
     if (!wg->pw) { /* if not subclassed, draw background and outline */
 
         /* outline */
         if (wg->focus) {
 
-            pa_linewidth(wg->wf, 4);
+            ami_linewidth(wg->wf, 4);
             fcolort(wg->wf, th_focus);
 
         } else {
 
-            pa_linewidth(wg->wf, 2);
+            ami_linewidth(wg->wf, 2);
             fcolort(wg->wf, th_outline1);
 
         }
-        pa_rrect(wg->wf, 2, 2, pa_maxxg(wg->wf)-1,
-                 pa_maxyg(wg->wf)-1, 20, 20);
+        ami_rrect(wg->wf, 2, 2, ami_maxxg(wg->wf)-1,
+                 ami_maxyg(wg->wf)-1, 20, 20);
 
     }
     /* text */
@@ -2043,58 +2043,58 @@ static void editbox_draw(
         else fcolort(wg->wf, th_text);
 
     } else fcolort(wg->wf, th_textdis);
-    pa_cursorg(wg->wf, ENDLEDSPC, pa_maxyg(wg->wf)/2-pa_chrsizy(wg->wf)/2);
+    ami_cursorg(wg->wf, ENDLEDSPC, ami_maxyg(wg->wf)/2-ami_chrsizy(wg->wf)/2);
     /* check cursor in box */
     if (wg->tleft > strlen(wg->face)) wg->tleft = 0;
-    cl = ENDLEDSPC+pa_chrpos(wg->wf, wg->face, wg->curs)-
-         pa_chrpos(wg->wf, wg->face, wg->tleft);
+    cl = ENDLEDSPC+ami_chrpos(wg->wf, wg->face, wg->curs)-
+         ami_chrpos(wg->wf, wg->face, wg->tleft);
     while (cl < ENDLEDSPC && wg->tleft > 0) {
 
         /* cursor out of field left */
         wg->tleft--; /* back up left margin */
         /* recalculate */
-        cl = ENDLEDSPC+pa_chrpos(wg->wf, wg->face, wg->curs)-
-             pa_chrpos(wg->wf, wg->face, wg->tleft);
+        cl = ENDLEDSPC+ami_chrpos(wg->wf, wg->face, wg->curs)-
+             ami_chrpos(wg->wf, wg->face, wg->tleft);
 
     }
-    while (cl > pa_maxxg(wg->wf)-ENDLEDSPC && wg->tleft < strlen(wg->face)) {
+    while (cl > ami_maxxg(wg->wf)-ENDLEDSPC && wg->tleft < strlen(wg->face)) {
 
         /* cursor out of field right */
         wg->tleft++; /* advance left margin */
         /* recalculate */
-        cl = ENDLEDSPC+pa_chrpos(wg->wf, wg->face, wg->curs)-
-             pa_chrpos(wg->wf, wg->face, wg->tleft);
+        cl = ENDLEDSPC+ami_chrpos(wg->wf, wg->face, wg->curs)-
+             ami_chrpos(wg->wf, wg->face, wg->tleft);
 
     }
     /* display only characters that completely fit the field */
     s = &wg->face[wg->tleft]; /* index displayable string */
-    while (*s && pa_curxg(wg->wf)+pa_chrpos(wg->wf, s, 1) <
-                 pa_maxxg(wg->wf)-ENDLEDSPC)
+    while (*s && ami_curxg(wg->wf)+ami_chrpos(wg->wf, s, 1) <
+                 ami_maxxg(wg->wf)-ENDLEDSPC)
         fputc(*s++, wg->wf);
     if (wg->focus && wg->enb) { /* if in focus and enabled, draw the cursor */
 
         fcolort(wg->wf, th_text); /* set color */
         /* find x location of cursor */
-        x = ENDLEDSPC+pa_chrpos(wg->wf, wg->face, wg->curs)-
-            pa_chrpos(wg->wf, wg->face, wg->tleft);
+        x = ENDLEDSPC+ami_chrpos(wg->wf, wg->face, wg->curs)-
+            ami_chrpos(wg->wf, wg->face, wg->tleft);
         if (wg->ins) { /* in overwrite mode */
 
-            pa_reverse(wg->wf, TRUE); /* set reverse mode */
-            pa_bover(wg->wf); /* paint background */
+            ami_reverse(wg->wf, TRUE); /* set reverse mode */
+            ami_bover(wg->wf); /* paint background */
             /* index cursor character */
-            pa_cursorg(wg->wf, x, pa_maxyg(wg->wf)/2-pa_chrsizy(wg->wf)/2);
+            ami_cursorg(wg->wf, x, ami_maxyg(wg->wf)/2-ami_chrsizy(wg->wf)/2);
             /* if off the end of string, use space to reverse */
             if (wg->curs >= strlen(wg->face)) fputc(' ', wg->wf);
             else fputc(wg->face[wg->curs], wg->wf);
-            pa_reverse(wg->wf, FALSE); /* reset reverse mode */
-            pa_binvis(wg->wf); /* remove background */
+            ami_reverse(wg->wf, FALSE); /* reset reverse mode */
+            ami_binvis(wg->wf); /* remove background */
 
         } else { /* in insert mode */
 
-            pa_linewidth(wg->wf, 2); /* set line size */
-            pa_line(wg->wf, x, pa_maxyg(wg->wf)/2-pa_chrsizy(wg->wf)/2,
-                            x, pa_maxyg(wg->wf)/2-pa_chrsizy(wg->wf)/2+
-                            pa_chrsizy(wg->wf));
+            ami_linewidth(wg->wf, 2); /* set line size */
+            ami_line(wg->wf, x, ami_maxyg(wg->wf)/2-ami_chrsizy(wg->wf)/2,
+                            x, ami_maxyg(wg->wf)/2-ami_chrsizy(wg->wf)/2+
+                            ami_chrsizy(wg->wf));
 
         }
 
@@ -2111,7 +2111,7 @@ Handles the events posted to edit boxes.
 *******************************************************************************/
 
 static void editbox_event(
-    /** Event record pointer */ pa_evtrec* ev,
+    /** Event record pointer */ ami_evtrec* ev,
     /** Widget data pointer */  wigptr     wg
 )
 
@@ -2121,15 +2121,15 @@ static void editbox_event(
     int       l;    /* length */
     int       span; /* span between characters */
     int       off;  /* offset from last character */
-    pa_evtrec er;   /* outbound button event */
+    ami_evtrec er;   /* outbound button event */
     int       i;
 
     switch (ev->etype) {
 
-        case pa_etredraw: /* redraw window */
+        case ami_etredraw: /* redraw window */
             editbox_draw(wg); /* redraw the window */
             break;
-        case pa_etchar: /* enter character */
+        case ami_etchar: /* enter character */
             if (!wg->num || isdigit(ev->echar) || ev->echar == '-' ||
                 ev->echar == '=') {
 
@@ -2151,7 +2151,7 @@ static void editbox_event(
             }
             break;
 
-        case pa_etfocus: /* gain focus */
+        case ami_etfocus: /* gain focus */
             wg->focus = 1; /* in focus */
             editbox_draw(wg); /* redraw */
             /* send light focus event to parent */
@@ -2159,12 +2159,12 @@ static void editbox_event(
 
                 /* send the event to the parent */
                 er.etype = WMC_LGTFOC; /* set light up */
-                pa_sendevent(wg->pw->wf, &er);
+                ami_sendevent(wg->pw->wf, &er);
 
             }
             break;
 
-        case pa_etnofocus: /* lose focus */
+        case ami_etnofocus: /* lose focus */
             wg->focus = 0; /* out of focus */
             editbox_draw(wg); /* redraw */
             /* send light focus event to parent */
@@ -2172,12 +2172,12 @@ static void editbox_event(
 
                 /* send the event to the parent */
                 er.etype = WMC_DRKFOC; /* set light up */
-                pa_sendevent(wg->pw->wf, &er);
+                ami_sendevent(wg->pw->wf, &er);
 
             }
             break;
 
-        case pa_etright: /* right character */
+        case ami_etright: /* right character */
             /* not extreme right, go right */
             if (wg->curs < strlen(wg->face)) {
 
@@ -2187,7 +2187,7 @@ static void editbox_event(
             }
             break;
 
-        case pa_etleft: /* left character */
+        case ami_etleft: /* left character */
             /* not extreme left, go left */
             if (wg->curs > 0) {
 
@@ -2197,7 +2197,7 @@ static void editbox_event(
             }
             break;
 
-        case pa_etdelcb: /* delete character backward */
+        case ami_etdelcb: /* delete character backward */
             /* not extreme left, delete left */
             if (wg->curs > 0) {
 
@@ -2210,7 +2210,7 @@ static void editbox_event(
             }
             break;
 
-        case pa_etdelcf: /* delete character forward */
+        case ami_etdelcf: /* delete character forward */
             /* not extreme right, go right */
             if (wg->curs < strlen(wg->face)) {
 
@@ -2222,27 +2222,27 @@ static void editbox_event(
             }
             break;
 
-        case pa_etmoumovg: /* mouse moved */
+        case ami_etmoumovg: /* mouse moved */
             /* track position */
             wg->mpx = ev->moupxg; /* set present position */
             wg->mpy = ev->moupyg;
             break;
 
-        case pa_etmouba: /* mouse click */
+        case ami_etmouba: /* mouse click */
             if (ev->amoubn == 1) {
 
                 /* mouse click, select character it indexes */
                 l = strlen(wg->face); /* get length of existing face string */
                 i = 0;
                 /* find first character beyond click */
-                while (ENDLEDSPC+pa_chrpos(wg->wf, wg->face, i) < wg->mpx && i < l) i++;
+                while (ENDLEDSPC+ami_chrpos(wg->wf, wg->face, i) < wg->mpx && i < l) i++;
                 if (i) {
 
                     /* find span between last and next characters */
-                    span = pa_chrpos(wg->wf, wg->face, i)-
-                           pa_chrpos(wg->wf, wg->face, i-1);
+                    span = ami_chrpos(wg->wf, wg->face, i)-
+                           ami_chrpos(wg->wf, wg->face, i-1);
                     /* find offset last to mouse click */
-                    off = wg->mpx-(ENDLEDSPC+pa_chrpos(wg->wf, wg->face, i-1));
+                    off = wg->mpx-(ENDLEDSPC+ami_chrpos(wg->wf, wg->face, i-1));
                     /* if mouse click is closer to last, index last */
                     if (off < span/2) i--;
 
@@ -2253,35 +2253,35 @@ static void editbox_event(
             }
             break;
 
-        case pa_etenter: /* signal entry done */
+        case ami_etenter: /* signal entry done */
             /* send event back to parent window */
-            er.etype = pa_etedtbox; /* set button event */
+            er.etype = ami_etedtbox; /* set button event */
             er.edtbid = wg->id; /* set id */
-            pa_sendevent(wg->parent, &er); /* send the event to the parent */
+            ami_sendevent(wg->parent, &er); /* send the event to the parent */
             break;
 
-        case pa_ethomel: /* beginning of line */
+        case ami_ethomel: /* beginning of line */
             wg->curs = 0;
             editbox_draw(wg); /* redraw */
             break;
 
-        case pa_etendl: /* end of line */
+        case ami_etendl: /* end of line */
             wg->curs = strlen(wg->face);
             editbox_draw(wg); /* redraw */
             break;
 
-        case pa_etinsertt: /* toggle insert mode */
+        case ami_etinsertt: /* toggle insert mode */
             wg->ins = !wg->ins;
             editbox_draw(wg); /* redraw */
             break;
 
-        case pa_etdell: /* delete whole line */
+        case ami_etdell: /* delete whole line */
             wg->curs = 0;
             wg->face[0] = 0;
             editbox_draw(wg); /* redraw */
             break;
 
-        case pa_etleftw: /* left word */
+        case ami_etleftw: /* left word */
             /* back over any spaces */
             while (wg->curs > 0 && wg->face[wg->curs-1] == ' ') wg->curs--;
             /* now back over any non-space */
@@ -2289,7 +2289,7 @@ static void editbox_event(
             editbox_draw(wg); /* redraw */
             break;
 
-        case pa_etrightw: /* right word */
+        case ami_etrightw: /* right word */
             l = strlen(wg->face); /* get string length */
             /* advance over any non-space */
             while (wg->curs < l && wg->face[wg->curs] != ' ') wg->curs++;
@@ -2321,51 +2321,51 @@ static void numselbox_draw(
     int udspc; /* up/down control space */
     int figsiz; /* size of up/down figures */
 
-    udspc = pa_chrsizy(win0)*1.9; /* square space for up/down control */
+    udspc = ami_chrsizy(win0)*1.9; /* square space for up/down control */
     /* color the background */
-    pa_fcolor(wg->wf, pa_white);
-    pa_frect(wg->wf, 1, 1, pa_maxxg(wg->wf), pa_maxyg(wg->wf));
+    ami_fcolor(wg->wf, ami_white);
+    ami_frect(wg->wf, 1, 1, ami_maxxg(wg->wf), ami_maxyg(wg->wf));
     if (wg->downpress) {
 
         fcolort(wg->wf, th_backpressed);
-        pa_frect(wg->wf, pa_maxxg(wg->wf)-udspc*2, 1,
-                        pa_maxxg(wg->wf)-udspc*1-1, pa_maxyg(wg->wf));
+        ami_frect(wg->wf, ami_maxxg(wg->wf)-udspc*2, 1,
+                        ami_maxxg(wg->wf)-udspc*1-1, ami_maxyg(wg->wf));
 
     } else if (wg->uppress) {
 
         fcolort(wg->wf, th_backpressed);
-        pa_frect(wg->wf, pa_maxxg(wg->wf)-udspc*1, 1,
-                        pa_maxxg(wg->wf), pa_maxyg(wg->wf));
+        ami_frect(wg->wf, ami_maxxg(wg->wf)-udspc*1, 1,
+                        ami_maxxg(wg->wf), ami_maxyg(wg->wf));
 
     }
     /* draw divider lines */
     fcolort(wg->wf, th_numseldiv);
-    pa_line(wg->wf, pa_maxxg(wg->wf)-udspc, 1,
-                    pa_maxxg(wg->wf)-udspc, pa_maxyg(wg->wf));
-    pa_line(wg->wf, pa_maxxg(wg->wf)-udspc*2, 1,
-                    pa_maxxg(wg->wf)-udspc*2, pa_maxyg(wg->wf));
+    ami_line(wg->wf, ami_maxxg(wg->wf)-udspc, 1,
+                    ami_maxxg(wg->wf)-udspc, ami_maxyg(wg->wf));
+    ami_line(wg->wf, ami_maxxg(wg->wf)-udspc*2, 1,
+                    ami_maxxg(wg->wf)-udspc*2, ami_maxyg(wg->wf));
     /* draw up/down figures */
-    figsiz = pa_maxyg(wg->wf)/2; /* set figure size */
+    figsiz = ami_maxyg(wg->wf)/2; /* set figure size */
     fcolort(wg->wf, th_numselud);
-    pa_line(wg->wf, pa_maxxg(wg->wf)-udspc*1.5-figsiz/2.75, pa_maxyg(wg->wf)/2,
-                    pa_maxxg(wg->wf)-udspc*1.5+figsiz/2.75, pa_maxyg(wg->wf)/2);
-    pa_line(wg->wf, pa_maxxg(wg->wf)-udspc*0.5-figsiz/2.75, pa_maxyg(wg->wf)/2,
-                    pa_maxxg(wg->wf)-udspc*0.5+figsiz/2.75, pa_maxyg(wg->wf)/2);
-    pa_line(wg->wf, pa_maxxg(wg->wf)-udspc*0.5, pa_maxyg(wg->wf)/2-figsiz/2.75,
-                    pa_maxxg(wg->wf)-udspc*0.5, pa_maxyg(wg->wf)/2+figsiz/2.75);
+    ami_line(wg->wf, ami_maxxg(wg->wf)-udspc*1.5-figsiz/2.75, ami_maxyg(wg->wf)/2,
+                    ami_maxxg(wg->wf)-udspc*1.5+figsiz/2.75, ami_maxyg(wg->wf)/2);
+    ami_line(wg->wf, ami_maxxg(wg->wf)-udspc*0.5-figsiz/2.75, ami_maxyg(wg->wf)/2,
+                    ami_maxxg(wg->wf)-udspc*0.5+figsiz/2.75, ami_maxyg(wg->wf)/2);
+    ami_line(wg->wf, ami_maxxg(wg->wf)-udspc*0.5, ami_maxyg(wg->wf)/2-figsiz/2.75,
+                    ami_maxxg(wg->wf)-udspc*0.5, ami_maxyg(wg->wf)/2+figsiz/2.75);
     /* outline */
     if (wg->focus | wg->cw->focus) {
 
-        pa_linewidth(wg->wf, 4);
+        ami_linewidth(wg->wf, 4);
         fcolort(wg->wf, th_focus);
 
     } else {
 
-        pa_linewidth(wg->wf, 2);
+        ami_linewidth(wg->wf, 2);
         fcolort(wg->wf, th_outline1);
 
     }
-    pa_rrect(wg->wf, 2, 2, pa_maxxg(wg->wf)-1, pa_maxyg(wg->wf)-1, 20, 20);
+    ami_rrect(wg->wf, 2, 2, ami_maxxg(wg->wf)-1, ami_maxyg(wg->wf)-1, 20, 20);
 
 }
 
@@ -2378,7 +2378,7 @@ Handles the events posted to number select boxes.
 *******************************************************************************/
 
 static void numselbox_event(
-    /** Event record pointer */ pa_evtrec* ev,
+    /** Event record pointer */ ami_evtrec* ev,
     /** Widget data pointer */  wigptr     wg
 )
 
@@ -2386,70 +2386,70 @@ static void numselbox_event(
 
     int  udspc;    /* up/down control space */
     char buff[20]; /* buffer for number entered */
-    pa_evtrec er;  /* outbound button event */
+    ami_evtrec er;  /* outbound button event */
     int  v;
 
-    udspc = pa_chrsizy(win0)*1.9; /* square space for up/down control */
+    udspc = ami_chrsizy(win0)*1.9; /* square space for up/down control */
     switch (ev->etype) {
 
-        case pa_etredraw: /* redraw window */
+        case ami_etredraw: /* redraw window */
             numselbox_draw(wg); /* redraw the window */
             break;
 
-        case pa_etfocus: /* gain focus */
+        case ami_etfocus: /* gain focus */
             wg->focus = 1; /* in focus */
             /* if we get focus, send it on to subclassed edit window */
-            pa_focus(wg->cw->wf);
+            ami_focus(wg->cw->wf);
             numselbox_draw(wg); /* redraw */
             break;
 
-        case pa_etnofocus: /* lose focus */
+        case ami_etnofocus: /* lose focus */
             wg->focus = 0; /* out of focus */
             numselbox_draw(wg); /* redraw */
             break;
 
-        case pa_etedtbox: /* signal entry done */
+        case ami_etedtbox: /* signal entry done */
             /* send event back to parent window */
-            er.etype = pa_etnumbox; /* set button event */
+            er.etype = ami_etnumbox; /* set button event */
             er.numbid = wg->id; /* set id */
             er.numbsl = atoi(wg->cw->face); /* set value */
-            pa_sendevent(wg->parent, &er); /* send the event to the parent */
+            ami_sendevent(wg->parent, &er); /* send the event to the parent */
             break;
 
-        case pa_etmoumovg: /* mouse moved */
+        case ami_etmoumovg: /* mouse moved */
             /* track position */
             wg->mpx = ev->moupxg; /* set present position */
             wg->mpy = ev->moupyg;
             break;
 
-        case pa_etmouba: /* mouse click */
+        case ami_etmouba: /* mouse click */
             if (ev->amoubn == 1) {
 
                 if (wg->cw->face[0]) {
 
-                    if (wg->mpx >= pa_maxxg(wg->wf)-udspc*2 &&
-                        wg->mpx < pa_maxxg(wg->wf)-udspc) {
+                    if (wg->mpx >= ami_maxxg(wg->wf)-udspc*2 &&
+                        wg->mpx < ami_maxxg(wg->wf)-udspc) {
 
                         /* down control */
-                        pa_getwidgettext(wg->wf, wg->cw->id, buff, 20);
+                        ami_getwidgettext(wg->wf, wg->cw->id, buff, 20);
                         v = atoi(buff);
                         if (wg->cw->lbnd < v && v <= wg->cw->ubnd) v--;
                         sprintf(buff, "%d", v);
-                        pa_putwidgettext(wg->wf, wg->cw->id, buff);
+                        ami_putwidgettext(wg->wf, wg->cw->id, buff);
                         if (wg->cw->curs > strlen(wg->cw->face))
                             wg->cw->curs = strlen(wg->cw->face);
                         editbox_draw(wg->cw);
                         wg->downpress = TRUE; /* set down pressed */
                         numselbox_draw(wg); /* redraw */
 
-                    } else if (wg->mpx >= pa_maxxg(wg->wf)-udspc) {
+                    } else if (wg->mpx >= ami_maxxg(wg->wf)-udspc) {
 
                         /* up control */
-                        pa_getwidgettext(wg->wf, wg->cw->id, buff, 20);
+                        ami_getwidgettext(wg->wf, wg->cw->id, buff, 20);
                         v = atoi(buff);
                         if (wg->cw->lbnd <= v && v < wg->cw->ubnd) v++;
                         sprintf(buff, "%d", v);
-                        pa_putwidgettext(wg->wf, wg->cw->id, buff);
+                        ami_putwidgettext(wg->wf, wg->cw->id, buff);
                         if (wg->cw->curs > strlen(wg->cw->face))
                             wg->cw->curs = strlen(wg->cw->face);
                         editbox_draw(wg->cw);
@@ -2463,7 +2463,7 @@ static void numselbox_event(
             }
             break;
 
-        case pa_etmoubd: /* mouse click */
+        case ami_etmoubd: /* mouse click */
             if (ev->dmoubn == 1) {
 
                 wg->downpress = FALSE; /* set none pressed */
@@ -2496,20 +2496,20 @@ static void progbar_draw(
 
     /* draw inactive background */
     fcolort(wg->wf, th_proginacen);
-    pa_linewidth(wg->wf, 2);
-    pa_frrect(wg->wf, 1, 1, pa_maxxg(wg->wf), pa_maxyg(wg->wf), 10, 10);
+    ami_linewidth(wg->wf, 2);
+    ami_frrect(wg->wf, 1, 1, ami_maxxg(wg->wf), ami_maxyg(wg->wf), 10, 10);
     /* draw inactive edget */
     fcolort(wg->wf, th_proginaedg);
-    pa_rrect(wg->wf, 2, 2, pa_maxxg(wg->wf)-1, pa_maxyg(wg->wf)-1, 10, 10);
+    ami_rrect(wg->wf, 2, 2, ami_maxxg(wg->wf)-1, ami_maxyg(wg->wf)-1, 10, 10);
     /* find right side of prog bar */
-    pbpp = (long long)wg->ppos*pa_maxxg(wg->wf)/INT_MAX;
+    pbpp = (long long)wg->ppos*ami_maxxg(wg->wf)/INT_MAX;
     /* now draw active */
     fcolort(wg->wf, th_progactcen);
-    pa_linewidth(wg->wf, 2);
-    pa_frrect(wg->wf, 1, 1, pbpp, pa_maxyg(wg->wf), 10, 10);
+    ami_linewidth(wg->wf, 2);
+    ami_frrect(wg->wf, 1, 1, pbpp, ami_maxyg(wg->wf), 10, 10);
     /* draw inactive edget */
     fcolort(wg->wf, th_progactedg);
-    pa_rrect(wg->wf, 2, 2,pbpp-1, pa_maxyg(wg->wf)-1, 10, 10);
+    ami_rrect(wg->wf, 2, 2,pbpp-1, ami_maxyg(wg->wf)-1, 10, 10);
 
 }
 
@@ -2522,13 +2522,13 @@ Handles the events posted to progress bars.
 *******************************************************************************/
 
 static void progbar_event(
-    /** Event record pointer */ pa_evtrec* ev,
+    /** Event record pointer */ ami_evtrec* ev,
     /** Widget data pointer */  wigptr     wg
 )
 
 {
 
-    if (ev->etype == pa_etredraw) progbar_draw(wg); /* redraw the window */
+    if (ev->etype == ami_etredraw) progbar_draw(wg); /* redraw the window */
 
 }
 
@@ -2546,20 +2546,20 @@ static void listbox_draw(
 
 {
 
-    pa_strptr sp;
+    ami_strptr sp;
     int       y;
     int       sc;
 
     /* draw background */
-    pa_fcolor(wg->wf, pa_white);
-    pa_frrect(wg->wf, 1, 1, pa_maxxg(wg->wf), pa_maxyg(wg->wf), 10, 10);
+    ami_fcolor(wg->wf, ami_white);
+    ami_frrect(wg->wf, 1, 1, ami_maxxg(wg->wf), ami_maxyg(wg->wf), 10, 10);
     /* draw outline */
     fcolort(wg->wf, th_outline1);
-    pa_linewidth(wg->wf, 2);
-    pa_rrect(wg->wf, 2, 2, pa_maxxg(wg->wf)-1, pa_maxyg(wg->wf)-1, 10, 10);
+    ami_linewidth(wg->wf, 2);
+    ami_rrect(wg->wf, 2, 2, ami_maxxg(wg->wf)-1, ami_maxyg(wg->wf)-1, 10, 10);
     sp = wg->strlst; /* index top of stringlist */
-    y = pa_chrsizy(wg->wf)*0.5; /* space to first string */
-    pa_fcolor(wg->wf, pa_black);
+    y = ami_chrsizy(wg->wf)*0.5; /* space to first string */
+    ami_fcolor(wg->wf, ami_black);
     sc = 1; /* set first string */
     while (sp) { /* traverse and paint */
 
@@ -2567,13 +2567,13 @@ static void listbox_draw(
 
             /* draw in hover background */
             fcolort(wg->wf, th_lsthov); /* set hover background */
-            pa_frect(wg->wf, 1, y, pa_maxxg(wg->wf), y+pa_chrsizy(wg->wf)-1);
+            ami_frect(wg->wf, 1, y, ami_maxxg(wg->wf), y+ami_chrsizy(wg->wf)-1);
 
         }
-        pa_fcolor(wg->wf, pa_black);
-        pa_cursorg(wg->wf, pa_chrsizy(wg->wf)*0.5, y);
+        ami_fcolor(wg->wf, ami_black);
+        ami_cursorg(wg->wf, ami_chrsizy(wg->wf)*0.5, y);
         fprintf(wg->wf, "%s", sp->str); /* place string */
-        y += pa_chrsizy(wg->wf); /* next line */
+        y += ami_chrsizy(wg->wf); /* next line */
         sp = sp->next; /* next string */
         sc++; /* next select */
 
@@ -2590,65 +2590,65 @@ Handles the events posted to list boxes.
 *******************************************************************************/
 
 static void listbox_event(
-    /** Event record pointer */ pa_evtrec* ev,
+    /** Event record pointer */ ami_evtrec* ev,
     /** Widget data pointer */  wigptr wg
 )
 
 {
 
-    pa_evtrec er; /* outbound button event */
+    ami_evtrec er; /* outbound button event */
     int       y;
     int       sc;
-    pa_strptr sp;
+    ami_strptr sp;
 
-    if (ev->etype == pa_etredraw) listbox_draw(wg); /* redraw the window */
-    else if (ev->etype == pa_etmouba && ev->amoubn == 1) {
+    if (ev->etype == ami_etredraw) listbox_draw(wg); /* redraw the window */
+    else if (ev->etype == ami_etmouba && ev->amoubn == 1) {
 
         /* note that if there is a click in the window, there must have also
            a mouse move */
         if (wg->ss) { /* there is a string select */
 
             /* send event back to parent window */
-            er.etype = pa_etlstbox; /* set button event */
+            er.etype = ami_etlstbox; /* set button event */
             er.lstbid = wg->id; /* set id */
             er.lstbsl = wg->ss; /* set string select */
             if (wg->pw)
                 /* send the event to the superclass widget */
-                pa_sendevent(wg->pf, &er);
+                ami_sendevent(wg->pf, &er);
             else
                 /* send the event to the parent */
-                pa_sendevent(wg->parent, &er);
+                ami_sendevent(wg->parent, &er);
 
         }
 
-    } else if (ev->etype == pa_etmoumovg) {
+    } else if (ev->etype == ami_etmoumovg) {
 
         /* track position */
         wg->mpx = ev->moupxg; /* set present position */
         wg->mpy = ev->moupyg;
 
         /* find which string the mouse is over */
-        y = pa_chrsizy(wg->wf)*0.5; /* space to first string */
+        y = ami_chrsizy(wg->wf)*0.5; /* space to first string */
         sp = wg->strlst; /* index top of string list */
         sc = 1; /* set first string */
         wg->ss = 0; /* set no string selected */
         while (sp) { /* traverse string list */
 
             /* if within the string bounding box, select it */
-            if (wg->mpy >= y && wg->mpy <= y+pa_chrsizy(wg->wf)) wg->ss = sc;
-            y += pa_chrsizy(wg->wf); /* next line */
+            if (wg->mpy >= y && wg->mpy <= y+ami_chrsizy(wg->wf)) wg->ss = sc;
+            y += ami_chrsizy(wg->wf); /* next line */
             sc++; /* next select */
             sp = sp->next; /* next string */
 
         }
         listbox_draw(wg); /* redraw the window */
 
-    } else if (ev->etype == pa_ethover) {
+    } else if (ev->etype == ami_ethover) {
 
         wg->hover = 1; /* hovered */
         listbox_draw(wg); /* redraw the window */
 
-    } else if (ev->etype == pa_etnohover) {
+    } else if (ev->etype == ami_etnohover) {
 
         wg->hover = 0; /* not hovered */
         listbox_draw(wg); /* redraw the window */
@@ -2673,44 +2673,44 @@ static void dropbox_draw(
 
     int       ddspc;  /* up/down control space */
     int       figsiz; /* size of up/down figures */
-    pa_strptr sp;
+    ami_strptr sp;
     int       sc;
     int       aw;
     int       ah;
     int       cx;
     int       cy;
 
-    ddspc = pa_chrsizy(win0)*1.9; /* square space for dropdown control */
+    ddspc = ami_chrsizy(win0)*1.9; /* square space for dropdown control */
     aw = ddspc*0.3; /* set dropdown arrow width */
     ah = ddspc*0.15; /* set dropdown arrow height */
-    cx = pa_maxxg(wg->wf)-ddspc*0.5; /* center dropdown arrow */
-    cy = pa_maxyg(wg->wf)*0.5-pa_maxyg(wg->wf)*0.05;
+    cx = ami_maxxg(wg->wf)-ddspc*0.5; /* center dropdown arrow */
+    cy = ami_maxyg(wg->wf)*0.5-ami_maxyg(wg->wf)*0.05;
     /* color the background */
     fcolort(wg->wf, th_back);
-    pa_frect(wg->wf, 1, 1, pa_maxxg(wg->wf), pa_maxyg(wg->wf));
+    ami_frect(wg->wf, 1, 1, ami_maxxg(wg->wf), ami_maxyg(wg->wf));
 
     /* outline */
     if (wg->pw && wg->focus) { /* superclassed by dropeditbox and in focus */
 
-        pa_linewidth(wg->wf, 4);
+        ami_linewidth(wg->wf, 4);
         fcolort(wg->wf, th_focus);
 
     } else {
 
-        pa_linewidth(wg->wf, 2);
+        ami_linewidth(wg->wf, 2);
         fcolort(wg->wf, th_outline2);
 
     }
-    pa_rrect(wg->wf, 2, 2, pa_maxxg(wg->wf)-1, pa_maxyg(wg->wf)-1, 20, 20);
+    ami_rrect(wg->wf, 2, 2, ami_maxxg(wg->wf)-1, ami_maxyg(wg->wf)-1, 20, 20);
 
     /* draw divider lines */
-    pa_linewidth(wg->wf, 2);
+    ami_linewidth(wg->wf, 2);
     fcolort(wg->wf, th_outline2);
-    pa_line(wg->wf, pa_maxxg(wg->wf)-ddspc, 1,
-                    pa_maxxg(wg->wf)-ddspc, pa_maxyg(wg->wf));
+    ami_line(wg->wf, ami_maxxg(wg->wf)-ddspc, 1,
+                    ami_maxxg(wg->wf)-ddspc, ami_maxyg(wg->wf));
     /* draw dropbox arrow */
     fcolort(wg->wf, th_droparrow);
-    pa_ftriangle(wg->wf, cx-aw*0.5, cy, cx+aw*0.5, cy, cx, cy+ah);
+    ami_ftriangle(wg->wf, cx-aw*0.5, cy, cx+aw*0.5, cy, cx, cy+ah);
 
     /* draw current select */
     sp = wg->strlst;
@@ -2718,7 +2718,7 @@ static void dropbox_draw(
     /* find selected string */
     while (sc > 1 && sp) { sp = sp->next; sc--; }
     fcolort(wg->wf, th_droptext);
-    pa_cursorg(wg->wf, pa_chrsizy(wg->wf)*0.5, pa_chrsizy(wg->wf)*0.5);
+    ami_cursorg(wg->wf, ami_chrsizy(wg->wf)*0.5, ami_chrsizy(wg->wf)*0.5);
     fprintf(wg->wf, "%s", sp->str); /* place string */
 
 }
@@ -2732,7 +2732,7 @@ Handles the events posted to drop boxes.
 *******************************************************************************/
 
 static void dropbox_event(
-    /** Event record pointer */ pa_evtrec* ev,
+    /** Event record pointer */ ami_evtrec* ev,
     /** Widget data pointer */  wigptr wg
 )
 
@@ -2741,13 +2741,13 @@ static void dropbox_event(
     int udspc;    /* up/down control space */
     int lbw, lbh; /* listbox sizing */
     int w, h;     /* net width and height */
-    pa_evtrec er; /* outbound event */
+    ami_evtrec er; /* outbound event */
     FILE* par;    /* ultimate parent */
     int   px,py;  /* position of widget in ultimate parent */
     wigptr wp;
 
-    udspc = pa_chrsizy(win0)*1.9; /* square space for up/down control */
-    if (ev->etype == pa_etredraw) dropbox_draw(wg); /* redraw the window */
+    udspc = ami_chrsizy(win0)*1.9; /* square space for up/down control */
+    if (ev->etype == ami_etredraw) dropbox_draw(wg); /* redraw the window */
     else if (ev->etype == WMC_LGTFOC) { /* light focus */
 
         /* light focus, but we don't really have it */
@@ -2760,15 +2760,15 @@ static void dropbox_event(
         wg->focus = 0; /* out of focus */
         dropbox_draw(wg); /* redraw */
 
-    } else if (ev->etype == pa_etmoumovg) { /* mouse moved */
+    } else if (ev->etype == ami_etmoumovg) { /* mouse moved */
 
             /* track position */
             wg->mpx = ev->moupxg; /* set present position */
             wg->mpy = ev->moupyg;
 
-    } else if (ev->etype == pa_etmouba && ev->amoubn == 1) { /* mouse click */
+    } else if (ev->etype == ami_etmouba && ev->amoubn == 1) { /* mouse click */
 
-        if (wg->mpx >= pa_maxxg(wg->wf)-udspc) { /* dropdown control */
+        if (wg->mpx >= ami_maxxg(wg->wf)-udspc) { /* dropdown control */
 
             /* find parent parameters, since subwidget displays in that
                parent */
@@ -2785,8 +2785,8 @@ static void dropbox_event(
             if (!wg->cw) { /* not already in dropdown mode */
 
                 /* find dimensions */
-                pa_listboxsizg(wg->wf, wg->strlst, &lbw, &lbh);
-                w = pa_maxxg(wg->wf); /* set width as same */
+                ami_listboxsizg(wg->wf, wg->strlst, &lbw, &lbh);
+                w = ami_maxxg(wg->wf); /* set width as same */
                 h = lbh;
 
                 /* create the list subwidget */
@@ -2797,33 +2797,33 @@ static void dropbox_event(
                 wg->cw = wp; /* set child widget */
                 wp->pw = wg; /* set parent widget */
                 /* open listbox */
-                wg->cid = pa_getwigid(par); /* get anonymous widget id */
-                widget(par, px, py+pa_maxyg(wg->wf)-1,
-                            px+w, py+pa_maxyg(wg->wf)-1+h,
+                wg->cid = ami_getwigid(par); /* get anonymous widget id */
+                widget(par, px, py+ami_maxyg(wg->wf)-1,
+                            px+w, py+ami_maxyg(wg->wf)-1+h,
                        "", wg->cid, wtlistbox, &wp);
 
             } else { /* already in dropdown mode */
 
-                pa_killwidget(par, wg->cid); /* close the widget */
+                ami_killwidget(par, wg->cid); /* close the widget */
                 wg->cw = NULL; /* set no child window */
 
             }
 
         }
 
-    } if (ev->etype == pa_etlstbox) {
+    } if (ev->etype == ami_etlstbox) {
 
         /* find parent parameters, since subwidget displays in that
            parent */
         par = wg->parent; /* set near parent */
         if (wg->pw) par = wg->pw->parent; /* set near parent up one */
         /* send event back to parent window */
-        er.etype = pa_etdrpbox; /* set button event */
+        er.etype = ami_etdrpbox; /* set button event */
         er.drpbid = wg->id; /* set id */
         er.drpbsl = ev->lstbsl; /* set string select */
         /* send the event to the near parent */
-        pa_sendevent(wg->parent, &er);
-        pa_killwidget(par, wg->cid); /* close the widget in far parent */
+        ami_sendevent(wg->parent, &er);
+        ami_killwidget(par, wg->cid); /* close the widget in far parent */
         wg->cw = NULL; /* set no child window */
         wg->ss = ev->lstbsl; /* set our new select */
         dropbox_draw(wg); /* redraw our widget */
@@ -2859,31 +2859,31 @@ Handles the events posted to drop edit boxes.
 *******************************************************************************/
 
 static void dropeditbox_event(
-    /** Event record pointer */ pa_evtrec* ev,
+    /** Event record pointer */ ami_evtrec* ev,
     /** Widget data pointer */  wigptr wg
 )
 
 {
 
-    pa_evtrec er; /* outbound event */
-    pa_strptr sp;
+    ami_evtrec er; /* outbound event */
+    ami_strptr sp;
     int       sc;
     int       l;
 
-    if (ev->etype == pa_etredraw) dropeditbox_draw(wg); /* redraw the window */
+    if (ev->etype == ami_etredraw) dropeditbox_draw(wg); /* redraw the window */
     else if (ev->etype == WMC_LGTFOC) { /* light focus */
 
         /* edit box got focus, wants us to light it up, cross to dropbox */
         er.etype = WMC_LGTFOC; /* send light focus event */
-        pa_sendevent(wg->cw->wf, &er); /* send to dropbox */
+        ami_sendevent(wg->cw->wf, &er); /* send to dropbox */
 
     } else if (ev->etype == WMC_DRKFOC) { /* dark focus */
 
         /* edit box got focus, wants us to turn it off, cross to dropbox */
         er.etype = WMC_DRKFOC; /* set dark focus event */
-        pa_sendevent(wg->cw->wf, &er); /* send to child */
+        ami_sendevent(wg->cw->wf, &er); /* send to child */
 
-    } else if (ev->etype == pa_etdrpbox) {
+    } else if (ev->etype == ami_etdrpbox) {
 
         /* find current select */
         sp = wg->cw->strlst;
@@ -2897,14 +2897,14 @@ static void dropeditbox_event(
         if (wg->cw2->curs > l) wg->cw2->curs = l;
         editbox_draw(wg->cw2); /* redraw edit widget */
 
-    } else if (ev->etype == pa_etedtbox) {
+    } else if (ev->etype == ami_etedtbox) {
 
         free(wg->face); /* release previous face string */
         wg->face = str(wg->cw2->face); /* copy the resulting string */
         /* send event back to parent window */
-        er.etype = pa_etdrebox; /* set drop edit completion event */
+        er.etype = ami_etdrebox; /* set drop edit completion event */
         er.drebid = wg->id; /* set id */
-        pa_sendevent(wg->parent, &er); /* send the event to the parent */
+        ami_sendevent(wg->parent, &er); /* send the event to the parent */
 
     }
 
@@ -2932,16 +2932,16 @@ static void slidehoriz_draw(
     int trksizp;    /* track size in pixels */
     int insld;      /* mouse is in slider */
     int sldpos;     /* slider position */
-    pa_evtrec er;   /* outbound event */
+    ami_evtrec er;   /* outbound event */
     double tiksizp; /* space between ticks in pixels */
     int tickno;     /* ticks counter */
     int x;
 
-    mid = pa_maxyg(wg->wf)*0.5; /* find y midpoint */
-    thk = pa_chrsizy(wg->wf)*0.14; /* find slider track thickness */
-    sldsizp = pa_chrsizy(wg->wf)*1.0; /* find slider size in pixels */
+    mid = ami_maxyg(wg->wf)*0.5; /* find y midpoint */
+    thk = ami_chrsizy(wg->wf)*0.14; /* find slider track thickness */
+    sldsizp = ami_chrsizy(wg->wf)*1.0; /* find slider size in pixels */
     margin = sldsizp*0.5+ENDSPACE; /* set edge margins */
-    trksizp = pa_maxxg(wg->wf)-margin*2; /* set track width */
+    trksizp = ami_maxxg(wg->wf)-margin*2; /* set track width */
     sldposp = margin+round((double)trksizp*wg->sclpos/INT_MAX);
 
     /* set status of mouse inside the slider */
@@ -2953,16 +2953,16 @@ static void slidehoriz_draw(
         /* find new top if click is middle */
         x = wg->mpx;
         if (x < margin) x = margin; /* limit travel */
-        else if (x+sldsizp > pa_maxxg(wg->wf)-margin)
-            x = pa_maxxg(wg->wf)-margin;
+        else if (x+sldsizp > ami_maxxg(wg->wf)-margin)
+            x = ami_maxxg(wg->wf)-margin;
         /* find new ratioed position */
         sldpos = round((double)INT_MAX*(x-margin)/trksizp);
         wg->sclpos = sldpos; /* place to widget data */
         /* send event back to parent window */
-        er.etype = pa_etsldpos; /* set scroll position event */
+        er.etype = ami_etsldpos; /* set scroll position event */
         er.sldpid = wg->id; /* set id */
         er.sldpos = sldpos; /* set scrollbar position */
-        pa_sendevent(wg->parent, &er); /* send the event to the parent */
+        ami_sendevent(wg->parent, &er); /* send the event to the parent */
 
     } else if ((insld || wg->grab) && wg->pressed && wg->lpressed &&
                wg->mpx != wg->lmpx) {
@@ -2975,10 +2975,10 @@ static void slidehoriz_draw(
         sldpos = round((double)INT_MAX*x/trksizp);
         wg->sclpos = sldpos; /* place to widget data */
         /* send event back to parent window */
-        er.etype = pa_etsldpos; /* set scroll position event */
+        er.etype = ami_etsldpos; /* set scroll position event */
         er.sldpid = wg->id; /* set id */
         er.sldpos = sldpos; /* set scrollbar position */
-        pa_sendevent(wg->parent, &er); /* send the event to the parent */
+        ami_sendevent(wg->parent, &er); /* send the event to the parent */
         wg->grab = TRUE; /* set we grabbed the scrollbar */
 
     } else if (!wg->pressed) wg->grab = FALSE;
@@ -2987,22 +2987,22 @@ static void slidehoriz_draw(
     sldposp = margin+round((double)trksizp*wg->sclpos/INT_MAX);
 
     /* color the background */
-    pa_fcolor(wg->wf, pa_white);
-    pa_frect(wg->wf, 1, 1, pa_maxxg(wg->wf), pa_maxyg(wg->wf));
+    ami_fcolor(wg->wf, ami_white);
+    ami_frect(wg->wf, 1, 1, ami_maxxg(wg->wf), ami_maxyg(wg->wf));
     /* color scale track */
     fcolort(wg->wf, th_sldint);
-    pa_frrect(wg->wf, margin, mid-thk*0.5, pa_maxxg(wg->wf)-margin,
+    ami_frrect(wg->wf, margin, mid-thk*0.5, ami_maxxg(wg->wf)-margin,
               mid+thk*0.5, 10, 10);
-    pa_linewidth(wg->wf, 2);
+    ami_linewidth(wg->wf, 2);
     fcolort(wg->wf, th_outline2);
-    pa_rrect(wg->wf, margin, mid-thk*0.5, pa_maxxg(wg->wf)-margin,
+    ami_rrect(wg->wf, margin, mid-thk*0.5, ami_maxxg(wg->wf)-margin,
              mid+thk*0.5, 10, 10);
     /* color active side */
     fcolort(wg->wf, th_progactcen);
-    pa_frrect(wg->wf, margin, mid-thk*0.5, sldposp, mid+thk*0.5, 10, 10);
+    ami_frrect(wg->wf, margin, mid-thk*0.5, sldposp, mid+thk*0.5, 10, 10);
     /* draw slider */
-    pa_fcolor(wg->wf, pa_white);
-    pa_fellipse(wg->wf, sldposp-sldsizp*0.5, mid-sldsizp*0.5,
+    ami_fcolor(wg->wf, ami_white);
+    ami_fellipse(wg->wf, sldposp-sldsizp*0.5, mid-sldsizp*0.5,
                        sldposp+sldsizp*0.5, mid+sldsizp*0.5);
     if (wg->pressed && (insld || wg->grab))
         /* color as pressed */
@@ -3010,7 +3010,7 @@ static void slidehoriz_draw(
     else
         /* color as not pressed */
         fcolort(wg->wf, th_outline2);
-    pa_ellipse(wg->wf, sldposp-sldsizp*0.5, mid-sldsizp*0.5,
+    ami_ellipse(wg->wf, sldposp-sldsizp*0.5, mid-sldsizp*0.5,
                       sldposp+sldsizp*0.5, mid+sldsizp*0.5);
 
     /* place tickmarks */
@@ -3019,10 +3019,10 @@ static void slidehoriz_draw(
         tiksizp = trksizp/(wg->ticks-1); /* find number of pixels between ticks */
         tickno = 0; /* start at left */
         x = margin+tiksizp*tickno; /* set location */
-        pa_fcolor(wg->wf, pa_black); /* set color */
+        ami_fcolor(wg->wf, ami_black); /* set color */
         while (x <= margin+trksizp) { /* place tick marks */
 
-            pa_line(wg->wf, x, 1, x, mid-sldsizp*0.5); /* draw tick */
+            ami_line(wg->wf, x, 1, x, mid-sldsizp*0.5); /* draw tick */
             tickno++; /* count ticks */
             x = margin+tiksizp*tickno; /* next location */
 
@@ -3041,26 +3041,26 @@ Handles the events posted to a horizontal slider.
 *******************************************************************************/
 
 static void slidehoriz_event(
-    /** Event record pointer */ pa_evtrec* ev,
+    /** Event record pointer */ ami_evtrec* ev,
     /** Widget data pointer */  wigptr wg
 )
 
 {
 
-    if (ev->etype == pa_etredraw) slidehoriz_draw(wg); /* redraw the window */
-    else if (ev->etype == pa_etmouba && ev->amoubn == 1) {
+    if (ev->etype == ami_etredraw) slidehoriz_draw(wg); /* redraw the window */
+    else if (ev->etype == ami_etmouba && ev->amoubn == 1) {
 
         wg->lpressed = wg->pressed; /* save last pressed state */
         wg->pressed = TRUE; /* set is pressed */
         slidehoriz_draw(wg);
 
-    } else if (ev->etype == pa_etmoubd) {
+    } else if (ev->etype == ami_etmoubd) {
 
         wg->lpressed = wg->pressed; /* save last pressed state */
         wg->pressed = FALSE; /* set not pressed */
         slidehoriz_draw(wg);
 
-    } else if (ev->etype == pa_etmoumovg) {
+    } else if (ev->etype == ami_etmoumovg) {
 
         wg->lpressed = wg->pressed; /* save last pressed state */
         /* mouse moved, track position */
@@ -3098,16 +3098,16 @@ static void slidevert_draw(
     int trksizp;  /* track size in pixels */
     int insld;    /* mouse is in slider */
     int sldpos;   /* slider position */
-    pa_evtrec er; /* outbound event */
+    ami_evtrec er; /* outbound event */
     double tiksizp; /* space between ticks in pixels */
     int tickno;     /* ticks counter */
     int y;
 
-    mid = pa_maxxg(wg->wf)*0.5; /* find x midpoint */
-    thk = pa_chrsizy(wg->wf)*0.14; /* find slider track thickness */
-    sldsizp = pa_chrsizy(wg->wf)*1.0; /* find slider size in pixels */
+    mid = ami_maxxg(wg->wf)*0.5; /* find x midpoint */
+    thk = ami_chrsizy(wg->wf)*0.14; /* find slider track thickness */
+    sldsizp = ami_chrsizy(wg->wf)*1.0; /* find slider size in pixels */
     margin = sldsizp*0.5+ENDSPACE; /* set edge margins */
-    trksizp = pa_maxyg(wg->wf)-margin*2; /* set track width */
+    trksizp = ami_maxyg(wg->wf)-margin*2; /* set track width */
     sldposp = margin+round((double)trksizp*wg->sclpos/INT_MAX);
 
     /* set status of mouse inside the slider */
@@ -3119,16 +3119,16 @@ static void slidevert_draw(
         /* find new top if click is middle */
         y = wg->mpy;
         if (y < margin) y = margin; /* limit travel */
-        else if (y+sldsizp > pa_maxyg(wg->wf)-margin)
-            y = pa_maxyg(wg->wf)-margin;
+        else if (y+sldsizp > ami_maxyg(wg->wf)-margin)
+            y = ami_maxyg(wg->wf)-margin;
         /* find new ratioed position */
         sldpos = round((double)INT_MAX*(y-margin)/trksizp);
         wg->sclpos = sldpos; /* place to widget data */
         /* send event back to parent window */
-        er.etype = pa_etsldpos; /* set scroll position event */
+        er.etype = ami_etsldpos; /* set scroll position event */
         er.sldpid = wg->id; /* set id */
         er.sldpos = sldpos; /* set scrollbar position */
-        pa_sendevent(wg->parent, &er); /* send the event to the parent */
+        ami_sendevent(wg->parent, &er); /* send the event to the parent */
 
     } else if ((insld || wg->grab) && wg->pressed && wg->lpressed &&
                wg->mpy != wg->lmpy) {
@@ -3141,10 +3141,10 @@ static void slidevert_draw(
         sldpos = round((double)INT_MAX*y/trksizp);
         wg->sclpos = sldpos; /* place to widget data */
         /* send event back to parent window */
-        er.etype = pa_etsldpos; /* set scroll position event */
+        er.etype = ami_etsldpos; /* set scroll position event */
         er.sldpid = wg->id; /* set id */
         er.sldpos = sldpos; /* set scrollbar position */
-        pa_sendevent(wg->parent, &er); /* send the event to the parent */
+        ami_sendevent(wg->parent, &er); /* send the event to the parent */
         wg->grab = TRUE; /* set we grabbed the scrollbar */
 
     } else if (!wg->pressed) wg->grab = FALSE;
@@ -3153,22 +3153,22 @@ static void slidevert_draw(
     sldposp = margin+round((double)trksizp*wg->sclpos/INT_MAX);
 
     /* color the background */
-    pa_fcolor(wg->wf, pa_white);
-    pa_frect(wg->wf, 1, 1, pa_maxxg(wg->wf), pa_maxyg(wg->wf));
+    ami_fcolor(wg->wf, ami_white);
+    ami_frect(wg->wf, 1, 1, ami_maxxg(wg->wf), ami_maxyg(wg->wf));
     /* color scale track */
     fcolort(wg->wf, th_sldint);
-    pa_frrect(wg->wf, mid-thk*0.5, margin, mid+thk*0.5,
-              pa_maxyg(wg->wf)-margin, 10, 10);
-    pa_linewidth(wg->wf, 2);
+    ami_frrect(wg->wf, mid-thk*0.5, margin, mid+thk*0.5,
+              ami_maxyg(wg->wf)-margin, 10, 10);
+    ami_linewidth(wg->wf, 2);
     fcolort(wg->wf, th_outline2);
-    pa_rrect(wg->wf, mid-thk*0.5, margin, mid+thk*0.5,
-             pa_maxyg(wg->wf)-margin, 10, 10);
+    ami_rrect(wg->wf, mid-thk*0.5, margin, mid+thk*0.5,
+             ami_maxyg(wg->wf)-margin, 10, 10);
     /* color active side */
     fcolort(wg->wf, th_progactcen);
-    pa_frrect(wg->wf, mid-thk*0.5, margin, mid+thk*0.5, sldposp, 10, 10);
+    ami_frrect(wg->wf, mid-thk*0.5, margin, mid+thk*0.5, sldposp, 10, 10);
     /* draw slider */
-    pa_fcolor(wg->wf, pa_white);
-    pa_fellipse(wg->wf, mid-sldsizp*0.5, sldposp-sldsizp*0.5,
+    ami_fcolor(wg->wf, ami_white);
+    ami_fellipse(wg->wf, mid-sldsizp*0.5, sldposp-sldsizp*0.5,
                        mid+sldsizp*0.5, sldposp+sldsizp*0.5);
     if (wg->pressed && (insld || wg->grab))
         /* color as pressed */
@@ -3176,7 +3176,7 @@ static void slidevert_draw(
     else
         /* color as not pressed */
         fcolort(wg->wf, th_outline2);
-    pa_ellipse(wg->wf, mid-sldsizp*0.5, sldposp-sldsizp*0.5,
+    ami_ellipse(wg->wf, mid-sldsizp*0.5, sldposp-sldsizp*0.5,
                       mid+sldsizp*0.5, sldposp+sldsizp*0.5);
 
     /* place tickmarks */
@@ -3185,10 +3185,10 @@ static void slidevert_draw(
         tiksizp = trksizp/(wg->ticks-1); /* find number of pixels between ticks */
         tickno = 0; /* start at top */
         y = margin+tiksizp*tickno; /* set location */
-        pa_fcolor(wg->wf, pa_black); /* set color */
+        ami_fcolor(wg->wf, ami_black); /* set color */
         while (y <= margin+trksizp) { /* place tick marks */
 
-            pa_line(wg->wf, mid+sldsizp*0.5, y, pa_maxxg(wg->wf), y); /* draw tick */
+            ami_line(wg->wf, mid+sldsizp*0.5, y, ami_maxxg(wg->wf), y); /* draw tick */
             tickno++; /* count ticks */
             y = margin+tiksizp*tickno; /* next location */
 
@@ -3207,26 +3207,26 @@ Handles the events posted to a vertical slider.
 *******************************************************************************/
 
 static void slidevert_event(
-    /** Event record pointer */ pa_evtrec* ev,
+    /** Event record pointer */ ami_evtrec* ev,
     /** Widget data pointer */  wigptr wg
 )
 
 {
 
-    if (ev->etype == pa_etredraw) slidevert_draw(wg); /* redraw the window */
-    else if (ev->etype == pa_etmouba && ev->amoubn == 1) {
+    if (ev->etype == ami_etredraw) slidevert_draw(wg); /* redraw the window */
+    else if (ev->etype == ami_etmouba && ev->amoubn == 1) {
 
         wg->lpressed = wg->pressed; /* save last pressed state */
         wg->pressed = TRUE; /* set is pressed */
         slidevert_draw(wg);
 
-    } else if (ev->etype == pa_etmoubd) {
+    } else if (ev->etype == ami_etmoubd) {
 
         wg->lpressed = wg->pressed; /* save last pressed state */
         wg->pressed = FALSE; /* set not pressed */
         slidevert_draw(wg);
 
-    } else if (ev->etype == pa_etmoumovg) {
+    } else if (ev->etype == ami_etmoumovg) {
 
         wg->lpressed = wg->pressed; /* save last pressed state */
         /* mouse moved, track position */
@@ -3256,99 +3256,99 @@ static void tabbar_draw(
 
 {
 
-    pa_strptr sp; /* string list pointer */
+    ami_strptr sp; /* string list pointer */
     int       sc;
     int       xm, y, x1, x2;
     int       th; /* tabbar height/width (by orientation) */
 
     /* find tabbar height/width */
-    if (wg->charb) th = pa_chrsizy(wg->parent)*TABHGT; /* character */
-    th = pa_chrsizy(wg->wf)*TABHGT; /* graphical */
-    if (wg->tor == pa_totop || wg->tor == pa_tobottom) { /* top or bottom */
+    if (wg->charb) th = ami_chrsizy(wg->parent)*TABHGT; /* character */
+    th = ami_chrsizy(wg->wf)*TABHGT; /* graphical */
+    if (wg->tor == ami_totop || wg->tor == ami_tobottom) { /* top or bottom */
 
         /* color the background */
-        pa_fcolor(wg->wf, pa_white);
-        pa_frect(wg->wf, 1, 1, pa_maxxg(wg->wf), pa_maxyg(wg->wf));
+        ami_fcolor(wg->wf, ami_white);
+        ami_frect(wg->wf, 1, 1, ami_maxxg(wg->wf), ami_maxyg(wg->wf));
         fcolort(wg->wf, th_tabback);
-        if (wg->tor == pa_totop)
-            pa_frect(wg->wf, 1, 1, pa_maxxg(wg->wf), th);
+        if (wg->tor == ami_totop)
+            ami_frect(wg->wf, 1, 1, ami_maxxg(wg->wf), th);
         else /* bottom */
-            pa_frect(wg->wf, 1, pa_maxyg(wg->wf)-th,
-                             pa_maxxg(wg->wf), pa_maxyg(wg->wf));
+            ami_frect(wg->wf, 1, ami_maxyg(wg->wf)-th,
+                             ami_maxxg(wg->wf), ami_maxyg(wg->wf));
         /* outline */
-        pa_linewidth(wg->wf, 1);
+        ami_linewidth(wg->wf, 1);
         fcolort(wg->wf, th_outline1);
-        pa_rect(wg->wf, 1, 1, pa_maxxg(wg->wf), pa_maxyg(wg->wf));
-        pa_rect(wg->wf, 2, 2, pa_maxxg(wg->wf)-1, pa_maxyg(wg->wf)-1);
-        if (wg->tor == pa_totop) {
+        ami_rect(wg->wf, 1, 1, ami_maxxg(wg->wf), ami_maxyg(wg->wf));
+        ami_rect(wg->wf, 2, 2, ami_maxxg(wg->wf)-1, ami_maxyg(wg->wf)-1);
+        if (wg->tor == ami_totop) {
 
-            pa_line(wg->wf, 1, th, pa_maxxg(wg->wf), th);
-            pa_line(wg->wf, 1, th-1, pa_maxxg(wg->wf), th-1);
+            ami_line(wg->wf, 1, th, ami_maxxg(wg->wf), th);
+            ami_line(wg->wf, 1, th-1, ami_maxxg(wg->wf), th-1);
 
         } else {
 
-            pa_line(wg->wf, 1, pa_maxyg(wg->wf)-th+1, 
-                            pa_maxxg(wg->wf), pa_maxyg(wg->wf)-th+1);
-            pa_line(wg->wf, 1, pa_maxyg(wg->wf)-th+2, 
-                            pa_maxxg(wg->wf), pa_maxyg(wg->wf)-th+2);
+            ami_line(wg->wf, 1, ami_maxyg(wg->wf)-th+1, 
+                            ami_maxxg(wg->wf), ami_maxyg(wg->wf)-th+1);
+            ami_line(wg->wf, 1, ami_maxyg(wg->wf)-th+2, 
+                            ami_maxxg(wg->wf), ami_maxyg(wg->wf)-th+2);
 
         }
         /* draw tab text */
-        if (wg->tor == pa_totop)
-            pa_cursorg(wg->wf, pa_chrsizy(wg->wf), pa_chrsizy(wg->wf)*0.5);
+        if (wg->tor == ami_totop)
+            ami_cursorg(wg->wf, ami_chrsizy(wg->wf), ami_chrsizy(wg->wf)*0.5);
         else /* bottom */
-            pa_cursorg(wg->wf, pa_chrsizy(wg->wf), 
-                               pa_maxyg(wg->wf)-th+pa_chrsizy(wg->wf)*0.5);
+            ami_cursorg(wg->wf, ami_chrsizy(wg->wf), 
+                               ami_maxyg(wg->wf)-th+ami_chrsizy(wg->wf)*0.5);
         sp = wg->strlst; /* index tab string list */
         sc = 1; /* set first string */
-        while (sp && pa_curxg(wg->wf) <= pa_maxxg(wg->wf)) {
+        while (sp && ami_curxg(wg->wf) <= ami_maxxg(wg->wf)) {
 
             if (sc == wg->ss || sc == wg->sh) { /* draw select/hover */
 
-                pa_linewidth(wg->wf, 6);
+                ami_linewidth(wg->wf, 6);
                 if (sc == wg->ss) fcolort(wg->wf, th_tabsel);
                 else fcolort(wg->wf, th_outline1);
-                if (wg->tor == pa_totop)
-                    pa_line(wg->wf, pa_curxg(wg->wf)-pa_chrsizy(wg->wf)*0.5,
+                if (wg->tor == ami_totop)
+                    ami_line(wg->wf, ami_curxg(wg->wf)-ami_chrsizy(wg->wf)*0.5,
                                     th-2,
-                                    pa_curxg(wg->wf)+pa_strsiz(wg->wf, sp->str)+
-                                             pa_chrsizy(wg->wf)*0.5,
+                                    ami_curxg(wg->wf)+ami_strsiz(wg->wf, sp->str)+
+                                             ami_chrsizy(wg->wf)*0.5,
                                     th-2);
                 else
-                    pa_line(wg->wf, pa_curxg(wg->wf)-pa_chrsizy(wg->wf)*0.5,
-                                    pa_maxyg(wg->wf)-th+4,
-                                    pa_curxg(wg->wf)+pa_strsiz(wg->wf, sp->str)+
-                                             pa_chrsizy(wg->wf)*0.5,
-                                    pa_maxyg(wg->wf)-th+4);
+                    ami_line(wg->wf, ami_curxg(wg->wf)-ami_chrsizy(wg->wf)*0.5,
+                                    ami_maxyg(wg->wf)-th+4,
+                                    ami_curxg(wg->wf)+ami_strsiz(wg->wf, sp->str)+
+                                             ami_chrsizy(wg->wf)*0.5,
+                                    ami_maxyg(wg->wf)-th+4);
 
             }
             if (sc == wg->ss && wg->focus) { /* draw focus box */
 
-                pa_linewidth(wg->wf, 2);
+                ami_linewidth(wg->wf, 2);
                 fcolort(wg->wf, th_tabfocus);
-                if (wg->tor == pa_totop)
-                    pa_rrect(wg->wf, pa_curxg(wg->wf)-pa_chrsizy(wg->wf)*0.5,
+                if (wg->tor == ami_totop)
+                    ami_rrect(wg->wf, ami_curxg(wg->wf)-ami_chrsizy(wg->wf)*0.5,
                                      5,
-                                     pa_curxg(wg->wf)+
-                                         pa_strsiz(wg->wf, sp->str)+
-                                         pa_chrsizy(wg->wf)*0.5,
+                                     ami_curxg(wg->wf)+
+                                         ami_strsiz(wg->wf, sp->str)+
+                                         ami_chrsizy(wg->wf)*0.5,
                                      th-3,
                                      10, 10);
                 else
-                    pa_rrect(wg->wf, pa_curxg(wg->wf)-pa_chrsizy(wg->wf)*0.5,
-                                     pa_maxyg(wg->wf)-th+5,
-                                     pa_curxg(wg->wf)+pa_strsiz(wg->wf, sp->str)+
-                                         pa_chrsizy(wg->wf)*0.5,
-                                     pa_maxyg(wg->wf)-th+th-3,
+                    ami_rrect(wg->wf, ami_curxg(wg->wf)-ami_chrsizy(wg->wf)*0.5,
+                                     ami_maxyg(wg->wf)-th+5,
+                                     ami_curxg(wg->wf)+ami_strsiz(wg->wf, sp->str)+
+                                         ami_chrsizy(wg->wf)*0.5,
+                                     ami_maxyg(wg->wf)-th+th-3,
                                      10, 10);
 
             }
             fcolort(wg->wf, th_tabdis); /* set color disabled */
             fprintf(wg->wf, "%s", sp->str); /* place button face */
             /* space off between tabs */
-            if (sp->next) pa_cursorg(wg->wf,
-                                     pa_curxg(wg->wf)+pa_chrsizy(wg->wf),
-                                     pa_curyg(wg->wf));
+            if (sp->next) ami_cursorg(wg->wf,
+                                     ami_curxg(wg->wf)+ami_chrsizy(wg->wf),
+                                     ami_curyg(wg->wf));
             sp = sp->next; /* next tab */
             sc++; /* count */
 
@@ -3357,113 +3357,113 @@ static void tabbar_draw(
     } else { /* left or right */
 
         /* if in character mode, round tabbar size to character cell */
-        if (wg->charb && th % pa_chrsizx(wg->parent)) 
-            th = th-(th % pa_chrsizx(wg->parent))+pa_chrsizx(wg->parent);
+        if (wg->charb && th % ami_chrsizx(wg->parent)) 
+            th = th-(th % ami_chrsizx(wg->parent))+ami_chrsizx(wg->parent);
         /* color the background */
-        pa_fcolor(wg->wf, pa_white);
-        pa_frect(wg->wf, 1, 1, pa_maxxg(wg->wf), pa_maxyg(wg->wf));
+        ami_fcolor(wg->wf, ami_white);
+        ami_frect(wg->wf, 1, 1, ami_maxxg(wg->wf), ami_maxyg(wg->wf));
         fcolort(wg->wf, th_tabback);
-        if (wg->tor == pa_toleft) {
+        if (wg->tor == ami_toleft) {
 
             x1 = 1;
             x2 = th;
-            pa_frect(wg->wf, x1, 1, x2, pa_maxyg(wg->wf));
+            ami_frect(wg->wf, x1, 1, x2, ami_maxyg(wg->wf));
 
         } else {
 
-            x1 = pa_maxxg(wg->wf)-th;
-            x2 = pa_maxxg(wg->wf);
-            pa_frect(wg->wf, x1+1, 1, x2, pa_maxyg(wg->wf));
+            x1 = ami_maxxg(wg->wf)-th;
+            x2 = ami_maxxg(wg->wf);
+            ami_frect(wg->wf, x1+1, 1, x2, ami_maxyg(wg->wf));
 
         }
         /* outline */
-        pa_linewidth(wg->wf, 1);
+        ami_linewidth(wg->wf, 1);
         fcolort(wg->wf, th_outline1);
-        pa_rect(wg->wf, 1, 1, pa_maxxg(wg->wf), pa_maxyg(wg->wf));
-        pa_rect(wg->wf, 2, 2, pa_maxxg(wg->wf)-1, pa_maxyg(wg->wf)-1);
+        ami_rect(wg->wf, 1, 1, ami_maxxg(wg->wf), ami_maxyg(wg->wf));
+        ami_rect(wg->wf, 2, 2, ami_maxxg(wg->wf)-1, ami_maxyg(wg->wf)-1);
 
-        if (wg->tor == pa_toleft) {
+        if (wg->tor == ami_toleft) {
 
-            pa_line(wg->wf, th, 1, th, pa_maxyg(wg->wf));
-            pa_line(wg->wf, th, 1, th-1, pa_maxyg(wg->wf)-1);
+            ami_line(wg->wf, th, 1, th, ami_maxyg(wg->wf));
+            ami_line(wg->wf, th, 1, th-1, ami_maxyg(wg->wf)-1);
 
         } else { /* right */
 
-           pa_line(wg->wf, pa_maxxg(wg->wf)-th+1, 1,
-                           pa_maxxg(wg->wf)-th+1, pa_maxyg(wg->wf));
-           pa_line(wg->wf, pa_maxxg(wg->wf)-th+2, 1,
-                           pa_maxxg(wg->wf)-th+2, pa_maxyg(wg->wf));
+           ami_line(wg->wf, ami_maxxg(wg->wf)-th+1, 1,
+                           ami_maxxg(wg->wf)-th+1, ami_maxyg(wg->wf));
+           ami_line(wg->wf, ami_maxxg(wg->wf)-th+2, 1,
+                           ami_maxxg(wg->wf)-th+2, ami_maxyg(wg->wf));
 
         }
 
         /* draw tab text */
-        if (wg->tor == pa_toleft)
-            pa_cursorg(wg->wf, pa_chrsizy(wg->wf)*0.5, pa_chrsizy(wg->wf));
+        if (wg->tor == ami_toleft)
+            ami_cursorg(wg->wf, ami_chrsizy(wg->wf)*0.5, ami_chrsizy(wg->wf));
         else
-            pa_cursorg(wg->wf, pa_maxxg(wg->wf)-th+
-                                   pa_chrsizy(wg->wf)+pa_chrsizy(wg->wf)*0.5,
-                               pa_chrsizy(wg->wf));
-        xm = pa_curxg(wg->wf); /* save the left margin */
+            ami_cursorg(wg->wf, ami_maxxg(wg->wf)-th+
+                                   ami_chrsizy(wg->wf)+ami_chrsizy(wg->wf)*0.5,
+                               ami_chrsizy(wg->wf));
+        xm = ami_curxg(wg->wf); /* save the left margin */
         sp = wg->strlst; /* index tab string list */
         sc = 1; /* set first string */
-        if (wg->tor == pa_toleft)
-            pa_path(wg->wf, 0); /* set vertical upwards text */
+        if (wg->tor == ami_toleft)
+            ami_path(wg->wf, 0); /* set vertical upwards text */
         else /* right */
-            pa_path(wg->wf, INT_MAX/2); /* set vertical downwards text */
-        while (sp && pa_curyg(wg->wf) >= 1) {
+            ami_path(wg->wf, INT_MAX/2); /* set vertical downwards text */
+        while (sp && ami_curyg(wg->wf) >= 1) {
 
             if (sc == wg->ss || sc == wg->sh) { /* draw select/hover */
 
-                pa_linewidth(wg->wf, 6);
+                ami_linewidth(wg->wf, 6);
                 if (sc == wg->ss) fcolort(wg->wf, th_tabsel);
                 else fcolort(wg->wf, th_outline1);
-                if (wg->tor == pa_toleft)
-                    pa_line(wg->wf, th-3,
-                                    pa_curyg(wg->wf)-pa_chrsizy(wg->wf)*0.5,
+                if (wg->tor == ami_toleft)
+                    ami_line(wg->wf, th-3,
+                                    ami_curyg(wg->wf)-ami_chrsizy(wg->wf)*0.5,
                                     th-3,
-                                    pa_curyg(wg->wf)+pa_strsiz(wg->wf, sp->str)+
-                                             pa_chrsizy(wg->wf)*0.5);
+                                    ami_curyg(wg->wf)+ami_strsiz(wg->wf, sp->str)+
+                                             ami_chrsizy(wg->wf)*0.5);
                 else
-                    pa_line(wg->wf, pa_maxxg(wg->wf)-th+3,
-                                    pa_curyg(wg->wf)-pa_chrsizy(wg->wf)*0.5,
-                                    pa_maxxg(wg->wf)-th+3,
-                                    pa_curyg(wg->wf)+pa_strsiz(wg->wf, sp->str)+
-                                             pa_chrsizy(wg->wf)*0.5);
+                    ami_line(wg->wf, ami_maxxg(wg->wf)-th+3,
+                                    ami_curyg(wg->wf)-ami_chrsizy(wg->wf)*0.5,
+                                    ami_maxxg(wg->wf)-th+3,
+                                    ami_curyg(wg->wf)+ami_strsiz(wg->wf, sp->str)+
+                                             ami_chrsizy(wg->wf)*0.5);
 
             }
             if (sc == wg->ss && wg->focus) { /* draw focus box */
 
-                pa_linewidth(wg->wf, 2);
+                ami_linewidth(wg->wf, 2);
                 fcolort(wg->wf, th_tabfocus);
-                if (wg->tor == pa_toleft)
-                    pa_rrect(wg->wf, 5, pa_curyg(wg->wf)-pa_chrsizy(wg->wf)*0.5,
-                                     th-3, pa_curyg(wg->wf)+
-                                               pa_strsiz(wg->wf, sp->str)+
-                                               pa_chrsizy(wg->wf)*0.5,
+                if (wg->tor == ami_toleft)
+                    ami_rrect(wg->wf, 5, ami_curyg(wg->wf)-ami_chrsizy(wg->wf)*0.5,
+                                     th-3, ami_curyg(wg->wf)+
+                                               ami_strsiz(wg->wf, sp->str)+
+                                               ami_chrsizy(wg->wf)*0.5,
                                      10, 10);
                 else
-                    pa_rrect(wg->wf, pa_maxxg(wg->wf)-th+5,
-                                     pa_curyg(wg->wf)-pa_chrsizy(wg->wf)*0.5,
-                                     pa_maxxg(wg->wf)-th+th-3,
-                                     pa_curyg(wg->wf)+pa_strsiz(wg->wf, sp->str)+
-                                         pa_chrsizy(wg->wf)*0.5,
+                    ami_rrect(wg->wf, ami_maxxg(wg->wf)-th+5,
+                                     ami_curyg(wg->wf)-ami_chrsizy(wg->wf)*0.5,
+                                     ami_maxxg(wg->wf)-th+th-3,
+                                     ami_curyg(wg->wf)+ami_strsiz(wg->wf, sp->str)+
+                                         ami_chrsizy(wg->wf)*0.5,
                                      10, 10);
 
             }
             fcolort(wg->wf, th_tabdis); /* set color disabled */
-            if (wg->tor == pa_toleft)
+            if (wg->tor == ami_toleft)
                 /* back up to start of string */
-                pa_cursorg(wg->wf, pa_curxg(wg->wf),
-                                   pa_curyg(wg->wf)+pa_strsiz(wg->wf, sp->str));
-            y = pa_curyg(wg->wf); /* save y position */
+                ami_cursorg(wg->wf, ami_curxg(wg->wf),
+                                   ami_curyg(wg->wf)+ami_strsiz(wg->wf, sp->str));
+            y = ami_curyg(wg->wf); /* save y position */
             fprintf(wg->wf, "%s", sp->str); /* place button face */
             /* space off between tabs */
             if (sp->next) {
 
-                if (wg->tor == pa_toleft)
-                    pa_cursorg(wg->wf, xm, y+pa_chrsizy(wg->wf));
+                if (wg->tor == ami_toleft)
+                    ami_cursorg(wg->wf, xm, y+ami_chrsizy(wg->wf));
                 else
-                    pa_cursorg(wg->wf, xm, pa_curyg(wg->wf)+pa_chrsizy(wg->wf));
+                    ami_cursorg(wg->wf, xm, ami_curyg(wg->wf)+ami_chrsizy(wg->wf));
 
 
             }
@@ -3471,7 +3471,7 @@ static void tabbar_draw(
             sc++; /* count */
 
         }
-        pa_path(wg->wf, INT_MAX/4); /* set normal text */
+        ami_path(wg->wf, INT_MAX/4); /* set normal text */
 
     }
 
@@ -3486,22 +3486,22 @@ Handles the events posted to a tab bar.
 *******************************************************************************/
 
 static void tabbar_event(
-    /** Event record pointer */ pa_evtrec* ev,
+    /** Event record pointer */ ami_evtrec* ev,
     /** Widget data pointer */  wigptr wg
 )
 
 {
 
-    pa_evtrec er; /* outbound button event */
+    ami_evtrec er; /* outbound button event */
     int       th; /* tabbar height/width (by orientation) */
     int       x, y;
     int       sc;
     int       sh;
-    pa_strptr sp;
+    ami_strptr sp;
 
-    th = pa_chrsizy(wg->wf)*TABHGT; /* find tabbar height/width graphical */
-    if (ev->etype == pa_etredraw) tabbar_draw(wg); /* redraw the window */
-    else if (ev->etype == pa_etmouba && ev->amoubn == 1) {
+    th = ami_chrsizy(wg->wf)*TABHGT; /* find tabbar height/width graphical */
+    if (ev->etype == ami_etredraw) tabbar_draw(wg); /* redraw the window */
+    else if (ev->etype == ami_etmouba && ev->amoubn == 1) {
 
         /* note that if there is a click in the window, there must have also
            a mouse move */
@@ -3509,26 +3509,26 @@ static void tabbar_event(
 
             wg->ss = wg->sh; /* set hover as select */
             /* send event back to parent window */
-            er.etype = pa_ettabbar; /* set tabbar event */
+            er.etype = ami_ettabbar; /* set tabbar event */
             er.tabid = wg->id; /* set id */
             er.tabsel = wg->ss; /* set string select */
             /* send the event to the parent */
-            pa_sendevent(wg->parent, &er);
+            ami_sendevent(wg->parent, &er);
             tabbar_draw(wg); /* redraw the window */
 
         }
 
-    } else if (ev->etype == pa_etmoumovg) {
+    } else if (ev->etype == ami_etmoumovg) {
 
         /* track position */
         wg->mpx = ev->moupxg; /* set present position */
         wg->mpy = ev->moupyg;
 
         /* find which string the mouse is over */
-        if (wg->tor == pa_totop || wg->tor == pa_tobottom)
-            x = pa_chrsizy(wg->wf); /* space to first string */
+        if (wg->tor == ami_totop || wg->tor == ami_tobottom)
+            x = ami_chrsizy(wg->wf); /* space to first string */
         else
-            y = pa_chrsizy(wg->wf); /* space to first string */
+            y = ami_chrsizy(wg->wf); /* space to first string */
         sp = wg->strlst; /* index top of string list */
         sc = 1; /* set first string */
         sh = wg->sh; /* save previous hover */
@@ -3536,41 +3536,41 @@ static void tabbar_event(
         while (sp) { /* traverse string list */
 
             /* if within the string bounding box, select it */
-            if (wg->tor == pa_totop) {
+            if (wg->tor == ami_totop) {
 
-                if (wg->mpx >= x-pa_chrsizy(wg->wf)*0.5 &&
-                    wg->mpx <= x+pa_strsiz(wg->wf, sp->str)+pa_chrsizy(wg->wf)*0.5 &&
+                if (wg->mpx >= x-ami_chrsizy(wg->wf)*0.5 &&
+                    wg->mpx <= x+ami_strsiz(wg->wf, sp->str)+ami_chrsizy(wg->wf)*0.5 &&
                     wg->mpy <= th)
                     wg->sh = sc;
 
-            } else if (wg->tor == pa_tobottom) {
+            } else if (wg->tor == ami_tobottom) {
 
-                if (wg->mpx >= x-pa_chrsizy(wg->wf)*0.5 &&
-                    wg->mpx <= x+pa_strsiz(wg->wf, sp->str)+pa_chrsizy(wg->wf)*0.5 &&
-                    wg->mpy >= pa_maxyg(wg->wf)-th)
+                if (wg->mpx >= x-ami_chrsizy(wg->wf)*0.5 &&
+                    wg->mpx <= x+ami_strsiz(wg->wf, sp->str)+ami_chrsizy(wg->wf)*0.5 &&
+                    wg->mpy >= ami_maxyg(wg->wf)-th)
                     wg->sh = sc;
 
-            } if (wg->tor == pa_toleft) {
+            } if (wg->tor == ami_toleft) {
 
-                if (wg->mpy >= y-pa_chrsizy(wg->wf)*0.5 &&
-                    wg->mpy <= y+pa_strsiz(wg->wf, sp->str)+pa_chrsizy(wg->wf)*0.5 &&
+                if (wg->mpy >= y-ami_chrsizy(wg->wf)*0.5 &&
+                    wg->mpy <= y+ami_strsiz(wg->wf, sp->str)+ami_chrsizy(wg->wf)*0.5 &&
                     wg->mpx <= th)
                     wg->sh = sc;
 
             } else {
 
-                if (wg->mpy >= y-pa_chrsizy(wg->wf)*0.5 &&
-                    wg->mpy <= y+pa_strsiz(wg->wf, sp->str)+pa_chrsizy(wg->wf)*0.5 &&
-                    wg->mpx >= pa_maxxg(wg->wf)-th)
+                if (wg->mpy >= y-ami_chrsizy(wg->wf)*0.5 &&
+                    wg->mpy <= y+ami_strsiz(wg->wf, sp->str)+ami_chrsizy(wg->wf)*0.5 &&
+                    wg->mpx >= ami_maxxg(wg->wf)-th)
                     wg->sh = sc;
 
             }
 
             /* next tab */
-            if (wg->tor == pa_totop || wg->tor == pa_tobottom)
-                x += pa_strsiz(wg->wf, sp->str)+pa_chrsizy(wg->wf);
+            if (wg->tor == ami_totop || wg->tor == ami_tobottom)
+                x += ami_strsiz(wg->wf, sp->str)+ami_chrsizy(wg->wf);
             else
-                y += pa_strsiz(wg->wf, sp->str)+pa_chrsizy(wg->wf);
+                y += ami_strsiz(wg->wf, sp->str)+ami_chrsizy(wg->wf);
             sc++; /* next select */
             sp = sp->next; /* next string */
 
@@ -3578,30 +3578,30 @@ static void tabbar_event(
         /* only draw if the hover has changed */
         if (sh != wg->sh) tabbar_draw(wg); /* redraw the window */
 
-    } else if (ev->etype == pa_ethover) {
+    } else if (ev->etype == ami_ethover) {
 
         wg->hover = 1; /* hovered */
         tabbar_draw(wg); /* redraw the window */
 
-    } else if (ev->etype == pa_etnohover) {
+    } else if (ev->etype == ami_etnohover) {
 
         wg->hover = 0; /* not hovered */
         tabbar_draw(wg); /* redraw the window */
 
-    } else if (ev->etype == pa_etfocus) {
+    } else if (ev->etype == ami_etfocus) {
 
         wg->focus = 1; /* in focus */
         tabbar_draw(wg); /* redraw the window */
 
-    } else if (ev->etype == pa_etnofocus) {
+    } else if (ev->etype == ami_etnofocus) {
 
         wg->focus = 0; /* out of focus */
         tabbar_draw(wg); /* redraw the window */
 
-    } else if (ev->etype == pa_etleft &&
-                   (wg->tor == pa_totop || wg->tor == pa_tobottom) ||
-               ev->etype == pa_etup &&
-                   (wg->tor == pa_toleft || wg->tor == pa_toright)) {
+    } else if (ev->etype == ami_etleft &&
+                   (wg->tor == ami_totop || wg->tor == ami_tobottom) ||
+               ev->etype == ami_etup &&
+                   (wg->tor == ami_toleft || wg->tor == ami_toright)) {
 
         if (wg->focus && wg->strlst) {
 
@@ -3617,19 +3617,19 @@ static void tabbar_event(
 
             }
             /* send event back to parent window */
-            er.etype = pa_ettabbar; /* set tabbar event */
+            er.etype = ami_ettabbar; /* set tabbar event */
             er.tabid = wg->id; /* set id */
             er.tabsel = wg->ss; /* set string select */
             /* send the event to the parent */
-            pa_sendevent(wg->parent, &er);
+            ami_sendevent(wg->parent, &er);
             tabbar_draw(wg); /* redraw the window */
 
         }
 
-    } else if (ev->etype == pa_etright &&
-                   (wg->tor == pa_totop || wg->tor == pa_tobottom) ||
-               ev->etype == pa_etdown &&
-                   (wg->tor == pa_toleft || wg->tor == pa_toright)) {
+    } else if (ev->etype == ami_etright &&
+                   (wg->tor == ami_totop || wg->tor == ami_tobottom) ||
+               ev->etype == ami_etdown &&
+                   (wg->tor == ami_toleft || wg->tor == ami_toright)) {
 
         if (wg->focus && sp) { /* in focus, there is a list */
 
@@ -3641,11 +3641,11 @@ static void tabbar_event(
             wg->ss++; /* next tab */
             if (wg->ss > sc) wg->ss = 1; /* off end, wrap */
             /* send event back to parent window */
-            er.etype = pa_ettabbar; /* set tabbar event */
+            er.etype = ami_ettabbar; /* set tabbar event */
             er.tabid = wg->id; /* set id */
             er.tabsel = wg->ss; /* set string select */
             /* send the event to the parent */
-            pa_sendevent(wg->parent, &er);
+            ami_sendevent(wg->parent, &er);
             tabbar_draw(wg); /* redraw the window */
 
         }
@@ -3663,7 +3663,7 @@ Handles the events posted to widgets.
 *******************************************************************************/
 
 static void widget_event(
-    /** Event record pointer */ pa_evtrec* ev
+    /** Event record pointer */ ami_evtrec* ev
 )
 
 {
@@ -3906,7 +3906,7 @@ static void isizwidgetg(
     wigptr    wp;  /* widget entry pointer */
 
     wp = fndwig(f, id); /* index the widget */
-    pa_setsizg(wp->wf, x, y); /* set size */
+    ami_setsizg(wp->wf, x, y); /* set size */
 
 }
 
@@ -3931,9 +3931,9 @@ static void isizwidget(
 
     wp = fndwig(f, id); /* index the widget */
     /* form graphical from character size */
-    x = (x-1)*pa_chrsizx(f)+1;
-    y = (y-1)*pa_chrsizy(f)+1;
-    pa_setsizg(wp->wf, x, y); /* set size */
+    x = (x-1)*ami_chrsizx(f)+1;
+    y = (y-1)*ami_chrsizy(f)+1;
+    ami_setsizg(wp->wf, x, y); /* set size */
 
 }
 
@@ -3957,7 +3957,7 @@ static void iposwidgetg(
     wigptr wp;  /* widget entry pointer */
 
     wp = fndwig(f, id); /* index the widget */
-    pa_setposg(wp->wf, x, y); /* set size */
+    ami_setposg(wp->wf, x, y); /* set size */
 
 }
 
@@ -3982,9 +3982,9 @@ static void iposwidget(
 
     wp = fndwig(f, id); /* index the widget */
     /* form graphical from character coordinates */
-    x = (x-1)*pa_chrsizx(f)+1;
-    y = (y-1)*pa_chrsizy(f)+1;
-    pa_setposg(wp->wf, x, y); /* set size */
+    x = (x-1)*ami_chrsizx(f)+1;
+    y = (y-1)*ami_chrsizy(f)+1;
+    ami_setposg(wp->wf, x, y); /* set size */
 
 }
 
@@ -4004,7 +4004,7 @@ static void ibackwidget(
     wigptr wp;  /* widget entry pointer */
 
     wp = fndwig(f, id); /* index the widget */
-    pa_back(wp->wf); /* place to back */
+    ami_back(wp->wf); /* place to back */
 
 }
 
@@ -4024,7 +4024,7 @@ static void ifrontwidget(
     wigptr    wp;  /* widget entry pointer */
 
     wp = fndwig(f, id); /* index the widget */
-    pa_front(wp->wf); /* place to front */
+    ami_front(wp->wf); /* place to front */
 
 }
 
@@ -4044,7 +4044,7 @@ static void ifocuswidget(
     wigptr    wp;  /* widget entry pointer */
 
     wp = fndwig(f, id); /* index the widget */
-    pa_focus(wp->wf); /* send focus to that window */
+    ami_focus(wp->wf); /* send focus to that window */
 
 }
 
@@ -4068,8 +4068,8 @@ static void ibuttonsizg(
 
 {
 
-    *h = pa_chrsizy(win0)*2; /* set height */
-    *w = pa_strsiz(win0, s)+pa_chrsizy(win0)*2;
+    *h = ami_chrsizy(win0)*2; /* set height */
+    *w = ami_strsiz(win0, s)+ami_chrsizy(win0)*2;
 
 }
 
@@ -4093,10 +4093,10 @@ static void ibuttonsiz(
 
 {
 
-    pa_buttonsizg(f, s, w, h); /* get size */
+    ami_buttonsizg(f, s, w, h); /* get size */
     /* change graphical size to character */
-    *w = (*w-1) / pa_chrsizx(f)+1;
-    *h = (*h-1) / pa_chrsizy(f)+1;
+    *w = (*w-1) / ami_chrsizx(f)+1;
+    *h = (*h-1) / ami_chrsizy(f)+1;
 
 }
 
@@ -4125,7 +4125,7 @@ static void ibuttong(
 
     wp = NULL; /* set no predefinition */
     widget(f, x1, y1, x2, y2, s, id, wtbutton, &wp);
-    pa_linewidth(wp->wf, 3); /* thicker lines */
+    ami_linewidth(wp->wf, 3); /* thicker lines */
 
 }
 
@@ -4151,11 +4151,11 @@ static void ibutton(
 {
 
     /* form graphical from character coordinates */
-    x1 = (x1-1)*pa_chrsizx(f)+1;
-    y1 = (y1-1)*pa_chrsizy(f)+1;
-    x2 = x2*pa_chrsizx(f)+1;
-    y2 = y2*pa_chrsizy(f)+1;
-    pa_buttong(f, x1, y1, x2, y2, s, id); /* create button graphical */
+    x1 = (x1-1)*ami_chrsizx(f)+1;
+    y1 = (y1-1)*ami_chrsizy(f)+1;
+    x2 = x2*ami_chrsizx(f)+1;
+    y2 = y2*ami_chrsizy(f)+1;
+    ami_buttong(f, x1, y1, x2, y2, s, id); /* create button graphical */
 
 }
 
@@ -4177,9 +4177,9 @@ static void icheckboxsizg(
 
 {
 
-    *h = pa_chrsizy(win0)*2; /* set height */
-    *w = pa_chrsizy(win0)+pa_chrsizy(win0)/2+pa_strsiz(win0, s)+
-         pa_chrsizy(win0)/2;
+    *h = ami_chrsizy(win0)*2; /* set height */
+    *w = ami_chrsizy(win0)+ami_chrsizy(win0)/2+ami_strsiz(win0, s)+
+         ami_chrsizy(win0)/2;
 
 }
 
@@ -4201,10 +4201,10 @@ static void icheckboxsiz(
 
 {
 
-    pa_checkboxsizg(f, s, w, h); /* get size */
+    ami_checkboxsizg(f, s, w, h); /* get size */
     /* change graphical size to character */
-    *w = (*w-1) / pa_chrsizx(f)+1;
-    *h = (*h-1) / pa_chrsizy(f)+1;
+    *w = (*w-1) / ami_chrsizx(f)+1;
+    *h = (*h-1) / ami_chrsizy(f)+1;
 
 }
 
@@ -4257,11 +4257,11 @@ static void icheckbox(
 {
 
     /* form graphical from character coordinates */
-    x1 = (x1-1)*pa_chrsizx(f)+1;
-    y1 = (y1-1)*pa_chrsizy(f)+1;
-    x2 = x2*pa_chrsizx(f)+1;
-    y2 = y2*pa_chrsizy(f)+1;
-    pa_checkboxg(f, x1, y1, x2, y2, s, id); /* create button graphical */
+    x1 = (x1-1)*ami_chrsizx(f)+1;
+    y1 = (y1-1)*ami_chrsizy(f)+1;
+    x2 = x2*ami_chrsizx(f)+1;
+    y2 = y2*ami_chrsizy(f)+1;
+    ami_checkboxg(f, x1, y1, x2, y2, s, id); /* create button graphical */
 
 }
 
@@ -4282,9 +4282,9 @@ static void iradiobuttonsizg(
 
 {
 
-    *h = pa_chrsizy(win0)*2; /* set height */
-    *w = pa_chrsizy(win0)+pa_chrsizy(win0)/2+pa_strsiz(win0, s)+
-         pa_chrsizy(win0)/2;
+    *h = ami_chrsizy(win0)*2; /* set height */
+    *w = ami_chrsizy(win0)+ami_chrsizy(win0)/2+ami_strsiz(win0, s)+
+         ami_chrsizy(win0)/2;
 
 }
 
@@ -4306,10 +4306,10 @@ static void iradiobuttonsiz(
 
 {
 
-    pa_radiobuttonsizg(f, s, w, h); /* get size */
+    ami_radiobuttonsizg(f, s, w, h); /* get size */
     /* change graphical size to character */
-    *w = (*w-1) / pa_chrsizx(f)+1;
-    *h = (*h-1) / pa_chrsizy(f)+1;
+    *w = (*w-1) / ami_chrsizx(f)+1;
+    *h = (*h-1) / ami_chrsizy(f)+1;
 
 }
 
@@ -4363,11 +4363,11 @@ static void iradiobutton(
 {
 
     /* form graphical from character coordinates */
-    x1 = (x1-1)*pa_chrsizx(f)+1;
-    y1 = (y1-1)*pa_chrsizy(f)+1;
-    x2 = x2*pa_chrsizx(f)+1;
-    y2 = y2*pa_chrsizy(f)+1;
-    pa_radiobuttong(f, x1, y1, x2, y2, s, id); /* create button graphical */
+    x1 = (x1-1)*ami_chrsizx(f)+1;
+    y1 = (y1-1)*ami_chrsizy(f)+1;
+    x2 = x2*ami_chrsizx(f)+1;
+    y2 = y2*ami_chrsizy(f)+1;
+    ami_radiobuttong(f, x1, y1, x2, y2, s, id); /* create button graphical */
 
 }
 
@@ -4393,12 +4393,12 @@ static void igroupsizg(
 
 {
 
-    *h = pa_chrsizy(win0)+ch+5; /* set height */
-    *w = pa_strsiz(win0, s);
+    *h = ami_chrsizy(win0)+ch+5; /* set height */
+    *w = ami_strsiz(win0, s);
     /* if string is less than client, width is client */
     if (*w < cw+7) *w = cw+7;
     *ox = 4; /* set offset to client */
-    *oy = pa_chrsizy(win0);
+    *oy = ami_chrsizy(win0);
 
 }
 
@@ -4425,14 +4425,14 @@ static void igroupsiz(
 {
 
     /* convert client sizes to graphical */
-    cw = cw*pa_chrsizx(f);
-    ch = ch*pa_chrsizy(f);
-    pa_groupsizg(f, s, cw, ch, w, h, ox, oy); /* get size */
+    cw = cw*ami_chrsizx(f);
+    ch = ch*ami_chrsizy(f);
+    ami_groupsizg(f, s, cw, ch, w, h, ox, oy); /* get size */
     /* change graphical size to character */
-    *w = (*w-1)/pa_chrsizx(f)+1;
-    *h = (*h-1)/pa_chrsizy(f)+1;
-    *ox = (*ox-1)/pa_chrsizx(f)+1;
-    *oy = (*oy-1)/pa_chrsizy(f)+1;
+    *w = (*w-1)/ami_chrsizx(f)+1;
+    *h = (*h-1)/ami_chrsizy(f)+1;
+    *ox = (*ox-1)/ami_chrsizx(f)+1;
+    *oy = (*oy-1)/ami_chrsizy(f)+1;
 
 }
 
@@ -4485,11 +4485,11 @@ static void igroup(
 {
 
     /* form graphical from character coordinates */
-    x1 = (x1-1)*pa_chrsizx(f)+1;
-    y1 = (y1-1)*pa_chrsizy(f)+1;
-    x2 = x2*pa_chrsizx(f)+1;
-    y2 = y2*pa_chrsizy(f)+1;
-    pa_groupg(f, x1, y1, x2, y2, s, id); /* create button graphical */
+    x1 = (x1-1)*ami_chrsizx(f)+1;
+    y1 = (y1-1)*ami_chrsizy(f)+1;
+    x2 = x2*ami_chrsizx(f)+1;
+    y2 = y2*ami_chrsizy(f)+1;
+    ami_groupg(f, x1, y1, x2, y2, s, id); /* create button graphical */
 
 }
 
@@ -4541,11 +4541,11 @@ static void ibackground(
 {
 
     /* form graphical from character coordinates */
-    x1 = (x1-1)*pa_chrsizx(f)+1;
-    y1 = (y1-1)*pa_chrsizy(f)+1;
-    x2 = x2*pa_chrsizx(f)+1;
-    y2 = y2*pa_chrsizy(f)+1;
-    pa_backgroundg(f, x1, y1, x2, y2, id); /* create button graphical */
+    x1 = (x1-1)*ami_chrsizx(f)+1;
+    y1 = (y1-1)*ami_chrsizy(f)+1;
+    x2 = x2*ami_chrsizx(f)+1;
+    y2 = y2*ami_chrsizy(f)+1;
+    ami_backgroundg(f, x1, y1, x2, y2, id); /* create button graphical */
 
 }
 
@@ -4588,10 +4588,10 @@ static void iscrollvertsiz(
 
 {
 
-    pa_scrollvertsizg(f, w, h); /* get in graphics terms */
+    ami_scrollvertsizg(f, w, h); /* get in graphics terms */
     /* change graphical size to character */
-    *w = (*w-1)/pa_chrsizx(f)+1;
-    *h = (*h-1)/pa_chrsizy(f)+1;
+    *w = (*w-1)/ami_chrsizx(f)+1;
+    *h = (*h-1)/ami_chrsizy(f)+1;
 
 }
 
@@ -4641,11 +4641,11 @@ static void iscrollvert(
 {
 
     /* form graphical from character coordinates */
-    x1 = (x1-1)*pa_chrsizx(f)+1;
-    y1 = (y1-1)*pa_chrsizy(f)+1;
-    x2 = x2*pa_chrsizx(f)+1;
-    y2 = y2*pa_chrsizy(f)+1;
-    pa_scrollvertg(f, x1, y1, x2, y2, id); /* create button graphical */
+    x1 = (x1-1)*ami_chrsizx(f)+1;
+    y1 = (y1-1)*ami_chrsizy(f)+1;
+    x2 = x2*ami_chrsizx(f)+1;
+    y2 = y2*ami_chrsizy(f)+1;
+    ami_scrollvertg(f, x1, y1, x2, y2, id); /* create button graphical */
 
 }
 
@@ -4688,10 +4688,10 @@ static void iscrollhorizsiz(
 
 {
 
-    pa_scrollhorizsizg(f, w, h); /* get in graphics terms */
+    ami_scrollhorizsizg(f, w, h); /* get in graphics terms */
     /* change graphical size to character */
-    *w = (*w-1)/pa_chrsizx(f)+1;
-    *h = (*h-1)/pa_chrsizy(f)+1;
+    *w = (*w-1)/ami_chrsizx(f)+1;
+    *h = (*h-1)/ami_chrsizy(f)+1;
 
 }
 
@@ -4741,11 +4741,11 @@ static void iscrollhoriz(
 {
 
     /* form graphical from character coordinates */
-    x1 = (x1-1)*pa_chrsizx(f)+1;
-    y1 = (y1-1)*pa_chrsizy(f)+1;
-    x2 = x2*pa_chrsizx(f)+1;
-    y2 = y2*pa_chrsizy(f)+1;
-    pa_scrollhorizg(f, x1, y1, x2, y2, id); /* create button graphical */
+    x1 = (x1-1)*ami_chrsizx(f)+1;
+    y1 = (y1-1)*ami_chrsizy(f)+1;
+    x2 = x2*ami_chrsizx(f)+1;
+    y2 = y2*ami_chrsizy(f)+1;
+    ami_scrollhorizg(f, x1, y1, x2, y2, id); /* create button graphical */
 
 }
 
@@ -4834,12 +4834,12 @@ static void inumselboxsizg(
     dc = digits(abs(mv)); /* find the digit count */
     if (mv < 0) dc++; /* add the sign */
 
-    udspc = pa_chrsizy(win0)*1.9; /* square space for up/down control */
+    udspc = ami_chrsizy(win0)*1.9; /* square space for up/down control */
 
-    *h = pa_chrsizy(win0)*1.5; /* set height */
+    *h = ami_chrsizy(win0)*1.5; /* set height */
     /* width is number of digits, two chry size boxes, and .5 of chry for each
        side for spacing */
-    *w = pa_strsiz(win0, "0")*dc+udspc*2+pa_chrsizy(win0); /* set total width */
+    *w = ami_strsiz(win0, "0")*dc+udspc*2+ami_chrsizy(win0); /* set total width */
 
 }
 
@@ -4862,10 +4862,10 @@ static void inumselboxsiz(
 
 {
 
-    pa_numselboxsizg(f, l, u, w, h); /* get size */
+    ami_numselboxsizg(f, l, u, w, h); /* get size */
     /* change graphical size to character */
-    *w = (*w-1) / pa_chrsizx(f)+1;
-    *h = (*h-1) / pa_chrsizy(f)+1;
+    *w = (*w-1) / ami_chrsizx(f)+1;
+    *h = (*h-1) / ami_chrsizy(f)+1;
 
 }
 
@@ -4894,7 +4894,7 @@ static void inumselboxg(
     wigptr wps; /* widget subclass entry pointer */
     int udspc; /* up/down control space */
 
-    udspc = pa_chrsizy(win0)*1.9; /* square space for up/down control */
+    udspc = ami_chrsizy(win0)*1.9; /* square space for up/down control */
 
     wp = NULL; /* set no predefinition */
     widget(f, x1, y1, x2, y2, "", id, wtnumselbox, &wp);
@@ -4905,9 +4905,9 @@ static void inumselboxg(
     wps->lbnd = l; /* set lower bound */
     wps->ubnd = u; /* set upper bound */
     /* subclass an edit control,leaving space for up/down controls */
-    widget(wp->wf, 1+4, 1+4, pa_maxxg(wp->wf)-udspc*2-4, pa_maxyg(wp->wf)-4, "", 1,
+    widget(wp->wf, 1+4, 1+4, ami_maxxg(wp->wf)-udspc*2-4, ami_maxyg(wp->wf)-4, "", 1,
            wteditbox, &wps);
-    pa_curvis(wps->wf, FALSE); /* turn on cursor */
+    ami_curvis(wps->wf, FALSE); /* turn on cursor */
     wp->cw = wps; /* give the master its child window */
     wps->pw = wp; /* give the child its master */
 
@@ -4934,11 +4934,11 @@ static void inumselbox(
 {
 
     /* form graphical from character coordinates */
-    x1 = (x1-1)*pa_chrsizx(f)+1;
-    y1 = (y1-1)*pa_chrsizy(f)+1;
-    x2 = x2*pa_chrsizx(f)+1;
-    y2 = y2*pa_chrsizy(f)+1;
-    pa_numselboxg(f, x1, y1, x2, y2, l, u, id); /* create button graphical */
+    x1 = (x1-1)*ami_chrsizx(f)+1;
+    y1 = (y1-1)*ami_chrsizy(f)+1;
+    x2 = x2*ami_chrsizx(f)+1;
+    y2 = y2*ami_chrsizy(f)+1;
+    ami_numselboxg(f, x1, y1, x2, y2, l, u, id); /* create button graphical */
 
 }
 
@@ -4960,8 +4960,8 @@ static void ieditboxsizg(
 
 {
 
-    *h = pa_chrsizy(win0)*1.5; /* set height */
-    *w = pa_strsiz(win0, s);
+    *h = ami_chrsizy(win0)*1.5; /* set height */
+    *w = ami_strsiz(win0, s);
 
 }
 
@@ -4983,10 +4983,10 @@ static void ieditboxsiz(
 
 {
 
-    pa_editboxsizg(f, s, w, h); /* get size */
+    ami_editboxsizg(f, s, w, h); /* get size */
     /* change graphical size to character */
-    *w = (*w-1) / pa_chrsizx(f)+1;
-    *h = (*h-1) / pa_chrsizy(f)+1;
+    *w = (*w-1) / ami_chrsizx(f)+1;
+    *h = (*h-1) / ami_chrsizy(f)+1;
 
 }
 
@@ -5013,7 +5013,7 @@ static void ieditboxg(
 
     wp = NULL; /* set no predefinition */
     widget(f, x1, y1, x2, y2, "", id, wteditbox, &wp);
-    pa_curvis(wp->wf, FALSE); /* turn on cursor */
+    ami_curvis(wp->wf, FALSE); /* turn on cursor */
 
 }
 
@@ -5037,11 +5037,11 @@ static void ieditbox(
 {
 
     /* form graphical from character coordinates */
-    x1 = (x1-1)*pa_chrsizx(f)+1;
-    y1 = (y1-1)*pa_chrsizy(f)+1;
-    x2 = x2*pa_chrsizx(f)+1;
-    y2 = y2*pa_chrsizy(f)+1;
-    pa_editboxg(f, x1, y1, x2, y2, id); /* create button graphical */
+    x1 = (x1-1)*ami_chrsizx(f)+1;
+    y1 = (y1-1)*ami_chrsizy(f)+1;
+    x2 = x2*ami_chrsizx(f)+1;
+    y2 = y2*ami_chrsizy(f)+1;
+    ami_editboxg(f, x1, y1, x2, y2, id); /* create button graphical */
 
 }
 
@@ -5064,7 +5064,7 @@ static void iprogbarsizg(
 {
 
     *w = 400;
-    *h = pa_chrsizy(win0);
+    *h = ami_chrsizy(win0);
 
 }
 
@@ -5086,10 +5086,10 @@ static void iprogbarsiz(
 
 {
 
-    pa_progbarsizg(f, w, h); /* get size */
+    ami_progbarsizg(f, w, h); /* get size */
     /* change graphical size to character */
-    *w = (*w-1)/pa_chrsizx(f)+1;
-    *h = (*h-1)/pa_chrsizy(f)+1;
+    *w = (*w-1)/ami_chrsizx(f)+1;
+    *h = (*h-1)/ami_chrsizy(f)+1;
 
 }
 
@@ -5139,11 +5139,11 @@ static void iprogbar(
 {
 
     /* form graphical from character coordinates */
-    x1 = (x1-1)*pa_chrsizx(f)+1;
-    y1 = (y1-1)*pa_chrsizy(f)+1;
-    x2 = x2*pa_chrsizx(f)+1;
-    y2 = y2*pa_chrsizy(f)+1;
-    pa_progbarg(f, x1, y1, x2, y2, id); /* create button graphical */
+    x1 = (x1-1)*ami_chrsizx(f)+1;
+    y1 = (y1-1)*ami_chrsizy(f)+1;
+    x2 = x2*ami_chrsizx(f)+1;
+    y2 = y2*ami_chrsizy(f)+1;
+    ami_progbarg(f, x1, y1, x2, y2, id); /* create button graphical */
 
 }
 
@@ -5190,7 +5190,7 @@ specified rectangle, one way or another.
 
 static void ilistboxsizg(
     /** Window file */         FILE*     f,
-    /** string list pointer */ pa_strptr sp,
+    /** string list pointer */ ami_strptr sp,
     /** Return width */        int*      w,
     /** Return height */       int*      h
 )
@@ -5200,7 +5200,7 @@ static void ilistboxsizg(
     int       lc;   /* line counter */
     int       maxp; /* maximum pixel length */
     int       pl;   /* pixel length */
-    pa_strptr sp1;
+    ami_strptr sp1;
 
     lc = 0; /* set no lines */
     maxp = 0; /* set no maximum */
@@ -5210,13 +5210,13 @@ static void ilistboxsizg(
     while (sp1) {
 
         lc++; /* count entries */
-        pl = pa_strsiz(win0, sp1->str); /* find pixel length this string */
+        pl = ami_strsiz(win0, sp1->str); /* find pixel length this string */
         if (pl > maxp) maxp = pl; /* find maximum */
         sp1 = sp1->next; /* link next */
 
     }
-    *w = maxp+pa_chrsizy(win0); /* set width */
-    *h = (lc+1)*pa_chrsizy(win0); /* set height */
+    *w = maxp+ami_chrsizy(win0); /* set width */
+    *h = (lc+1)*ami_chrsizy(win0); /* set height */
 
 }
 
@@ -5238,17 +5238,17 @@ specified rectangle, one way or another.
 
 static void ilistboxsiz(
     /** Window file */         FILE*     f,
-    /** string list pointer */ pa_strptr sp,
+    /** string list pointer */ ami_strptr sp,
     /** Return width */        int*      w,
     /** Return height */       int*      h
 )
 
 {
 
-    pa_listboxsizg(f, sp, w, h); /* get size */
+    ami_listboxsizg(f, sp, w, h); /* get size */
     /* change graphical size to character */
-    *w = (*w-1)/pa_chrsizx(f)+1;
-    *h = (*h-1)/pa_chrsizy(f)+1;
+    *w = (*w-1)/ami_chrsizx(f)+1;
+    *h = (*h-1)/ami_chrsizy(f)+1;
 
 }
 
@@ -5266,14 +5266,14 @@ static void ilistboxg(
                                int       y1,
                                int       x2,
                                int       y2,
-    /** String list pointer */ pa_strptr sp,
+    /** String list pointer */ ami_strptr sp,
     /** Logical widget id */   int       id
 )
 
 {
 
     wigptr    wp; /* widget entry pointer */
-    pa_strptr nl; /* new string list */
+    ami_strptr nl; /* new string list */
 
     /* make a copy of the list */
     cpystrlst(&nl, sp);
@@ -5299,18 +5299,18 @@ static void ilistbox(
                                int       y1,
                                int       x2,
                                int       y2,
-    /** String list pointer */ pa_strptr sp,
+    /** String list pointer */ ami_strptr sp,
     /** logical widget id */   int       id
 )
 
 {
 
     /* form graphical from character coordinates */
-    x1 = (x1-1)*pa_chrsizx(f)+1;
-    y1 = (y1-1)*pa_chrsizy(f)+1;
-    x2 = x2*pa_chrsizx(f)+1;
-    y2 = y2*pa_chrsizy(f)+1;
-    pa_listboxg(f, x1, y1, x2, y2, sp, id); /* create button graphical */
+    x1 = (x1-1)*ami_chrsizx(f)+1;
+    y1 = (y1-1)*ami_chrsizy(f)+1;
+    x2 = x2*ami_chrsizx(f)+1;
+    y2 = y2*ami_chrsizy(f)+1;
+    ami_listboxg(f, x1, y1, x2, y2, sp, id); /* create button graphical */
 
 }
 
@@ -5330,7 +5330,7 @@ selections can be scrolled.
 
 static void idropboxsizg(
     /** Window file */         FILE*     f,
-    /** String list pointer */ pa_strptr sp,
+    /** String list pointer */ ami_strptr sp,
     /** Closed width */        int*      cw,
     /** Closed height */       int*      ch,
     /** Open width */          int*      ow,
@@ -5342,11 +5342,11 @@ static void idropboxsizg(
     int lbw, lbh;
 
     /* find listbox sizing first */
-    pa_listboxsizg(f, sp, &lbw, &lbh);
+    ami_listboxsizg(f, sp, &lbw, &lbh);
 
     /* closed size is width of listbox plus down arrow, height is character */
-    *cw = lbw+pa_chrsizy(win0)*1.9; /* find closed width */
-    *ch = pa_chrsizy(win0)*2; /* find closed height */
+    *cw = lbw+ami_chrsizy(win0)*1.9; /* find closed width */
+    *ch = ami_chrsizy(win0)*2; /* find closed height */
 
     /* open size is same width, height of list plus edit box */
     *ow = *cw;
@@ -5370,7 +5370,7 @@ selections can be scrolled.
 
 static void idropboxsiz(
     /** Window file */         FILE*     f,
-    /** String list pointer */ pa_strptr sp,
+    /** String list pointer */ ami_strptr sp,
     /** Closed width */        int*      cw,
     /** Closed height */       int*      ch,
     /** Open width */          int*      ow,
@@ -5379,12 +5379,12 @@ static void idropboxsiz(
 
 {
 
-    pa_dropboxsizg(f, sp, cw, ch, ow, oh); /* get size */
+    ami_dropboxsizg(f, sp, cw, ch, ow, oh); /* get size */
     /* change graphical size to character */
-    *cw = (*cw-1)/pa_chrsizx(f)+1;
-    *ch = (*ch-1)/pa_chrsizy(f)+1;
-    *ow = (*ow-1)/pa_chrsizx(f)+1;
-    *oh = (*oh-1)/pa_chrsizy(f)+1;
+    *cw = (*cw-1)/ami_chrsizx(f)+1;
+    *ch = (*ch-1)/ami_chrsizy(f)+1;
+    *ow = (*ow-1)/ami_chrsizx(f)+1;
+    *oh = (*oh-1)/ami_chrsizy(f)+1;
 
 }
 
@@ -5402,14 +5402,14 @@ static void idropboxg(
                                int       y1,
                                int       x2,
                                int       y2,
-    /** String list pointer */ pa_strptr sp,
+    /** String list pointer */ ami_strptr sp,
     /** Logical widget id */   int       id
 )
 
 {
 
     wigptr    wp; /* widget entry pointer */
-    pa_strptr nl; /* new string list */
+    ami_strptr nl; /* new string list */
     int       ch; /* closed height */
 
     /* make a copy of the list */
@@ -5417,7 +5417,7 @@ static void idropboxg(
 
     /* although the dropbox is specified with its open size, we place the
        window as closed size */
-    ch = pa_chrsizy(win0)*2; /* find closed height */
+    ch = ami_chrsizy(win0)*2; /* find closed height */
 
     /* create the widget */
     wp = getwig(); /* predef so we can plant list before display */
@@ -5441,18 +5441,18 @@ static void idropbox(
                                int       y1,
                                int       x2,
                                int       y2,
-    /** String list pointer */ pa_strptr sp,
+    /** String list pointer */ ami_strptr sp,
     /** Logical widget id */   int       id
 )
 
 {
 
     /* form graphical from character coordinates */
-    x1 = (x1-1)*pa_chrsizx(f)+1;
-    y1 = (y1-1)*pa_chrsizy(f)+1;
-    x2 = x2*pa_chrsizx(f)+1;
-    y2 = y2*pa_chrsizy(f)+1;
-    pa_dropboxg(f, x1, y1, x2, y2, sp, id); /* create button graphical */
+    x1 = (x1-1)*ami_chrsizx(f)+1;
+    y1 = (y1-1)*ami_chrsizy(f)+1;
+    x2 = x2*ami_chrsizx(f)+1;
+    y2 = y2*ami_chrsizy(f)+1;
+    ami_dropboxg(f, x1, y1, x2, y2, sp, id); /* create button graphical */
 
 }
 
@@ -5472,7 +5472,7 @@ selections can be scrolled.
 
 static void idropeditboxsizg(
     /** Window file */          FILE*     f,
-    /** string list pointer */  pa_strptr sp,
+    /** string list pointer */  ami_strptr sp,
     /** Return closed width */  int*      cw,
     /** Return closed height */ int*      ch,
     /** Return open width */    int*      ow,
@@ -5482,7 +5482,7 @@ static void idropeditboxsizg(
 {
 
     /* the dimensions are identical to a dropbox */
-    pa_dropboxsizg(f, sp, cw, ch, ow, oh);
+    ami_dropboxsizg(f, sp, cw, ch, ow, oh);
 
 }
 
@@ -5502,7 +5502,7 @@ selections can be scrolled.
 
 static void idropeditboxsiz(
     /** Window file */          FILE*     f,
-    /** string list pointer */  pa_strptr sp,
+    /** string list pointer */  ami_strptr sp,
     /** Return closed width */  int*      cw,
     /** Return closed height */ int*      ch,
     /** Return open width */    int*      ow,
@@ -5511,12 +5511,12 @@ static void idropeditboxsiz(
 
 {
 
-    pa_dropeditboxsizg(f, sp, cw, ch, ow, oh); /* get size */
+    ami_dropeditboxsizg(f, sp, cw, ch, ow, oh); /* get size */
     /* change graphical size to character */
-    *cw = (*cw-1)/pa_chrsizx(f)+1;
-    *ch = (*ch-1)/pa_chrsizy(f)+1;
-    *ow = (*ow-1)/pa_chrsizx(f)+1;
-    *oh = (*oh-1)/pa_chrsizy(f)+1;
+    *cw = (*cw-1)/ami_chrsizx(f)+1;
+    *ch = (*ch-1)/ami_chrsizy(f)+1;
+    *ow = (*ow-1)/ami_chrsizx(f)+1;
+    *oh = (*oh-1)/ami_chrsizy(f)+1;
 
 }
 
@@ -5537,7 +5537,7 @@ static void idropeditboxg(
                                int       y1,
                                int       x2,
                                int       y2,
-    /** String list pointer */ pa_strptr sp,
+    /** String list pointer */ ami_strptr sp,
     /** Logical widget id */   int       id
 )
 
@@ -5545,12 +5545,12 @@ static void idropeditboxg(
 
     wigptr    wp;     /* widget entry pointer */
     wigptr    wps;    /* widget subclass entry pointer */
-    pa_strptr nl;     /* new string list */
+    ami_strptr nl;     /* new string list */
     int       cw, ch; /* closed dimensions */
     int       ow, oh; /* open dimensions */
 
     /* find (refind) the dimensions of the subclass box */
-    pa_dropboxsizg(f, sp, &cw, &ch, &ow, &oh);
+    ami_dropboxsizg(f, sp, &cw, &ch, &ow, &oh);
 
     /* make a copy of the list */
     cpystrlst(&nl, sp);
@@ -5572,10 +5572,10 @@ static void idropeditboxg(
     wps = getwig(); /* get widget entry */
     /* subclass an edit control,leaving space for dropbox control */
     widget(wp->wf, 1+4, 1+4,
-                   pa_maxxg(wp->wf)-pa_chrsizy(win0)*1.9-4,
-                   pa_maxyg(wp->wf)-4,
+                   ami_maxxg(wp->wf)-ami_chrsizy(win0)*1.9-4,
+                   ami_maxyg(wp->wf)-4,
                    "", 2, wteditbox, &wps);
-    pa_curvis(wps->wf, FALSE); /* turn on cursor */
+    ami_curvis(wps->wf, FALSE); /* turn on cursor */
     wp->cw2 = wps; /* give the master its child window */
     wps->pw = wp; /* give the child its master */
 
@@ -5598,18 +5598,18 @@ static void idropeditbox(
                                int       y1,
                                int       x2,
                                int       y2,
-    /** String list pointer */ pa_strptr sp,
+    /** String list pointer */ ami_strptr sp,
     /** Logical widget id */   int       id
 )
 
 {
 
     /* form graphical from character coordinates */
-    x1 = (x1-1)*pa_chrsizx(f)+1;
-    y1 = (y1-1)*pa_chrsizy(f)+1;
-    x2 = x2*pa_chrsizx(f)+1;
-    y2 = y2*pa_chrsizy(f)+1;
-    pa_dropeditboxg(f, x1, y1, x2, y2, sp, id); /* create button graphical */
+    x1 = (x1-1)*ami_chrsizx(f)+1;
+    y1 = (y1-1)*ami_chrsizy(f)+1;
+    x2 = x2*ami_chrsizx(f)+1;
+    y2 = y2*ami_chrsizy(f)+1;
+    ami_dropeditboxg(f, x1, y1, x2, y2, sp, id); /* create button graphical */
 
 }
 
@@ -5631,7 +5631,7 @@ static void islidehorizsizg(
 {
 
     *w = 40;
-    *h = pa_chrsizy(win0)*1.5;
+    *h = ami_chrsizy(win0)*1.5;
 
 }
 
@@ -5652,10 +5652,10 @@ static void islidehorizsiz(
 
 {
 
-    pa_slidehorizsizg(f, w, h); /* get size */
+    ami_slidehorizsizg(f, w, h); /* get size */
     /* change graphical size to character */
-    *w = (*w-1)/pa_chrsizx(f)+1;
-    *h = (*h-1)/pa_chrsizy(f)+1;
+    *w = (*w-1)/ami_chrsizx(f)+1;
+    *h = (*h-1)/ami_chrsizy(f)+1;
 
 
 }
@@ -5709,11 +5709,11 @@ static void islidehoriz(
 {
 
     /* form graphical from character coordinates */
-    x1 = (x1-1)*pa_chrsizx(f)+1;
-    y1 = (y1-1)*pa_chrsizy(f)+1;
-    x2 = x2*pa_chrsizx(f)+1;
-    y2 = y2*pa_chrsizy(f)+1;
-    pa_slidehorizg(f, x1, y1, x2, y2, mark, id); /* create button graphical */
+    x1 = (x1-1)*ami_chrsizx(f)+1;
+    y1 = (y1-1)*ami_chrsizy(f)+1;
+    x2 = x2*ami_chrsizx(f)+1;
+    y2 = y2*ami_chrsizy(f)+1;
+    ami_slidehorizg(f, x1, y1, x2, y2, mark, id); /* create button graphical */
 
 }
 
@@ -5734,7 +5734,7 @@ static void islidevertsizg(
 
 {
 
-    *w = pa_chrsizy(win0)*1.5;
+    *w = ami_chrsizy(win0)*1.5;
     *h = 40;
 
 }
@@ -5756,10 +5756,10 @@ static void islidevertsiz(
 
 {
 
-    pa_slidevertsizg(f, w, h); /* get size */
+    ami_slidevertsizg(f, w, h); /* get size */
     /* change graphical size to character */
-    *w = (*w-1)/pa_chrsizx(f)+1;
-    *h = (*h-1)/pa_chrsizy(f)+1;
+    *w = (*w-1)/ami_chrsizx(f)+1;
+    *h = (*h-1)/ami_chrsizy(f)+1;
 
 }
 
@@ -5816,11 +5816,11 @@ static void islidevert(
 {
 
     /* form graphical from character coordinates */
-    x1 = (x1-1)*pa_chrsizx(f)+1;
-    y1 = (y1-1)*pa_chrsizy(f)+1;
-    x2 = x2*pa_chrsizx(f)+1;
-    y2 = y2*pa_chrsizy(f)+1;
-    pa_slidevertg(f, x1, y1, x2, y2, mark, id); /* create button graphical */
+    x1 = (x1-1)*ami_chrsizx(f)+1;
+    y1 = (y1-1)*ami_chrsizy(f)+1;
+    x2 = x2*ami_chrsizx(f)+1;
+    y2 = y2*ami_chrsizy(f)+1;
+    ami_slidevertg(f, x1, y1, x2, y2, mark, id); /* create button graphical */
 
 }
 
@@ -5835,7 +5835,7 @@ calculated and returned.
 
 static void itabbarsizg(
     /** Window file */            FILE*     f,
-    /** Tab orientation */        pa_tabori tor,
+    /** Tab orientation */        ami_tabori tor,
     /** Client width */           int       cw,
     /** Client height */          int       ch,
     /** Return width */           int*      w,
@@ -5847,15 +5847,15 @@ static void itabbarsizg(
 {
 
     /* find width */
-    if (tor == pa_toleft || tor == pa_toright) *w = cw+pa_chrsizy(win0)*TABHGT;
+    if (tor == ami_toleft || tor == ami_toright) *w = cw+ami_chrsizy(win0)*TABHGT;
     else *w = cw;
     /* find height */
-    if (tor == pa_toleft || tor == pa_toright) *h = ch;
-    else *h = ch+pa_chrsizy(win0)*TABHGT;
+    if (tor == ami_toleft || tor == ami_toright) *h = ch;
+    else *h = ch+ami_chrsizy(win0)*TABHGT;
     /* find client offset */
-    if (tor == pa_toleft) *ox = pa_chrsizy(win0)*TABHGT;
+    if (tor == ami_toleft) *ox = ami_chrsizy(win0)*TABHGT;
     else *ox = 0;
-    if (tor == pa_totop) *oy = pa_chrsizy(win0)*TABHGT;
+    if (tor == ami_totop) *oy = ami_chrsizy(win0)*TABHGT;
     else *oy = 0;
 
 }
@@ -5871,7 +5871,7 @@ calculated and returned.
 
 static void itabbarsiz(
     /** Window file */            FILE*     f,
-    /** Tab orientation */        pa_tabori tor,
+    /** Tab orientation */        ami_tabori tor,
     /** Client width */           int       cw,
     /** Client height */          int       ch,
     /** Return width */           int*      w,
@@ -5885,16 +5885,16 @@ static void itabbarsiz(
     int gw, gh, gox, goy;
 
     /* convert client sizes to graphical */
-    cw = cw*pa_chrsizx(f);
-    ch = ch*pa_chrsizy(f);
-    pa_tabbarsizg(f, tor, cw, ch, &gw, &gh, &gox, &goy); /* get size */
+    cw = cw*ami_chrsizx(f);
+    ch = ch*ami_chrsizy(f);
+    ami_tabbarsizg(f, tor, cw, ch, &gw, &gh, &gox, &goy); /* get size */
     /* change graphical size to character */
-    *w = (gw-1) / pa_chrsizx(f)+1;
-    *h = (gh-1) / pa_chrsizy(f)+1;
-    *ox = gox / pa_chrsizx(f);
-    if (gox % pa_chrsizx(f)) (*ox)++;
-    *oy = goy / pa_chrsizy(f);
-    if (goy % pa_chrsizy(f)) (*oy)++;
+    *w = (gw-1) / ami_chrsizx(f)+1;
+    *h = (gh-1) / ami_chrsizy(f)+1;
+    *ox = gox / ami_chrsizx(f);
+    if (gox % ami_chrsizx(f)) (*ox)++;
+    *oy = goy / ami_chrsizy(f);
+    if (goy % ami_chrsizy(f)) (*oy)++;
 
 }
 
@@ -5910,7 +5910,7 @@ area is flexible.
 
 static void itabbarclientg(
     /** Window file */            FILE*     f,
-    /** Tab orientation */        pa_tabori tor,
+    /** Tab orientation */        ami_tabori tor,
     /** Return client width */    int       w,
     /** Return client height */   int       h,
     /** Width */                  int*      cw,
@@ -5922,15 +5922,15 @@ static void itabbarclientg(
 {
 
     /* find width */
-    if (tor == pa_toleft || tor == pa_toright) *cw = w-pa_chrsizy(win0)*TABHGT;
+    if (tor == ami_toleft || tor == ami_toright) *cw = w-ami_chrsizy(win0)*TABHGT;
     else *cw = w;
     /* find height */
-    if (tor == pa_toleft || tor == pa_toright) *cw = h;
-    else *cw = w-pa_chrsizy(win0)*TABHGT;
+    if (tor == ami_toleft || tor == ami_toright) *cw = h;
+    else *cw = w-ami_chrsizy(win0)*TABHGT;
     /* find client offset */
-    if (tor == pa_toleft) *ox = pa_chrsizy(win0)*TABHGT;
+    if (tor == ami_toleft) *ox = ami_chrsizy(win0)*TABHGT;
     else *ox = 0;
-    if (tor == pa_totop) *oy = pa_chrsizy(win0)*TABHGT;
+    if (tor == ami_totop) *oy = ami_chrsizy(win0)*TABHGT;
     else *oy = 0;
 
 }
@@ -5948,7 +5948,7 @@ flexible.
 
 static void itabbarclient(
     /** Window file */            FILE*     f,
-    /** Tab orientation */        pa_tabori tor,
+    /** Tab orientation */        ami_tabori tor,
     /** Return client width */    int       w,
     /** Return client height */   int       h,
     /** Width */                  int*      cw,
@@ -5962,14 +5962,14 @@ static void itabbarclient(
     int gw, gh, gox, goy;
 
     /* convert sizes to graphical */
-    w = w*pa_chrsizx(f);
-    h = h*pa_chrsizy(f);
-    pa_tabbarsizg(f, tor, w, h, &gw, &gh, &gox, &goy); /* get size */
+    w = w*ami_chrsizx(f);
+    h = h*ami_chrsizy(f);
+    ami_tabbarsizg(f, tor, w, h, &gw, &gh, &gox, &goy); /* get size */
     /* change graphical size to character */
-    *cw = (gw-1)/pa_chrsizx(f)+1;
-    *ch = (gh-1)/pa_chrsizy(f)+1;
-    *ox = (gox-1)/pa_chrsizx(f)+1;
-    *oy = (goy-1)/pa_chrsizy(f)+1;
+    *cw = (gw-1)/ami_chrsizx(f)+1;
+    *ch = (gh-1)/ami_chrsizy(f)+1;
+    *ox = (gox-1)/ami_chrsizx(f)+1;
+    *oy = (goy-1)/ami_chrsizy(f)+1;
 
 }
 
@@ -5987,15 +5987,15 @@ static void itabbarg(
                                int       y1,
                                int       x2,
                                int       y2,
-    /** Tab string list */     pa_strptr sp,
-    /** Tab orientation */     pa_tabori tor,
+    /** Tab string list */     ami_strptr sp,
+    /** Tab orientation */     ami_tabori tor,
     /** logical widget id */   int       id
 )
 
 {
 
     wigptr wp; /* widget entry pointer */
-    pa_strptr nl; /* new string list */
+    ami_strptr nl; /* new string list */
 
     /* make a copy of the list */
     cpystrlst(&nl, sp);
@@ -6023,21 +6023,21 @@ static void itabbar(
                                int       y1,
                                int       x2,
                                int       y2,
-    /** Tab string list */     pa_strptr sp,
-    /** Tab orientation */     pa_tabori tor,
+    /** Tab string list */     ami_strptr sp,
+    /** Tab orientation */     ami_tabori tor,
     /** logical widget id */   int       id
 )
 
 {
 
     wigptr wp; /* widget entry pointer */
-    pa_strptr nl; /* new string list */
+    ami_strptr nl; /* new string list */
 
     /* form graphical from character coordinates */
-    x1 = (x1-1)*pa_chrsizx(f)+1;
-    y1 = (y1-1)*pa_chrsizy(f)+1;
-    x2 = x2*pa_chrsizx(f)+1;
-    y2 = y2*pa_chrsizy(f)+1;
+    x1 = (x1-1)*ami_chrsizx(f)+1;
+    y1 = (y1-1)*ami_chrsizy(f)+1;
+    x2 = x2*ami_chrsizx(f)+1;
+    y2 = y2*ami_chrsizy(f)+1;
 
     /* make a copy of the list */
     cpystrlst(&nl, sp);
@@ -6071,7 +6071,7 @@ static void itabsel(
 
     wigptr    wp;  /* widget entry pointer */
     int       chg; /* widget state changes */
-    pa_strptr sp;
+    ami_strptr sp;
     int       ss;
 
     wp = fndwig(f, id); /* index the widget */
@@ -6114,7 +6114,7 @@ static void ialert(
     FILE*      out;
     int        wid;      /* window number */
     int        mxs;      /* maximum text size */
-    pa_evtrec  er;       /* event record */
+    ami_evtrec  er;       /* event record */
     int        ts;       /* title pixel size */
     int        ms;       /* message pixel size */
     int        icsize;   /* size of circle i in pixels */
@@ -6127,43 +6127,43 @@ static void ialert(
 
     focus = FALSE; /* set not in focus */
     tc = th_text; /* set focused text */
-    wid = pa_getwinid(); /* get anonymous window id */
-    pa_openwin(&in, &out, NULL, wid); /* create window */
-    pa_buffer(out, FALSE); /* turn off buffering */
-    pa_auto(out, FALSE); /* turn off auto */
-    pa_curvis(out, FALSE); /* turn off cursor */
-    pa_font(out, PA_FONT_SIGN); /* set sign font */
-    pa_binvis(out); /* no background write */
-    pa_frame(out, FALSE); /* turn off sizing bars */
+    wid = ami_getwinid(); /* get anonymous window id */
+    ami_openwin(&in, &out, NULL, wid); /* create window */
+    ami_buffer(out, FALSE); /* turn off buffering */
+    ami_auto(out, FALSE); /* turn off auto */
+    ami_curvis(out, FALSE); /* turn off cursor */
+    ami_font(out, PA_FONT_SIGN); /* set sign font */
+    ami_binvis(out); /* no background write */
+    ami_frame(out, FALSE); /* turn off sizing bars */
     /* find maximum text size */
-    pa_bold(out, TRUE); /* set bold */
-    fs = pa_chrsizy(out); /* save font size */
-    pa_fontsiz(out, fs*1.1); /* increase font size */
-    ts = pa_strsiz(out, title);
-    pa_fontsiz(out, fs); /* restore font size */
-    pa_bold(out, FALSE); /* set normal */
-    ms = pa_strsiz(out, message);
+    ami_bold(out, TRUE); /* set bold */
+    fs = ami_chrsizy(out); /* save font size */
+    ami_fontsiz(out, fs*1.1); /* increase font size */
+    ts = ami_strsiz(out, title);
+    ami_fontsiz(out, fs); /* restore font size */
+    ami_bold(out, FALSE); /* set normal */
+    ms = ami_strsiz(out, message);
     mxs = ts;
     if (ms > mxs) mxs = ms;
     /* set size of i circle */
-    icsize = pa_chrsizy(out)*ICIRCSIZ;
+    icsize = ami_chrsizy(out)*ICIRCSIZ;
     /* size of i character */
-    isize = pa_chrsizy(out)*ICHRSIZ;
+    isize = ami_chrsizy(out)*ICHRSIZ;
     /* start of text */
     tstart = icsize*3;
     /* set size */
-    pa_setsizg(out, icsize*3+mxs+pa_chrsizy(out)*3,
-                    pa_chrsizy(out)*7);
+    ami_setsizg(out, icsize*3+mxs+ami_chrsizy(out)*3,
+                    ami_chrsizy(out)*7);
 
     /* start with events */
     do {
 
-        pa_event(in, &er);
+        ami_event(in, &er);
         switch (er.etype) {
 
-            case pa_etfocus:
-            case pa_etnofocus:
-                if (er.etype == pa_etfocus) {
+            case ami_etfocus:
+            case ami_etnofocus:
+                if (er.etype == ami_etfocus) {
 
                     tc = th_text;
                     focus = TRUE;
@@ -6176,78 +6176,78 @@ static void ialert(
                 }
                 /* fall through to redraw */
 
-            case pa_etredraw:
+            case ami_etredraw:
 
                 /* draw background */
-                pa_fcolor(out, pa_backcolor);
-                pa_frect(out, 1, 1, pa_maxxg(out), pa_maxyg(out));
-                pa_fcolor(out, pa_white);
-                pa_frect(out, 1, pa_maxyg(out)-pa_chrsizy(out)*2,
-                                pa_maxxg(out), pa_maxyg(out));;
+                ami_fcolor(out, ami_backcolor);
+                ami_frect(out, 1, 1, ami_maxxg(out), ami_maxyg(out));
+                ami_fcolor(out, ami_white);
+                ami_frect(out, 1, ami_maxyg(out)-ami_chrsizy(out)*2,
+                                ami_maxxg(out), ami_maxyg(out));;
                 fcolort(out, th_outline1);
-                pa_linewidth(out, 2);
-                pa_line(out, 1, pa_maxyg(out)-pa_chrsizy(out)*2,
-                                pa_maxxg(out), pa_maxyg(out)-pa_chrsizy(out)*2);
+                ami_linewidth(out, 2);
+                ami_line(out, 1, ami_maxyg(out)-ami_chrsizy(out)*2,
+                                ami_maxxg(out), ami_maxyg(out)-ami_chrsizy(out)*2);
                 if (focus) { /* in focus */
 
-                    pa_linewidth(out, 4);
+                    ami_linewidth(out, 4);
                     fcolort(out, th_focus);
-                    pa_rect(out, 2, pa_maxyg(out)-pa_chrsizy(out)*2+2,
-                                    pa_maxxg(out)-1, pa_maxyg(out)-1);
+                    ami_rect(out, 2, ami_maxyg(out)-ami_chrsizy(out)*2+2,
+                                    ami_maxxg(out)-1, ami_maxyg(out)-1);
 
                 }
 
                 /* draw circle i */
                 fcolort(out, tc);
-                pa_linewidth(out, 6);
-                pa_ellipse(out, icsize, pa_chrsizy(out),
-                                icsize+icsize, pa_chrsizy(out)+icsize);
-                pa_fellipse(out, icsize+icsize*0.5-isize*0.5, pa_chrsizy(out)+icsize*0.2,
-                                 icsize+icsize*0.5+isize*0.5, pa_chrsizy(out)+icsize*0.2+isize);
-                pa_frect(out, icsize+icsize*0.5-isize*0.5, pa_chrsizy(out)+icsize*0.4,
-                              icsize+icsize*0.5+isize*0.5, pa_chrsizy(out)+icsize*0.75);
+                ami_linewidth(out, 6);
+                ami_ellipse(out, icsize, ami_chrsizy(out),
+                                icsize+icsize, ami_chrsizy(out)+icsize);
+                ami_fellipse(out, icsize+icsize*0.5-isize*0.5, ami_chrsizy(out)+icsize*0.2,
+                                 icsize+icsize*0.5+isize*0.5, ami_chrsizy(out)+icsize*0.2+isize);
+                ami_frect(out, icsize+icsize*0.5-isize*0.5, ami_chrsizy(out)+icsize*0.4,
+                              icsize+icsize*0.5+isize*0.5, ami_chrsizy(out)+icsize*0.75);
 
                 /* draw title and message */
                 fcolort(out, tc);
-                pa_bold(out, TRUE); /* set bold */
-                fs = pa_chrsizy(out); /* save font size */
-                pa_fontsiz(out, fs*1.1); /* increase font size */
-                pa_cursorg(out, (pa_maxxg(out)-tstart-pa_chrsizy(out)*2)*0.5-ts*0.5+tstart,
-                                pa_chrsizy(out));
+                ami_bold(out, TRUE); /* set bold */
+                fs = ami_chrsizy(out); /* save font size */
+                ami_fontsiz(out, fs*1.1); /* increase font size */
+                ami_cursorg(out, (ami_maxxg(out)-tstart-ami_chrsizy(out)*2)*0.5-ts*0.5+tstart,
+                                ami_chrsizy(out));
                 fputs(title, out); /* place title */
-                pa_fontsiz(out, fs); /* restore font size */
-                pa_bold(out, FALSE); /* set normal */
-                pa_cursorg(out, (pa_maxxg(out)-tstart-pa_chrsizy(out)*2)*0.5-ms*0.5+tstart,
-                                pa_chrsizy(out)*2.5);
+                ami_fontsiz(out, fs); /* restore font size */
+                ami_bold(out, FALSE); /* set normal */
+                ami_cursorg(out, (ami_maxxg(out)-tstart-ami_chrsizy(out)*2)*0.5-ms*0.5+tstart,
+                                ami_chrsizy(out)*2.5);
                 fputs(message, out); /* place message */
 
                 /* draw ok button */
                 fcolort(out, tc);
-                pa_cursorg(out, pa_maxxg(out)*0.5-pa_strsiz(out, "OK")*0.5,
-                                pa_maxyg(out)-pa_chrsizy(out)*1.5);
+                ami_cursorg(out, ami_maxxg(out)*0.5-ami_strsiz(out, "OK")*0.5,
+                                ami_maxyg(out)-ami_chrsizy(out)*1.5);
                 fputs("OK", out);
 
                 break;
 
-            case pa_etmoumovg:
+            case ami_etmoumovg:
                 mpx = er.moupxg; /* save mouse position */
                 mpy = er.moupyg;
                 break;
 
-            case pa_etmouba:
-                if (er.amoubn == 1 && mpy >= pa_maxyg(out)-pa_chrsizy(out)*2)
-                    er.etype = pa_etterm;
+            case ami_etmouba:
+                if (er.amoubn == 1 && mpy >= ami_maxyg(out)-ami_chrsizy(out)*2)
+                    er.etype = ami_etterm;
                 break;
 
-            case pa_etenter:
-                er.etype = pa_etterm;
+            case ami_etenter:
+                er.etype = ami_etterm;
                 break;
 
             default: ;
 
         }
 
-    } while (er.etype != pa_etterm); /* until terminate */
+    } while (er.etype != ami_etterm); /* until terminate */
 
     /* kill the dialog window */
     fclose(out);
@@ -6273,7 +6273,7 @@ static void iquerycolor(
     FILE*         in = NULL;  /* window to create */
     FILE*         out;
     int           wid;      /* window number */
-    pa_evtrec     er;       /* event record */
+    ami_evtrec     er;       /* event record */
     char*         title = "Select a color"; /* title string */
     char*         cancel = "Cancel"; /* cancel string */
     char*         selects = "Select"; /* select string */
@@ -6354,54 +6354,54 @@ static void iquerycolor(
     };
 
 
-    wid = pa_getwinid(); /* get anonymous window id */
-    pa_openwin(&in, &out, NULL, wid); /* create window */
-    pa_buffer(out, FALSE); /* turn off buffering */
-    pa_auto(out, FALSE); /* turn off auto */
-    pa_curvis(out, FALSE); /* turn off cursor */
-    pa_font(out, PA_FONT_SIGN); /* set sign font */
-    pa_binvis(out); /* no background write */
-    pa_frame(out, FALSE); /* turn off sizing bars */
+    wid = ami_getwinid(); /* get anonymous window id */
+    ami_openwin(&in, &out, NULL, wid); /* create window */
+    ami_buffer(out, FALSE); /* turn off buffering */
+    ami_auto(out, FALSE); /* turn off auto */
+    ami_curvis(out, FALSE); /* turn off cursor */
+    ami_font(out, PA_FONT_SIGN); /* set sign font */
+    ami_binvis(out); /* no background write */
+    ami_frame(out, FALSE); /* turn off sizing bars */
     /* size the dialog */
-    pa_setsizg(out, pa_chrsizy(out)*25.8,
-                    pa_chrsizy(out)*15.2);
+    ami_setsizg(out, ami_chrsizy(out)*25.8,
+                    ami_chrsizy(out)*15.2);
 
     /* center the dialog */
-    pa_scnceng(out, &sx, &sy); /* find screen center */
-    pa_getsizg(out, &x, &y); /* find window size */
+    ami_scnceng(out, &sx, &sy); /* find screen center */
+    ami_getsizg(out, &x, &y); /* find window size */
     wpx = sx-x/2; /* set window position */
     wpy = sy-y/2;
-    pa_setposg(out, wpx, wpy); /* set center position */
+    ami_setposg(out, wpx, wpy); /* set center position */
 
-    titbot = pa_maxyg(out)*0.165; /* set bottom of system bar */
+    titbot = ami_maxyg(out)*0.165; /* set bottom of system bar */
     mgt = titbot*mg; /* set margins */
 
     /* place cancel button */
     wp = getwig(); /* get widget entry */
     wp->cbc = &cancel_cbc; /* set colors */
     widget(out, mgt, mgt,
-                mgt+pa_strsiz(out, cancel)+pa_chrsizy(out)*1.5, titbot-mgt,
+                mgt+ami_strsiz(out, cancel)+ami_chrsizy(out)*1.5, titbot-mgt,
                 cancel, 1, wtcbutton, &wp);
 
     /* place select button */
     wp = getwig(); /* get widget entry */
     wp->cbc = &select_cbc; /* set colors */
-    widget(out, pa_maxxg(out)-(mgt+pa_strsiz(out, selects)+pa_chrsizy(out)*1.9),
+    widget(out, ami_maxxg(out)-(mgt+ami_strsiz(out, selects)+ami_chrsizy(out)*1.9),
                 mgt,
-                pa_maxxg(out)-mgt, titbot-mgt,
+                ami_maxxg(out)-mgt, titbot-mgt,
                 selects, 2, wtcbutton, &wp);
 
     /* calculate spacing for the color grid */
-    gtopp = pa_chrsizy(out)*gtop;
-    gsidep = pa_chrsizy(out)*gside;
-    ggapvp = pa_chrsizy(out)*ggapv;
-    ggaphp = pa_chrsizy(out)*ggaph;
-    ggapp = pa_chrsizy(out)*ggap;
+    gtopp = ami_chrsizy(out)*gtop;
+    gsidep = ami_chrsizy(out)*gside;
+    ggapvp = ami_chrsizy(out)*ggapv;
+    ggaphp = ami_chrsizy(out)*ggaph;
+    ggapp = ami_chrsizy(out)*ggap;
 
     /* based on that, find size of individual buttons */
-    cbx = (pa_maxxg(out)-gsidep*2-ggapvp*8)/9;
+    cbx = (ami_maxxg(out)-gsidep*2-ggapvp*8)/9;
     cby =
-        (pa_maxyg(out)-(titbot+gtopp*2+ggaphp*2+ggapp+pa_chrsizy(out)*2))/5;
+        (ami_maxyg(out)-(titbot+gtopp*2+ggaphp*2+ggapp+ami_chrsizy(out)*2))/5;
 
     /* place color buttons */
     th = th_querycolor1; /* set 1st color button */
@@ -6443,10 +6443,10 @@ static void iquerycolor(
         else y += cby+ggaphp; /* gap between color rows */
 
     }
-    cusy = y+pa_chrsizy(out)*0.5; /* find top of "custom" message */
+    cusy = y+ami_chrsizy(out)*0.5; /* find top of "custom" message */
 
     /* place "+" button */
-    y += pa_chrsizy(out)*2; /* position past "+" */
+    y += ami_chrsizy(out)*2; /* position past "+" */
     wp = getwig(); /* get widget entry */
     wp->cbc = &plus_cbc; /* set colors */
     wp->check = TRUE; /* set use check instead of text */
@@ -6457,7 +6457,7 @@ static void iquerycolor(
     rs = RED(rgb); /* get the individual colors */
     gs = GREEN(rgb);
     bs = BLUE(rgb);
-    pa_selectwidget(out, 2+36, TRUE); /* select the widget */
+    ami_selectwidget(out, 2+36, TRUE); /* select the widget */
     cursel = 2+36; /* save selection */
 
     pressed = FALSE; /* set no mouse button pressed */
@@ -6467,42 +6467,42 @@ static void iquerycolor(
     /* start with events */
     do {
 
-        pa_event(in, &er);
+        ami_event(in, &er);
         switch (er.etype) {
 
-            case pa_etredraw:
+            case ami_etredraw:
                 /* draw background */
-                pa_fcolor(out, pa_backcolor);
-                pa_frect(out, 1, 1, pa_maxxg(out), pa_maxyg(out));
+                ami_fcolor(out, ami_backcolor);
+                ami_frect(out, 1, 1, ami_maxxg(out), ami_maxyg(out));
                 /* draw system bar */
                 fcolort(out, th_title);
-                pa_frect(out, 1, 1, pa_maxxg(out), titbot);
+                ami_frect(out, 1, 1, ami_maxxg(out), titbot);
                 /* draw title */
-                pa_fcolor(out, pa_white);
-                pa_bold(out, TRUE);
-                pa_cursorg(out, pa_maxxg(out)*0.5-pa_strsiz(out, title)*0.5,
-                                titbot*0.5-pa_chrsizy(out)*0.5);
+                ami_fcolor(out, ami_white);
+                ami_bold(out, TRUE);
+                ami_cursorg(out, ami_maxxg(out)*0.5-ami_strsiz(out, title)*0.5,
+                                titbot*0.5-ami_chrsizy(out)*0.5);
                 fputs(title, out);
-                pa_bold(out, FALSE);
+                ami_bold(out, FALSE);
                 /* draw "Custom" */
-                pa_cursorg(out, gsidep, cusy);
-                pa_fcolor(out, pa_black);
+                ami_cursorg(out, gsidep, cusy);
+                ami_fcolor(out, ami_black);
                 fputs("Custom", out);
                 break;
 
-            case pa_etbutton:
+            case ami_etbutton:
                 if (er.butid == 1) /* cancel */
-                    er.etype = pa_etterm;
+                    er.etype = ami_etterm;
                 else if (er.butid == 2) { /* select */
 
                     *r = rs; /* set final colors */
                     *g = gs;
                     *b = bs;
-                    er.etype = pa_etterm;
+                    er.etype = ami_etterm;
 
                 } else if (er.butid == 2+36+1) { /* plus */
 
-                    er.etype = pa_etterm;
+                    er.etype = ami_etterm;
 
                 } else if (er.butid >= 2+1 && er.butid <= 2+36) { /* color select */
 
@@ -6511,14 +6511,14 @@ static void iquerycolor(
                     gs = GREEN(rgb);
                     bs = BLUE(rgb);
                     /* deselect previous button */
-                    pa_selectwidget(out, cursel, FALSE); 
-                    pa_selectwidget(out, er.butid, TRUE); /* select the widget */
+                    ami_selectwidget(out, cursel, FALSE); 
+                    ami_selectwidget(out, er.butid, TRUE); /* select the widget */
                     cursel = er.butid; /* save selection */
 
                 }
                 break;
 
-            case pa_etmoumovg:
+            case ami_etmoumovg:
                 lmpx = mpx; /* save last mouse position */
                 lmpy = mpy;
                 mpx = er.moupxg; /* save mouse position */
@@ -6535,7 +6535,7 @@ static void iquerycolor(
 
                         wpx = x; /* set new position */
                         wpy = y;
-                        pa_setposg(out, wpx, wpy); /* set new position */
+                        ami_setposg(out, wpx, wpy); /* set new position */
                         /* Need to adjust the mouse relative positions. The 
                            mouse moves opposite from the window. */
                         lmpx -= dx;
@@ -6548,12 +6548,12 @@ static void iquerycolor(
                 }
                 break;
 
-            case pa_etmouba:
+            case ami_etmouba:
                 if (er.amoubn == 1 && mpy <= titbot)
                     pressed = TRUE; /* set mouse button assert */
                 break;
 
-            case pa_etmoubd:
+            case ami_etmoubd:
                 if (er.dmoubn == 1) pressed = FALSE;
                 break;
 
@@ -6561,7 +6561,7 @@ static void iquerycolor(
 
         }
 
-    } while (er.etype != pa_etterm); /* until terminate */
+    } while (er.etype != ami_etterm); /* until terminate */
 
     /* kill the dialog window */
     fclose(out);
@@ -6654,7 +6654,7 @@ table this issue until later.
 static void iqueryfind(
     /** Input/output for search string */   char* s,
     /** Length of search string buffer */ int sl,
-    /** Set of find/replace options */      pa_qfnopts* opt
+    /** Set of find/replace options */      ami_qfnopts* opt
 )
 
 {
@@ -6687,7 +6687,7 @@ static void iqueryfindrep(
     /** Length of search string buffer */  int sl,
     /** Input/output for replace string */ char* r,
     /** Length of replace string buffer */ int rl,
-    /** Set of find/replace options */     pa_qfnopts* opt
+    /** Set of find/replace options */     ami_qfnopts* opt
 )
 
 {
@@ -6723,7 +6723,7 @@ static void iqueryfont(
     /** Input/output background red */   int*           br,
     /** Input/output background green */ int*           bg,
     /** Input/output background blue */  int*           bb,
-    /** Input/output font effects */     pa_qfteffects* effect
+    /** Input/output font effects */     ami_qfteffects* effect
 )
 
 {
@@ -6818,7 +6818,7 @@ static void init_widgets()
     int wid; /* window id */
 
     /* override the event handler */
-    pa_eventsover(widget_event, &widget_event_old);
+    ami_eventsover(widget_event, &widget_event_old);
 
     wigfre = NULL; /* clear widget free list */
 
@@ -6831,11 +6831,11 @@ static void init_widgets()
         xltwig[fn] = NULL; /* set no widget entry */
 
     /* open "window 0" dummy window */
-    pa_openwin(&stdin, &win0, NULL, pa_getwinid()); /* open window */
-    pa_buffer(win0, FALSE); /* turn off buffering */
-    pa_auto(win0, FALSE); /* turn off auto (for font change) */
-    pa_font(win0, PA_FONT_SIGN); /* set sign font */
-    pa_frame(win0, FALSE); /* turn off frame */
+    ami_openwin(&stdin, &win0, NULL, ami_getwinid()); /* open window */
+    ami_buffer(win0, FALSE); /* turn off buffering */
+    ami_auto(win0, FALSE); /* turn off auto (for font change) */
+    ami_font(win0, PA_FONT_SIGN); /* set sign font */
+    ami_frame(win0, FALSE); /* turn off frame */
 
     /* override system calls for basic I/O */
     ovr_close(iclose, &ofpclose);
@@ -7035,94 +7035,94 @@ static void deinit_widgets()
     pclose_t cppclose_nocancel;
 
     /* holding copies of widgets override vectors */
-    pa_getwigid_t        cppgetwigid;
-    pa_killwidget_t      cppkillwidget;
-    pa_selectwidget_t    cppselectwidget;
-    pa_enablewidget_t    cppenablewidget;
-    pa_getwidgettext_t   cppgetwidgettext;
-    pa_putwidgettext_t   cppputwidgettext;
-    pa_sizwidget_t       cppsizwidget;
-    pa_sizwidgetg_t      cppsizwidgetg;
-    pa_poswidget_t       cppposwidget;
-    pa_poswidgetg_t      cppposwidgetg;
-    pa_backwidget_t      cppbackwidget;
-    pa_frontwidget_t     cppfrontwidget;
-    pa_focuswidget_t     cppfocuswidget;
-    pa_buttonsiz_t       cppbuttonsiz;
-    pa_buttonsizg_t      cppbuttonsizg;
-    pa_button_t          cppbutton;
-    pa_buttong_t         cppbuttong;
-    pa_checkboxsiz_t     cppcheckboxsiz;
-    pa_checkboxsizg_t    cppcheckboxsizg;
-    pa_checkbox_t        cppcheckbox;
-    pa_checkboxg_t       cppcheckboxg;
-    pa_radiobuttonsiz_t  cppradiobuttonsiz;
-    pa_radiobuttonsizg_t cppradiobuttonsizg;
-    pa_radiobutton_t     cppradiobutton;
-    pa_radiobuttong_t    cppradiobuttong;
-    pa_groupsizg_t       cppgroupsizg;
-    pa_groupsiz_t        cppgroupsiz;
-    pa_group_t           cppgroup;
-    pa_groupg_t          cppgroupg;
-    pa_background_t      cppbackground;
-    pa_backgroundg_t     cppbackgroundg;
-    pa_scrollvertsizg_t  cppscrollvertsizg;
-    pa_scrollvertsiz_t   cppscrollvertsiz;
-    pa_scrollvert_t      cppscrollvert;
-    pa_scrollvertg_t     cppscrollvertg;
-    pa_scrollhorizsizg_t cppscrollhorizsizg;
-    pa_scrollhorizsiz_t  cppscrollhorizsiz;
-    pa_scrollhoriz_t     cppscrollhoriz;
-    pa_scrollhorizg_t    cppscrollhorizg;
-    pa_scrollpos_t       cppscrollpos;
-    pa_scrollsiz_t       cppscrollsiz;
-    pa_numselboxsizg_t   cppnumselboxsizg;
-    pa_numselboxsiz_t    cppnumselboxsiz;
-    pa_numselbox_t       cppnumselbox;
-    pa_numselboxg_t      cppnumselboxg;
-    pa_editboxsizg_t     cppeditboxsizg;
-    pa_editboxsiz_t      cppeditboxsiz;
-    pa_editbox_t         cppeditbox;
-    pa_editboxg_t        cppeditboxg;
-    pa_progbarsizg_t     cppprogbarsizg;
-    pa_progbarsiz_t      cppprogbarsiz;
-    pa_progbar_t         cppprogbar;
-    pa_progbarg_t        cppprogbarg;
-    pa_progbarpos_t      cppprogbarpos;
-    pa_listboxsizg_t     cpplistboxsizg;
-    pa_listboxsiz_t      cpplistboxsiz;
-    pa_listbox_t         cpplistbox;
-    pa_listboxg_t        cpplistboxg;
-    pa_dropboxsizg_t     cppdropboxsizg;
-    pa_dropboxsiz_t      cppdropboxsiz;
-    pa_dropbox_t         cppdropbox;
-    pa_dropboxg_t        cppdropboxg;
-    pa_dropeditboxsizg_t cppdropeditboxsizg;
-    pa_dropeditboxsiz_t  cppdropeditboxsiz;
-    pa_dropeditbox_t     cppdropeditbox;
-    pa_dropeditboxg_t    cppdropeditboxg;
-    pa_slidehorizsizg_t  cppslidehorizsizg;
-    pa_slidehorizsiz_t   cppslidehorizsiz;
-    pa_slidehoriz_t      cppslidehoriz;
-    pa_slidehorizg_t     cppslidehorizg;
-    pa_slidevertsizg_t   cppslidevertsizg;
-    pa_slidevertsiz_t    cppslidevertsiz;
-    pa_slidevert_t       cppslidevert;
-    pa_slidevertg_t      cppslidevertg;
-    pa_tabbarsizg_t      cpptabbarsizg;
-    pa_tabbarsiz_t       cpptabbarsiz;
-    pa_tabbarclientg_t   cpptabbarclientg;
-    pa_tabbarclient_t    cpptabbarclient;
-    pa_tabbar_t          cpptabbar;
-    pa_tabbarg_t         cpptabbarg;
-    pa_tabsel_t          cpptabsel;
-    pa_alert_t           cppalert;
-    pa_querycolor_t      cppquerycolor;
-    pa_queryopen_t       cppqueryopen;
-    pa_querysave_t       cppquerysave;
-    pa_queryfind_t       cppqueryfind;
-    pa_queryfindrep_t    cppqueryfindrep;
-    pa_queryfont_t       cppqueryfont;
+    ami_getwigid_t        cppgetwigid;
+    ami_killwidget_t      cppkillwidget;
+    ami_selectwidget_t    cppselectwidget;
+    ami_enablewidget_t    cppenablewidget;
+    ami_getwidgettext_t   cppgetwidgettext;
+    ami_putwidgettext_t   cppputwidgettext;
+    ami_sizwidget_t       cppsizwidget;
+    ami_sizwidgetg_t      cppsizwidgetg;
+    ami_poswidget_t       cppposwidget;
+    ami_poswidgetg_t      cppposwidgetg;
+    ami_backwidget_t      cppbackwidget;
+    ami_frontwidget_t     cppfrontwidget;
+    ami_focuswidget_t     cppfocuswidget;
+    ami_buttonsiz_t       cppbuttonsiz;
+    ami_buttonsizg_t      cppbuttonsizg;
+    ami_button_t          cppbutton;
+    ami_buttong_t         cppbuttong;
+    ami_checkboxsiz_t     cppcheckboxsiz;
+    ami_checkboxsizg_t    cppcheckboxsizg;
+    ami_checkbox_t        cppcheckbox;
+    ami_checkboxg_t       cppcheckboxg;
+    ami_radiobuttonsiz_t  cppradiobuttonsiz;
+    ami_radiobuttonsizg_t cppradiobuttonsizg;
+    ami_radiobutton_t     cppradiobutton;
+    ami_radiobuttong_t    cppradiobuttong;
+    ami_groupsizg_t       cppgroupsizg;
+    ami_groupsiz_t        cppgroupsiz;
+    ami_group_t           cppgroup;
+    ami_groupg_t          cppgroupg;
+    ami_background_t      cppbackground;
+    ami_backgroundg_t     cppbackgroundg;
+    ami_scrollvertsizg_t  cppscrollvertsizg;
+    ami_scrollvertsiz_t   cppscrollvertsiz;
+    ami_scrollvert_t      cppscrollvert;
+    ami_scrollvertg_t     cppscrollvertg;
+    ami_scrollhorizsizg_t cppscrollhorizsizg;
+    ami_scrollhorizsiz_t  cppscrollhorizsiz;
+    ami_scrollhoriz_t     cppscrollhoriz;
+    ami_scrollhorizg_t    cppscrollhorizg;
+    ami_scrollpos_t       cppscrollpos;
+    ami_scrollsiz_t       cppscrollsiz;
+    ami_numselboxsizg_t   cppnumselboxsizg;
+    ami_numselboxsiz_t    cppnumselboxsiz;
+    ami_numselbox_t       cppnumselbox;
+    ami_numselboxg_t      cppnumselboxg;
+    ami_editboxsizg_t     cppeditboxsizg;
+    ami_editboxsiz_t      cppeditboxsiz;
+    ami_editbox_t         cppeditbox;
+    ami_editboxg_t        cppeditboxg;
+    ami_progbarsizg_t     cppprogbarsizg;
+    ami_progbarsiz_t      cppprogbarsiz;
+    ami_progbar_t         cppprogbar;
+    ami_progbarg_t        cppprogbarg;
+    ami_progbarpos_t      cppprogbarpos;
+    ami_listboxsizg_t     cpplistboxsizg;
+    ami_listboxsiz_t      cpplistboxsiz;
+    ami_listbox_t         cpplistbox;
+    ami_listboxg_t        cpplistboxg;
+    ami_dropboxsizg_t     cppdropboxsizg;
+    ami_dropboxsiz_t      cppdropboxsiz;
+    ami_dropbox_t         cppdropbox;
+    ami_dropboxg_t        cppdropboxg;
+    ami_dropeditboxsizg_t cppdropeditboxsizg;
+    ami_dropeditboxsiz_t  cppdropeditboxsiz;
+    ami_dropeditbox_t     cppdropeditbox;
+    ami_dropeditboxg_t    cppdropeditboxg;
+    ami_slidehorizsizg_t  cppslidehorizsizg;
+    ami_slidehorizsiz_t   cppslidehorizsiz;
+    ami_slidehoriz_t      cppslidehoriz;
+    ami_slidehorizg_t     cppslidehorizg;
+    ami_slidevertsizg_t   cppslidevertsizg;
+    ami_slidevertsiz_t    cppslidevertsiz;
+    ami_slidevert_t       cppslidevert;
+    ami_slidevertg_t      cppslidevertg;
+    ami_tabbarsizg_t      cpptabbarsizg;
+    ami_tabbarsiz_t       cpptabbarsiz;
+    ami_tabbarclientg_t   cpptabbarclientg;
+    ami_tabbarclient_t    cpptabbarclient;
+    ami_tabbar_t          cpptabbar;
+    ami_tabbarg_t         cpptabbarg;
+    ami_tabsel_t          cpptabsel;
+    ami_alert_t           cppalert;
+    ami_querycolor_t      cppquerycolor;
+    ami_queryopen_t       cppqueryopen;
+    ami_querysave_t       cppquerysave;
+    ami_queryfind_t       cppqueryfind;
+    ami_queryfindrep_t    cppqueryfindrep;
+    ami_queryfont_t       cppqueryfont;
 
     /* shut down file and widgets */
     for (fn = 0; fn < MAXFIL; fn++) if (opnfil[fn]) {

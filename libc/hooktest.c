@@ -97,8 +97,8 @@ Init and deinit routines
 
 *******************************************************************************/
 
-static void pa_init_hooker (void) __attribute__((constructor (102)));
-static void pa_init_hooker()
+static void ami_init_hooker (void) __attribute__((constructor (102)));
+static void ami_init_hooker()
 
 {
 
@@ -112,8 +112,8 @@ static void pa_init_hooker()
 
 }
 
-static void pa_deinit_hooker (void) __attribute__((destructor (102)));
-static void pa_deinit_hooker()
+static void ami_deinit_hooker (void) __attribute__((destructor (102)));
+static void ami_deinit_hooker()
 
 {
 

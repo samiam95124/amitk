@@ -16,7 +16,7 @@ Plays the given midi file.
 
 int dport = PA_SYNTH_OUT; /* set default synth out */
 
-pa_optrec opttbl[] = {
+ami_optrec opttbl[] = {
 
     { "port",  NULL, &dport,  NULL, NULL },
     { "p",     NULL, &dport,  NULL, NULL },
@@ -31,7 +31,7 @@ int main(int argc, char **argv)
     int argi = 1;
 
     /* parse user options */
-    pa_options(&argi, &argc, argv, opttbl, TRUE);
+    ami_options(&argi, &argc, argv, opttbl, TRUE);
 
     if (argc < 2) {
 
@@ -40,11 +40,11 @@ int main(int argc, char **argv)
 
     }
 
-    pa_loadsynth(1, argv[argi]);
-    pa_opensynthout(dport);
-    pa_playsynth(dport, 0, 1);
-    pa_waitsynth(dport);
-    pa_closesynthout(dport);
-    pa_delsynth(1);
+    ami_loadsynth(1, argv[argi]);
+    ami_opensynthout(dport);
+    ami_playsynth(dport, 0, 1);
+    ami_waitsynth(dport);
+    ami_closesynthout(dport);
+    ami_delsynth(1);
 
 }

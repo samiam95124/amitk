@@ -29,7 +29,7 @@ char* mailmsg[] = {
 
 int secure = FALSE;
 
-pa_optrec opttbl[] = {
+ami_optrec opttbl[] = {
 
     { "secure", &secure, NULL, NULL, NULL },
     { "s",      &secure, NULL, NULL, NULL },
@@ -48,7 +48,7 @@ int main(int argc, char **argv)
     int i;
 
     /* parse user options */
-    pa_options(&argi, &argc, argv, opttbl, TRUE);
+    ami_options(&argi, &argc, argv, opttbl, TRUE);
 
     if (argc != 1) {
 
@@ -59,7 +59,7 @@ int main(int argc, char **argv)
     while (1) { /* serve this port until cancelled */
 
         printf("Fakemail server waits on port %d for connections\n", port);
-        fp = pa_waitnet(port, secure);
+        fp = ami_waitnet(port, secure);
 
         printf("Inbound connection\n");
 

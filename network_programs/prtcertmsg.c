@@ -31,13 +31,13 @@ int main(int argc, char **argv)
 
     port = atoi(argv[2]);
 
-    pa_addrnet(argv[1], &addr);
-    fn = pa_openmsg(addr, port, TRUE);
+    ami_addrnet(argv[1], &addr);
+    fn = ami_openmsg(addr, port, TRUE);
 
     i = 1; /* set 1st certificate */
     do {
 
-       len = pa_certmsg(fn, i, cbuff, sizeof(cbuff));
+       len = ami_certmsg(fn, i, cbuff, sizeof(cbuff));
        if (len) {
 
            printf("Certificate %d:\n", i);
@@ -48,7 +48,7 @@ int main(int argc, char **argv)
 
     } while (len);
 
-    pa_clsmsg(fn);
+    ami_clsmsg(fn);
 
     return (0);
 

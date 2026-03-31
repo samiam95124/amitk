@@ -151,8 +151,8 @@ typedef struct { /* screen context */
     int      curx;        /* current cursor location x */
     int      cury;        /* current cursor location y */
     int      curv;        /* cursor visible */
-    pa_color forec;       /* current writing foreground color */
-    pa_color backc;       /* current writing background color */
+    ami_color forec;       /* current writing foreground color */
+    ami_color backc;       /* current writing background color */
     scnatt   attr;        /* current writing attribute */
     int      autof;       /* current status of scroll and wrap */
     int      tab[MAXTAB]; /* tabbing array */
@@ -238,15 +238,15 @@ int      gmaxx;       /* maximum x size */
 int      gmaxy;       /* maximum y size */
 scnatt   gattr;       /* current attribute */
 int      gautof;      /* state of auto */
-pa_color gforec;      /* forground color */
-pa_color gbackc;      /* background color */
+ami_color gforec;      /* forground color */
+ami_color gbackc;      /* background color */
 int      gcurv;       /* state of cursor visible */
 int      cix;         /* index for display screens */
 int      frmrun;      /* framing timer is running */
 int      frmhan;      /* framing timer handle */
 DWORD    cmodes;      /* previous console mode settings */
-static pa_pevthan evthan[pa_etframe+1]; /* array of event handler routines */
-static pa_pevthan evtshan; /* single master event handler routine */
+static ami_pevthan evthan[ami_etframe+1]; /* array of event handler routines */
+static ami_pevthan evtshan; /* single master event handler routine */
 
 /*******************************************************************************
 
@@ -328,60 +328,60 @@ A diagnostic, print the given event code as a symbol to the error file.
 
 ******************************************************************************/
 
-void prtevt(pa_evtcod e)
+void prtevt(ami_evtcod e)
 
 {
 
     switch (e) {
 
-        case pa_etchar:    fprintf(stderr, "etchar"); break;
-        case pa_etup:      fprintf(stderr, "etup"); break;
-        case pa_etdown:    fprintf(stderr, "etdown"); break;
-        case pa_etleft:    fprintf(stderr, "etleft"); break;
-        case pa_etright:   fprintf(stderr, "etright"); break;
-        case pa_etleftw:   fprintf(stderr, "etleftw"); break;
-        case pa_etrightw:  fprintf(stderr, "etrightw"); break;
-        case pa_ethome:    fprintf(stderr, "ethome"); break;
-        case pa_ethomes:   fprintf(stderr, "ethomes"); break;
-        case pa_ethomel:   fprintf(stderr, "ethomel"); break;
-        case pa_etend:     fprintf(stderr, "etend"); break;
-        case pa_etends:    fprintf(stderr, "etends"); break;
-        case pa_etendl:    fprintf(stderr, "etendl"); break;
-        case pa_etscrl:    fprintf(stderr, "etscrl"); break;
-        case pa_etscrr:    fprintf(stderr, "etscrr"); break;
-        case pa_etscru:    fprintf(stderr, "etscru"); break;
-        case pa_etscrd:    fprintf(stderr, "etscrd"); break;
-        case pa_etpagd:    fprintf(stderr, "etpagd"); break;
-        case pa_etpagu:    fprintf(stderr, "etpagu"); break;
-        case pa_ettab:     fprintf(stderr, "ettab"); break;
-        case pa_etenter:   fprintf(stderr, "etenter"); break;
-        case pa_etinsert:  fprintf(stderr, "etinsert"); break;
-        case pa_etinsertl: fprintf(stderr, "etinsertl"); break;
-        case pa_etinsertt: fprintf(stderr, "etinsertt"); break;
-        case pa_etdel:     fprintf(stderr, "etdel"); break;
-        case pa_etdell:    fprintf(stderr, "etdell"); break;
-        case pa_etdelcf:   fprintf(stderr, "etdelcf"); break;
-        case pa_etdelcb:   fprintf(stderr, "etdelcb"); break;
-        case pa_etcopy:    fprintf(stderr, "etcopy"); break;
-        case pa_etcopyl:   fprintf(stderr, "etcopyl"); break;
-        case pa_etcan:     fprintf(stderr, "etcan"); break;
-        case pa_etstop:    fprintf(stderr, "etstop"); break;
-        case pa_etcont:    fprintf(stderr, "etcont"); break;
-        case pa_etprint:   fprintf(stderr, "etprint"); break;
-        case pa_etprintb:  fprintf(stderr, "etprintb"); break;
-        case pa_etprints:  fprintf(stderr, "etprints"); break;
-        case pa_etfun:     fprintf(stderr, "etfun"); break;
-        case pa_etmenu:    fprintf(stderr, "etmenu"); break;
-        case pa_etmouba:   fprintf(stderr, "etmouba"); break;
-        case pa_etmoubd:   fprintf(stderr, "etmoubd"); break;
-        case pa_etmoumov:  fprintf(stderr, "etmoumov"); break;
-        case pa_ettim:     fprintf(stderr, "ettim"); break;
-        case pa_etjoyba:   fprintf(stderr, "etjoyba"); break;
-        case pa_etjoybd:   fprintf(stderr, "etjoybd"); break;
-        case pa_etjoymov:  fprintf(stderr, "etjoymov"); break;
-        case pa_etresize:  fprintf(stderr, "etresize"); break;
-        case pa_etterm:    fprintf(stderr, "etterm"); break;
-        case pa_etframe:   fprintf(stderr, "etframe"); break;
+        case ami_etchar:    fprintf(stderr, "etchar"); break;
+        case ami_etup:      fprintf(stderr, "etup"); break;
+        case ami_etdown:    fprintf(stderr, "etdown"); break;
+        case ami_etleft:    fprintf(stderr, "etleft"); break;
+        case ami_etright:   fprintf(stderr, "etright"); break;
+        case ami_etleftw:   fprintf(stderr, "etleftw"); break;
+        case ami_etrightw:  fprintf(stderr, "etrightw"); break;
+        case ami_ethome:    fprintf(stderr, "ethome"); break;
+        case ami_ethomes:   fprintf(stderr, "ethomes"); break;
+        case ami_ethomel:   fprintf(stderr, "ethomel"); break;
+        case ami_etend:     fprintf(stderr, "etend"); break;
+        case ami_etends:    fprintf(stderr, "etends"); break;
+        case ami_etendl:    fprintf(stderr, "etendl"); break;
+        case ami_etscrl:    fprintf(stderr, "etscrl"); break;
+        case ami_etscrr:    fprintf(stderr, "etscrr"); break;
+        case ami_etscru:    fprintf(stderr, "etscru"); break;
+        case ami_etscrd:    fprintf(stderr, "etscrd"); break;
+        case ami_etpagd:    fprintf(stderr, "etpagd"); break;
+        case ami_etpagu:    fprintf(stderr, "etpagu"); break;
+        case ami_ettab:     fprintf(stderr, "ettab"); break;
+        case ami_etenter:   fprintf(stderr, "etenter"); break;
+        case ami_etinsert:  fprintf(stderr, "etinsert"); break;
+        case ami_etinsertl: fprintf(stderr, "etinsertl"); break;
+        case ami_etinsertt: fprintf(stderr, "etinsertt"); break;
+        case ami_etdel:     fprintf(stderr, "etdel"); break;
+        case ami_etdell:    fprintf(stderr, "etdell"); break;
+        case ami_etdelcf:   fprintf(stderr, "etdelcf"); break;
+        case ami_etdelcb:   fprintf(stderr, "etdelcb"); break;
+        case ami_etcopy:    fprintf(stderr, "etcopy"); break;
+        case ami_etcopyl:   fprintf(stderr, "etcopyl"); break;
+        case ami_etcan:     fprintf(stderr, "etcan"); break;
+        case ami_etstop:    fprintf(stderr, "etstop"); break;
+        case ami_etcont:    fprintf(stderr, "etcont"); break;
+        case ami_etprint:   fprintf(stderr, "etprint"); break;
+        case ami_etprintb:  fprintf(stderr, "etprintb"); break;
+        case ami_etprints:  fprintf(stderr, "etprints"); break;
+        case ami_etfun:     fprintf(stderr, "etfun"); break;
+        case ami_etmenu:    fprintf(stderr, "etmenu"); break;
+        case ami_etmouba:   fprintf(stderr, "etmouba"); break;
+        case ami_etmoubd:   fprintf(stderr, "etmoubd"); break;
+        case ami_etmoumov:  fprintf(stderr, "etmoumov"); break;
+        case ami_ettim:     fprintf(stderr, "ettim"); break;
+        case ami_etjoyba:   fprintf(stderr, "etjoyba"); break;
+        case ami_etjoybd:   fprintf(stderr, "etjoybd"); break;
+        case ami_etjoymov:  fprintf(stderr, "etjoymov"); break;
+        case ami_etresize:  fprintf(stderr, "etresize"); break;
+        case ami_etterm:    fprintf(stderr, "etterm"); break;
+        case ami_etframe:   fprintf(stderr, "etframe"); break;
 
         default: fprintf(stderr, "???");
 
@@ -405,7 +405,7 @@ underline    Background half intensity.
 
 *******************************************************************************/
 
-static int colnum(pa_color c, int i)
+static int colnum(ami_color c, int i)
 
 {
 
@@ -413,17 +413,17 @@ static int colnum(pa_color c, int i)
 
     switch (c) { /* color */
 
-        case pa_black:  r = 0x0000 | i*FOREGROUND_INTENSITY; break;
-        case pa_white:  r = FOREGROUND_BLUE | FOREGROUND_GREEN |
+        case ami_black:  r = 0x0000 | i*FOREGROUND_INTENSITY; break;
+        case ami_white:  r = FOREGROUND_BLUE | FOREGROUND_GREEN |
                             FOREGROUND_RED | !i*FOREGROUND_INTENSITY; break;
-        case pa_red:      r = FOREGROUND_RED | !i*FOREGROUND_INTENSITY; break;
-        case pa_green:    r = FOREGROUND_GREEN | !i*FOREGROUND_INTENSITY; break;
-        case pa_blue:     r = FOREGROUND_BLUE | !i*FOREGROUND_INTENSITY; break;
-        case pa_cyan:     r = FOREGROUND_BLUE | FOREGROUND_GREEN |
+        case ami_red:      r = FOREGROUND_RED | !i*FOREGROUND_INTENSITY; break;
+        case ami_green:    r = FOREGROUND_GREEN | !i*FOREGROUND_INTENSITY; break;
+        case ami_blue:     r = FOREGROUND_BLUE | !i*FOREGROUND_INTENSITY; break;
+        case ami_cyan:     r = FOREGROUND_BLUE | FOREGROUND_GREEN |
                          !i*FOREGROUND_INTENSITY; break;
-        case pa_yellow:  r = FOREGROUND_RED | FOREGROUND_GREEN |
+        case ami_yellow:  r = FOREGROUND_RED | FOREGROUND_GREEN |
                         !i*FOREGROUND_INTENSITY; break;
-        case pa_magenta: r = FOREGROUND_RED | FOREGROUND_BLUE |
+        case ami_magenta: r = FOREGROUND_RED | FOREGROUND_BLUE |
                         !i*FOREGROUND_INTENSITY; break;
 
     }
@@ -455,22 +455,22 @@ Find colors from attribute word.
 *******************************************************************************/
 
 
-pa_color numcol(int a)
+ami_color numcol(int a)
 
 {
 
-    pa_color c;
+    ami_color c;
 
     switch (a%8) { /* color */
 
-         case 0: c = pa_black; break;
-         case 1: c = pa_blue; break;
-         case 2: c = pa_green; break;
-         case 3: c = pa_cyan; break;
-         case 4: c = pa_red; break;
-         case 5: c = pa_magenta; break;
-         case 6: c = pa_yellow; break;
-         case 7: c = pa_white; break;
+         case 0: c = ami_black; break;
+         case 1: c = ami_blue; break;
+         case 2: c = ami_green; break;
+         case 3: c = ami_cyan; break;
+         case 4: c = ami_red; break;
+         case 5: c = ami_magenta; break;
+         case 6: c = ami_yellow; break;
+         case 7: c = ami_white; break;
 
     }
 
@@ -649,7 +649,7 @@ which will cause the event to return to the event() caller.
 
 *******************************************************************************/
 
-static void defaultevent(pa_evtrec* ev)
+static void defaultevent(ami_evtrec* ev)
 
 {
 
@@ -741,7 +741,7 @@ static void iscroll(int x, int y)
 
 }
 
-void pa_scroll(FILE* f, int x, int y)
+void ami_scroll(FILE* f, int x, int y)
 
 {
 
@@ -767,7 +767,7 @@ static void icursor(int x, int y)
 
 }
 
-void pa_cursor(FILE* f, int x, int y)
+void ami_cursor(FILE* f, int x, int y)
 
 {
 
@@ -783,7 +783,7 @@ This is the external interface to curbnd.
 
 *******************************************************************************/
 
-int pa_curbnd(FILE* f)
+int ami_curbnd(FILE* f)
 
 {
 
@@ -800,7 +800,7 @@ display. Because ANSI has no information return capability, this is preset.
 
 *******************************************************************************/
 
-int pa_maxx(FILE* f)
+int ami_maxx(FILE* f)
 
 {
 
@@ -817,7 +817,7 @@ display. Because ANSI has no information return capability, this is preset.
 
 *******************************************************************************/
 
-int pa_maxy(FILE* f)
+int ami_maxy(FILE* f)
 
 {
 
@@ -833,7 +833,7 @@ Moves the cursor to the home position at (1, 1), the upper right hand corner.
 
 *******************************************************************************/
 
-void pa_home(FILE* f)
+void ami_home(FILE* f)
 
 {
 
@@ -871,7 +871,7 @@ static void iup(void)
 
 }
 
-void pa_up(FILE* f)
+void ami_up(FILE* f)
 
 {
 
@@ -936,7 +936,7 @@ static void idown(void)
 
 }
 
-void pa_down(FILE* f)
+void ami_down(FILE* f)
 
 {
 
@@ -979,7 +979,7 @@ static void ileft(void)
 
 }
 
-void pa_left(FILE* f)
+void ami_left(FILE* f)
 
 {
 
@@ -1019,7 +1019,7 @@ static void iright(void)
 
 }
 
-void pa_right(FILE* f)
+void ami_right(FILE* f)
 
 {
 
@@ -1063,7 +1063,7 @@ Note that the attributes can only be set singly.
 
 *******************************************************************************/
 
-void pa_blink(FILE* f, int e)
+void ami_blink(FILE* f, int e)
 
 {
 
@@ -1083,7 +1083,7 @@ Note that the attributes can only be set singly.
 
 *******************************************************************************/
 
-void pa_reverse(FILE* f, int e)
+void ami_reverse(FILE* f, int e)
 
 {
 
@@ -1102,7 +1102,7 @@ Note that the attributes can only be set singly.
 
 *******************************************************************************/
 
-void pa_underline(FILE* f, int e)
+void ami_underline(FILE* f, int e)
 
 {
 
@@ -1122,7 +1122,7 @@ Note that the attributes can only be set singly.
 
 *******************************************************************************/
 
-void pa_superscript(FILE* f, int e)
+void ami_superscript(FILE* f, int e)
 
 {
 
@@ -1141,7 +1141,7 @@ Note that the attributes can only be set singly.
 
 *******************************************************************************/
 
-void pa_subscript(FILE* f, int e)
+void ami_subscript(FILE* f, int e)
 
 {
 
@@ -1160,7 +1160,7 @@ Note that the attributes can only be set singly.
 
 *******************************************************************************/
 
-void pa_italic(FILE* f, int e)
+void ami_italic(FILE* f, int e)
 
 {
 
@@ -1183,7 +1183,7 @@ colors, which an ATTRIBUTE command seems to mess with !
 
 *******************************************************************************/
 
-void pa_bold(FILE* f, int e)
+void ami_bold(FILE* f, int e)
 
 {
 
@@ -1205,7 +1205,7 @@ just placed.
 
 *******************************************************************************/
 
-void pa_strikeout(FILE* f, int e)
+void ami_strikeout(FILE* f, int e)
 
 {
 
@@ -1224,11 +1224,11 @@ Note that the attributes can only be set singly.
 
 *******************************************************************************/
 
-void pa_standout(FILE* f, int e)
+void ami_standout(FILE* f, int e)
 
 {
 
-    pa_reverse(f, e); /* implement as reverse */
+    ami_reverse(f, e); /* implement as reverse */
 
 }
 
@@ -1240,7 +1240,7 @@ Sets the foreground (text) color from the universal primary code.
 
 *******************************************************************************/
 
-void pa_fcolor(FILE* f, pa_color c)
+void ami_fcolor(FILE* f, ami_color c)
 
 {
 
@@ -1258,7 +1258,7 @@ Sets the background color from the universal primary code.
 
 *******************************************************************************/
 
-void pa_bcolor(FILE* f, pa_color c)
+void ami_bcolor(FILE* f, ami_color c)
 
 {
 
@@ -1293,7 +1293,7 @@ anywhere.
 
 *******************************************************************************/
 
-void pa_auto(FILE* f, int e)
+void ami_auto(FILE* f, int e)
 
 {
 
@@ -1310,7 +1310,7 @@ Enable or disable cursor visibility.
 
 *******************************************************************************/
 
-void pa_curvis(FILE* f, int e)
+void ami_curvis(FILE* f, int e)
 
 {
 
@@ -1328,7 +1328,7 @@ Returns the current location of the cursor in x.
 
 *******************************************************************************/
 
-int pa_curx(FILE* f)
+int ami_curx(FILE* f)
 
 {
 
@@ -1344,7 +1344,7 @@ Returns the current location of the cursor in y.
 
 *******************************************************************************/
 
-int pa_cury(FILE* f)
+int ami_cury(FILE* f)
 
 {
 
@@ -1408,7 +1408,7 @@ static void iselect(int u, int d)
 
 }
 
-void pa_select(FILE* f, int u, int d)
+void ami_select(FILE* f, int u, int d)
 
 {
 
@@ -1483,13 +1483,13 @@ position left.
 
 *******************************************************************************/
 
-void pa_del(FILE* f)
+void ami_del(FILE* f)
 
 {
 
-    pa_left(f); /* back up cursor */
+    ami_left(f); /* back up cursor */
     plcchr(' '); /* blank out */
-    pa_left(f); /* back up again */
+    ami_left(f); /* back up again */
 
 }
 
@@ -1589,7 +1589,7 @@ static int shift(INPUT_RECORD* inpevt)
 
 }
 
-static void keyevent(pa_evtptr er, INPUT_RECORD* inpevt, int* keep)
+static void keyevent(ami_evtptr er, INPUT_RECORD* inpevt, int* keep)
 
 {
 
@@ -1618,20 +1618,20 @@ static void keyevent(pa_evtptr er, INPUT_RECORD* inpevt, int* keep)
         if (inpevt->Event.KeyEvent.uChar.AsciiChar) {
 
             if (inpevt->Event.KeyEvent.uChar.AsciiChar == '\r')
-                er->etype = pa_etenter; /* set enter line */
+                er->etype = ami_etenter; /* set enter line */
             else if (inpevt->Event.KeyEvent.uChar.AsciiChar == '\b')
-                er->etype = pa_etdelcb; /* set delete character backwards */
+                er->etype = ami_etdelcb; /* set delete character backwards */
             else if (inpevt->Event.KeyEvent.uChar.AsciiChar == '\t')
-                er->etype = pa_ettab; /* set tab */
+                er->etype = ami_ettab; /* set tab */
             else if (inpevt->Event.KeyEvent.uChar.AsciiChar == 'C'-64)
-                er->etype = pa_etterm; /* set end program */
+                er->etype = ami_etterm; /* set end program */
             else if (inpevt->Event.KeyEvent.uChar.AsciiChar == 'S'-64)
-                er->etype = pa_etstop; /* set stop program */
+                er->etype = ami_etstop; /* set stop program */
             else if (inpevt->Event.KeyEvent.uChar.AsciiChar == 'Q'-64)
-                er->etype = pa_etcont; /* set continue program */
+                er->etype = ami_etcont; /* set continue program */
             else { /* normal character */
 
-                er->etype = pa_etchar; /* set character event */
+                er->etype = ami_etchar; /* set character event */
                 er->echar = inpevt->Event.KeyEvent.uChar.AsciiChar;
 
             }
@@ -1640,75 +1640,75 @@ static void keyevent(pa_evtptr er, INPUT_RECORD* inpevt, int* keep)
         } else switch (inpevt->Event.KeyEvent.wVirtualKeyCode) { /* key */
 
             case VK_HOME: /* home */
-                if (alt(inpevt) && shift(inpevt)) er->etype = pa_ethome; /* home document */
-                else if (alt(inpevt)) er->etype = pa_ethomes; /* home screen */
-                else er->etype = pa_ethomel; /* home line */
+                if (alt(inpevt) && shift(inpevt)) er->etype = ami_ethome; /* home document */
+                else if (alt(inpevt)) er->etype = ami_ethomes; /* home screen */
+                else er->etype = ami_ethomel; /* home line */
                 *keep = 1; /* set keep event */
                 break;
 
             case VK_END: /* end */
-                if (alt(inpevt) && shift(inpevt)) er->etype = pa_etend; /* end document */
-                else if (alt(inpevt)) er->etype = pa_etends; /* end screen */
-                else er->etype = pa_etendl; /* end line */
+                if (alt(inpevt) && shift(inpevt)) er->etype = ami_etend; /* end document */
+                else if (alt(inpevt)) er->etype = ami_etends; /* end screen */
+                else er->etype = ami_etendl; /* end line */
                 *keep = 1; /* set keep event */
                 break;
 
             case VK_UP: /* up */
-                if (alt(inpevt)) er->etype = pa_etscru; /* scroll up */
-                else er->etype = pa_etup; /* up line */
+                if (alt(inpevt)) er->etype = ami_etscru; /* scroll up */
+                else er->etype = ami_etup; /* up line */
                 *keep = 1; /* set keep event */
                 break;
 
             case VK_DOWN: /* down */
-                if (alt(inpevt)) er->etype = pa_etscrd; /* scroll down */
-                else er->etype = pa_etdown; /* up line */
+                if (alt(inpevt)) er->etype = ami_etscrd; /* scroll down */
+                else er->etype = ami_etdown; /* up line */
                 *keep = 1; /* set keep event */
                 break;
 
             case VK_LEFT: /* left */
-                if (alt(inpevt) && shift(inpevt)) er->etype = pa_etscrl; /* scroll left one character */
-                else if (alt(inpevt)) er->etype = pa_etleftw; /* left one word */
-                else er->etype = pa_etleft; /* left one character */
+                if (alt(inpevt) && shift(inpevt)) er->etype = ami_etscrl; /* scroll left one character */
+                else if (alt(inpevt)) er->etype = ami_etleftw; /* left one word */
+                else er->etype = ami_etleft; /* left one character */
                 *keep = 1; /* set keep event */
                 break;
 
             case VK_RIGHT: /* right */
-                if (alt(inpevt) && shift(inpevt)) er->etype = pa_etscrr; /* scroll right one character */
-                else if (alt(inpevt)) er->etype = pa_etrightw; /* right one word */
-                else er->etype = pa_etright; /* left one character */
+                if (alt(inpevt) && shift(inpevt)) er->etype = ami_etscrr; /* scroll right one character */
+                else if (alt(inpevt)) er->etype = ami_etrightw; /* right one word */
+                else er->etype = ami_etright; /* left one character */
                 *keep = 1; /* set keep event */
                 break;
 
             case VK_INSERT: /* insert */
-                if (cntrl(inpevt) && shift(inpevt)) er->etype = pa_etinsert; /* insert block */
-                else if (cntrl(inpevt)) er->etype = pa_etinsertl; /* insert line */
-                else er->etype = pa_etinsertt; /* insert toggle */
+                if (cntrl(inpevt) && shift(inpevt)) er->etype = ami_etinsert; /* insert block */
+                else if (cntrl(inpevt)) er->etype = ami_etinsertl; /* insert line */
+                else er->etype = ami_etinsertt; /* insert toggle */
                 *keep = 1; /* set keep event */
                 break;
 
             case VK_DELETE: /* delete */
-                if (cntrl(inpevt)) er->etype = pa_etdel; /* delete block */
-                else if (shift(inpevt)) er->etype = pa_etdell; /* delete line */
-                else er->etype = pa_etdelcf; /* delete character forward */
+                if (cntrl(inpevt)) er->etype = ami_etdel; /* delete block */
+                else if (shift(inpevt)) er->etype = ami_etdell; /* delete line */
+                else er->etype = ami_etdelcf; /* delete character forward */
                 *keep = 1; /* set keep event */
                 break;
 
             case VK_PRIOR:
-                er->etype = pa_etpagu; /* page up */
+                er->etype = ami_etpagu; /* page up */
                 *keep = 1; /* set keep event */
                 break;
 
             case VK_NEXT:
-                er->etype = pa_etpagd; /* page down */
+                er->etype = ami_etpagd; /* page down */
                 *keep = 1; /* set keep event */
                 break;
 
             case VK_F1: /* f1 */
-                if (cntrl(inpevt)) er->etype = pa_etcopy; /* copy block */
-                else if (shift(inpevt)) er->etype = pa_etcopyl; /* copy line */
+                if (cntrl(inpevt)) er->etype = ami_etcopy; /* copy block */
+                else if (shift(inpevt)) er->etype = ami_etcopyl; /* copy line */
                 else { /* f1 */
 
-                    er->etype = pa_etfun;
+                    er->etype = ami_etfun;
                     er->fkey = 1;
 
                 }
@@ -1716,11 +1716,11 @@ static void keyevent(pa_evtptr er, INPUT_RECORD* inpevt, int* keep)
                 break;
 
             case VK_F2: /* f2 */
-                if (cntrl(inpevt)) er->etype = pa_etprintb; /* print block */
-                else if (shift(inpevt)) er->etype = pa_etprint; /* print document */
+                if (cntrl(inpevt)) er->etype = ami_etprintb; /* print block */
+                else if (shift(inpevt)) er->etype = ami_etprint; /* print document */
                 else { /* f2 */
 
-                    er->etype = pa_etfun;
+                    er->etype = ami_etfun;
                     er->fkey = 2;
 
                 }
@@ -1728,10 +1728,10 @@ static void keyevent(pa_evtptr er, INPUT_RECORD* inpevt, int* keep)
                 break;
 
             case VK_F3: /* f3 */
-                if (cntrl(inpevt)) er->etype = pa_etprints; /* print screen */
+                if (cntrl(inpevt)) er->etype = ami_etprints; /* print screen */
                 else { /* f3 */
 
-                    er->etype = pa_etfun;
+                    er->etype = ami_etfun;
                     er->fkey = 3;
 
                 }
@@ -1739,66 +1739,66 @@ static void keyevent(pa_evtptr er, INPUT_RECORD* inpevt, int* keep)
                 break;
 
             case VK_F4: /* f4 */
-                er->etype = pa_etfun;
+                er->etype = ami_etfun;
                 er->fkey = 4;
                 *keep = 1; /* set keep event */
                 break;
 
             case VK_F5: /* f5 */
-                er->etype = pa_etfun;
+                er->etype = ami_etfun;
                 er->fkey = 5;
                 *keep = 1; /* set keep event */
                 break;
 
             case VK_F6: /* f6 */
-                er->etype = pa_etfun;
+                er->etype = ami_etfun;
                 er->fkey = 6;
                 *keep = 1; /* set keep event */
                 break;
 
             case VK_F7: /* f7 */
-                er->etype = pa_etfun;
+                er->etype = ami_etfun;
                 er->fkey = 7;
                 *keep = 1; /* set keep event */
                 break;
 
             case VK_F8: /* f8 */
-                er->etype = pa_etfun;
+                er->etype = ami_etfun;
                 er->fkey = 8;
                 *keep = 1; /* set keep event */
                 break;
 
             case VK_F9: /* f9 */
-                er->etype = pa_etfun;
+                er->etype = ami_etfun;
                 er->fkey = 9;
                 *keep = 1; /* set keep event */
                 break;
 
             case VK_F10: /* f10 */
-                er->etype = pa_etfun;
+                er->etype = ami_etfun;
                 er->fkey = 10;
                 *keep = 1; /* set keep event */
                 break;
 
             case VK_F11: /* f11 */
-                er->etype = pa_etfun;
+                er->etype = ami_etfun;
                 er->fkey = 11;
                 *keep = 1; /* set keep event */
                 break;
 
             case VK_F12: /* f12 */
-                er->etype = pa_etfun;
+                er->etype = ami_etfun;
                 er->fkey = 12;
                 *keep = 1; /* set keep event */
                 break;
 
             case VK_MENU:
-                er->etype = pa_etmenu; /* alt */
+                er->etype = ami_etmenu; /* alt */
                 *keep = 1; /* set keep event */
                 break;
 
             case VK_CANCEL:
-                er->etype = pa_etterm; /* ctl-brk */
+                er->etype = ami_etterm; /* ctl-brk */
                 *keep = 1; /* set keep event */
                 break;
 
@@ -1826,14 +1826,14 @@ contempt for the whole double click concept.
 
 /* update mouse parameters */
 
-static void mouseupdate(pa_evtptr er, int* keep)
+static void mouseupdate(ami_evtptr er, int* keep)
 
 {
 
     /* we prioritize events by: movements 1st, button clicks 2nd */
     if (nmpx != mpx || nmpy != mpy) { /* create movement event */
 
-        er->etype = pa_etmoumov; /* set movement event */
+        er->etype = ami_etmoumov; /* set movement event */
         er->mmoun = 1; /* mouse 1 */
         er->moupx = nmpx; /* set new mouse position */
         er->moupy = nmpy;
@@ -1843,7 +1843,7 @@ static void mouseupdate(pa_evtptr er, int* keep)
 
     } else if (nmb1 > mb1) {
 
-        er->etype = pa_etmouba; /* button 1 assert */
+        er->etype = ami_etmouba; /* button 1 assert */
         er->amoun = 1; /* mouse 1 */
         er->amoubn = 1; /* button 1 */
         mb1 = nmb1; /* update status */
@@ -1851,7 +1851,7 @@ static void mouseupdate(pa_evtptr er, int* keep)
 
     } else if (nmb2 > mb2) {
 
-        er->etype = pa_etmouba; /* button 2 assert */
+        er->etype = ami_etmouba; /* button 2 assert */
         er->amoun = 1; /* mouse 1 */
         er->amoubn = 2; /* button 2 */
         mb2 = nmb2; /* update status */
@@ -1859,7 +1859,7 @@ static void mouseupdate(pa_evtptr er, int* keep)
 
     } else if (nmb3 > mb3) {
 
-        er->etype = pa_etmouba; /* button 3 assert */
+        er->etype = ami_etmouba; /* button 3 assert */
         er->amoun = 1; /* mouse 1 */
         er->amoubn = 3; /* button 3 */
         mb3 = nmb3; /* update status */
@@ -1867,7 +1867,7 @@ static void mouseupdate(pa_evtptr er, int* keep)
 
     } else if (nmb4 > mb4) {
 
-        er->etype = pa_etmouba; /* button 4 assert */
+        er->etype = ami_etmouba; /* button 4 assert */
         er->amoun = 1; /* mouse 1 */
         er->amoubn = 4; /* button 4 */
         mb4 = nmb4; /* update status */
@@ -1875,7 +1875,7 @@ static void mouseupdate(pa_evtptr er, int* keep)
 
     } else if (nmb1 < mb1) {
 
-        er->etype = pa_etmoubd; /* button 1 deassert */
+        er->etype = ami_etmoubd; /* button 1 deassert */
         er->dmoun = 1; /* mouse 1 */
         er->dmoubn = 1; /* button 1 */
         mb1 = nmb1; /* update status */
@@ -1883,7 +1883,7 @@ static void mouseupdate(pa_evtptr er, int* keep)
 
     } else if (nmb2 < mb2) {
 
-        er->etype = pa_etmoubd; /* button 2 deassert */
+        er->etype = ami_etmoubd; /* button 2 deassert */
         er->dmoun = 1; /* mouse 1 */
         er->dmoubn = 2; /* button 2 */
         mb2 = nmb2; /* update status */
@@ -1891,7 +1891,7 @@ static void mouseupdate(pa_evtptr er, int* keep)
 
     } else if (nmb3 < mb3) {
 
-        er->etype = pa_etmoubd; /* button 3 deassert */
+        er->etype = ami_etmoubd; /* button 3 deassert */
         er->dmoun = 1; /* mouse 1 */
         er->dmoubn = 3; /* button 3 */
         mb3 = nmb3; /* update status */
@@ -1899,7 +1899,7 @@ static void mouseupdate(pa_evtptr er, int* keep)
 
     } else if (nmb4 < mb4) {
 
-        er->etype = pa_etmoubd; /* button 4 deassert */
+        er->etype = ami_etmoubd; /* button 4 deassert */
         er->dmoun = 1; /* mouse 1 */
         er->dmoubn = 4; /* button 4 */
         mb4 = nmb4; /* update status */
@@ -1927,7 +1927,7 @@ static void mouseevent(INPUT_RECORD* inpevt)
 
 /* issue event for changed button */
 
-static void updn(pa_evtptr er, INPUT_RECORD* inpevt, int* keep, int bn, int bm)
+static void updn(ami_evtptr er, INPUT_RECORD* inpevt, int* keep, int bn, int bm)
 
 {
 
@@ -1935,7 +1935,7 @@ static void updn(pa_evtptr er, INPUT_RECORD* inpevt, int* keep, int bn, int bm)
       one. Windows is ambiguous as to if it will combine such events */
     if (!(inpevt->Event.KeyEvent.wVirtualKeyCode & bm)) { /* assert */
 
-        er->etype = pa_etjoyba; /* set assert */
+        er->etype = ami_etjoyba; /* set assert */
         if (inpevt->Event.KeyEvent.dwControlKeyState == UIV_JOY1BUTTONDOWN ||
             inpevt->Event.KeyEvent.dwControlKeyState == UIV_JOY1BUTTONUP) er->ajoyn = 1;
         else er->ajoyn = 2;
@@ -1943,7 +1943,7 @@ static void updn(pa_evtptr er, INPUT_RECORD* inpevt, int* keep, int bn, int bm)
 
     } else { /* deassert */
 
-        er->etype = pa_etjoybd; /* set deassert */
+        er->etype = ami_etjoybd; /* set deassert */
         if (inpevt->Event.KeyEvent.dwControlKeyState == UIV_JOY1BUTTONDOWN ||
             inpevt->Event.KeyEvent.dwControlKeyState == UIV_JOY1BUTTONUP) er->ajoyn = 1;
         else er->ajoyn = 2;
@@ -1956,7 +1956,7 @@ static void updn(pa_evtptr er, INPUT_RECORD* inpevt, int* keep, int bn, int bm)
 
 /* process joystick messages */
 
-static void joymes(pa_evtptr er, INPUT_RECORD* inpevt, int* keep)
+static void joymes(ami_evtptr er, INPUT_RECORD* inpevt, int* keep)
 
 {
 
@@ -1974,7 +1974,7 @@ static void joymes(pa_evtptr er, INPUT_RECORD* inpevt, int* keep)
 
 /* process custom events */
 
-static void custevent(pa_evtptr er, INPUT_RECORD* inpevt, int* keep)
+static void custevent(ami_evtptr er, INPUT_RECORD* inpevt, int* keep)
 
 {
 
@@ -1983,10 +1983,10 @@ static void custevent(pa_evtptr er, INPUT_RECORD* inpevt, int* keep)
 
     if (inpevt->Event.KeyEvent.dwControlKeyState == UIV_TIM) { /* timer event */
 
-        if (inpevt->Event.KeyEvent.wVirtualKeyCode == FRMTIM) er->etype = pa_etframe;
+        if (inpevt->Event.KeyEvent.wVirtualKeyCode == FRMTIM) er->etype = ami_etframe;
         else {
 
-            er->etype = pa_ettim; /* set timer event occurred */
+            er->etype = ami_ettim; /* set timer event occurred */
             /* set what timer */
             er->timnum = inpevt->Event.KeyEvent.wVirtualKeyCode;
 
@@ -1999,7 +1999,7 @@ static void custevent(pa_evtptr er, INPUT_RECORD* inpevt, int* keep)
                inpevt->Event.KeyEvent.dwControlKeyState == UIV_JOY2ZMOVE) {
 
         /* joystick move */
-        er->etype = pa_etjoymov; /* set joystick moved */
+        er->etype = ami_etjoymov; /* set joystick moved */
         /* set what joystick */
         if (inpevt->Event.KeyEvent.dwControlKeyState == UIV_JOY1MOVE ||
             inpevt->Event.KeyEvent.dwControlKeyState == UIV_JOY1ZMOVE) er->mjoyn = 1;
@@ -2073,14 +2073,14 @@ static void custevent(pa_evtptr er, INPUT_RECORD* inpevt, int* keep)
         joymes(er, inpevt, keep);
     else if (inpevt->Event.KeyEvent.dwControlKeyState == UIV_TERM) {
 
-        er->etype = pa_etterm; /* set end program */
+        er->etype = ami_etterm; /* set end program */
         *keep = 1; /* set keep event */
 
     }
 
 }
 
-static void ievent(pa_evtptr er)
+static void ievent(ami_evtptr er)
 
 {
 
@@ -2113,7 +2113,7 @@ static void ievent(pa_evtptr er)
                     mouseevent(&inpevt); /* mouse event */
                 else if (inpevt.EventType == WINDOW_BUFFER_SIZE_EVENT) {
 
-                    er->etype = pa_etresize; /* set resize */
+                    er->etype = ami_etresize; /* set resize */
                     keep = TRUE; /* set keep event */
                     b = GetConsoleScreenBufferInfo(screens[curupd-1]->han, &bi);
                     /* Compensate for windows scrollback buffer by placing us in
@@ -2143,7 +2143,7 @@ static void ievent(pa_evtptr er)
 
 } /* event */
 
-void pa_event(FILE* f, pa_evtptr er)
+void ami_event(FILE* f, ami_evtptr er)
 
 {
 
@@ -2176,7 +2176,7 @@ call down into the stack by executing the overridden event.
 
 *******************************************************************************/
 
-void pa_eventover(pa_evtcod e, pa_pevthan eh,  pa_pevthan* oeh)
+void ami_eventover(ami_evtcod e, ami_pevthan eh,  ami_pevthan* oeh)
 
 {
 
@@ -2196,7 +2196,7 @@ call down into the stack by executing the overridden event.
 
 *******************************************************************************/
 
-void pa_eventsover(pa_pevthan eh,  pa_pevthan* oeh)
+void ami_eventsover(ami_pevthan eh,  ami_pevthan* oeh)
 
 {
 
@@ -2267,7 +2267,7 @@ static void itimer(int i, /* timer handle */
 
 }
 
-void pa_timer(FILE* f, int i, long t, int r)
+void ami_timer(FILE* f, int i, long t, int r)
 
 {
 
@@ -2283,7 +2283,7 @@ Kills a given timer, by it's id number. Only repeating timers should be killed.
 
 *******************************************************************************/
 
-void pa_killtimer(FILE* f, /* file to kill timer on */
+void ami_killtimer(FILE* f, /* file to kill timer on */
                int   i) /* handle of timer */
 
 {
@@ -2340,7 +2340,7 @@ static void iframetimer(int e)
 
 }
 
-void pa_frametimer(FILE* f, int e)
+void ami_frametimer(FILE* f, int e)
 
 {
 
@@ -2357,7 +2357,7 @@ I suspect they will eventually have to remove this limit.
 
 *******************************************************************************/
 
-int pa_mouse(FILE* f)
+int ami_mouse(FILE* f)
 
 {
 
@@ -2374,7 +2374,7 @@ version.
 
 *******************************************************************************/
 
-int pa_mousebutton(FILE* f, int m)
+int ami_mousebutton(FILE* f, int m)
 
 {
 
@@ -2392,7 +2392,7 @@ Return number of joysticks attached.
 
 *******************************************************************************/
 
-int pa_joystick(FILE* f)
+int ami_joystick(FILE* f)
 
 {
 
@@ -2427,7 +2427,7 @@ static int ijoybutton(int j)
 
 }
 
-int pa_joybutton(FILE* f, int j)
+int ami_joybutton(FILE* f, int j)
 
 {
 
@@ -2445,7 +2445,7 @@ joystick can be considered a slider without positional meaning.
 
 *******************************************************************************/
 
-int pa_joyaxis(FILE* f, int j)
+int ami_joyaxis(FILE* f, int j)
 
 {
 
@@ -2474,7 +2474,7 @@ tab stop that is set. If there is no next tab stop, nothing will happen.
 
 *******************************************************************************/
 
-void pa_settab(FILE* f, int t)
+void ami_settab(FILE* f, int t)
 
 {
 
@@ -2492,7 +2492,7 @@ Resets a tab. The tab number t is 1 to n, and indicates the column for the tab.
 
 *******************************************************************************/
 
-void pa_restab(FILE* f, int t)
+void ami_restab(FILE* f, int t)
 
 {
 
@@ -2511,7 +2511,7 @@ arrangement.
 
 *******************************************************************************/
 
-void pa_clrtab(FILE* f)
+void ami_clrtab(FILE* f)
 
 {
 
@@ -2531,7 +2531,7 @@ int keys as well.
 
 *******************************************************************************/
 
-int pa_funkey(FILE* f)
+int ami_funkey(FILE* f)
 
 {
 
@@ -2562,7 +2562,7 @@ specifically disallowed there.
 
 *******************************************************************************/
 
-void pa_autohold(int e)
+void ami_autohold(int e)
 
 {
 
@@ -2579,7 +2579,7 @@ handling.
 
 *******************************************************************************/
 
-void pa_wrtstrn(FILE* f, char *s, int n)
+void ami_wrtstrn(FILE* f, char *s, int n)
 
 {
 
@@ -2617,11 +2617,11 @@ Writes a string direct to the terminal, bypassing character handling.
 
 *******************************************************************************/
 
-void pa_wrtstr(FILE* f, char *s)
+void ami_wrtstr(FILE* f, char *s)
 
 {
 
-    pa_wrtstrn(f, s, strlen(s));
+    ami_wrtstrn(f, s, strlen(s));
 
 }
 
@@ -2633,7 +2633,7 @@ Sets or resets the size of the buffer surface.
 
 *******************************************************************************/
 
-void pa_sizbuf(FILE* f, int x, int y)
+void ami_sizbuf(FILE* f, int x, int y)
 
 {
 
@@ -2647,7 +2647,7 @@ Sets the title of the current window.
 
 *******************************************************************************/
 
-void pa_title(FILE* f, char* ts)
+void ami_title(FILE* f, char* ts)
     
 { 
 
@@ -2671,7 +2671,7 @@ static void readline(void)
 
 {
 
-    pa_evtrec er;   /* event record */
+    ami_evtrec er;   /* event record */
     scnptr    sc;   /* pointer to current screen */
     int       ins;  /* insert/overwrite mode */
     int       xoff; /* x starting line offset */
@@ -2688,8 +2688,8 @@ static void readline(void)
         ievent(&er); /* get next event */
         switch (er.etype) { /* event */
 
-            case pa_etterm: exit(1); /* halt program */
-            case pa_etenter: /* line terminate */
+            case ami_etterm: exit(1); /* halt program */
+            case ami_etenter: /* line terminate */
                 while (inpbuf[inpptr]) inpptr++; /* advance to end */
                 inpbuf[inpptr] = '\n'; /* return newline */
                 /* terminate the line for debug prints */
@@ -2697,7 +2697,7 @@ static void readline(void)
                 plcchr('\r'); /* output newline sequence */
                 plcchr('\n');
                 break;
-            case pa_etchar: /* character */
+            case ami_etchar: /* character */
                 if (inpptr < MAXLIN-2) {
 
                     if (ins) { /* insert */
@@ -2730,7 +2730,7 @@ static void readline(void)
 
                 }
                 break;
-            case pa_etdelcb: /* delete character backwards */
+            case ami_etdelcb: /* delete character backwards */
                 if (inpptr > 0) { /* not at extreme left */
 
                     inpptr--; /* back up pointer */
@@ -2749,7 +2749,7 @@ static void readline(void)
 
                 }
                 break;
-            case pa_etdelcf: /* delete character forward */
+            case ami_etdelcf: /* delete character forward */
                 if (inpbuf[inpptr]) { /* not at extreme right */
 
                     /* move characters down */
@@ -2766,7 +2766,7 @@ static void readline(void)
 
                 }
                 break;
-            case pa_etright: /* right character */
+            case ami_etright: /* right character */
                 /* not at extreme right, go right */
                 if (inpbuf[inpptr]) {
 
@@ -2776,7 +2776,7 @@ static void readline(void)
                 }
                 break;
 
-            case pa_etleft: /* left character */
+            case ami_etleft: /* left character */
                 /* not at extreme left, go left */
                 if (inpptr > 0) {
 
@@ -2786,11 +2786,11 @@ static void readline(void)
                 }
                 break;
 
-            case pa_etmoumov: /* mouse moved */
+            case ami_etmoumov: /* mouse moved */
                 /* we can track this internally */
                 break;
 
-            case pa_etmouba: /* mouse click */
+            case ami_etmouba: /* mouse click */
                 if (er.amoubn == 1) {
 
                     l = strlen(inpbuf);
@@ -2806,7 +2806,7 @@ static void readline(void)
                 }
                 break;
 
-            case pa_ethomel: /* beginning of line */
+            case ami_ethomel: /* beginning of line */
                 /* back up to start of line */
                 while (inpptr) {
 
@@ -2816,7 +2816,7 @@ static void readline(void)
                 }
                 break;
 
-            case pa_etendl: /* end of line */
+            case ami_etendl: /* end of line */
                 /* go to end of line */
                 while (inpbuf[inpptr]) {
 
@@ -2826,11 +2826,11 @@ static void readline(void)
                 }
                 break;
 
-            case pa_etinsertt: /* toggle insert mode */
+            case ami_etinsertt: /* toggle insert mode */
                 ins = !ins; /* toggle insert mode */
                 break;
 
-            case pa_etdell: /* delete whole line */
+            case ami_etdell: /* delete whole line */
                 /* back up to start of line */
                 while (inpptr) {
 
@@ -2855,7 +2855,7 @@ static void readline(void)
                 inpbuf[inpptr] = 0; /* clear line */
                 break;
 
-            case pa_etleftw: /* left word */
+            case ami_etleftw: /* left word */
                 /* back over any spaces */
                 while (inpptr && inpbuf[inpptr-1] == ' ') {
 
@@ -2872,7 +2872,7 @@ static void readline(void)
                 }
                 break;
 
-            case pa_etrightw: /* right word */
+            case ami_etrightw: /* right word */
                 /* advance over any non-space */
                 while (inpbuf[inpptr] && inpbuf[inpptr] != ' ') {
 
@@ -2893,7 +2893,7 @@ static void readline(void)
 
         }
 
-    } while (er.etype != pa_etenter); /* until line terminate */
+    } while (er.etype != ami_etenter); /* until line terminate */
     inpptr = 0; /* set 1st position on active line */
 
 }
@@ -3301,15 +3301,15 @@ before the client program runs.
 
 *******************************************************************************/
 
-static void pa_init_terminal (void) __attribute__((constructor (102)));
-static void pa_init_terminal(void)
+static void ami_init_terminal (void) __attribute__((constructor (102)));
+static void ami_init_terminal(void)
 
 {
 
     HANDLE h;
     int    ssy;
     BOOL   b;
-    pa_evtcod e;
+    ami_evtcod e;
 
     /* override system calls for basic I/O */
     ovr_read(iread, &ofpread);
@@ -3352,7 +3352,7 @@ static void pa_init_terminal(void)
 
     /* clear event vector table */
     evtshan = defaultevent;
-    for (e = pa_etchar; e <= pa_etframe; e++) evthan[e] = defaultevent;
+    for (e = ami_etchar; e <= ami_etframe; e++) evthan[e] = defaultevent;
 
     /* clear screen context table */
     for (cix = 0; cix < MAXCON; cix++) screens[cix] = NULL;
@@ -3426,8 +3426,8 @@ and that should be corrected.
 
 *******************************************************************************/
 
-static void pa_deinit_terminal (void) __attribute__((destructor (102)));
-static void pa_deinit_terminal(void)
+static void ami_deinit_terminal (void) __attribute__((destructor (102)));
+static void ami_deinit_terminal(void)
 
 {
 

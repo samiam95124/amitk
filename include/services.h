@@ -45,158 +45,158 @@ extern "C" {
 /* attributes */
 typedef enum {
 
-    pa_atexec, /* is an executable file type */
-    pa_atarc,  /* has been archived since last modification */
-    pa_atsys,  /* is a system special file */
-    pa_atdir,  /* is a directory special file */
-    pa_atloop  /* contains heriarchy loop */
+    ami_atexec, /* is an executable file type */
+    ami_atarc,  /* has been archived since last modification */
+    ami_atsys,  /* is a system special file */
+    ami_atdir,  /* is a directory special file */
+    ami_atloop  /* contains heriarchy loop */
 
-} pa_attribute;
-typedef long pa_attrset; /* attributes in a set */
+} ami_attribute;
+typedef long ami_attrset; /* attributes in a set */
 
 /* permissions */
 typedef enum {
 
-    pa_pmread,  /* may be read */
-    pa_pmwrite, /* may be written */
-    pa_pmexec,  /* may be executed */
-    pa_pmdel,   /* may be deleted */
-    pa_pmvis,   /* may be seen in directory listings */
-    pa_pmcopy,  /* may be copied */
-    pa_pmren    /* may be renamed/moved */
+    ami_pmread,  /* may be read */
+    ami_pmwrite, /* may be written */
+    ami_pmexec,  /* may be executed */
+    ami_pmdel,   /* may be deleted */
+    ami_pmvis,   /* may be seen in directory listings */
+    ami_pmcopy,  /* may be copied */
+    ami_pmren    /* may be renamed/moved */
 
-} pa_permission;
-typedef long pa_permset; /* permissions in a set */
+} ami_permission;
+typedef long ami_permset; /* permissions in a set */
 
 /* standard directory format */
-typedef struct pa_filrec {
+typedef struct ami_filrec {
 
     char*              name;    /* name of file (zero terminated) */
     long               namel;   /* length of filename */
     long long          size;    /* size of file */
     long long          alloc;   /* allocation of file */
-    pa_attrset         attr;    /* attributes */
+    ami_attrset         attr;    /* attributes */
     long               create;  /* time of creation */
     long               modify;  /* time of last modification */
     long               access;  /* time of last access */
     long               backup;  /* time of last backup */
-    pa_permset         user;    /* user permissions */
-    pa_permset         group;   /* group permissions */
-    pa_permset         other;   /* other permissions */
-    struct pa_filrec*  next;    /* next entry in list */
+    ami_permset         user;    /* user permissions */
+    ami_permset         group;   /* group permissions */
+    ami_permset         other;   /* other permissions */
+    struct ami_filrec*  next;    /* next entry in list */
 
-} pa_filrec;
-typedef pa_filrec* pa_filptr; /* pointer to file records */
+} ami_filrec;
+typedef ami_filrec* ami_filptr; /* pointer to file records */
 
 /* environment strings */
-typedef struct pa_envrec {
+typedef struct ami_envrec {
 
     char* name;    /* name of string (zero terminated) */
     char* data;    /* data in string (zero terminated) */
-    struct pa_envrec *next; /* next entry in list */
+    struct ami_envrec *next; /* next entry in list */
 
-} pa_envrec;
-typedef pa_envrec* pa_envptr; /* pointer to environment record */
+} ami_envrec;
+typedef ami_envrec* ami_envptr; /* pointer to environment record */
 
 /* character set */
-typedef unsigned char pa_chrset[CSETLEN];
+typedef unsigned char ami_chrset[CSETLEN];
 
 /*
  * Functions exposed in the services module
  */
-extern void pa_list(char* f, pa_filrec **lp);
-extern void pa_listl(char* f, int l, pa_filrec **lp);
-extern void pa_times(char* s, int sl, int t);
-extern void pa_dates(char* s, int sl, int t);
-extern void pa_writetime(FILE *f, int t);
-extern void pa_writedate(FILE *f, int t);
-extern long pa_time(void);
-extern long pa_local(long t);
-extern long pa_clock(void);
-extern long pa_elapsed(long r);
-extern int  pa_validfile(char* s);
-extern int  pa_validfilel(char* s, int l);
-extern int  pa_validpath(char* s);
-extern int  pa_validpathl(char* s, int l);
-extern int  pa_wild(char* s);
-extern int  pa_wildl(char* s, int l);
-extern void pa_getenv(char* ls, char* ds, int dsl);
-extern void pa_getenvl(char* ls, int lsl, char* ds, int dsl);
-extern void pa_setenv(char* sn, char* sd);
-extern void pa_setenvl(char* sn, int snl, char* sd, int sdl);
-extern void pa_allenv(pa_envrec **el);
-extern void pa_remenv(char* sn);
-extern void pa_remenvl(char* sn, int snl);
-extern void pa_exec(char* cmd);
-extern void pa_execl(char* cmd, int cmdl);
-extern void pa_exece(char* cmd, pa_envrec *el);
-extern void pa_execel(char* cmd, int cmdl, pa_envrec *el);
-extern void pa_execw(char* cmd, int *e);
-extern void pa_execwl(char* cmd, int cmdl, int *e);
-extern void pa_execew(char* cmd, pa_envrec *el, int *e);
-extern void pa_execewl(char* cmd, int cmdl, pa_envrec *el, int *e);
-extern void pa_getcur(char* fn, int l);
-extern void pa_setcur(char* fn);
-extern void pa_setcurl(char* fn, int fnl);
-extern void pa_brknam(char* fn, char* p, int pl, char* n, int nl, char* e, int el);
-extern void pa_brknaml(char* fn, int fnl, char* p, int pl, char* n, int nl, char* e, int el);
-extern void pa_maknam(char* fn, int fnl, char* p, char* n, char* e);
-extern void pa_maknaml(char* fn, int fnl, char* p, int pl, char* n, int nl, char* e, int el);
-extern void pa_fulnam(char* fn, int fnl);
-extern void pa_getpgm(char* p, int pl);
-extern void pa_getusr(char* fn, int fnl);
-extern void pa_setatr(char* fn, pa_attrset a);
-extern void pa_setatrl(char* fn, int fnl, pa_attrset a);
-extern void pa_resatr(char* fn, pa_attrset a);
-extern void pa_resatrl(char* fn, int fnl, pa_attrset a);
-extern void pa_bakupd(char* fn);
-extern void pa_bakupdl(char* fn, int fnl);
-extern void pa_setuper(char* fn, pa_permset p);
-extern void pa_setuperl(char* fn, int fnl, pa_permset p);
-extern void pa_resuper(char* fn, pa_permset p);
-extern void pa_resuperl(char* fn, int fnl, pa_permset p);
-extern void pa_setgper(char* fn, pa_permset p);
-extern void pa_setgperl(char* fn, int fnl, pa_permset p);
-extern void pa_resgper(char* fn, pa_permset p);
-extern void pa_resgperl(char* fn, int fnl, pa_permset p);
-extern void pa_setoper(char* fn, pa_permset p);
-extern void pa_setoperl(char* fn, int fnl, pa_permset p);
-extern void pa_resoper(char* fn, pa_permset p);
-extern void pa_resoperl(char* fn, int fnl, pa_permset p);
-extern void pa_makpth(char* fn);
-extern void pa_makpthl(char* fn, int fnl);
-extern void pa_rempth(char* fn);
-extern void pa_rempthl(char* fn, int fnl);
-extern void pa_filchr(pa_chrset fc);
-extern char pa_optchr(void);
-extern char pa_pthchr(void);
-extern int  pa_latitude(void);
-extern int  pa_longitude(void);
-extern int  pa_altitude(void);
-extern int  pa_country(void);
-extern void pa_countrys(char* s, int sl, int c);
-extern int  pa_timezone(void);
-extern int  pa_daysave(void);
-extern int  pa_time24hour(void);
-extern int  pa_language(void);
-extern void pa_languages(char* s, int sl, int l);
-extern char pa_decimal(void);
-extern char pa_numbersep(void);
-extern int  pa_timeorder(void);
-extern int  pa_dateorder(void);
-extern char pa_datesep(void);
-extern char pa_timesep(void);
-extern char pa_currchr(void);
-extern int pa_newthread(void (*threadmain)(void));
-extern int pa_initlock(void);
-extern void pa_deinitlock(int ln);
-extern void pa_lock(int ln);
-extern void pa_unlock(int ln);
-extern int pa_initsig(void);
-extern void pa_deinitsig(int sn);
-extern void pa_sendsig(int sn);
-extern void pa_sendsigone(int sn);
-extern void pa_waitsig(int ln, int sn);
+extern void ami_list(char* f, ami_filrec **lp);
+extern void ami_listl(char* f, int l, ami_filrec **lp);
+extern void ami_times(char* s, int sl, int t);
+extern void ami_dates(char* s, int sl, int t);
+extern void ami_writetime(FILE *f, int t);
+extern void ami_writedate(FILE *f, int t);
+extern long ami_time(void);
+extern long ami_local(long t);
+extern long ami_clock(void);
+extern long ami_elapsed(long r);
+extern int  ami_validfile(char* s);
+extern int  ami_validfilel(char* s, int l);
+extern int  ami_validpath(char* s);
+extern int  ami_validpathl(char* s, int l);
+extern int  ami_wild(char* s);
+extern int  ami_wildl(char* s, int l);
+extern void ami_getenv(char* ls, char* ds, int dsl);
+extern void ami_getenvl(char* ls, int lsl, char* ds, int dsl);
+extern void ami_setenv(char* sn, char* sd);
+extern void ami_setenvl(char* sn, int snl, char* sd, int sdl);
+extern void ami_allenv(ami_envrec **el);
+extern void ami_remenv(char* sn);
+extern void ami_remenvl(char* sn, int snl);
+extern void ami_exec(char* cmd);
+extern void ami_execl(char* cmd, int cmdl);
+extern void ami_exece(char* cmd, ami_envrec *el);
+extern void ami_execel(char* cmd, int cmdl, ami_envrec *el);
+extern void ami_execw(char* cmd, int *e);
+extern void ami_execwl(char* cmd, int cmdl, int *e);
+extern void ami_execew(char* cmd, ami_envrec *el, int *e);
+extern void ami_execewl(char* cmd, int cmdl, ami_envrec *el, int *e);
+extern void ami_getcur(char* fn, int l);
+extern void ami_setcur(char* fn);
+extern void ami_setcurl(char* fn, int fnl);
+extern void ami_brknam(char* fn, char* p, int pl, char* n, int nl, char* e, int el);
+extern void ami_brknaml(char* fn, int fnl, char* p, int pl, char* n, int nl, char* e, int el);
+extern void ami_maknam(char* fn, int fnl, char* p, char* n, char* e);
+extern void ami_maknaml(char* fn, int fnl, char* p, int pl, char* n, int nl, char* e, int el);
+extern void ami_fulnam(char* fn, int fnl);
+extern void ami_getpgm(char* p, int pl);
+extern void ami_getusr(char* fn, int fnl);
+extern void ami_setatr(char* fn, ami_attrset a);
+extern void ami_setatrl(char* fn, int fnl, ami_attrset a);
+extern void ami_resatr(char* fn, ami_attrset a);
+extern void ami_resatrl(char* fn, int fnl, ami_attrset a);
+extern void ami_bakupd(char* fn);
+extern void ami_bakupdl(char* fn, int fnl);
+extern void ami_setuper(char* fn, ami_permset p);
+extern void ami_setuperl(char* fn, int fnl, ami_permset p);
+extern void ami_resuper(char* fn, ami_permset p);
+extern void ami_resuperl(char* fn, int fnl, ami_permset p);
+extern void ami_setgper(char* fn, ami_permset p);
+extern void ami_setgperl(char* fn, int fnl, ami_permset p);
+extern void ami_resgper(char* fn, ami_permset p);
+extern void ami_resgperl(char* fn, int fnl, ami_permset p);
+extern void ami_setoper(char* fn, ami_permset p);
+extern void ami_setoperl(char* fn, int fnl, ami_permset p);
+extern void ami_resoper(char* fn, ami_permset p);
+extern void ami_resoperl(char* fn, int fnl, ami_permset p);
+extern void ami_makpth(char* fn);
+extern void ami_makpthl(char* fn, int fnl);
+extern void ami_rempth(char* fn);
+extern void ami_rempthl(char* fn, int fnl);
+extern void ami_filchr(ami_chrset fc);
+extern char ami_optchr(void);
+extern char ami_pthchr(void);
+extern int  ami_latitude(void);
+extern int  ami_longitude(void);
+extern int  ami_altitude(void);
+extern int  ami_country(void);
+extern void ami_countrys(char* s, int sl, int c);
+extern int  ami_timezone(void);
+extern int  ami_daysave(void);
+extern int  ami_time24hour(void);
+extern int  ami_language(void);
+extern void ami_languages(char* s, int sl, int l);
+extern char ami_decimal(void);
+extern char ami_numbersep(void);
+extern int  ami_timeorder(void);
+extern int  ami_dateorder(void);
+extern char ami_datesep(void);
+extern char ami_timesep(void);
+extern char ami_currchr(void);
+extern int ami_newthread(void (*threadmain)(void));
+extern int ami_initlock(void);
+extern void ami_deinitlock(int ln);
+extern void ami_lock(int ln);
+extern void ami_unlock(int ln);
+extern int ami_initsig(void);
+extern void ami_deinitsig(int sn);
+extern void ami_sendsig(int sn);
+extern void ami_sendsigone(int sn);
+extern void ami_waitsig(int ln, int sn);
 
 #ifdef __cplusplus
 }

@@ -222,8 +222,8 @@ extern char *program_invocation_short_name;
 
 #define EVTOVER(name) \
 APIOVER(name##over) \
-void pa_##name##over(pa_ev##name##_t eh, pa_ev##name##_t* oeh) { (*name##over_vect)(eh, oeh); } \
-static void name##over_ivf(pa_ev##name##_t eh, pa_ev##name##_t* oeh) { \
+void ami_##name##over(ami_ev##name##_t eh, ami_ev##name##_t* oeh) { (*name##over_vect)(eh, oeh); } \
+static void name##over_ivf(ami_ev##name##_t eh, ami_ev##name##_t* oeh) { \
     dbg_printf(dlapi, "API\n"); \
     pthread_mutex_lock(&termlock); /* lock terminal broadlock */ \
     *oeh = ev##name##_vect; /* save existing event handler */ \
@@ -276,8 +276,8 @@ typedef struct {
     /* foreground color at location */ int forergb;
     /* background color at location */ int backrgb;
 #else
-    /* foreground color at location */ pa_color forec;
-    /* background color at location */ pa_color backc;
+    /* foreground color at location */ ami_color forec;
+    /* background color at location */ ami_color backc;
 #endif
     /* active attribute at location */ scnatt attr;
 
@@ -309,7 +309,7 @@ typedef struct paevtque {
 
     struct paevtque* next; /* next in list */
     struct paevtque* last; /* last in list */
-    pa_evtrec       evt;  /* event data */
+    ami_evtrec       evt;  /* event data */
 
 } paevtque;
 
@@ -329,7 +329,7 @@ typedef struct paevtque {
  *
  */
 
-char *keytab[pa_etterm+1+MAXFKEY] = {
+char *keytab[ami_etterm+1+MAXFKEY] = {
 
     /* Common controls are:
     Codes                   Meaning                   IBM-PC keyboard equivalents */
@@ -523,58 +523,58 @@ static _pa_focus_t       focus_vect;
 /*
  * Event override vectors
  */
-static pa_evchar_t    evchar_vect;
-static pa_evup_t      evup_vect;
-static pa_evdown_t    evdown_vect;
-static pa_evleft_t    evleft_vect;
-static pa_evright_t   evright_vect;
-static pa_evleftw_t   evleftw_vect;
-static pa_evrightw_t  evrightw_vect;
-static pa_evhome_t    evhome_vect;
-static pa_evhomes_t   evhomes_vect;
-static pa_evhomel_t   evhomel_vect;
-static pa_evend_t     evend_vect;
-static pa_evends_t    evends_vect;
-static pa_evendl_t    evendl_vect;
-static pa_evscrl_t    evscrl_vect;
-static pa_evscrr_t    evscrr_vect;
-static pa_evscru_t    evscru_vect;
-static pa_evscrd_t    evscrd_vect;
-static pa_evpagd_t    evpagd_vect;
-static pa_evpagu_t    evpagu_vect;
-static pa_evtab_t     evtab_vect;
-static pa_eventer_t   eventer_vect;
-static pa_evinsert_t  evinsert_vect;
-static pa_evinsertl_t evinsertl_vect;
-static pa_evinsertt_t evinsertt_vect;
-static pa_evdel_t     evdel_vect;
-static pa_evdell_t    evdell_vect;
-static pa_evdelcf_t   evdelcf_vect;
-static pa_evdelcb_t   evdelcb_vect;
-static pa_evcopy_t    evcopy_vect;
-static pa_evcopyl_t   evcopyl_vect;
-static pa_evcan_t     evcan_vect;
-static pa_evstop_t    evstop_vect;
-static pa_evcont_t    evcont_vect;
-static pa_evprint_t   evprint_vect;
-static pa_evprintb_t  evprintb_vect;
-static pa_evprints_t  evprints_vect;
-static pa_evfun_t     evfun_vect;
-static pa_evmenu_t    evmenu_vect;
-static pa_evmouba_t   evmouba_vect;
-static pa_evmoubd_t   evmoubd_vect;
-static pa_evmoumov_t  evmoumov_vect;
-static pa_evtim_t     evtim_vect;
-static pa_evjoyba_t   evjoyba_vect;
-static pa_evjoybd_t   evjoybd_vect;
-static pa_evjoymov_t  evjoymov_vect;
-static pa_evresize_t  evresize_vect;
-static pa_evfocus_t   evfocus_vect;
-static pa_evnofocus_t evnofocus_vect;
-static pa_evhover_t   evhover_vect;
-static pa_evnohover_t evnohover_vect;
-static pa_evterm_t    evterm_vect;
-static pa_evframe_t   evframe_vect;
+static ami_evchar_t    evchar_vect;
+static ami_evup_t      evup_vect;
+static ami_evdown_t    evdown_vect;
+static ami_evleft_t    evleft_vect;
+static ami_evright_t   evright_vect;
+static ami_evleftw_t   evleftw_vect;
+static ami_evrightw_t  evrightw_vect;
+static ami_evhome_t    evhome_vect;
+static ami_evhomes_t   evhomes_vect;
+static ami_evhomel_t   evhomel_vect;
+static ami_evend_t     evend_vect;
+static ami_evends_t    evends_vect;
+static ami_evendl_t    evendl_vect;
+static ami_evscrl_t    evscrl_vect;
+static ami_evscrr_t    evscrr_vect;
+static ami_evscru_t    evscru_vect;
+static ami_evscrd_t    evscrd_vect;
+static ami_evpagd_t    evpagd_vect;
+static ami_evpagu_t    evpagu_vect;
+static ami_evtab_t     evtab_vect;
+static ami_eventer_t   eventer_vect;
+static ami_evinsert_t  evinsert_vect;
+static ami_evinsertl_t evinsertl_vect;
+static ami_evinsertt_t evinsertt_vect;
+static ami_evdel_t     evdel_vect;
+static ami_evdell_t    evdell_vect;
+static ami_evdelcf_t   evdelcf_vect;
+static ami_evdelcb_t   evdelcb_vect;
+static ami_evcopy_t    evcopy_vect;
+static ami_evcopyl_t   evcopyl_vect;
+static ami_evcan_t     evcan_vect;
+static ami_evstop_t    evstop_vect;
+static ami_evcont_t    evcont_vect;
+static ami_evprint_t   evprint_vect;
+static ami_evprintb_t  evprintb_vect;
+static ami_evprints_t  evprints_vect;
+static ami_evfun_t     evfun_vect;
+static ami_evmenu_t    evmenu_vect;
+static ami_evmouba_t   evmouba_vect;
+static ami_evmoubd_t   evmoubd_vect;
+static ami_evmoumov_t  evmoumov_vect;
+static ami_evtim_t     evtim_vect;
+static ami_evjoyba_t   evjoyba_vect;
+static ami_evjoybd_t   evjoybd_vect;
+static ami_evjoymov_t  evjoymov_vect;
+static ami_evresize_t  evresize_vect;
+static ami_evfocus_t   evfocus_vect;
+static ami_evnofocus_t evnofocus_vect;
+static ami_evhover_t   evhover_vect;
+static ami_evnohover_t evnohover_vect;
+static ami_evterm_t    evterm_vect;
+static ami_evframe_t   evframe_vect;
 
 /*
  * Event override override vectors
@@ -673,9 +673,9 @@ static pthread_mutex_t termlock;        /* broadlock for terminal calls */
 static scnrec* screens[MAXCON];         /* screen contexts array */ 
 static int curdsp;                      /* index for current display screen */ 
 static int curupd;                      /* index for current update screen */ 
-static pa_pevthan evthan[pa_etframe+1]; /* array of event handler routines */ 
-static pa_pevthan evtshan;              /* single master event handler routine */
-static pa_errhan error_vect;            /* PA error handler override */
+static ami_pevthan evthan[ami_etframe+1]; /* array of event handler routines */ 
+static ami_pevthan evtshan;              /* single master event handler routine */
+static ami_errhan error_vect;            /* PA error handler override */
 static _pa_linuxerrhan linuxerror_vect;  /* Linux system error handler override */
 
 static int*     tabs;        /* tabs set */
@@ -689,9 +689,9 @@ static int      ncurx;       /* new cursor position on screen */
 static int      ncury;
 static int      curval;      /* physical cursor position valid */
 static int      curvis;      /* current status of cursor visible */
-static pa_color forec;       /* current writing foreground color primaries */
+static ami_color forec;       /* current writing foreground color primaries */
 static int      forergb;     /* foreground color in RGB */
-static pa_color backc;       /* current writing background color primaries */
+static ami_color backc;       /* current writing background color primaries */
 static int      backrgb;     /* background color in RGB */
 static scnatt   attr;        /* current writing attribute */
 /* global scroll enable. This does not reflect the physical state, we never
@@ -748,54 +748,54 @@ Prints the given error in ASCII text, then aborts the program.
 
 *******************************************************************************/
 
-void pa_errorover(pa_errhan nfp, pa_errhan* ofp)
+void ami_errorover(ami_errhan nfp, ami_errhan* ofp)
     { *ofp = error_vect; error_vect = nfp; }
-static void error(pa_errcod e) { (*error_vect)(e); }
-static void error_ivf(pa_errcod e)
+static void error(ami_errcod e) { (*error_vect)(e); }
+static void error_ivf(ami_errcod e)
 
 {
 
     fprintf(stderr, "*** Error: xterm: ");
     switch (e) { /* error */
 
-        case pa_dispeftbful: fprintf(stderr, "Too many files"); break;
-        case pa_dispejoyacc: fprintf(stderr, "No joystick access available"); break;
-        case pa_dispetimacc: fprintf(stderr, "No timer access available"); break;
-        case pa_dispefilopr: fprintf(stderr, "Cannot perform operation on special file"); break;
-        case pa_dispeinvpos: fprintf(stderr, "Invalid screen position"); break;
-        case pa_dispefilzer: fprintf(stderr, "Filename is empty"); break;
-        case pa_dispeinvscn: fprintf(stderr, "Invalid screen number"); break;
-        case pa_dispeinvhan: fprintf(stderr, "Invalid file handle"); break;
-        case pa_dispeinvthn: fprintf(stderr, "Invalid timer handle"); break;
-        case pa_dispemouacc: fprintf(stderr, "No mouse access available"); break;
-        case pa_dispeoutdev: fprintf(stderr, "Error in output device"); break;
-        case pa_dispeinpdev: fprintf(stderr, "Error in input device"); break;
-        case pa_dispeinvtab: fprintf(stderr, "Invalid tab stop position"); break;
-        case pa_dispeinvjoy: fprintf(stderr, "Invalid joystick ID"); break;
-        case pa_dispecfgval: fprintf(stderr, "Invalid configuration value"); break;
-        case pa_dispenomem: fprintf(stderr, "Out of memory"); break;
-        case pa_dispesendevent_unimp: fprintf(stderr, "sendevent unimplemented"); break;
-        case pa_dispeopenwin_unimp: fprintf(stderr, "openwin unimplemented"); break;
-        case pa_dispebuffer_unimp: fprintf(stderr, "buffer unimplemented"); break;
-        case pa_dispesizbuf_unimp: fprintf(stderr, "sizbuf unimplemented"); break;
-        case pa_dispegetsiz_unimp: fprintf(stderr, "getsiz unimplemented"); break;
-        case pa_dispesetsiz_unimp: fprintf(stderr, "setsiz unimplemented"); break;
-        case pa_dispesetpos_unimp: fprintf(stderr, "setpos unimplemented"); break;
-        case pa_dispescnsiz_unimp: fprintf(stderr, "scnsiz unimplemented"); break;
-        case pa_dispescncen_unimp: fprintf(stderr, "scncen unimplemented"); break;
-        case pa_dispewinclient_unimp: fprintf(stderr, "winclient unimplemented"); break;
-        case pa_dispefront_unimp: fprintf(stderr, "front unimplemented"); break;
-        case pa_dispeback_unimp: fprintf(stderr, "back unimplemented"); break;
-        case pa_dispeframe_unimp: fprintf(stderr, "frame unimplemented"); break;
-        case pa_dispesizable_unimp: fprintf(stderr, "sizable unimplemented"); break;
-        case pa_dispesysbar_unimp: fprintf(stderr, "sysbar unimplemented"); break;
-        case pa_dispemenu_unimp: fprintf(stderr, "menu unimplemented"); break;
-        case pa_dispemenuena_unimp: fprintf(stderr, "menuena unimplemented"); break;
-        case pa_dispemenusel_unimp: fprintf(stderr, "menusel unimplemented"); break;
-        case pa_dispestdmenu_unimp: fprintf(stderr, "stdmenu unimplemented"); break;
-        case pa_dispegetwinid_unimp: fprintf(stderr, "getwinid unimplemented"); break;
-        case pa_dispefocus_unimp: fprintf(stderr, "focus unimplemented"); break;
-        case pa_dispesystem: fprintf(stderr, "System fault"); break;
+        case ami_dispeftbful: fprintf(stderr, "Too many files"); break;
+        case ami_dispejoyacc: fprintf(stderr, "No joystick access available"); break;
+        case ami_dispetimacc: fprintf(stderr, "No timer access available"); break;
+        case ami_dispefilopr: fprintf(stderr, "Cannot perform operation on special file"); break;
+        case ami_dispeinvpos: fprintf(stderr, "Invalid screen position"); break;
+        case ami_dispefilzer: fprintf(stderr, "Filename is empty"); break;
+        case ami_dispeinvscn: fprintf(stderr, "Invalid screen number"); break;
+        case ami_dispeinvhan: fprintf(stderr, "Invalid file handle"); break;
+        case ami_dispeinvthn: fprintf(stderr, "Invalid timer handle"); break;
+        case ami_dispemouacc: fprintf(stderr, "No mouse access available"); break;
+        case ami_dispeoutdev: fprintf(stderr, "Error in output device"); break;
+        case ami_dispeinpdev: fprintf(stderr, "Error in input device"); break;
+        case ami_dispeinvtab: fprintf(stderr, "Invalid tab stop position"); break;
+        case ami_dispeinvjoy: fprintf(stderr, "Invalid joystick ID"); break;
+        case ami_dispecfgval: fprintf(stderr, "Invalid configuration value"); break;
+        case ami_dispenomem: fprintf(stderr, "Out of memory"); break;
+        case ami_dispesendevent_unimp: fprintf(stderr, "sendevent unimplemented"); break;
+        case ami_dispeopenwin_unimp: fprintf(stderr, "openwin unimplemented"); break;
+        case ami_dispebuffer_unimp: fprintf(stderr, "buffer unimplemented"); break;
+        case ami_dispesizbuf_unimp: fprintf(stderr, "sizbuf unimplemented"); break;
+        case ami_dispegetsiz_unimp: fprintf(stderr, "getsiz unimplemented"); break;
+        case ami_dispesetsiz_unimp: fprintf(stderr, "setsiz unimplemented"); break;
+        case ami_dispesetpos_unimp: fprintf(stderr, "setpos unimplemented"); break;
+        case ami_dispescnsiz_unimp: fprintf(stderr, "scnsiz unimplemented"); break;
+        case ami_dispescncen_unimp: fprintf(stderr, "scncen unimplemented"); break;
+        case ami_dispewinclient_unimp: fprintf(stderr, "winclient unimplemented"); break;
+        case ami_dispefront_unimp: fprintf(stderr, "front unimplemented"); break;
+        case ami_dispeback_unimp: fprintf(stderr, "back unimplemented"); break;
+        case ami_dispeframe_unimp: fprintf(stderr, "frame unimplemented"); break;
+        case ami_dispesizable_unimp: fprintf(stderr, "sizable unimplemented"); break;
+        case ami_dispesysbar_unimp: fprintf(stderr, "sysbar unimplemented"); break;
+        case ami_dispemenu_unimp: fprintf(stderr, "menu unimplemented"); break;
+        case ami_dispemenuena_unimp: fprintf(stderr, "menuena unimplemented"); break;
+        case ami_dispemenusel_unimp: fprintf(stderr, "menusel unimplemented"); break;
+        case ami_dispestdmenu_unimp: fprintf(stderr, "stdmenu unimplemented"); break;
+        case ami_dispegetwinid_unimp: fprintf(stderr, "getwinid unimplemented"); break;
+        case ami_dispefocus_unimp: fprintf(stderr, "focus unimplemented"); break;
+        case ami_dispesystem: fprintf(stderr, "System fault"); break;
 
     }
     fprintf(stderr, "\n");
@@ -835,64 +835,64 @@ A diagnostic, print the given event code as a symbol to the error file.
 
 ******************************************************************************/
 
-static void prtevtt(pa_evtcod e)
+static void prtevtt(ami_evtcod e)
 
 {
 
     switch (e) {
 
-        case pa_etchar:    fprintf(stderr, "etchar"); break;
-        case pa_etup:      fprintf(stderr, "etup"); break;
-        case pa_etdown:    fprintf(stderr, "etdown"); break;
-        case pa_etleft:    fprintf(stderr, "etleft"); break;
-        case pa_etright:   fprintf(stderr, "etright"); break;
-        case pa_etleftw:   fprintf(stderr, "etleftw"); break;
-        case pa_etrightw:  fprintf(stderr, "etrightw"); break;
-        case pa_ethome:    fprintf(stderr, "ethome"); break;
-        case pa_ethomes:   fprintf(stderr, "ethomes"); break;
-        case pa_ethomel:   fprintf(stderr, "ethomel"); break;
-        case pa_etend:     fprintf(stderr, "etend"); break;
-        case pa_etends:    fprintf(stderr, "etends"); break;
-        case pa_etendl:    fprintf(stderr, "etendl"); break;
-        case pa_etscrl:    fprintf(stderr, "etscrl"); break;
-        case pa_etscrr:    fprintf(stderr, "etscrr"); break;
-        case pa_etscru:    fprintf(stderr, "etscru"); break;
-        case pa_etscrd:    fprintf(stderr, "etscrd"); break;
-        case pa_etpagd:    fprintf(stderr, "etpagd"); break;
-        case pa_etpagu:    fprintf(stderr, "etpagu"); break;
-        case pa_ettab:     fprintf(stderr, "ettab"); break;
-        case pa_etenter:   fprintf(stderr, "etenter"); break;
-        case pa_etinsert:  fprintf(stderr, "etinsert"); break;
-        case pa_etinsertl: fprintf(stderr, "etinsertl"); break;
-        case pa_etinsertt: fprintf(stderr, "etinsertt"); break;
-        case pa_etdel:     fprintf(stderr, "etdel"); break;
-        case pa_etdell:    fprintf(stderr, "etdell"); break;
-        case pa_etdelcf:   fprintf(stderr, "etdelcf"); break;
-        case pa_etdelcb:   fprintf(stderr, "etdelcb"); break;
-        case pa_etcopy:    fprintf(stderr, "etcopy"); break;
-        case pa_etcopyl:   fprintf(stderr, "etcopyl"); break;
-        case pa_etcan:     fprintf(stderr, "etcan"); break;
-        case pa_etstop:    fprintf(stderr, "etstop"); break;
-        case pa_etcont:    fprintf(stderr, "etcont"); break;
-        case pa_etprint:   fprintf(stderr, "etprint"); break;
-        case pa_etprintb:  fprintf(stderr, "etprintb"); break;
-        case pa_etprints:  fprintf(stderr, "etprints"); break;
-        case pa_etfun:     fprintf(stderr, "etfun"); break;
-        case pa_etmenu:    fprintf(stderr, "etmenu"); break;
-        case pa_etmouba:   fprintf(stderr, "etmouba"); break;
-        case pa_etmoubd:   fprintf(stderr, "etmoubd"); break;
-        case pa_etmoumov:  fprintf(stderr, "etmoumov"); break;
-        case pa_ettim:     fprintf(stderr, "ettim"); break;
-        case pa_etjoyba:   fprintf(stderr, "etjoyba"); break;
-        case pa_etjoybd:   fprintf(stderr, "etjoybd"); break;
-        case pa_etjoymov:  fprintf(stderr, "etjoymov"); break;
-        case pa_etresize:  fprintf(stderr, "etresize"); break;
-        case pa_etfocus:   fprintf(stderr, "etfocus"); break;
-        case pa_etnofocus: fprintf(stderr, "etnofocus"); break;
-        case pa_ethover:   fprintf(stderr, "ethover"); break;
-        case pa_etnohover: fprintf(stderr, "etnohover"); break;
-        case pa_etterm:    fprintf(stderr, "etterm"); break;
-        case pa_etframe:   fprintf(stderr, "etframe"); break;
+        case ami_etchar:    fprintf(stderr, "etchar"); break;
+        case ami_etup:      fprintf(stderr, "etup"); break;
+        case ami_etdown:    fprintf(stderr, "etdown"); break;
+        case ami_etleft:    fprintf(stderr, "etleft"); break;
+        case ami_etright:   fprintf(stderr, "etright"); break;
+        case ami_etleftw:   fprintf(stderr, "etleftw"); break;
+        case ami_etrightw:  fprintf(stderr, "etrightw"); break;
+        case ami_ethome:    fprintf(stderr, "ethome"); break;
+        case ami_ethomes:   fprintf(stderr, "ethomes"); break;
+        case ami_ethomel:   fprintf(stderr, "ethomel"); break;
+        case ami_etend:     fprintf(stderr, "etend"); break;
+        case ami_etends:    fprintf(stderr, "etends"); break;
+        case ami_etendl:    fprintf(stderr, "etendl"); break;
+        case ami_etscrl:    fprintf(stderr, "etscrl"); break;
+        case ami_etscrr:    fprintf(stderr, "etscrr"); break;
+        case ami_etscru:    fprintf(stderr, "etscru"); break;
+        case ami_etscrd:    fprintf(stderr, "etscrd"); break;
+        case ami_etpagd:    fprintf(stderr, "etpagd"); break;
+        case ami_etpagu:    fprintf(stderr, "etpagu"); break;
+        case ami_ettab:     fprintf(stderr, "ettab"); break;
+        case ami_etenter:   fprintf(stderr, "etenter"); break;
+        case ami_etinsert:  fprintf(stderr, "etinsert"); break;
+        case ami_etinsertl: fprintf(stderr, "etinsertl"); break;
+        case ami_etinsertt: fprintf(stderr, "etinsertt"); break;
+        case ami_etdel:     fprintf(stderr, "etdel"); break;
+        case ami_etdell:    fprintf(stderr, "etdell"); break;
+        case ami_etdelcf:   fprintf(stderr, "etdelcf"); break;
+        case ami_etdelcb:   fprintf(stderr, "etdelcb"); break;
+        case ami_etcopy:    fprintf(stderr, "etcopy"); break;
+        case ami_etcopyl:   fprintf(stderr, "etcopyl"); break;
+        case ami_etcan:     fprintf(stderr, "etcan"); break;
+        case ami_etstop:    fprintf(stderr, "etstop"); break;
+        case ami_etcont:    fprintf(stderr, "etcont"); break;
+        case ami_etprint:   fprintf(stderr, "etprint"); break;
+        case ami_etprintb:  fprintf(stderr, "etprintb"); break;
+        case ami_etprints:  fprintf(stderr, "etprints"); break;
+        case ami_etfun:     fprintf(stderr, "etfun"); break;
+        case ami_etmenu:    fprintf(stderr, "etmenu"); break;
+        case ami_etmouba:   fprintf(stderr, "etmouba"); break;
+        case ami_etmoubd:   fprintf(stderr, "etmoubd"); break;
+        case ami_etmoumov:  fprintf(stderr, "etmoumov"); break;
+        case ami_ettim:     fprintf(stderr, "ettim"); break;
+        case ami_etjoyba:   fprintf(stderr, "etjoyba"); break;
+        case ami_etjoybd:   fprintf(stderr, "etjoybd"); break;
+        case ami_etjoymov:  fprintf(stderr, "etjoymov"); break;
+        case ami_etresize:  fprintf(stderr, "etresize"); break;
+        case ami_etfocus:   fprintf(stderr, "etfocus"); break;
+        case ami_etnofocus: fprintf(stderr, "etnofocus"); break;
+        case ami_ethover:   fprintf(stderr, "ethover"); break;
+        case ami_etnohover: fprintf(stderr, "etnohover"); break;
+        case ami_etterm:    fprintf(stderr, "etterm"); break;
+        case ami_etframe:   fprintf(stderr, "etframe"); break;
 
         default: fprintf(stderr, "???");
 
@@ -913,7 +913,7 @@ before calling this routine.
 ******************************************************************************/
 
 static void prtevt(
-    /** Event record */ pa_evtptr er
+    /** Event record */ ami_evtptr er
 )
 
 {
@@ -922,23 +922,23 @@ static void prtevt(
     prtevtt(er->etype);
     switch (er->etype) {
 
-        case pa_etchar: fprintf(stderr, ": char: %c", er->echar); break;
-        case pa_ettim: fprintf(stderr, ": timer: %d", er->timnum); break;
-        case pa_etmoumov: fprintf(stderr, ": mouse: %d x: %4d y: %4d",
+        case ami_etchar: fprintf(stderr, ": char: %c", er->echar); break;
+        case ami_ettim: fprintf(stderr, ": timer: %d", er->timnum); break;
+        case ami_etmoumov: fprintf(stderr, ": mouse: %d x: %4d y: %4d",
                                   er->mmoun, er->moupx, er->moupy); break;
-        case pa_etmouba: fprintf(stderr, ": mouse: %d button: %d",
+        case ami_etmouba: fprintf(stderr, ": mouse: %d button: %d",
                                  er->amoun, er->amoubn); break;
-        case pa_etmoubd: fprintf(stderr, ": mouse: %d button: %d",
+        case ami_etmoubd: fprintf(stderr, ": mouse: %d button: %d",
                                  er->dmoun, er->dmoubn); break;
-        case pa_etjoyba: fprintf(stderr, ": joystick: %d button: %d",
+        case ami_etjoyba: fprintf(stderr, ": joystick: %d button: %d",
                                  er->ajoyn, er->ajoybn); break;
-        case pa_etjoybd: fprintf(stderr, ": joystick: %d button: %d",
+        case ami_etjoybd: fprintf(stderr, ": joystick: %d button: %d",
                                  er->djoyn, er->djoybn); break;
-        case pa_etjoymov: fprintf(stderr, ": joystick: %d x: %4d y: %4d z: %4d "
+        case ami_etjoymov: fprintf(stderr, ": joystick: %d x: %4d y: %4d z: %4d "
                                   "a4: %4d a5: %4d a6: %4d", er->mjoyn,
                                   er->joypx, er->joypy, er->joypz,
                                   er->joyp4, er->joyp5, er->joyp6); break;
-        case pa_etfun: fprintf(stderr, ": key: %d", er->fkey); break;
+        case ami_etfun: fprintf(stderr, ": key: %d", er->fkey); break;
         default: ;
 
     }
@@ -994,7 +994,7 @@ static char getchr(void)
     /* receive character to the next hander in the override chain */
     rc = (*ofpread)(INPFIL, &c, 1);
     // rc = read(INPFIL, &c, 1);
-    if (rc != 1) error(pa_dispeinpdev); /* input device error */
+    if (rc != 1) error(ami_dispeinpdev); /* input device error */
 
     return c; /* return character */
 
@@ -1020,7 +1020,7 @@ static void putchr(unsigned char c)
     /* send character to the next hander in the override chain */
     rc = (*ofpwrite)(OUTFIL, &c, 1);
 
-    if (rc != 1) error(pa_dispeoutdev); /* output device error */
+    if (rc != 1) error(ami_dispeoutdev); /* output device error */
 
 }
 
@@ -1155,7 +1155,7 @@ static paevtque* getpaevt(void)
     /* set invalid fields */
     p->next = NULL;
     p->last = NULL;
-    p->evt.etype = pa_etsys;
+    p->evt.etype = ami_etsys;
 
     return (p);
 
@@ -1177,7 +1177,7 @@ static void putpaevt(paevtque* p)
 
     /* set invalid fields for use after free */
     p->last = NULL;
-    p->evt.etype = pa_etsys;
+    p->evt.etype = ami_etsys;
     p->next = paqfre; /* push to list */
     paqfre = p;
 
@@ -1214,7 +1214,7 @@ static void prtquepaevt(void)
 
             r = pthread_mutex_unlock(&evtlck); /* release event queue */
             if (r) linuxerror(r);
-            error(pa_dispesystem); /* go error */
+            error(ami_dispesystem); /* go error */
 
         }
 
@@ -1235,7 +1235,7 @@ Should be called only within lock context.
 
 *******************************************************************************/
 
-static void remdupque(pa_evtrec* e)
+static void remdupque(ami_evtrec* e)
 
 {
 
@@ -1247,10 +1247,10 @@ static void remdupque(pa_evtrec* e)
         p = paqevt; /* index first queue entry */
         do { /* run around the bubble */
 
-            if ((e->etype == pa_etmoumov && p->evt.etype == pa_etmoumov &&
+            if ((e->etype == ami_etmoumov && p->evt.etype == ami_etmoumov &&
                  e->mmoun == p->evt.mmoun) ||
-                (e->etype == pa_etresize && p->evt.etype == pa_etresize) ||
-                (e->etype == pa_etjoymov && p->evt.etype == pa_etjoymov &&
+                (e->etype == ami_etresize && p->evt.etype == ami_etresize) ||
+                (e->etype == ami_etjoymov && p->evt.etype == ami_etjoymov &&
                  e->mjoyn == p->evt.mjoyn)) {
 
                 /* matching entry, remove */
@@ -1287,7 +1287,7 @@ Place PA event into input queue
 
 *******************************************************************************/
 
-static void enquepaevt(pa_evtrec* e)
+static void enquepaevt(ami_evtrec* e)
 
 {
 
@@ -1298,7 +1298,7 @@ static void enquepaevt(pa_evtrec* e)
     if (r) linuxerror(r);
     remdupque(e); /* remove any duplicates */
     p = getpaevt(); /* get a queue entry */
-    memcpy(&p->evt, e, sizeof(pa_evtrec)); /* copy event to queue entry */
+    memcpy(&p->evt, e, sizeof(ami_evtrec)); /* copy event to queue entry */
     if (paqevt) { /* there are entries in queue */
 
         /* we push TO next (current) and take FROM last (final) */
@@ -1331,7 +1331,7 @@ Remove PA event from input queue
 
 *******************************************************************************/
 
-static void dequepaevt(pa_evtrec* e)
+static void dequepaevt(ami_evtrec* e)
 
 {
 
@@ -1361,7 +1361,7 @@ static void dequepaevt(pa_evtrec* e)
         p->next->last = p->last; /* point current at last */
 
     }
-    memcpy(e, &p->evt, sizeof(pa_evtrec)); /* copy out to caller */
+    memcpy(e, &p->evt, sizeof(ami_evtrec)); /* copy out to caller */
     putpaevt(p); /* release queue entry to free */
     evtquecnt--; /* count entries in queue */
     r = pthread_mutex_unlock(&evtlck); /* release event queue */
@@ -1378,7 +1378,7 @@ ANSI compliant terminal..
 
 *******************************************************************************/
 
-static int colnum(pa_color c)
+static int colnum(ami_color c)
 
 {
 
@@ -1387,14 +1387,14 @@ static int colnum(pa_color c)
     /* translate color number */
     switch (c) { /* color */
 
-        case pa_black:   n = 0; break;
-        case pa_white:   n = 7; break;
-        case pa_red:     n = 1; break;
-        case pa_green:   n = 2; break;
-        case pa_blue:    n = 4; break;
-        case pa_cyan:    n = 6; break;
-        case pa_yellow:  n = 3; break;
-        case pa_magenta: n = 5; break;
+        case ami_black:   n = 0; break;
+        case ami_white:   n = 7; break;
+        case ami_red:     n = 1; break;
+        case ami_green:   n = 2; break;
+        case ami_blue:    n = 4; break;
+        case ami_cyan:    n = 6; break;
+        case ami_yellow:  n = 3; break;
+        case ami_magenta: n = 5; break;
 
     }
 
@@ -1410,7 +1410,7 @@ Translates a primary color code to RGB colors.
 
 ******************************************************************************/
 
-static void colnumrgb(pa_color c, int* r, int* g, int* b)
+static void colnumrgb(ami_color c, int* r, int* g, int* b)
 
 {
 
@@ -1419,14 +1419,14 @@ static void colnumrgb(pa_color c, int* r, int* g, int* b)
     /* translate color number */
     switch (c) { /* color */
 
-        case pa_black:     *r = 0x00; *g = 0x00; *b = 0x00; break;
-        case pa_white:     *r = 0xff; *g = 0xff; *b = 0xff; break;
-        case pa_red:       *r = 0xff; *g = 0x00; *b = 0x00; break;
-        case pa_green:     *r = 0x00; *g = 0xff; *b = 0x00; break;
-        case pa_blue:      *r = 0x00; *g = 0x00; *b = 0xff; break;
-        case pa_cyan:      *r = 0x00; *g = 0xff; *b = 0xff; break;
-        case pa_yellow:    *r = 0xff; *g = 0xff; *b = 0x00; break;
-        case pa_magenta:   *r = 0xff; *g = 0x00; *b = 0xff; break;
+        case ami_black:     *r = 0x00; *g = 0x00; *b = 0x00; break;
+        case ami_white:     *r = 0xff; *g = 0xff; *b = 0xff; break;
+        case ami_red:       *r = 0xff; *g = 0x00; *b = 0x00; break;
+        case ami_green:     *r = 0x00; *g = 0xff; *b = 0x00; break;
+        case ami_blue:      *r = 0x00; *g = 0x00; *b = 0xff; break;
+        case ami_cyan:      *r = 0x00; *g = 0xff; *b = 0xff; break;
+        case ami_yellow:    *r = 0xff; *g = 0xff; *b = 0x00; break;
+        case ami_magenta:   *r = 0xff; *g = 0x00; *b = 0xff; break;
 
     }
 
@@ -1440,7 +1440,7 @@ Translates an independent to a packed RGB color word.
 
 ******************************************************************************/
 
-static int colnumrgbp(pa_color c)
+static int colnumrgbp(ami_color c)
 
 {
 
@@ -1449,14 +1449,14 @@ static int colnumrgbp(pa_color c)
     /* translate color number */
     switch (c) { /* color */
 
-        case pa_black:     n = 0x000000; break;
-        case pa_white:     n = 0xffffff; break;
-        case pa_red:       n = 0xff0000; break;
-        case pa_green:     n = 0x00ff00; break;
-        case pa_blue:      n = 0x0000ff; break;
-        case pa_cyan:      n = 0x00ffff; break;
-        case pa_yellow:    n = 0xffff00; break;
-        case pa_magenta:   n = 0xff00ff; break;
+        case ami_black:     n = 0x000000; break;
+        case ami_white:     n = 0xffffff; break;
+        case ami_red:       n = 0xff0000; break;
+        case ami_green:     n = 0x00ff00; break;
+        case ami_blue:      n = 0x0000ff; break;
+        case ami_cyan:      n = 0x00ffff; break;
+        case ami_yellow:    n = 0xffff00; break;
+        case ami_magenta:   n = 0xff00ff; break;
 
     }
 
@@ -1473,23 +1473,23 @@ nearest primary color to the given RGB color.
 
 ******************************************************************************/
 
-static pa_color colrgbnum(int r, int g, int b)
+static ami_color colrgbnum(int r, int g, int b)
 
 {
 
-    pa_color c;
+    ami_color c;
 
     switch ((r > INT_MAX/2) << 2 | (g > INT_MAX/2) << 1 | (b > INT_MAX/2)) {
 
         /* rgb */
-        /* 000 */ case 0: c = pa_black;   break;
-        /* 001 */ case 1: c = pa_blue;    break;
-        /* 010 */ case 2: c = pa_green;   break;
-        /* 011 */ case 3: c = pa_cyan;    break;
-        /* 100 */ case 4: c = pa_red;     break;
-        /* 101 */ case 5: c = pa_magenta; break;
-        /* 110 */ case 6: c = pa_yellow;  break;
-        /* 111 */ case 7: c = pa_white;   break;
+        /* 000 */ case 0: c = ami_black;   break;
+        /* 001 */ case 1: c = ami_blue;    break;
+        /* 010 */ case 2: c = ami_green;   break;
+        /* 011 */ case 3: c = ami_cyan;    break;
+        /* 100 */ case 4: c = ami_red;     break;
+        /* 101 */ case 5: c = ami_magenta; break;
+        /* 110 */ case 6: c = ami_yellow;  break;
+        /* 111 */ case 7: c = ami_white;   break;
 
     }
 
@@ -1587,7 +1587,7 @@ static void trm_bcolorrgb(int rgb)
 }
 
 /** set foreground color */
-static void trm_fcolor(pa_color c)
+static void trm_fcolor(ami_color c)
 
 {
 
@@ -1605,7 +1605,7 @@ static void trm_fcolor(pa_color c)
 #else
     putstrc("\33[");
     /* override "bright" black, which is more like grey */
-    if (c == pa_black) wrtint(ANSIFORECOLORBASE+colnum(c));
+    if (c == ami_black) wrtint(ANSIFORECOLORBASE+colnum(c));
     else wrtint(FORECOLORBASE+colnum(c));
     putstrc("m");
 #endif
@@ -1613,7 +1613,7 @@ static void trm_fcolor(pa_color c)
 }
 
 /** set background color */
-static void trm_bcolor(pa_color c)
+static void trm_bcolor(ami_color c)
 
 {
 
@@ -1631,7 +1631,7 @@ static void trm_bcolor(pa_color c)
 #else
     putstrc("\33[");
     /* override "bright" black, which is more like grey */
-    if (c == pa_black) wrtint(ANSIBACKCOLORBASE+colnum(c));
+    if (c == ami_black) wrtint(ANSIBACKCOLORBASE+colnum(c));
     else wrtint(BACKCOLORBASE+colnum(c));
     putstrc("m");
 #endif
@@ -1866,7 +1866,7 @@ static void restore(scnptr sc)
 #ifdef NATIVE24
     /** color saves */            int fs, bs;
 #else
-    /** color saves */            pa_color fs, bs;
+    /** color saves */            ami_color fs, bs;
 #endif
     /** attribute saves */        scnatt as;
     /** screen element pointer */ scnrec *p;
@@ -2024,7 +2024,7 @@ ievent() is called within the input spooler task only.
 *******************************************************************************/
 
 /* get and process a joystick event */
-static void joyevt(pa_evtrec* er, joyptr jp)
+static void joyevt(ami_evtrec* er, joyptr jp)
 
 {
 
@@ -2039,14 +2039,14 @@ static void joyevt(pa_evtrec* er, joyptr jp)
             /* we use Linux button numbering, because, what the heck */
             if (ev.value) { /* assert */
 
-                er->etype = pa_etjoyba; /* set assert */
+                er->etype = ami_etjoyba; /* set assert */
                 er->ajoyn = jp->no; /* set joystick 1 */
                 er->ajoybn = ev.number+1; /* set button number */
                 enquepaevt(er); /* send to queue */
 
             } else { /* deassert */
 
-                er->etype = pa_etjoybd; /* set assert */
+                er->etype = ami_etjoybd; /* set assert */
                 er->djoyn = jp->no; /* set joystick 1 */
                 er->djoybn = ev.number+1; /* set button number */
                 enquepaevt(er); /* send to queue */
@@ -2068,7 +2068,7 @@ static void joyevt(pa_evtrec* er, joyptr jp)
                out, leaving just the buttons to respond */
             if (ev.number < 6) {
 
-                er->etype = pa_etjoymov; /* set joystick move */
+                er->etype = ami_etjoymov; /* set joystick move */
                 er->mjoyn = jp->no; /* set joystick number */
                 er->joypx = jp->ax; /* place joystick axies */
                 er->joypy = jp->ay;
@@ -2109,7 +2109,7 @@ static void ievent(void)
 {
 
     int       pmatch;  /* partial match found */
-    pa_evtcod i;       /* index for events */
+    ami_evtcod i;       /* index for events */
     int       rv;      /* return value */
     int       evtfnd;  /* found an event */
     int       ti;      /* index for timers */
@@ -2121,7 +2121,7 @@ static void ievent(void)
     joyptr    jp;
     int       bn;      /* mouse button number */
     int       ba;      /* mouse button assert */
-    pa_evtrec er;      /* event record */
+    ami_evtrec er;      /* event record */
 
     mousts = mnone; /* set no mouse event being processed */
     do { /* match input events */
@@ -2136,25 +2136,25 @@ static void ievent(void)
             if (mousts == mnone) { /* do table matching */
 
                 pmatch = 0; /* set no partial matches */
-                for (i = pa_etchar; i <= pa_etterm+MAXFKEY && !evtfnd; i++)
+                for (i = ami_etchar; i <= ami_etterm+MAXFKEY && !evtfnd; i++)
                     if (!strncmpus(keybuf, keytab[i], keylen)) {
 
                     pmatch = 1; /* set partial match */
                     /* set if the match is whole key */
                     if (strlen(keytab[i]) == keylen) {
 
-                        if (i == pa_etmoumov)
+                        if (i == ami_etmoumov)
                             /* mouse move leader, start state machine */
                             mousts = mbutton; /* set next is button state */
                         else {
 
                             /* complete match found, set as event */
-                            if (i > pa_etterm) { /* it's a function key */
+                            if (i > ami_etterm) { /* it's a function key */
 
-                                er.etype = pa_etfun;
+                                er.etype = ami_etfun;
                                 /* compensate for F12 subsitution */
-                                if (i == pa_etterm+MAXFKEY) er.fkey = 10;
-                                else er.fkey = i-pa_etterm;
+                                if (i == ami_etterm+MAXFKEY) er.fkey = 10;
+                                else er.fkey = i-ami_etterm;
 
                             } else er.etype = i; /* set event */
                             evtfnd = 1; /* set event found */
@@ -2165,7 +2165,7 @@ static void ievent(void)
                             /* if its an unresponsive program timeout, we can
                                handle the termination right here */
                             if (unresponsekill && respto && 
-                                er.etype == pa_etterm) exit(1);
+                                er.etype == ami_etterm) exit(1);
 
                         }
 
@@ -2180,7 +2180,7 @@ static void ievent(void)
                     if (keylen > 1) keylen = 0;
                     else if (keylen == 1) { /* have valid character */
 
-                        er.etype = pa_etchar; /* set event */
+                        er.etype = ami_etchar; /* set event */
                         er.echar = keybuf[0]; /* place character */
                         evtfnd = 1; /* set event found */
                         enquepaevt(&er); /* send to queue */
@@ -2273,7 +2273,7 @@ static void ievent(void)
                 if (timtbl[ti] == sev.lse) {
 
                     /* timer found, set as event */
-                    er.etype = pa_ettim; /* set timer type */
+                    er.etype = ami_ettim; /* set timer type */
                     er.timnum = ti+1; /* set timer number */
                     evtfnd = 1; /* set event found */
                     enquepaevt(&er); /* send to queue */
@@ -2285,7 +2285,7 @@ static void ievent(void)
             /* check the frame timer */
             if (!evtfnd && sev.lse == frmsev) {
 
-                er.etype = pa_etframe; /* set frame event occurred */
+                er.etype = ami_etframe; /* set frame event occurred */
                 evtfnd = TRUE; /* set event found */
                 enquepaevt(&er); /* send to queue */
 
@@ -2294,7 +2294,7 @@ static void ievent(void)
             /* check the hover timer */
             if (!evtfnd && sev.lse == hovsev && hover) {
 
-                er.etype = pa_etnohover; /* set no hover event occurred */
+                er.etype = ami_etnohover; /* set no hover event occurred */
                 evtfnd = TRUE; /* set event found */
                 enquepaevt(&er); /* send to queue */
                 hover = FALSE; /* remove hover status */
@@ -2304,7 +2304,7 @@ static void ievent(void)
             /* check the finish blink timer */
             if (!evtfnd && sev.lse == blksev) {
 
-                er.etype = pa_etsys; /* set system timer event occurred */
+                er.etype = ami_etsys; /* set system timer event occurred */
                 evtfnd = TRUE; /* set event found */
                 enquepaevt(&er); /* send to queue */
 
@@ -2337,7 +2337,7 @@ static void ievent(void)
         } else if (sev.typ == se_sig && !evtfnd && sev.lse == winchsev) {
 
             findsize(&dimxs, &dimys); /* get new size */
-            er.etype = pa_etresize;
+            er.etype = ami_etresize;
             er.rszx = dimxs; /* send new size in message */
             er.rszy = dimys;
             evtfnd = 1;
@@ -2350,7 +2350,7 @@ static void ievent(void)
             /* check any mouse states have changed, flag and remove */
             if (nbutton1 < button1) {
 
-                er.etype = pa_etmouba;
+                er.etype = ami_etmouba;
                 er.amoun = 1;
                 er.amoubn = 1;
                 evtfnd = 1;
@@ -2359,7 +2359,7 @@ static void ievent(void)
 
             } else if (nbutton1 > button1) {
 
-                er.etype = pa_etmoubd;
+                er.etype = ami_etmoubd;
                 er.dmoun = 1;
                 er.dmoubn = 1;
                 evtfnd = 1;
@@ -2368,7 +2368,7 @@ static void ievent(void)
 
             } else if (nbutton2 < button2) {
 
-                er.etype = pa_etmouba;
+                er.etype = ami_etmouba;
                 er.amoun = 1;
                 er.amoubn = 2;
                 evtfnd = 1;
@@ -2377,7 +2377,7 @@ static void ievent(void)
 
             } else if (nbutton2 > button2) {
 
-                er.etype = pa_etmoubd;
+                er.etype = ami_etmoubd;
                 er.dmoun = 1;
                 er.dmoubn = 2;
                 evtfnd = 1;
@@ -2386,7 +2386,7 @@ static void ievent(void)
 
             } else if (nbutton3 < button3) {
 
-                er.etype = pa_etmouba;
+                er.etype = ami_etmouba;
                 er.amoun = 1;
                 er.amoubn = 3;
                 evtfnd = 1;
@@ -2395,7 +2395,7 @@ static void ievent(void)
 
             } else if (nbutton3 > button3) {
 
-                er.etype = pa_etmoubd;
+                er.etype = ami_etmoubd;
                 er.dmoun = 1;
                 er.dmoubn = 3;
                 evtfnd = 1;
@@ -2404,7 +2404,7 @@ static void ievent(void)
 
             } if (nmpx != mpx || nmpy != mpy) {
 
-                er.etype = pa_etmoumov;
+                er.etype = ami_etmoumov;
                 er.mmoun = 1;
                 er.moupx = nmpx;
                 er.moupy = nmpy;
@@ -2416,7 +2416,7 @@ static void ievent(void)
                    hover is activated */
                 if (!hover) {
 
-                    er.etype = pa_ethover;
+                    er.etype = ami_ethover;
                     evtfnd = 1;
                     enquepaevt(&er); /* send to queue */
                     hover = TRUE; /* activate hover */
@@ -2447,7 +2447,7 @@ static void* eventtask(void* param)
 
 {
 
-    pa_evtrec er; /* event record */
+    ami_evtrec er; /* event record */
 
     ievent(); /* process events (forever) */
 
@@ -2578,10 +2578,10 @@ static void iniscn(scnptr sc)
     ncurx = 1;
     /* these attributes and colors are pretty much windows 95 specific. The
        Bizarre setting of "blink" actually allows access to bright white */
-    forec = pa_black; /* set colors and attributes */
-    forergb = colnumrgbp(pa_black);
-    backc = pa_white;
-    backrgb = colnumrgbp(pa_white);
+    forec = ami_black; /* set colors and attributes */
+    forergb = colnumrgbp(ami_black);
+    backc = ami_white;
+    backrgb = colnumrgbp(ami_white);
     attr = sanone;
     curvis = curon; /* set cursor visible from curent state */
     clrbuf(sc); /* clear screen buffer with that */
@@ -2598,7 +2598,7 @@ which will cause the event to return to the event() caller.
 
 *******************************************************************************/
 
-static void defaultevent(pa_evtrec* ev)
+static void defaultevent(ami_evtrec* ev)
 
 {
 
@@ -2649,7 +2649,7 @@ static void iscroll(scnptr sc, int x, int y)
 {
 
     int      xi, yi; /* screen counters */
-    pa_color fs, bs; /* color saves */
+    ami_color fs, bs; /* color saves */
     scnatt   as;     /* attribute saves */
     scnrec*  scnsav; /* full screen buffer save */
     int      lx;     /* last unmatching character index */
@@ -3141,7 +3141,7 @@ static void readline(void)
 
 {
 
-    pa_evtrec er;   /* event record */
+    ami_evtrec er;   /* event record */
     scnptr    sc;   /* pointer to current screen */
     int       ins;  /* insert/overwrite mode */
     int       xoff; /* x starting line offset */
@@ -3156,12 +3156,12 @@ static void readline(void)
     do { /* get line characters */
 
         pthread_mutex_unlock(&termlock); /* release terminal broadlock */
-        pa_event(stdin, &er); /* get next event */
+        ami_event(stdin, &er); /* get next event */
         pthread_mutex_lock(&termlock); /* lock terminal broadlock */
         switch (er.etype) { /* event */
 
-            case pa_etterm: exit(1); /* halt program */
-            case pa_etenter: /* line terminate */
+            case ami_etterm: exit(1); /* halt program */
+            case ami_etenter: /* line terminate */
                 while (inpbuf[inpptr]) inpptr++; /* advance to end */
                 inpbuf[inpptr] = '\n'; /* return newline */
                 /* terminate the line for debug prints */
@@ -3169,7 +3169,7 @@ static void readline(void)
                 plcchr(sc, '\r'); /* output newline sequence */
                 plcchr(sc, '\n');
                 break;
-            case pa_etchar: /* character */
+            case ami_etchar: /* character */
                 if (inpptr < MAXLIN-2) {
 
                     if (ins) { /* insert */
@@ -3202,7 +3202,7 @@ static void readline(void)
 
                 }
                 break;
-            case pa_etdelcb: /* delete character backwards */
+            case ami_etdelcb: /* delete character backwards */
                 if (inpptr > 0) { /* not at extreme left */
 
                     inpptr--; /* back up pointer */
@@ -3221,7 +3221,7 @@ static void readline(void)
 
                 }
                 break;
-            case pa_etdelcf: /* delete character forward */
+            case ami_etdelcf: /* delete character forward */
                 if (inpbuf[inpptr]) { /* not at extreme right */
 
                     /* move characters down */
@@ -3238,7 +3238,7 @@ static void readline(void)
 
                 }
                 break;
-            case pa_etright: /* right character */
+            case ami_etright: /* right character */
                 /* not at extreme right, go right */
                 if (inpbuf[inpptr]) {
 
@@ -3248,7 +3248,7 @@ static void readline(void)
                 }
                 break;
 
-            case pa_etleft: /* left character */
+            case ami_etleft: /* left character */
                 /* not at extreme left, go left */
                 if (inpptr > 0) {
 
@@ -3258,11 +3258,11 @@ static void readline(void)
                 }
                 break;
 
-            case pa_etmoumov: /* mouse moved */
+            case ami_etmoumov: /* mouse moved */
                 /* we can track this internally */
                 break;
 
-            case pa_etmouba: /* mouse click */
+            case ami_etmouba: /* mouse click */
                 if (er.amoubn == 1) {
 
                     l = strlent(inpbuf);
@@ -3278,7 +3278,7 @@ static void readline(void)
                 }
                 break;
 
-            case pa_ethomel: /* beginning of line */
+            case ami_ethomel: /* beginning of line */
                 /* back up to start of line */
                 while (inpptr) {
 
@@ -3288,7 +3288,7 @@ static void readline(void)
                 }
                 break;
 
-            case pa_etendl: /* end of line */
+            case ami_etendl: /* end of line */
                 /* go to end of line */
                 while (inpbuf[inpptr]) {
 
@@ -3298,11 +3298,11 @@ static void readline(void)
                 }
                 break;
 
-            case pa_etinsertt: /* toggle insert mode */
+            case ami_etinsertt: /* toggle insert mode */
                 ins = !ins; /* toggle insert mode */
                 break;
 
-            case pa_etdell: /* delete whole line */
+            case ami_etdell: /* delete whole line */
                 /* back up to start of line */
                 while (inpptr) {
 
@@ -3327,7 +3327,7 @@ static void readline(void)
                 inpbuf[inpptr] = 0; /* clear line */
                 break;
 
-            case pa_etleftw: /* left word */
+            case ami_etleftw: /* left word */
                 /* back over any spaces */
                 while (inpptr && inpbuf[inpptr-1] == ' ') {
 
@@ -3344,7 +3344,7 @@ static void readline(void)
                 }
                 break;
 
-            case pa_etrightw: /* right word */
+            case ami_etrightw: /* right word */
                 /* advance over any non-space */
                 while (inpbuf[inpptr] && inpbuf[inpptr] != ' ') {
 
@@ -3365,7 +3365,7 @@ static void readline(void)
 
         }
 
-    } while (er.etype != pa_etenter); /* until line terminate */
+    } while (er.etype != ami_etenter); /* until line terminate */
     inpptr = 0; /* set 1st position on active line */
 
 }
@@ -3387,7 +3387,7 @@ static void finish(char* title)
     scnptr    sc;     /* screen buffer */
     scnrec*   p;      /* screen element pointer */
     int       ml;     /* message length */
-    pa_evtrec er;     /* event record */
+    ami_evtrec er;     /* event record */
     int       xi;
     int       i;
     int       xs;
@@ -3438,13 +3438,13 @@ static void finish(char* title)
             /* blank out */
             trm_home(); /* restore cursor to upper left to start */
             setattr(sc, sanone); /* set no attribute */
-            trm_bcolor(pa_black); /* set background color */
-            trm_fcolor(pa_black); /* set foreground color */
+            trm_bcolor(ami_black); /* set background color */
+            trm_fcolor(ami_black); /* set foreground color */
             for (xi = 1; xi <= dimx; xi++) putchr(' '); /* blank out */
             /* draw the "finished" message */
             trm_home(); /* restore cursor to upper left to start */
-            trm_bcolor(pa_black); /* set background color */
-            trm_fcolor(pa_white); /* set foreground color */
+            trm_bcolor(ami_black); /* set background color */
+            trm_fcolor(ami_white); /* set foreground color */
             i = 0; /* set string start */
             xs = dimx/2-ml/2; /* set centered line start */
             if (xs < 1) xs = 1; /* if string too long, clip right */
@@ -3457,11 +3457,11 @@ static void finish(char* title)
             }
 
         }
-        pa_event(stdin, &er);
+        ami_event(stdin, &er);
         /* if the blink timer fires, flip the display */
-        if (er.etype == pa_etsys) bobble = !bobble;
+        if (er.etype == ami_etsys) bobble = !bobble;
         /* let the enter exit via enter */
-        if (er.etype == pa_etenter) fend = TRUE;
+        if (er.etype == ami_etenter) fend = TRUE;
 
     }
 
@@ -3633,7 +3633,7 @@ static off_t ilseek(int fd, off_t offset, int whence)
 
     /* check seeking on terminal attached file (input or output) and error
        if so */
-    if (fd == INPFIL || fd == OUTFIL) error(pa_dispefilopr);
+    if (fd == INPFIL || fd == OUTFIL) error(ami_dispefilopr);
 
     return (*ofplseek)(fd, offset, whence);
 
@@ -3654,7 +3654,7 @@ This is the external interface to cursor.
 *******************************************************************************/
 
 APIOVER(cursor)
-void pa_cursor(FILE* f, int x, int y) { (*cursor_vect)(f, x, y); }
+void ami_cursor(FILE* f, int x, int y) { (*cursor_vect)(f, x, y); }
 static void cursor_ivf(FILE *f, int x, int y)
 
 {
@@ -3675,7 +3675,7 @@ This is the external interface to curbnd.
 *******************************************************************************/
 
 APIOVER(curbnd)
-int pa_curbnd(FILE* f) { return ((*curbnd_vect)(f)); }
+int ami_curbnd(FILE* f) { return ((*curbnd_vect)(f)); }
 static int curbnd_ivf(FILE *f)
 
 {
@@ -3701,7 +3701,7 @@ display. Because ANSI has no information return capability, this is preset.
 *******************************************************************************/
 
 APIOVER(maxx)
-int pa_maxx(FILE* f) { return ((*maxx_vect)(f)); }
+int ami_maxx(FILE* f) { return ((*maxx_vect)(f)); }
 static int maxx_ivf(FILE *f)
 
 {
@@ -3721,7 +3721,7 @@ display. Because ANSI has no information return capability, this is preset.
 *******************************************************************************/
 
 APIOVER(maxy)
-int pa_maxy(FILE* f) { return ((*maxy_vect)(f)); }
+int ami_maxy(FILE* f) { return ((*maxy_vect)(f)); }
 static int maxy_ivf(FILE *f)
 
 {
@@ -3740,7 +3740,7 @@ Moves the cursor to the home position at (1, 1), the upper right hand corner.
 *******************************************************************************/
 
 APIOVER(home)
-void pa_home(FILE* f) { (*home_vect)(f); }
+void ami_home(FILE* f) { (*home_vect)(f); }
 static void home_ivf(FILE *f)
 
 {
@@ -3764,7 +3764,7 @@ position left.
 *******************************************************************************/
 
 APIOVER(del)
-void pa_del(FILE* f) { (*del_vect)(f); }
+void ami_del(FILE* f) { (*del_vect)(f); }
 static void del_ivf(FILE* f)
 
 {
@@ -3787,7 +3787,7 @@ This is the external interface to up.
 *******************************************************************************/
 
 APIOVER(up)
-void pa_up(FILE* f) { (*up_vect)(f); }
+void ami_up(FILE* f) { (*up_vect)(f); }
 static void up_ivf(FILE *f)
 
 {
@@ -3809,7 +3809,7 @@ This is the external interface to down.
 *******************************************************************************/
 
 APIOVER(down)
-void pa_down(FILE* f) { (*down_vect)(f); }
+void ami_down(FILE* f) { (*down_vect)(f); }
 static void down_ivf(FILE *f)
 
 {
@@ -3830,7 +3830,7 @@ This is the external interface to left.
 *******************************************************************************/
 
 APIOVER(left)
-void pa_left(FILE* f) { (*left_vect)(f); }
+void ami_left(FILE* f) { (*left_vect)(f); }
 static void left_ivf(FILE *f)
 
 {
@@ -3851,7 +3851,7 @@ This is the external interface to right.
 *******************************************************************************/
 
 APIOVER(right)
-void pa_right(FILE* f) { (*right_vect)(f); }
+void ami_right(FILE* f) { (*right_vect)(f); }
 static void right_ivf(FILE *f)
 
 {
@@ -3930,7 +3930,7 @@ we are supposed to also work over a com interface.
 *******************************************************************************/
 
 APIOVER(blink)
-void pa_blink(FILE* f, int e) { (*blink_vect)(f, e); }
+void ami_blink(FILE* f, int e) { (*blink_vect)(f, e); }
 static void blink_ivf(FILE *f, int e)
 
 {
@@ -3949,7 +3949,7 @@ Turns on/off the reverse attribute.
 *******************************************************************************/
 
 APIOVER(reverse)
-void pa_reverse(FILE* f, int e) { (*reverse_vect)(f, e); }
+void ami_reverse(FILE* f, int e) { (*reverse_vect)(f, e); }
 static void reverse_ivf(FILE *f, int e)
 
 {
@@ -3968,7 +3968,7 @@ Turns on/off the underline attribute.
 *******************************************************************************/
 
 APIOVER(underline)
-void pa_underline(FILE* f, int e) { (*underline_vect)(f, e); }
+void ami_underline(FILE* f, int e) { (*underline_vect)(f, e); }
 static void underline_ivf(FILE *f, int e)
 
 {
@@ -3987,7 +3987,7 @@ Turns on/off the superscript attribute.
 *******************************************************************************/
 
 APIOVER(superscript)
-void pa_superscript(FILE* f, int e) { (*superscript_vect)(f, e); }
+void ami_superscript(FILE* f, int e) { (*superscript_vect)(f, e); }
 static void superscript_ivf(FILE *f, int e)
 
 {
@@ -4006,7 +4006,7 @@ Turns on/off the subscript attribute.
 *******************************************************************************/
 
 APIOVER(subscript)
-void pa_subscript(FILE* f, int e) { (*subscript_vect)(f, e); }
+void ami_subscript(FILE* f, int e) { (*subscript_vect)(f, e); }
 static void subscript_ivf(FILE *f, int e)
 
 {
@@ -4025,7 +4025,7 @@ Turns on/off the italic attribute.
 *******************************************************************************/
 
 APIOVER(italic)
-void pa_italic(FILE* f, int e) { (*italic_vect)(f, e); }
+void ami_italic(FILE* f, int e) { (*italic_vect)(f, e); }
 static void italic_ivf(FILE *f, int e)
 
 {
@@ -4044,7 +4044,7 @@ Turns on/off the bold attribute.
 *******************************************************************************/
 
 APIOVER(bold)
-void pa_bold(FILE* f, int e) { (*bold_vect)(f, e); }
+void ami_bold(FILE* f, int e) { (*bold_vect)(f, e); }
 static void bold_ivf(FILE *f, int e)
 
 {
@@ -4065,7 +4065,7 @@ Not implemented.
 *******************************************************************************/
 
 APIOVER(strikeout)
-void pa_strikeout(FILE* f, int e) { (*strikeout_vect)(f, e); }
+void ami_strikeout(FILE* f, int e) { (*strikeout_vect)(f, e); }
 static void strikeout_ivf(FILE *f, int e)
 
 {
@@ -4085,13 +4085,13 @@ Note that the attributes can only be set singly.
 *******************************************************************************/
 
 APIOVER(standout)
-void pa_standout(FILE* f, int e) { (*standout_vect)(f, e); }
+void ami_standout(FILE* f, int e) { (*standout_vect)(f, e); }
 static void standout_ivf(FILE *f, int e)
 
 {
 
     dbg_printf(dlapi, "API\n");
-    pa_reverse(f, e); /* implement as reverse */
+    ami_reverse(f, e); /* implement as reverse */
 
 }
 
@@ -4104,8 +4104,8 @@ Sets the foreground (text) color from the universal primary code.
 *******************************************************************************/
 
 APIOVER(fcolor)
-void pa_fcolor(FILE* f, pa_color c) { (*fcolor_vect)(f, c); }
-static void fcolor_ivf(FILE *f, pa_color c)
+void ami_fcolor(FILE* f, ami_color c) { (*fcolor_vect)(f, c); }
+static void fcolor_ivf(FILE *f, ami_color c)
 
 {
 
@@ -4127,8 +4127,8 @@ Sets the background color from the universal primary code.
 *******************************************************************************/
 
 APIOVER(bcolor)
-void pa_bcolor(FILE* f, pa_color c) { (*bcolor_vect)(f, c); }
-static void bcolor_ivf(FILE *f, pa_color c)
+void ami_bcolor(FILE* f, ami_color c) { (*bcolor_vect)(f, c); }
+static void bcolor_ivf(FILE *f, ami_color c)
 
 {
 
@@ -4151,7 +4151,7 @@ off the screen at the top or bottom will scroll up or down, respectively.
 *******************************************************************************/
 
 APIOVER(auto)
-void pa_auto(FILE* f, int e) { (*auto_vect)(f, e); }
+void ami_auto(FILE* f, int e) { (*auto_vect)(f, e); }
 static void auto_ivf(FILE *f, int e)
 
 {
@@ -4172,7 +4172,7 @@ Enable or disable cursor visibility.
 *******************************************************************************/
 
 APIOVER(curvis)
-void pa_curvis(FILE* f, int e) { (*curvis_vect)(f, e); }
+void ami_curvis(FILE* f, int e) { (*curvis_vect)(f, e); }
 static void curvis_ivf(FILE *f, int e)
 
 {
@@ -4195,7 +4195,7 @@ int.
 *******************************************************************************/
 
 APIOVER(scroll)
-void pa_scroll(FILE* f, int x, int y) { (*scroll_vect)(f, x, y); }
+void ami_scroll(FILE* f, int x, int y) { (*scroll_vect)(f, x, y); }
 static void scroll_ivf(FILE *f, int x, int y)
 
 {
@@ -4216,7 +4216,7 @@ Returns the current location of the cursor in x.
 *******************************************************************************/
 
 APIOVER(curx)
-int pa_curx(FILE* f) { return ((*curx_vect)(f)); }
+int ami_curx(FILE* f) { return ((*curx_vect)(f)); }
 static int curx_ivf(FILE *f)
 
 {
@@ -4235,7 +4235,7 @@ Returns the current location of the cursor in y.
 *******************************************************************************/
 
 APIOVER(cury)
-int pa_cury(FILE* f) { return ((*cury_vect)(f)); }
+int ami_cury(FILE* f) { return ((*cury_vect)(f)); }
 static int cury_ivf(FILE *f)
 
 {
@@ -4263,14 +4263,14 @@ Note that split update and display screens are not implemented at present.
 *******************************************************************************/
 
 APIOVER(select)
-void pa_select(FILE* f, int u, int d) { (*select_vect)(f, u, d); }
+void ami_select(FILE* f, int u, int d) { (*select_vect)(f, u, d); }
 static void select_ivf(FILE *f, int u, int d)
 
 {
 
     dbg_printf(dlapi, "API\n");
     if (u < 1 || u > MAXCON || d < 1 || d > MAXCON)
-        error(pa_dispeinvscn); /* invalid screen number */
+        error(ami_dispeinvscn); /* invalid screen number */
     pthread_mutex_lock(&termlock); /* lock terminal broadlock */
     if (curupd != u) { /* update screen changes */
 
@@ -4401,74 +4401,74 @@ that is true if it has handled the given event.
 
 *******************************************************************************/
 
-void evtfnc(pa_evtrec* er)
+void evtfnc(ami_evtrec* er)
 
 {
 
     switch (er->etype) {
 
-        case pa_etchar:    er->handled = (*evchar_vect)(er->echar); break;
-        case pa_etup:      er->handled = (*evup_vect)(); break;    
-        case pa_etdown:    er->handled = (*evdown_vect)(); break;
-        case pa_etleft:    er->handled = (*evleft_vect)(); break;
-        case pa_etright:   er->handled = (*evright_vect)(); break;
-        case pa_etleftw:   er->handled = (*evleftw_vect)(); break;
-        case pa_etrightw:  er->handled = (*evrightw_vect)(); break;
-        case pa_ethome:    er->handled = (*evhome_vect)(); break;
-        case pa_ethomes:   er->handled = (*evhomes_vect)(); break;
-        case pa_ethomel:   er->handled = (*evhomel_vect)(); break;
-        case pa_etend:     er->handled = (*evend_vect)(); break;
-        case pa_etends:    er->handled = (*evends_vect)(); break;
-        case pa_etendl:    er->handled = (*evendl_vect)(); break;
-        case pa_etscrl:    er->handled = (*evscrl_vect)(); break;
-        case pa_etscrr:    er->handled = (*evscrr_vect)(); break;
-        case pa_etscru:    er->handled = (*evscru_vect)(); break;
-        case pa_etscrd:    er->handled = (*evscrd_vect)(); break;
-        case pa_etpagd:    er->handled = (*evpagd_vect)(); break;
-        case pa_etpagu:    er->handled = (*evpagu_vect)(); break;
-        case pa_ettab:     er->handled = (*evtab_vect)(); break;
-        case pa_etenter:   er->handled = (*eventer_vect)(); break;
-        case pa_etinsert:  er->handled = (*evinsert_vect)(); break;
-        case pa_etinsertl: er->handled = (*evinsertl_vect)(); break;
-        case pa_etinsertt: er->handled = (*evinsertt_vect)(); break;
-        case pa_etdel:     er->handled = (*evdel_vect)(); break;
-        case pa_etdell:    er->handled = (*evdell_vect)(); break;
-        case pa_etdelcf:   er->handled = (*evdelcf_vect)(); break;
-        case pa_etdelcb:   er->handled = (*evdelcb_vect)(); break;
-        case pa_etcopy:    er->handled = (*evcopy_vect)(); break;
-        case pa_etcopyl:   er->handled = (*evcopyl_vect)(); break;
-        case pa_etcan:     er->handled = (*evcan_vect)(); break;
-        case pa_etstop:    er->handled = (*evstop_vect)(); break;
-        case pa_etcont:    er->handled = (*evcont_vect)(); break;
-        case pa_etprint:   er->handled = (*evprint_vect)(); break;
-        case pa_etprintb:  er->handled = (*evprintb_vect)(); break;
-        case pa_etprints:  er->handled = (*evprints_vect)(); break;
-        case pa_etfun:     er->handled = (*evfun_vect)(er->fkey); break;
-        case pa_etmenu:    er->handled = (*evmenu_vect)(); break;
-        case pa_etmouba:   er->handled = (*evmouba_vect)(er->amoun, er->amoubn);
+        case ami_etchar:    er->handled = (*evchar_vect)(er->echar); break;
+        case ami_etup:      er->handled = (*evup_vect)(); break;    
+        case ami_etdown:    er->handled = (*evdown_vect)(); break;
+        case ami_etleft:    er->handled = (*evleft_vect)(); break;
+        case ami_etright:   er->handled = (*evright_vect)(); break;
+        case ami_etleftw:   er->handled = (*evleftw_vect)(); break;
+        case ami_etrightw:  er->handled = (*evrightw_vect)(); break;
+        case ami_ethome:    er->handled = (*evhome_vect)(); break;
+        case ami_ethomes:   er->handled = (*evhomes_vect)(); break;
+        case ami_ethomel:   er->handled = (*evhomel_vect)(); break;
+        case ami_etend:     er->handled = (*evend_vect)(); break;
+        case ami_etends:    er->handled = (*evends_vect)(); break;
+        case ami_etendl:    er->handled = (*evendl_vect)(); break;
+        case ami_etscrl:    er->handled = (*evscrl_vect)(); break;
+        case ami_etscrr:    er->handled = (*evscrr_vect)(); break;
+        case ami_etscru:    er->handled = (*evscru_vect)(); break;
+        case ami_etscrd:    er->handled = (*evscrd_vect)(); break;
+        case ami_etpagd:    er->handled = (*evpagd_vect)(); break;
+        case ami_etpagu:    er->handled = (*evpagu_vect)(); break;
+        case ami_ettab:     er->handled = (*evtab_vect)(); break;
+        case ami_etenter:   er->handled = (*eventer_vect)(); break;
+        case ami_etinsert:  er->handled = (*evinsert_vect)(); break;
+        case ami_etinsertl: er->handled = (*evinsertl_vect)(); break;
+        case ami_etinsertt: er->handled = (*evinsertt_vect)(); break;
+        case ami_etdel:     er->handled = (*evdel_vect)(); break;
+        case ami_etdell:    er->handled = (*evdell_vect)(); break;
+        case ami_etdelcf:   er->handled = (*evdelcf_vect)(); break;
+        case ami_etdelcb:   er->handled = (*evdelcb_vect)(); break;
+        case ami_etcopy:    er->handled = (*evcopy_vect)(); break;
+        case ami_etcopyl:   er->handled = (*evcopyl_vect)(); break;
+        case ami_etcan:     er->handled = (*evcan_vect)(); break;
+        case ami_etstop:    er->handled = (*evstop_vect)(); break;
+        case ami_etcont:    er->handled = (*evcont_vect)(); break;
+        case ami_etprint:   er->handled = (*evprint_vect)(); break;
+        case ami_etprintb:  er->handled = (*evprintb_vect)(); break;
+        case ami_etprints:  er->handled = (*evprints_vect)(); break;
+        case ami_etfun:     er->handled = (*evfun_vect)(er->fkey); break;
+        case ami_etmenu:    er->handled = (*evmenu_vect)(); break;
+        case ami_etmouba:   er->handled = (*evmouba_vect)(er->amoun, er->amoubn);
                            break;
-        case pa_etmoubd:   er->handled = (*evmoubd_vect)(er->dmoun, er->dmoubn);
+        case ami_etmoubd:   er->handled = (*evmoubd_vect)(er->dmoun, er->dmoubn);
                            break;
-        case pa_etmoumov:  
+        case ami_etmoumov:  
             er->handled = (*evmoumov_vect)(er->mmoun, er->moupx, er->moupy); 
             break;
-        case pa_ettim:     er->handled = (*evtim_vect)(er->timnum); break;
-        case pa_etjoyba:   er->handled = (*evjoyba_vect)(er->ajoyn, er->ajoybn);
+        case ami_ettim:     er->handled = (*evtim_vect)(er->timnum); break;
+        case ami_etjoyba:   er->handled = (*evjoyba_vect)(er->ajoyn, er->ajoybn);
                            break;
-        case pa_etjoybd:   er->handled = (*evjoybd_vect)(er->djoyn, er->djoybn);
+        case ami_etjoybd:   er->handled = (*evjoybd_vect)(er->djoyn, er->djoybn);
                            break;
-        case pa_etjoymov:  
+        case ami_etjoymov:  
             er->handled = (*evjoymov_vect)(er->mjoyn, er->joypx, er->joypy, 
                                            er->joypz); 
             break;
-        case pa_etresize:  er->handled = (*evresize_vect)(er->rszx, er->rszy); 
+        case ami_etresize:  er->handled = (*evresize_vect)(er->rszx, er->rszy); 
                            break;
-        case pa_etfocus:   er->handled = (*evfocus_vect)(); break;
-        case pa_etnofocus: er->handled = (*evnofocus_vect)(); break;
-        case pa_ethover:   er->handled = (*evhover_vect)(); break;
-        case pa_etnohover: er->handled = (*evnohover_vect)(); break;
-        case pa_etterm:    er->handled = (*evterm_vect)(); break;
-        case pa_etframe:   er->handled = (*evframe_vect)(); break;
+        case ami_etfocus:   er->handled = (*evfocus_vect)(); break;
+        case ami_etnofocus: er->handled = (*evnofocus_vect)(); break;
+        case ami_ethover:   er->handled = (*evhover_vect)(); break;
+        case ami_etnohover: er->handled = (*evnohover_vect)(); break;
+        case ami_etterm:    er->handled = (*evterm_vect)(); break;
+        case ami_etframe:   er->handled = (*evframe_vect)(); break;
 
         default: ;
 
@@ -4550,8 +4550,8 @@ caller.
 *******************************************************************************/
 
 APIOVER(event)
-void pa_event(FILE* f, pa_evtrec* er) { (*event_vect)(f, er); }
-static void event_ivf(FILE* f, pa_evtrec *er)
+void ami_event(FILE* f, ami_evtrec* er) { (*event_vect)(f, er); }
+static void event_ivf(FILE* f, ami_evtrec *er)
 
 {
 
@@ -4579,7 +4579,7 @@ static void event_ivf(FILE* f, pa_evtrec *er)
         dequepaevt(er); /* get next queued event */
         pthread_mutex_lock(&termlock); /* lock terminal broadlock */
         /* handle actions we must take here */
-        if (er->etype == pa_etresize) {
+        if (er->etype == ami_etresize) {
 
             /* set new size */
             dimx = er->rszx;
@@ -4589,7 +4589,7 @@ static void event_ivf(FILE* f, pa_evtrec *er)
                always need to refresh, and means it can flash. */
             restore(screens[curdsp-1]);
 
-        } else if (er->etype == pa_etterm) 
+        } else if (er->etype == ami_etterm) 
             /* set user ordered termination */
             fend = TRUE;
         pthread_mutex_unlock(&termlock); /* release terminal broadlock */
@@ -4597,7 +4597,7 @@ static void event_ivf(FILE* f, pa_evtrec *er)
         (evtshan)(er); /* call master event handler */
         if (!er->handled) { /* send it to fanout */
 
-            if (er->etype <= pa_etframe) {
+            if (er->etype <= ami_etframe) {
 
                 er->handled = 1; /* set event is handled by default */
                 (*evthan[er->etype])(er); /* call event handler first */
@@ -4632,7 +4632,7 @@ Set timer
 *******************************************************************************/
 
 APIOVER(timer)
-void pa_timer(FILE* f, int i, long t, int r) { (*timer_vect)(f, i, t, r); }
+void ami_timer(FILE* f, int i, long t, int r) { (*timer_vect)(f, i, t, r); }
 static void timer_ivf(/* file to send event to */              FILE* f,
                       /* timer handle */                       int   i,
                       /* number of 100us counts */             long  t,
@@ -4641,7 +4641,7 @@ static void timer_ivf(/* file to send event to */              FILE* f,
 {
 
     dbg_printf(dlapi, "API\n");
-    if (i < 1 || i > PA_MAXTIM) error(pa_dispeinvthn); /* invalid timer handle */
+    if (i < 1 || i > PA_MAXTIM) error(ami_dispeinvthn); /* invalid timer handle */
     pthread_mutex_lock(&timlock); /* take the timer lock */
     timtbl[i-1] = system_event_addsetim(timtbl[i-1], t, r);
     pthread_mutex_unlock(&timlock); /* release the timer lock */
@@ -4659,19 +4659,19 @@ in reserve.
 *******************************************************************************/
 
 APIOVER(killtimer)
-void pa_killtimer(FILE* f, int   i ) { (*killtimer_vect)(f, i ); }
+void ami_killtimer(FILE* f, int   i ) { (*killtimer_vect)(f, i ); }
 static void killtimer_ivf(/* file to kill timer on */ FILE *f,
                   /* handle of timer */       int i)
 
 {
 
     dbg_printf(dlapi, "API\n");
-    if (i < 1 || i > PA_MAXTIM) error(pa_dispeinvthn); /* invalid timer handle */
+    if (i < 1 || i > PA_MAXTIM) error(ami_dispeinvthn); /* invalid timer handle */
     pthread_mutex_lock(&timlock); /* take the timer lock */
     if (timtbl[i-1] <= 0) {
 
         pthread_mutex_unlock(&timlock); /* release the timer lock */
-        error(pa_dispetimacc); /* no such timer */
+        error(ami_dispetimacc); /* no such timer */
 
     }
     system_event_deasetim(timtbl[i-1]); /* deactivate timer */
@@ -4690,7 +4690,7 @@ if none is available, never changing it's state.
 *******************************************************************************/
 
 APIOVER(mouse)
-int pa_mouse(FILE* f) { return ((*mouse_vect)(f)); }
+int ami_mouse(FILE* f) { return ((*mouse_vect)(f)); }
 static int mouse_ivf(FILE *f)
 
 {
@@ -4710,7 +4710,7 @@ to assume 3 buttons.
 *******************************************************************************/
 
 APIOVER(mousebutton)
-int pa_mousebutton(FILE* f, int m) { return ((*mousebutton_vect)(f, m)); }
+int ami_mousebutton(FILE* f, int m) { return ((*mousebutton_vect)(f, m)); }
 static int mousebutton_ivf(FILE *f, int m)
 
 {
@@ -4729,7 +4729,7 @@ Return number of joysticks attached.
 *******************************************************************************/
 
 APIOVER(joystick)
-int pa_joystick(FILE* f) { return ((*joystick_vect)(f)); }
+int ami_joystick(FILE* f) { return ((*joystick_vect)(f)); }
 static int joystick_ivf(FILE *f)
 
 {
@@ -4749,7 +4749,7 @@ Note that Windows 95 has no joystick capability.
 *******************************************************************************/
 
 APIOVER(joybutton)
-int pa_joybutton(FILE* f, int j) { return ((*joybutton_vect)(f, j)); }
+int ami_joybutton(FILE* f, int j) { return ((*joybutton_vect)(f, j)); }
 static int joybutton_ivf(FILE *f, int j)
 
 {
@@ -4761,13 +4761,13 @@ static int joybutton_ivf(FILE *f, int j)
     if (j < 1 || j > numjoy) {
 
         pthread_mutex_unlock(&termlock); /* release terminal broadlock */
-        error(pa_dispeinvjoy); /* bad joystick id */
+        error(ami_dispeinvjoy); /* bad joystick id */
 
     }
     if (!joytab[j-1]) {
 
         pthread_mutex_unlock(&termlock); /* release terminal broadlock */
-        error(pa_dispesystem); /* should be a table entry */
+        error(ami_dispesystem); /* should be a table entry */
 
     }
     b = joytab[j-1]->button; /* get button count */
@@ -4789,7 +4789,7 @@ Note that Windows 95 has no joystick capability.
 *******************************************************************************/
 
 APIOVER(joyaxis)
-int pa_joyaxis(FILE* f, int j) { return ((*joyaxis_vect)(f, j)); }
+int ami_joyaxis(FILE* f, int j) { return ((*joyaxis_vect)(f, j)); }
 static int joyaxis_ivf(FILE *f, int j)
 
 {
@@ -4801,13 +4801,13 @@ static int joyaxis_ivf(FILE *f, int j)
     if (j < 1 || j > numjoy) {
 
         pthread_mutex_unlock(&termlock); /* release terminal broadlock */
-        error(pa_dispeinvjoy); /* bad joystick id */
+        error(ami_dispeinvjoy); /* bad joystick id */
 
     }
     if (!joytab[j-1]) {
 
         pthread_mutex_unlock(&termlock); /* release terminal broadlock */
-        error(pa_dispesystem); /* should be a table entry */
+        error(ami_dispesystem); /* should be a table entry */
 
     }
     ja = joytab[j-1]->axis; /* get axis number */
@@ -4829,7 +4829,7 @@ tab stop that is set. If there is no next tab stop, nothing will happen.
 *******************************************************************************/
 
 APIOVER(settab)
-void pa_settab(FILE* f, int t) { (*settab_vect)(f, t); }
+void ami_settab(FILE* f, int t) { (*settab_vect)(f, t); }
 static void settab_ivf(FILE* f, int t)
 
 {
@@ -4839,7 +4839,7 @@ static void settab_ivf(FILE* f, int t)
     if (t < 1 || t > dimx) {
 
         pthread_mutex_unlock(&termlock); /* release terminal broadlock */
-        error(pa_dispeinvtab); /* invalid tab position */
+        error(ami_dispeinvtab); /* invalid tab position */
 
     }
     tabs[t-1] = 1; /* set tab position */
@@ -4856,7 +4856,7 @@ Resets a tab. The tab number t is 1 to n, and indicates the column for the tab.
 *******************************************************************************/
 
 APIOVER(restab)
-void pa_restab(FILE* f, int t) { (*restab_vect)(f, t); }
+void ami_restab(FILE* f, int t) { (*restab_vect)(f, t); }
 static void restab_ivf(FILE* f, int t)
 
 {
@@ -4866,7 +4866,7 @@ static void restab_ivf(FILE* f, int t)
     if (t < 1 || t > dimx) {
 
         pthread_mutex_unlock(&termlock); /* release terminal broadlock */
-        error(pa_dispeinvtab); /* invalid tab position */
+        error(ami_dispeinvtab); /* invalid tab position */
 
     }
     tabs[t-1] = 0; /* reset tab position */
@@ -4883,7 +4883,7 @@ Clears all tabs.
 *******************************************************************************/
 
 APIOVER(clrtab)
-void pa_clrtab(FILE* f) { (*clrtab_vect)(f); }
+void ami_clrtab(FILE* f) { (*clrtab_vect)(f); }
 static void clrtab_ivf(FILE* f)
 
 {
@@ -4910,7 +4910,7 @@ but more can be allocated if needed.
 *******************************************************************************/
 
 APIOVER(funkey)
-int pa_funkey(FILE* f) { return ((*funkey_vect)(f)); }
+int ami_funkey(FILE* f) { return ((*funkey_vect)(f)); }
 static int funkey_ivf(FILE* f)
 
 {
@@ -4929,7 +4929,7 @@ Enables or disables the framing timer.
 *******************************************************************************/
 
 APIOVER(frametimer)
-void pa_frametimer(FILE* f, int e) { (*frametimer_vect)(f, e); }
+void ami_frametimer(FILE* f, int e) { (*frametimer_vect)(f, e); }
 static void frametimer_ivf(FILE* f, int e)
 
 {
@@ -4967,7 +4967,7 @@ holding terminal unaware programs.
 *******************************************************************************/
 
 APIOVER(autohold)
-void pa_autohold(int e) { (*autohold_vect)(e); }
+void ami_autohold(int e) { (*autohold_vect)(e); }
 static void autohold_ivf(int e)
 
 {
@@ -4986,7 +4986,7 @@ Writes a string direct to the terminal, bypassing character handling.
 *******************************************************************************/
 
 APIOVER(wrtstr)
-void pa_wrtstr(FILE* f, char* s) { (*wrtstr_vect)(f, s); }
+void ami_wrtstr(FILE* f, char* s) { (*wrtstr_vect)(f, s); }
 static void wrtstr_ivf(FILE* f, char *s)
 
 {
@@ -5008,7 +5008,7 @@ handling.
 *******************************************************************************/
 
 APIOVER(wrtstrn)
-void pa_wrtstrn(FILE* f, char* s, int n) { (*wrtstrn_vect)(f, s, n); }
+void ami_wrtstrn(FILE* f, char* s, int n) { (*wrtstrn_vect)(f, s, n); }
 static void wrtstrn_ivf(FILE* f, char *s, int n)
 
 {
@@ -5029,7 +5029,7 @@ Sets or resets the size of the buffer surface.
 *******************************************************************************/
 
 APIOVER(sizbuf)
-void pa_sizbuf(FILE* f, int x, int y) { (*sizbuf_vect)(f, x, y); }
+void ami_sizbuf(FILE* f, int x, int y) { (*sizbuf_vect)(f, x, y); }
 static void sizbuf_ivf(FILE* f, int x, int y)
 
 {
@@ -5084,7 +5084,7 @@ Sets the title of the current window.
 *******************************************************************************/
 
 APIOVER(titlen)
-void pa_titlen(FILE* f, char* ts, int l) { (*titlen_vect)(f, ts, l); }
+void ami_titlen(FILE* f, char* ts, int l) { (*titlen_vect)(f, ts, l); }
 static void titlen_ivf(FILE* f, char* ts, int l)
     
 { 
@@ -5094,7 +5094,7 @@ static void titlen_ivf(FILE* f, char* ts, int l)
     trm_titlen(ts, l); /* set title */
     if (titsav) free(titsav); /* free any existing title string */
     titsav = malloc(l+1);
-    if (!titsav) error(pa_dispenomem); /* no memory */
+    if (!titsav) error(ami_dispenomem); /* no memory */
     strncpy(titsav, ts, l); /* place string */
     titsav[l] = 0; /* terminate */
     pthread_mutex_unlock(&termlock); /* release terminal broadlock */
@@ -5110,7 +5110,7 @@ Sets the title of the current window.
 *******************************************************************************/
 
 APIOVER(title)
-void pa_title(FILE* f, char* ts) { (*title_vect)(f, ts); }
+void ami_title(FILE* f, char* ts) { (*title_vect)(f, ts); }
 static void title_ivf(FILE* f, char* ts)
     
 { 
@@ -5129,7 +5129,7 @@ Sets the foreground color from individual r, g, b values.
 *******************************************************************************/
 
 APIOVER(fcolorc)
-void pa_fcolorc(FILE* f, int r, int g, int b) { (*fcolorc_vect)(f, r, g, b); }
+void ami_fcolorc(FILE* f, int r, int g, int b) { (*fcolorc_vect)(f, r, g, b); }
 static void fcolorc_ivf(FILE* f, int r, int g, int b)
 
 {
@@ -5157,7 +5157,7 @@ Sets the background color from individual r, g, b values.
 *******************************************************************************/
 
 APIOVER(bcolorc)
-void pa_bcolorc(FILE* f, int r, int g, int b) { (*bcolorc_vect)(f, r, g, b); }
+void ami_bcolorc(FILE* f, int r, int g, int b) { (*bcolorc_vect)(f, r, g, b); }
 static void bcolorc_ivf(FILE* f, int r, int g, int b)
 
 {
@@ -5188,9 +5188,9 @@ call down into the stack by executing the overridden event.
 *******************************************************************************/
 
 APIOVER(eventover)
-void pa_eventover(pa_evtcod e, pa_pevthan eh, pa_pevthan* oeh)
+void ami_eventover(ami_evtcod e, ami_pevthan eh, ami_pevthan* oeh)
     { (*eventover_vect)(e, eh, oeh); }
-static void eventover_ivf(pa_evtcod e, pa_pevthan eh,  pa_pevthan* oeh)
+static void eventover_ivf(ami_evtcod e, ami_pevthan eh,  ami_pevthan* oeh)
 
 {
 
@@ -5214,9 +5214,9 @@ call down into the stack by executing the overridden event.
 *******************************************************************************/
 
 APIOVER(eventsover)
-void pa_eventsover(pa_pevthan eh,  pa_pevthan* oeh)
+void ami_eventsover(ami_pevthan eh,  ami_pevthan* oeh)
     { (*eventsover_vect)(eh, oeh); }
-static void eventsover_ivf(pa_pevthan eh,  pa_pevthan* oeh)
+static void eventsover_ivf(ami_pevthan eh,  ami_pevthan* oeh)
 
 {
 
@@ -5238,91 +5238,91 @@ calls.
 *******************************************************************************/
 
 APIOVER(sendevent)
-void pa_sendevent(FILE* f, pa_evtrec* er) { (*sendevent_vect)(f, er); }
-static void sendevent_ivf(FILE* f, pa_evtrec* er) { error(pa_dispesendevent_unimp); }
+void ami_sendevent(FILE* f, ami_evtrec* er) { (*sendevent_vect)(f, er); }
+static void sendevent_ivf(FILE* f, ami_evtrec* er) { error(ami_dispesendevent_unimp); }
 
 APIOVER(openwin)
-void pa_openwin(FILE** infile, FILE** outfile, FILE* parent, int wid)
+void ami_openwin(FILE** infile, FILE** outfile, FILE* parent, int wid)
     { (*openwin_vect)(infile, outfile, parent, wid); }
 static void openwin_ivf(FILE** infile, FILE** outfile, FILE* parent, int wid)
-    { error(pa_dispeopenwin_unimp); }
+    { error(ami_dispeopenwin_unimp); }
 
 APIOVER(buffer)
-void pa_buffer(FILE* f, int e) { (*buffer_vect)(f, e); }
-static void buffer_ivf(FILE* f, int e) { error(pa_dispebuffer_unimp); }
+void ami_buffer(FILE* f, int e) { (*buffer_vect)(f, e); }
+static void buffer_ivf(FILE* f, int e) { error(ami_dispebuffer_unimp); }
 
 APIOVER(getsiz)
-void pa_getsiz(FILE* f, int* x, int* y) { (*getsiz_vect)(f, x, y); }
-static void getsiz_ivf(FILE* f, int* x, int* y) { error(pa_dispegetsiz_unimp); }
+void ami_getsiz(FILE* f, int* x, int* y) { (*getsiz_vect)(f, x, y); }
+static void getsiz_ivf(FILE* f, int* x, int* y) { error(ami_dispegetsiz_unimp); }
 
 APIOVER(setsiz)
-void pa_setsiz(FILE* f, int x, int y) { (*setsiz_vect)(f, x, y); }
-static void setsiz_ivf(FILE* f, int x, int y) { error(pa_dispesetsiz_unimp); }
+void ami_setsiz(FILE* f, int x, int y) { (*setsiz_vect)(f, x, y); }
+static void setsiz_ivf(FILE* f, int x, int y) { error(ami_dispesetsiz_unimp); }
 
 APIOVER(setpos)
-void pa_setpos(FILE* f, int x, int y) { (*setpos_vect)(f, x, y); }
-static void setpos_ivf(FILE* f, int x, int y) { error(pa_dispesetpos_unimp); }
+void ami_setpos(FILE* f, int x, int y) { (*setpos_vect)(f, x, y); }
+static void setpos_ivf(FILE* f, int x, int y) { error(ami_dispesetpos_unimp); }
 
 APIOVER(scnsiz)
-void pa_scnsiz(FILE* f, int* x, int* y) { (*scnsiz_vect)(f, x, y); }
-static void scnsiz_ivf(FILE* f, int* x, int* y) { error(pa_dispescnsiz_unimp); }
+void ami_scnsiz(FILE* f, int* x, int* y) { (*scnsiz_vect)(f, x, y); }
+static void scnsiz_ivf(FILE* f, int* x, int* y) { error(ami_dispescnsiz_unimp); }
 
 APIOVER(scncen)
-void pa_scncen(FILE* f, int* x, int* y) { (*scncen_vect)(f, x, y); }
-static void scncen_ivf(FILE* f, int* x, int* y) { error(pa_dispescncen_unimp); }
+void ami_scncen(FILE* f, int* x, int* y) { (*scncen_vect)(f, x, y); }
+static void scncen_ivf(FILE* f, int* x, int* y) { error(ami_dispescncen_unimp); }
 
 APIOVER(winclient)
-void pa_winclient(FILE* f, int cx, int cy, int* wx, int* wy, pa_winmodset ms)
+void ami_winclient(FILE* f, int cx, int cy, int* wx, int* wy, ami_winmodset ms)
     { (*winclient_vect)(f, cx, cy, wx, wy, ms); }
 static void winclient_ivf(FILE* f, int cx, int cy, int* wx, int* wy, 
-                          pa_winmodset ms)
-    { error(pa_dispewinclient_unimp); }
+                          ami_winmodset ms)
+    { error(ami_dispewinclient_unimp); }
 
 APIOVER(front)
-void pa_front(FILE* f) { (*front_vect)(f); }
-static void front_ivf(FILE* f) { error(pa_dispefront_unimp); }
+void ami_front(FILE* f) { (*front_vect)(f); }
+static void front_ivf(FILE* f) { error(ami_dispefront_unimp); }
 
 APIOVER(back)
-void pa_back(FILE* f) { (*back_vect)(f); }
-static void back_ivf(FILE* f) { error(pa_dispeback_unimp); }
+void ami_back(FILE* f) { (*back_vect)(f); }
+static void back_ivf(FILE* f) { error(ami_dispeback_unimp); }
 
 APIOVER(frame)
-void pa_frame(FILE* f, int e) { (*frame_vect)(f, e); }
-static void frame_ivf(FILE* f, int e) { error(pa_dispeframe_unimp); }
+void ami_frame(FILE* f, int e) { (*frame_vect)(f, e); }
+static void frame_ivf(FILE* f, int e) { error(ami_dispeframe_unimp); }
 
 APIOVER(sizable)
-void pa_sizable(FILE* f, int e) { (*sizable_vect)(f, e); }
-static void sizable_ivf(FILE* f, int e) { error(pa_dispesizable_unimp); }
+void ami_sizable(FILE* f, int e) { (*sizable_vect)(f, e); }
+static void sizable_ivf(FILE* f, int e) { error(ami_dispesizable_unimp); }
 
 APIOVER(sysbar)
-void pa_sysbar(FILE* f, int e) { (*sysbar_vect)(f, e); }
-static void sysbar_ivf(FILE* f, int e) { error(pa_dispesysbar_unimp); }
+void ami_sysbar(FILE* f, int e) { (*sysbar_vect)(f, e); }
+static void sysbar_ivf(FILE* f, int e) { error(ami_dispesysbar_unimp); }
 
 APIOVER(menu)
-void pa_menu(FILE* f, pa_menuptr m) { (*menu_vect)(f, m); }
-static void menu_ivf(FILE* f, pa_menuptr m) { error(pa_dispemenu_unimp); }
+void ami_menu(FILE* f, ami_menuptr m) { (*menu_vect)(f, m); }
+static void menu_ivf(FILE* f, ami_menuptr m) { error(ami_dispemenu_unimp); }
 
 APIOVER(menuena)
-void pa_menuena(FILE* f, int id, int onoff) { (*menuena_vect)(f, id, onoff); }
-static void menuena_ivf(FILE* f, int id, int onoff) { error(pa_dispemenuena_unimp); }
+void ami_menuena(FILE* f, int id, int onoff) { (*menuena_vect)(f, id, onoff); }
+static void menuena_ivf(FILE* f, int id, int onoff) { error(ami_dispemenuena_unimp); }
 
 APIOVER(menusel)
-void pa_menusel(FILE* f, int id, int select) { (*menusel_vect)(f, id, select); }
-static void menusel_ivf(FILE* f, int id, int select) { error(pa_dispemenusel_unimp); }
+void ami_menusel(FILE* f, int id, int select) { (*menusel_vect)(f, id, select); }
+static void menusel_ivf(FILE* f, int id, int select) { error(ami_dispemenusel_unimp); }
 
 APIOVER(stdmenu)
-void pa_stdmenu(pa_stdmenusel sms, pa_menuptr* sm, pa_menuptr pm)
+void ami_stdmenu(ami_stdmenusel sms, ami_menuptr* sm, ami_menuptr pm)
     { (*stdmenu_vect)(sms, sm, pm); }
-static void stdmenu_ivf(pa_stdmenusel sms, pa_menuptr* sm, pa_menuptr pm)
-    { error(pa_dispestdmenu_unimp); }
+static void stdmenu_ivf(ami_stdmenusel sms, ami_menuptr* sm, ami_menuptr pm)
+    { error(ami_dispestdmenu_unimp); }
 
 APIOVER(getwinid)
-int pa_getwinid(void) { return ((*getwinid_vect)()); }
-static int getwinid_ivf(void) { error(pa_dispegetwinid_unimp); return 0; }
+int ami_getwinid(void) { return ((*getwinid_vect)()); }
+static int getwinid_ivf(void) { error(ami_dispegetwinid_unimp); return 0; }
 
 APIOVER(focus)
-void pa_focus(FILE* f) { (*focus_vect)(f); }
-static void focus_ivf(FILE* f) { error(pa_dispefocus_unimp); }
+void ami_focus(FILE* f) { (*focus_vect)(f); }
+static void focus_ivf(FILE* f) { error(ami_dispefocus_unimp); }
 
 /*******************************************************************************
 
@@ -5342,12 +5342,12 @@ before the client program runs.
 
 *******************************************************************************/
 
-static void pa_init_terminal (int argc, char* argv[]) __attribute__((constructor (103)));
-static void pa_init_terminal(int argc, char* argv[])
+static void ami_init_terminal (int argc, char* argv[]) __attribute__((constructor (103)));
+static void ami_init_terminal(int argc, char* argv[])
 
 {
 
-    /** index for events */            pa_evtcod      e;
+    /** index for events */            ami_evtcod      e;
     /** build new terminal settings */ struct termios raw;
     /** index */                       int            i;
     /** digit count integer */         int            dci;
@@ -5356,9 +5356,9 @@ static void pa_init_terminal(int argc, char* argv[])
     /** joystick device name */        char           joyfil[] = "/dev/input/js0";
     /** joystick parameter read */     char           jc;
     /** Linux return value */          int            r;
-    /** root for config block */       pa_valptr      config_root;
-    /** root for terminal block */     pa_valptr      term_root; 
-                                       pa_valptr      vp;
+    /** root for config block */       ami_valptr      config_root;
+    /** root for terminal block */     ami_valptr      term_root; 
+                                       ami_valptr      vp;
                                        char*          errstr;
 
     /* set override vectors to defaults */
@@ -5542,51 +5542,51 @@ static void pa_init_terminal(int argc, char* argv[])
 
     /* get setup configuration */
     config_root = NULL;
-    pa_config(&config_root);
+    ami_config(&config_root);
 
     /* find "terminal" block */
-    term_root = pa_schlst("terminal", config_root);
+    term_root = ami_schlst("terminal", config_root);
     if (term_root && term_root->sublist) term_root = term_root->sublist;
 
     if (term_root) {
 
         /* find x an y max if they exist */
-        vp = pa_schlst("maxxd", term_root);
+        vp = ami_schlst("maxxd", term_root);
         if (vp) {
 
             bufx = strtol(vp->value, &errstr, 10);
-            if (*errstr) error(pa_dispecfgval);
+            if (*errstr) error(ami_dispecfgval);
 
         }
-        vp = pa_schlst("maxyd", term_root);
+        vp = ami_schlst("maxyd", term_root);
         if (vp) {
 
             bufy = strtol(vp->value, &errstr, 10);
-            if (*errstr) error(pa_dispecfgval);
+            if (*errstr) error(ami_dispecfgval);
 
         }
         /* enable/disable joystick */
-        vp = pa_schlst("joystick", term_root);
+        vp = ami_schlst("joystick", term_root);
         if (vp) {
 
             joyenb = strtol(vp->value, &errstr, 10);
-            if (*errstr) error(pa_dispecfgval);
+            if (*errstr) error(ami_dispecfgval);
 
         }
         /* enable/disable mouse */
-        vp = pa_schlst("mouse", term_root);
+        vp = ami_schlst("mouse", term_root);
         if (vp) {
 
             mouseenb = strtol(vp->value, &errstr, 10);
-            if (*errstr) error(pa_dispecfgval);
+            if (*errstr) error(ami_dispecfgval);
 
         }
         /* dump PA events */
-        vp = pa_schlst("dump_event", term_root);
+        vp = ami_schlst("dump_event", term_root);
         if (vp) {
 
             dmpevt = strtol(vp->value, &errstr, 10);
-            if (*errstr) error(pa_dispecfgval);
+            if (*errstr) error(ami_dispecfgval);
 
         }
 
@@ -5626,7 +5626,7 @@ static void pa_init_terminal(int argc, char* argv[])
 
     /* clear event vector table */
     evtshan = defaultevent;
-    for (e = pa_etchar; e <= pa_etframe; e++) evthan[e] = defaultevent;
+    for (e = ami_etchar; e <= ami_etframe; e++) evthan[e] = defaultevent;
 
     /* clear keyboard match buffer */
     keylen = 0;
@@ -5774,8 +5774,8 @@ and that should be corrected.
 
 *******************************************************************************/
 
-static void pa_deinit_terminal (void) __attribute__((destructor (103)));
-static void pa_deinit_terminal()
+static void ami_deinit_terminal (void) __attribute__((destructor (103)));
+static void ami_deinit_terminal()
 
 {
 
@@ -5787,14 +5787,14 @@ static void pa_deinit_terminal()
     punlink_t cppunlink;
     plseek_t cpplseek;
 
-    pa_evtrec er;     /* event record */
+    ami_evtrec er;     /* event record */
     string    trmnam; /* termination name */
     char      fini[] = "Finished - ";
-    pa_evtcod e;
+    ami_evtcod e;
 
     /* clear event vector table */
     evtshan = defaultevent;
-    for (e = pa_etchar; e <= pa_etframe; e++) evthan[e] = defaultevent;
+    for (e = ami_etchar; e <= ami_etframe; e++) evthan[e] = defaultevent;
 
     /* clear function events */
     inifncvec();
@@ -5816,8 +5816,8 @@ static void pa_deinit_terminal()
 
             trm_title(trmnam); /* put up termination title */
             /* wait for user termination */
-            do { pa_event(stdin, &er);
-            } while (!fend && er.etype != pa_etenter);
+            do { ami_event(stdin, &er);
+            } while (!fend && er.etype != ami_etenter);
             trm_title(""); /* blank out title */
 
         } else finish(trmnam);
@@ -5856,7 +5856,7 @@ static void pa_deinit_terminal()
     /* if we don't see our own vector flag an error */
     if (cppread != iread || cppwrite != iwrite || cppopen != iopen ||
         cppclose != iclose /* || cppunlink != iunlink */ || cpplseek != ilseek)
-        error(pa_dispesystem);
+        error(ami_dispesystem);
 
     /* back to normal buffer on xterm */
     putstrc("\033[?1049l"); fflush(stdout);

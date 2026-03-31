@@ -84,14 +84,14 @@ If no files are matched, the returned list is nil.
 
 ********************************************************************************/
 
-void pa_list(
+void ami_list(
     /** file to search for */ char *fn,
-    /** file list returned */ pa_filrec **l
+    /** file list returned */ ami_filrec **l
 )
 
 {
 
-    error("pa_list: Is not implemented");
+    error("ami_list: Is not implemented");
 
 }
 
@@ -103,7 +103,7 @@ Converts the given time into a string.
 
 ********************************************************************************/
 
-void pa_times(
+void ami_times(
     /** result string */           char *s,
     /** result string length */    int sl,
     /** time to convert */         int t
@@ -111,7 +111,7 @@ void pa_times(
 
 {
 
-    error("pa_times: Is not implemented");
+    error("ami_times: Is not implemented");
 
 }
 
@@ -123,7 +123,7 @@ Converts the given date into a string.
 
 ********************************************************************************/
 
-void pa_dates(
+void ami_dates(
     /** string to place date into */   char *s,
     /** string to place date length */ int sl,
     /** time record to write from */   int t
@@ -131,7 +131,7 @@ void pa_dates(
 
 {
 
-    error("pa_dates: Is not implemented");
+    error("ami_dates: Is not implemented");
 
 }
 
@@ -143,14 +143,14 @@ Writes the time to a given file, from a time record.
 
 ********************************************************************************/
 
-void pa_writetime(
+void ami_writetime(
         /** file to write to */ FILE *f,
         /** time record to write from */ int t
 )
 
 {
 
-    error("pa_writetime: Is not implemented");
+    error("ami_writetime: Is not implemented");
 
 }
 
@@ -164,14 +164,14 @@ used by windows.
 
 ********************************************************************************/
 
-void pa_writedate(
+void ami_writedate(
         /* file to write to */ FILE *f,
         /* time record to write from */ int t
 )
 
 {
 
-    error("pa_writedate: Is not implemented");
+    error("ami_writedate: Is not implemented");
 
 }
 
@@ -183,11 +183,11 @@ Finds the current time as an S2000 integer.
 
 ********************************************************************************/
 
-long pa_time(void)
+long ami_time(void)
 
 {
 
-    error("pa_time: Is not implemented");
+    error("ami_time: Is not implemented");
 
     return (1); /* this just shuts up compiler */
 
@@ -203,10 +203,10 @@ timezones.
 
 ********************************************************************************/
 
-long pa_local(long t)
+long ami_local(long t)
 {
 
-    error("pa_local: Is not implemented");
+    error("ami_local: Is not implemented");
 
     return (1); /* this just shuts up compiler */
 
@@ -233,11 +233,11 @@ has more than enough precision to count from 0 AD to present.
 
 ********************************************************************************/
 
-long pa_clock(void)
+long ami_clock(void)
 
 {
 
-    error("pa_clock: Is not implemented");
+    error("ami_clock: Is not implemented");
 
     return (1); /* this just shuts up compiler */
 
@@ -253,10 +253,10 @@ time that can be measured is 24 hours.
 
 ********************************************************************************/
 
-long pa_elapsed(long r)
+long ami_elapsed(long r)
 {
 
-    error("pa_elapsed: Is not implemented");
+    error("ami_elapsed: Is not implemented");
 
     return (1); /* this just shuts up compiler */
 
@@ -274,13 +274,13 @@ is null or all blanks
 
 ********************************************************************************/
 
-int pa_validfile(
+int ami_validfile(
     /* string to validate */ char *s
 )
 
 {
 
-    error("pa_validfile: Is not implemented");
+    error("ami_validfile: Is not implemented");
 
     return (1); /* this just shuts up compiler */
 
@@ -297,13 +297,13 @@ filename that is null or all blanks
 
 ********************************************************************************/
 
-int pa_validpath(
+int ami_validpath(
     /* string to validate */ char *s
 )
 
 {
 
-    error("pa_validpath: Is not implemented");
+    error("ami_validpath: Is not implemented");
 
     return (1); /* this just shuts up compiler */
 
@@ -319,13 +319,13 @@ on that directory.
 
 ********************************************************************************/
 
-int pa_wild(
+int ami_wild(
     /* filename */ char *s
 )
 
 {
 
-    error("pa_wild: Is not implemented");
+    error("ami_wild: Is not implemented");
 
     return (1); /* this just shuts up compiler */
 
@@ -339,7 +339,7 @@ Returns an environment string by name.
 
 *******************************************************************************/
 
-void pa_getenv(
+void ami_getenv(
     /** string name */        char* esn,
     /** string data */        char* esd,
     /** string data length */ int esdl
@@ -347,7 +347,7 @@ void pa_getenv(
 
 {
 
-    error("pa_getenv: Is not implemented");
+    error("ami_getenv: Is not implemented");
 
 }
 
@@ -359,14 +359,14 @@ Sets an environment string by name.
 
 ********************************************************************************/
 
-void pa_setenv(
+void ami_setenv(
     /* name of string */ char *sn,
     /* value of string */char *sd
 )
 
 {
 
-    error("pa_setenv: Is not implemented");
+    error("ami_setenv: Is not implemented");
 
 }
 
@@ -378,13 +378,13 @@ Removes an environment string by name.
 
 ********************************************************************************/
 
-void pa_remenv(
+void ami_remenv(
         /* name of string */ char *sn
 )
 
 {
 
-    error("pa_remenv: Is not implemented");
+    error("ami_remenv: Is not implemented");
 
 }
 
@@ -396,13 +396,13 @@ Returns a table with the entire environment string set in it.
 
 ********************************************************************************/
 
-void pa_allenv(
-    /* environment table */ pa_envrec **el
+void ami_allenv(
+    /* environment table */ ami_envrec **el
 )
 
 {
 
-    error("pa_allenv: Is not implemented");
+    error("ami_allenv: Is not implemented");
 
 }
 
@@ -414,13 +414,13 @@ Executes a program by name. Does not wait for the program to complete.
 
 ********************************************************************************/
 
-void pa_exec(
+void ami_exec(
     /* program name to execute */ char *cmd
 )
 
 {
 
-    error("pa_exec: Is not implemented");
+    error("ami_exec: Is not implemented");
 
 }
 
@@ -432,14 +432,14 @@ Executes a program by name. Waits for the program to complete.
 
 ********************************************************************************/
 
-void pa_execw(
+void ami_execw(
     /* program name to execute */ char *cmd,
     /* return error */            int *err
 )
 
 {
 
-    error("pa_execw: Is not implemented");
+    error("ami_execw: Is not implemented");
 
 }
 
@@ -452,14 +452,14 @@ the program environment.
 
 ********************************************************************************/
 
-void pa_exece(
+void ami_exece(
     /* program name to execute */ char      *cmd,
-    /* environment */             pa_envrec *el
+    /* environment */             ami_envrec *el
 )
 
 {
 
-    error("pa_exece: Is not implemented");
+    error("ami_exece: Is not implemented");
 }
 
 
@@ -472,15 +472,15 @@ program environment.
 
 ********************************************************************************/
 
-void pa_execew(
+void ami_execew(
         /* program name to execute */ char*      cmd,
-        /* environment */             pa_envrec* el,
+        /* environment */             ami_envrec* el,
         /* return error */            int*       err
 )
 
 {
 
-    error("pa_execew: Is not implemented");
+    error("ami_execew: Is not implemented");
 
 }
 
@@ -492,14 +492,14 @@ Returns the current path in the given padded string.
 
 ********************************************************************************/
 
-void pa_getcur(
+void ami_getcur(
         /** buffer to get path */ char *pn,
         /** length of buffer */   int l
 )
 
 {
 
-    error("pa_getcur: Is not implemented");
+    error("ami_getcur: Is not implemented");
 
 }
 
@@ -511,13 +511,13 @@ Sets the current path from the given string.
 
 ********************************************************************************/
 
-void pa_setcur(
+void ami_setcur(
         /* path to set */ char *fn
 )
 
 {
 
-    error("pa_setcur: Is not implemented");
+    error("ami_setcur: Is not implemented");
 
 }
 
@@ -544,7 +544,7 @@ were a normal character.
 
 ********************************************************************************/
 
-void pa_brknam(
+void ami_brknam(
         /* file specification */ char *fn,
         /* path */               char *p, int pl,
         /* name */               char *n, int nl,
@@ -553,7 +553,7 @@ void pa_brknam(
 
 {
 
-    error("pa_brknam: Is not implemented");
+    error("ami_brknam: Is not implemented");
 
 }
 
@@ -567,7 +567,7 @@ concatenating.
 
 ********************************************************************************/
 
-void pa_maknam(
+void ami_maknam(
     /** file specification to build */ char *fn,
     /** file specification length */   int fnl,
     /** path */                        char *p,
@@ -577,7 +577,7 @@ void pa_maknam(
 
 {
 
-    error("pa_maknam: Is not implemented");
+    error("ami_maknam: Is not implemented");
 
 }
 
@@ -591,13 +591,13 @@ No validity check is done. Garbage in, garbage out.
 
 ********************************************************************************/
 
-void pa_fulnam(
+void ami_fulnam(
     /** filename */        char *fn,
     /** filename length */ int fnl
 )
 {
 
-    error("pa_fulnam: Is not implemented");
+    error("ami_fulnam: Is not implemented");
 
 }
 
@@ -610,13 +610,13 @@ extract the program path from that.
 
 ********************************************************************************/
 
-void pa_getpgm(
+void ami_getpgm(
     /** program path */        char* p,
     /** program path length */ int   pl
 )
 {
 
-    error("pa_getpgm: Is not implemented");
+    error("ami_getpgm: Is not implemented");
 
 }
 
@@ -643,14 +643,14 @@ directory.
 
 ********************************************************************************/
 
-void pa_getusr(
+void ami_getusr(
     /** pathname */        char *fn,
     /** pathname length */ int fnl
 )
 
 {
 
-    error("pa_getusr: Is not implemented");
+    error("ami_getusr: Is not implemented");
 
 }
 
@@ -663,11 +663,11 @@ possible. This is done with makpth.
 
 ********************************************************************************/
 
-void pa_setatr(char *fn, pa_attrset a)
+void ami_setatr(char *fn, ami_attrset a)
 
 {
 
-    error("pa_setatr: Is not implemented");
+    error("ami_setatr: Is not implemented");
 
 }
 
@@ -680,10 +680,10 @@ possible.
 
 ********************************************************************************/
 
-void pa_resatr(char *fn, pa_attrset a)
+void ami_resatr(char *fn, ami_attrset a)
 {
 
-    error("pa_resatr: Is not implemented");
+    error("ami_resatr: Is not implemented");
 
 }
 
@@ -696,10 +696,10 @@ which effectively means "back this file up now".
 
 ********************************************************************************/
 
-void pa_bakupd(char *fn)
+void ami_bakupd(char *fn)
 {
 
-    error("pa_bakupd: Is not implemented");
+    error("ami_bakupd: Is not implemented");
 
 }
 
@@ -711,11 +711,11 @@ Sets user permisions
 
 ********************************************************************************/
 
-void pa_setuper(char *fn, pa_permset p)
+void ami_setuper(char *fn, ami_permset p)
 
 {
 
-    error("pa_setuper: Is not implemented");
+    error("ami_setuper: Is not implemented");
 
 }
 
@@ -728,11 +728,11 @@ Resets user permissions.
 
 ********************************************************************************/
 
-void pa_resuper(char *fn, pa_permset p)
+void ami_resuper(char *fn, ami_permset p)
 
 {
 
-    error("pa_resuper: Is not implemented");
+    error("ami_resuper: Is not implemented");
 
 }
 
@@ -744,11 +744,11 @@ Sets group permissions.
 
 ********************************************************************************/
 
-void pa_setgper(char *fn, pa_permset p)
+void ami_setgper(char *fn, ami_permset p)
 
 {
 
-    error("pa_setgper: Is not implemented");
+    error("ami_setgper: Is not implemented");
 
 }
 
@@ -760,11 +760,11 @@ Resets group permissions.
 
 ********************************************************************************/
 
-void pa_resgper(char *fn, pa_permset p)
+void ami_resgper(char *fn, ami_permset p)
 
 {
 
-    error("pa_resgper: Is not implemented");
+    error("ami_resgper: Is not implemented");
 
 }
 
@@ -776,11 +776,11 @@ Sets other permissions.
 
 ********************************************************************************/
 
-void pa_setoper(char *fn, pa_permset p)
+void ami_setoper(char *fn, ami_permset p)
 
 {
 
-    error("pa_setoper: Is not implemented");
+    error("ami_setoper: Is not implemented");
 
 }
 
@@ -792,10 +792,10 @@ Resets other permissions.
 
 ********************************************************************************/
 
-void pa_resoper(char *fn, pa_permset p)
+void ami_resoper(char *fn, ami_permset p)
 {
 
-    error("pa_resoper: Is not implemented");
+    error("ami_resoper: Is not implemented");
 
 }
 
@@ -807,10 +807,10 @@ Create a new path. Only one new level at a time may be created.
 
 ********************************************************************************/
 
-void pa_makpth(char *fn)
+void ami_makpth(char *fn)
 {
 
-    error("pa_makpth: Is not implemented");
+    error("ami_makpth: Is not implemented");
 
 }
 
@@ -822,10 +822,10 @@ Create a new path. Only one new level at a time may be deleted.
 
 ********************************************************************************/
 
-void pa_rempth(char *fn)
+void ami_rempth(char *fn)
 {
 
-    error("pa_rempth: Is not implemented");
+    error("ami_rempth: Is not implemented");
 
 }
 
@@ -856,10 +856,10 @@ specials in these cases.
 
 ********************************************************************************/
 
-void pa_filchr(pa_chrset fc)
+void ami_filchr(ami_chrset fc)
 {
 
-    error("pa_chrset: Is not implemented");
+    error("ami_chrset: Is not implemented");
 
 }
 
@@ -873,10 +873,10 @@ is overly cute and not common.
 
 ********************************************************************************/
 
-char pa_optchr(void)
+char ami_optchr(void)
 {
 
-    error("pa_optchr: Is not implemented");
+    error("ami_optchr: Is not implemented");
 
     return (' '); /* this just shuts up compiler */
 
@@ -894,10 +894,10 @@ separator as '\\'.
 
 *******************************************************************************/
 
-char pa_pthchr(void)
+char ami_pthchr(void)
 {
 
-    error("pa_pthchr: Is not implemented");
+    error("ami_pthchr: Is not implemented");
 
     return (' '); /* this just shuts up compiler */
 
@@ -926,11 +926,11 @@ host location.
 
 *******************************************************************************/
 
-int pa_latitude(void)
+int ami_latitude(void)
 
 {
 
-    error("pa_latitude: Is not implemented");
+    error("ami_latitude: Is not implemented");
 
     return (1); /* this just shuts up compiler */
 
@@ -955,11 +955,11 @@ A mobile host is constantly reading its location (usually from a GPS).
 
 *******************************************************************************/
 
-int pa_longitude(void)
+int ami_longitude(void)
 
 {
 
-    error("pa_longitude: Is not implemented");
+    error("ami_longitude: Is not implemented");
 
     return (1); /* this just shuts up compiler */
 
@@ -992,11 +992,11 @@ A mobile host is constantly reading its location (usually from a GPS).
 
 *******************************************************************************/
 
-int pa_altitude(void)
+int ami_altitude(void)
 
 {
 
-    error("pa_altitude: Is not implemented");
+    error("ami_altitude: Is not implemented");
 
     return (1); /* this just shuts up compiler */
 
@@ -1012,11 +1012,11 @@ determined by latitude/longitude.
 
 *******************************************************************************/
 
-int pa_country(void)
+int ami_country(void)
 
 {
 
-    error("pa_country: Is not implemented");
+    error("ami_country: Is not implemented");
 
     return (1); /* this just shuts up compiler */
 
@@ -1037,14 +1037,14 @@ Note that the 2 letter codes happen to also be the Internet location codes
 
 *******************************************************************************/
 
-void pa_countrys(
+void ami_countrys(
     /** string buffer */           char* s,
     /** length of buffer */        int len,
     /** ISO 3166-1 country code */ int c)
 
 {
 
-    error("pa_countrys: Is not implemented");
+    error("ami_countrys: Is not implemented");
 
 }
 
@@ -1057,11 +1057,11 @@ negative for zones west of the prime meridian, and positive for zones east.
 
 *******************************************************************************/
 
-int pa_timezone(void)
+int ami_timezone(void)
 
 {
 
-    error("pa_timezone: Is not implemented");
+    error("ami_timezone: Is not implemented");
 
     return (1); /* this just shuts up compiler */
 
@@ -1083,12 +1083,12 @@ Note that local() already takes daylight savings into account.
 
 *******************************************************************************/
 
-int pa_daysave(void)
+int ami_daysave(void)
 
 
 {
 
-    error("pa_daysave: Is not implemented");
+    error("ami_daysave: Is not implemented");
 
     return (1); /* this just shuts up compiler */
 
@@ -1102,11 +1102,11 @@ Returns true if 24 hour time is in use in the current host location.
 
 *******************************************************************************/
 
-int pa_time24hour(void)
+int ami_time24hour(void)
 
 {
 
-    error("pa_time24hour: Is not implemented");
+    error("ami_time24hour: Is not implemented");
 
     return (1); /* this just shuts up compiler */
 
@@ -1124,11 +1124,11 @@ necessarily be added at the end, and thus out of order.
 
 *******************************************************************************/
 
-int pa_language(void)
+int ami_language(void)
 
 {
 
-    error("pa_language: Is not implemented");
+    error("ami_language: Is not implemented");
 
     return (1); /* this just shuts up compiler */
 
@@ -1151,11 +1151,11 @@ additions. Once a language is assigned a number it keeps it.
 
 *******************************************************************************/
 
-void pa_languages(char* s, int len, int l)
+void ami_languages(char* s, int len, int l)
 
 {
 
-    error("pa_languages: Is not implemented");
+    error("ami_languages: Is not implemented");
 
 }
 
@@ -1167,11 +1167,11 @@ Finds the decimal point character of the host, which is generally '.' or ','.
 
 *******************************************************************************/
 
-char pa_decimal(void)
+char ami_decimal(void)
 
 {
 
-    error("pa_decimal: Is not implemented");
+    error("ami_decimal: Is not implemented");
 
     return (' '); /* this just shuts up compiler */
 
@@ -1186,11 +1186,11 @@ generally used to mark 3 digit groups, ie., 3,000,000.
 
 *******************************************************************************/
 
-char pa_numbersep(void)
+char ami_numbersep(void)
 
 {
 
-    error("pa_numbersep: Is not implemented");
+    error("ami_numbersep: Is not implemented");
 
     return (' '); /* this just shuts up compiler */
 
@@ -1217,11 +1217,11 @@ Note that times() compensates for this.
 
 *******************************************************************************/
 
-int pa_timeorder(void)
+int ami_timeorder(void)
 
 {
 
-    error("pa_timeorder: Is not implemented");
+    error("ami_timeorder: Is not implemented");
 
     return (1); /* this just shuts up compiler */
 
@@ -1251,11 +1251,11 @@ Note that dates() compensates for this.
 
 *******************************************************************************/
 
-int pa_dateorder(void)
+int ami_dateorder(void)
 
 {
 
-    error("pa_dateorder: Is not implemented");
+    error("ami_dateorder: Is not implemented");
 
     return (1); /* this just shuts up compiler */
 
@@ -1270,11 +1270,11 @@ Note that dates() uses this character.
 
 *******************************************************************************/
 
-char pa_datesep(void)
+char ami_datesep(void)
 
 {
 
-    error("pa_datesep: Is not implemented");
+    error("ami_datesep: Is not implemented");
 
     return (' '); /* this just shuts up compiler */
 
@@ -1290,11 +1290,11 @@ Note that times() uses this character.
 
 *******************************************************************************/
 
-char pa_timesep(void)
+char ami_timesep(void)
 
 {
 
-    error("pa_timesep: Is not implemented");
+    error("ami_timesep: Is not implemented");
 
     return (' '); /* this just shuts up compiler */
 
@@ -1308,11 +1308,11 @@ Finds the currency symbol of the host country.
 
 *******************************************************************************/
 
-char pa_currchr(void)
+char ami_currchr(void)
 
 {
 
-    error("pa_currchr: Is not implemented");
+    error("ami_currchr: Is not implemented");
 
     return (' '); /* this just shuts up compiler */
 

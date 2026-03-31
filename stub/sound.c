@@ -79,11 +79,11 @@ Returns the total number of output midi ports.
 
 *******************************************************************************/
 
-int pa_synthout(void)
+int ami_synthout(void)
 
 {
 
-    error("pa_synthout: Is not implemented");
+    error("ami_synthout: Is not implemented");
 
     return (1); /* this just shuts up compiler */
 
@@ -97,11 +97,11 @@ Returns the total number of input midi ports.
 
 *******************************************************************************/
 
-int pa_synthin(void)
+int ami_synthin(void)
 
 {
 
-    error("pa_synthin: Is not implemented");
+    error("ami_synthin: Is not implemented");
 
     return (1); /* this just shuts up compiler */
 
@@ -118,11 +118,11 @@ midi chained devices outside the computer.
 
 *******************************************************************************/
 
-void pa_opensynthout(int p)
+void ami_opensynthout(int p)
 
 {
 
-    error("pa_opensynthout: Is not implemented");
+    error("ami_opensynthout: Is not implemented");
 
 }
 
@@ -134,11 +134,11 @@ Closes a previously opened midi output port.
 
 *******************************************************************************/
 
-void pa_closesynthout(int p)
+void ami_closesynthout(int p)
 
 {
 
-    error("pa_closesynthout: Is not implemented");
+    error("ami_closesynthout: Is not implemented");
 
 }
 
@@ -169,11 +169,11 @@ a sequenced event.
 
 *******************************************************************************/
 
-void pa_starttimeout(void)
+void ami_starttimeout(void)
 
 {
 
-    error("pa_starttimeout: Is not implemented");
+    error("ami_starttimeout: Is not implemented");
 
 }
 
@@ -188,11 +188,11 @@ Note that this does not stop any midi files from being sequenced.
 
 *******************************************************************************/
 
-void pa_stoptimeout(void)
+void ami_stoptimeout(void)
 
 {
 
-    error("pa_stoptimeout: Is not implemented");
+    error("ami_stoptimeout: Is not implemented");
 
 }
 
@@ -205,11 +205,11 @@ sequencer started.
 
 *******************************************************************************/
 
-int pa_curtimeout(void)
+int ami_curtimeout(void)
 
 {
 
-    error("pa_curtimeout: Is not implemented");
+    error("ami_curtimeout: Is not implemented");
 
     return (1); /* this just shuts up compiler */
 
@@ -226,11 +226,11 @@ the MIDI commands. Stopping the time will return to marking 0 time.
 
 *******************************************************************************/
 
-void pa_starttimein(void)
+void ami_starttimein(void)
 
 {
 
-    error("pa_starttimein: Is not implemented");
+    error("ami_starttimein: Is not implemented");
 
 }
 
@@ -242,11 +242,11 @@ Simply sets that we are not marking input time anymore.
 
 *******************************************************************************/
 
-void pa_stoptimein(void)
+void ami_stoptimein(void)
 
 {
 
-    error("pa_stoptimein: Is not implemented");
+    error("ami_stoptimein: Is not implemented");
 
 }
 
@@ -259,11 +259,11 @@ sequencer started.
 
 *******************************************************************************/
 
-int pa_curtimein(void)
+int ami_curtimein(void)
 
 {
 
-    error("pa_curtimein: Is not implemented");
+    error("ami_curtimein: Is not implemented");
 
     return (1); /* this just shuts up compiler */
 
@@ -281,11 +281,11 @@ The velocity is set as 0 to maxint.
 
 *******************************************************************************/
 
-void pa_noteon(int p, int t, pa_channel c, pa_note n, int v)
+void ami_noteon(int p, int t, ami_channel c, ami_note n, int v)
 
 {
 
-    error("pa_noteon: Is not implemented");
+    error("ami_noteon: Is not implemented");
 
 }
 
@@ -301,11 +301,11 @@ The velocity is set as 0 to maxint.
 
 *******************************************************************************/
 
-void pa_noteoff(int p, int t, pa_channel c, pa_note n, int v)
+void ami_noteoff(int p, int t, ami_channel c, ami_note n, int v)
 
 {
 
-    error("pa_noteoff: Is not implemented");
+    error("ami_noteoff: Is not implemented");
 
 }
 
@@ -318,11 +318,11 @@ by Midi GM encoding, 1 to 128. Takes a time for sequencing.
 
 *******************************************************************************/
 
-void pa_instchange(int p, int t, pa_channel c, pa_instrument i)
+void ami_instchange(int p, int t, ami_channel c, ami_instrument i)
 
 {
 
-    error("pa_instchange: Is not implemented");
+    error("ami_instchange: Is not implemented");
 
 }
 
@@ -335,11 +335,11 @@ full on.
 
 *******************************************************************************/
 
-void pa_attack(int p, int t, pa_channel c, int at)
+void ami_attack(int p, int t, ami_channel c, int at)
 
 {
 
-    error("pa_attack: Is not implemented");
+    error("ami_attack: Is not implemented");
 
 }
 
@@ -352,11 +352,11 @@ full off.
 
 *******************************************************************************/
 
-void pa_release(int p, int t, pa_channel c, int rt)
+void ami_release(int p, int t, ami_channel c, int rt)
 
 {
 
-    error("pa_release: Is not implemented");
+    error("ami_release: Is not implemented");
 
 }
 
@@ -368,11 +368,11 @@ Sets the legato mode on/off.
 
 *******************************************************************************/
 
-void pa_legato(int p, int t, pa_channel c, int b)
+void ami_legato(int p, int t, ami_channel c, int b)
 
 {
 
-    error("pa_legato: Is not implemented");
+    error("ami_legato: Is not implemented");
 
 }
 
@@ -384,11 +384,11 @@ Sets the portamento mode on/off.
 
 *******************************************************************************/
 
-void pa_portamento(int p, int t, pa_channel c, int b)
+void ami_portamento(int p, int t, ami_channel c, int b)
 
 {
 
-    error("pa_portamento: Is not implemented");
+    error("ami_portamento: Is not implemented");
 
 }
 
@@ -400,11 +400,11 @@ Sets synthesizer volume, 0 to maxint.
 
 *******************************************************************************/
 
-void pa_volsynthchan(int p, int t, pa_channel c, int v)
+void ami_volsynthchan(int p, int t, ami_channel c, int v)
 
 {
 
-    error("pa_volsynthchan: Is not implemented");
+    error("ami_volsynthchan: Is not implemented");
 
 }
 
@@ -417,11 +417,11 @@ maxint is all right.
 
 *******************************************************************************/
 
-void pa_balance(int p, int t, pa_channel c, int b)
+void ami_balance(int p, int t, ami_channel c, int b)
 
 {
 
-    error("pa_balance: Is not implemented");
+    error("ami_balance: Is not implemented");
 
 }
 
@@ -433,11 +433,11 @@ Sets portamento time, 0 to maxint.
 
 *******************************************************************************/
 
-void pa_porttime(int p, int t, pa_channel c, int v)
+void ami_porttime(int p, int t, ami_channel c, int v)
 
 {
 
-    error("pa_porttime: Is not implemented");
+    error("ami_porttime: Is not implemented");
 
 }
 
@@ -449,11 +449,11 @@ Sets modulaton value, 0 to maxint.
 
 *******************************************************************************/
 
-void pa_vibrato(int p, int t, pa_channel c, int v)
+void ami_vibrato(int p, int t, ami_channel c, int v)
 
 {
 
-    error("pa_vibrato: Is not implemented");
+    error("ami_vibrato: Is not implemented");
 
 }
 
@@ -466,11 +466,11 @@ maxint is hard right.
 
 *******************************************************************************/
 
-void pa_pan(int p, int t, pa_channel c, int b)
+void ami_pan(int p, int t, ami_channel c, int b)
 
 {
 
-    error("pa_pan: Is not implemented");
+    error("ami_pan: Is not implemented");
 
 }
 
@@ -482,11 +482,11 @@ Sets the sound timbre, 0 to maxint.
 
 *******************************************************************************/
 
-void pa_timbre(int p, int t, pa_channel c, int tb)
+void ami_timbre(int p, int t, ami_channel c, int tb)
 
 {
 
-    error("pa_timbre: Is not implemented");
+    error("ami_timbre: Is not implemented");
 
 }
 
@@ -498,11 +498,11 @@ Sets the sound brightness, 0 to maxint.
 
 *******************************************************************************/
 
-void pa_brightness(int p, int t, pa_channel c, int b)
+void ami_brightness(int p, int t, ami_channel c, int b)
 
 {
 
-    error("pa_brightness: Is not implemented");
+    error("ami_brightness: Is not implemented");
 
 }
 
@@ -514,11 +514,11 @@ Sets the sound reverb, 0 to maxint.
 
 *******************************************************************************/
 
-void pa_reverb(int p, int t, pa_channel c, int r)
+void ami_reverb(int p, int t, ami_channel c, int r)
 
 {
 
-    error("pa_reverb: Is not implemented");
+    error("ami_reverb: Is not implemented");
 
 }
 
@@ -530,11 +530,11 @@ Sets the sound tremulo, 0 to maxint.
 
 *******************************************************************************/
 
-void pa_tremulo(int p, int t, pa_channel c, int tr)
+void ami_tremulo(int p, int t, ami_channel c, int tr)
 
 {
 
-    error("pa_tremulo: Is not implemented");
+    error("ami_tremulo: Is not implemented");
 
 }
 
@@ -546,11 +546,11 @@ Sets the sound chorus, 0 to maxint.
 
 *******************************************************************************/
 
-void pa_chorus(int p, int t, pa_channel c, int cr)
+void ami_chorus(int p, int t, ami_channel c, int cr)
 
 {
 
-    error("pa_chorus: Is not implemented");
+    error("ami_chorus: Is not implemented");
 
 }
 
@@ -562,11 +562,11 @@ Sets the sound celeste, 0 to maxint.
 
 *******************************************************************************/
 
-void pa_celeste(int p, int t, pa_channel c, int ce)
+void ami_celeste(int p, int t, ami_channel c, int ce)
 
 {
 
-    error("pa_celeste: Is not implemented");
+    error("ami_celeste: Is not implemented");
 
 }
 
@@ -578,11 +578,11 @@ Sets the sound phaser, 0 to maxint.
 
 *******************************************************************************/
 
-void pa_phaser(int p, int t, pa_channel c, int ph)
+void ami_phaser(int p, int t, ami_channel c, int ph)
 
 {
 
-    error("pa_phaser: Is not implemented");
+    error("ami_phaser: Is not implemented");
 
 }
 
@@ -598,11 +598,11 @@ could be reached with a slide, for example.
 
 *******************************************************************************/
 
-void pa_pitchrange(int p, int t, pa_channel c, int v)
+void ami_pitchrange(int p, int t, ami_channel c, int v)
 
 {
 
-    error("pa_pitchrange: Is not implemented");
+    error("ami_pitchrange: Is not implemented");
 
 }
 
@@ -616,11 +616,11 @@ with 0 being "allways select single note mode".
 
 *******************************************************************************/
 
-void pa_mono(int p, int t, pa_channel c, int ch)
+void ami_mono(int p, int t, ami_channel c, int ch)
 
 {
 
-    error("pa_mono: Is not implemented");
+    error("ami_mono: Is not implemented");
 
 }
 
@@ -632,11 +632,11 @@ Reenables polyphonic mode after a monophonic operation.
 
 *******************************************************************************/
 
-void pa_poly(int p, int t, pa_channel c)
+void ami_poly(int p, int t, ami_channel c)
 
 {
 
-    error("pa_poly: Is not implemented");
+    error("ami_poly: Is not implemented");
 
 }
 
@@ -648,11 +648,11 @@ Controls aftertouch, 0 to maxint, on a note.
 
 *******************************************************************************/
 
-void pa_aftertouch(int p, int t, pa_channel c, pa_note n, int at)
+void ami_aftertouch(int p, int t, ami_channel c, ami_note n, int at)
 
 {
 
-    error("pa_aftertouch: Is not implemented");
+    error("ami_aftertouch: Is not implemented");
 
 }
 
@@ -664,11 +664,11 @@ Controls channel pressure, 0 to maxint.
 
 *******************************************************************************/
 
-void pa_pressure(int p, int t, pa_channel c, int pr)
+void ami_pressure(int p, int t, ami_channel c, int pr)
 
 {
 
-    error("pa_pressure: Is not implemented");
+    error("ami_pressure: Is not implemented");
 
 }
 
@@ -683,11 +683,11 @@ C#.
 
 *******************************************************************************/
 
-void pa_pitch(int p, int t, pa_channel c, int pt)
+void ami_pitch(int p, int t, ami_channel c, int pt)
 
 {
 
-    error("pa_pitch: Is not implemented");
+    error("ami_pitch: Is not implemented");
 
 }
 
@@ -704,11 +704,11 @@ is no more than 10 synth files at a time.
 
 *******************************************************************************/
 
-void pa_loadsynth(int s, string fn)
+void ami_loadsynth(int s, string fn)
 
 {
 
-    error("pa_loadsynth: Is not implemented");
+    error("ami_loadsynth: Is not implemented");
 
 }
 
@@ -724,11 +724,11 @@ result in this routine blocking until it is complete.
 
 *******************************************************************************/
 
-void pa_delsynth(int s)
+void ami_delsynth(int s)
 
 {
 
-    error("pa_delsynth: Is not implemented");
+    error("ami_delsynth: Is not implemented");
 
 }
 
@@ -751,11 +751,11 @@ it is open, then reopening it afterwards.
 
 *******************************************************************************/
 
-void pa_playsynth(int p, int t, int s)
+void ami_playsynth(int p, int t, int s)
 
 {
 
-    error("pa_playsynth: Is not implemented");
+    error("ami_playsynth: Is not implemented");
 
 }
 
@@ -782,11 +782,11 @@ sequencer(s), including background tasks.
 
 *******************************************************************************/
 
-void pa_waitsynth(int p)
+void ami_waitsynth(int p)
 
 {
 
-    error("pa_waitsynth: Is not implemented");
+    error("ami_waitsynth: Is not implemented");
 
 }
 
@@ -798,11 +798,11 @@ Returns the number of wave output devices available.
 
 *******************************************************************************/
 
-int pa_waveout(void)
+int ami_waveout(void)
 
 {
 
-    error("pa_waveout: Is not implemented");
+    error("ami_waveout: Is not implemented");
 
     return (1); /* this just shuts up compiler */
 
@@ -816,11 +816,11 @@ Returns the number of wave output devices available.
 
 *******************************************************************************/
 
-int pa_wavein(void)
+int ami_wavein(void)
 
 {
 
-    error("pa_wavein: Is not implemented");
+    error("ami_wavein: Is not implemented");
 
     return (1); /* this just shuts up compiler */
 
@@ -835,11 +835,11 @@ output device. This is presently a no-op for linux.
 
 *******************************************************************************/
 
-void pa_openwaveout(int p)
+void ami_openwaveout(int p)
 
 {
 
-    error("pa_openwaveout: Is not implemented");
+    error("ami_openwaveout: Is not implemented");
 
 }
 
@@ -851,11 +851,11 @@ Closes a wave output device by number. This is presently a no-op for linux.
 
 *******************************************************************************/
 
-void pa_closewaveout(int p)
+void ami_closewaveout(int p)
 
 {
 
-    error("pa_closewaveout: Is not implemented");
+    error("ami_closewaveout: Is not implemented");
 
 }
 
@@ -875,11 +875,11 @@ the test system, the latency to play is acceptable.
 
 *******************************************************************************/
 
-void pa_loadwave(int w, string fn)
+void ami_loadwave(int w, string fn)
 
 {
 
-    error("pa_loadwave: Is not implemented");
+    error("ami_loadwave: Is not implemented");
 
 }
 
@@ -892,11 +892,11 @@ redefined.
 
 *******************************************************************************/
 
-void pa_delwave(int w)
+void ami_delwave(int w)
 
 {
 
-    error("pa_delwave: Is not implemented");
+    error("ami_delwave: Is not implemented");
 
 }
 
@@ -911,11 +911,11 @@ The file is specified by file name, and the file type is system dependent.
 
 *******************************************************************************/
 
-void pa_playwave(int p, int t, int w)
+void ami_playwave(int p, int t, int w)
 
 {
 
-    error("pa_playwave: Is not implemented");
+    error("ami_playwave: Is not implemented");
 
 }
 
@@ -929,11 +929,11 @@ Not implemented at present.
 
 *******************************************************************************/
 
-void pa_volwave(int p, int t, int v)
+void ami_volwave(int p, int t, int v)
 
 {
 
-    error("pa_volwave: Is not implemented");
+    error("ami_volwave: Is not implemented");
 
 }
 
@@ -954,11 +954,11 @@ wait until they all stop.
 
 *******************************************************************************/
 
-void pa_waitwave(int p)
+void ami_waitwave(int p)
 
 {
 
-    error("pa_waitwave: Is not implemented");
+    error("ami_waitwave: Is not implemented");
 
 }
 
@@ -974,11 +974,11 @@ for the next sample.
 
 *******************************************************************************/
 
-void pa_chanwaveout(int p, int c)
+void ami_chanwaveout(int p, int c)
 
 {
 
-    error("pa_chanwaveout: Is not implemented");
+    error("ami_chanwaveout: Is not implemented");
 
 }
 
@@ -994,11 +994,11 @@ required.
 
 *******************************************************************************/
 
-void pa_ratewaveout(int p, int r)
+void ami_ratewaveout(int p, int r)
 
 {
 
-    error("pa_ratewaveout: Is not implemented");
+    error("ami_ratewaveout: Is not implemented");
 
 }
 
@@ -1014,11 +1014,11 @@ cound would mainly indicate precision only.
 
 *******************************************************************************/
 
-void pa_lenwaveout(int p, int l)
+void ami_lenwaveout(int p, int l)
 
 {
 
-    error("pa_lenwaveout: Is not implemented");
+    error("ami_lenwaveout: Is not implemented");
 
 }
 
@@ -1031,11 +1031,11 @@ point formats are inherently signed.
 
 *******************************************************************************/
 
-void pa_sgnwaveout(int p, int s)
+void ami_sgnwaveout(int p, int s)
 
 {
 
-    error("pa_sgnwaveout: Is not implemented");
+    error("ami_sgnwaveout: Is not implemented");
 
 }
 
@@ -1047,11 +1047,11 @@ Sets the floating point/integer format for output sound samples.
 
 *******************************************************************************/
 
-void pa_fltwaveout(int p, int f)
+void ami_fltwaveout(int p, int f)
 
 {
 
-    error("pa_fltwaveout: Is not implemented");
+    error("ami_fltwaveout: Is not implemented");
 
 }
 
@@ -1065,11 +1065,11 @@ case it is an error to set a format that is different.
 
 *******************************************************************************/
 
-void pa_endwaveout(int p, int e)
+void ami_endwaveout(int p, int e)
 
 {
 
-    error("pa_endwaveout: Is not implemented");
+    error("ami_endwaveout: Is not implemented");
 
 }
 
@@ -1093,11 +1093,11 @@ recommended to be 1ms or less (64 samples at a 44100 sample rate).
 
 *******************************************************************************/
 
-void pa_wrwave(int p, byte* buff, int len)
+void ami_wrwave(int p, byte* buff, int len)
 
 {
 
-    error("pa_wrwave: Is not implemented");
+    error("ami_wrwave: Is not implemented");
 
 }
 
@@ -1111,11 +1111,11 @@ but we assert them here on open.
 
 *******************************************************************************/
 
-void pa_openwavein(int p)
+void ami_openwavein(int p)
 
 {
 
-    error("pa_openwavein: Is not implemented");
+    error("ami_openwavein: Is not implemented");
 
 }
 
@@ -1127,11 +1127,11 @@ Closes a wave input device by number. This is presently a no-op for linux.
 
 *******************************************************************************/
 
-void pa_closewavein(int p)
+void ami_closewavein(int p)
 
 {
 
-    error("pa_closewavein: Is not implemented");
+    error("ami_closewavein: Is not implemented");
 
 }
 
@@ -1147,11 +1147,11 @@ sample.
 
 *******************************************************************************/
 
-int pa_chanwavein(int p)
+int ami_chanwavein(int p)
 
 {
 
-    error("pa_chanwavein: Is not implemented");
+    error("ami_chanwavein: Is not implemented");
 
     return (1); /* this just shuts up compiler */
 
@@ -1167,11 +1167,11 @@ and it must be open. Input samples are timed at the rate.
 
 *******************************************************************************/
 
-int pa_ratewavein(int p)
+int ami_ratewavein(int p)
 
 {
 
-    error("pa_ratewavein: Is not implemented");
+    error("ami_ratewavein: Is not implemented");
 
     return (1); /* this just shuts up compiler */
 
@@ -1196,11 +1196,11 @@ round up bit lengths as shown above.
 
 *******************************************************************************/
 
-int pa_lenwavein(int p)
+int ami_lenwavein(int p)
 
 {
 
-    error("pa_lenwavein: Is not implemented");
+    error("ami_lenwavein: Is not implemented");
 
     return (1); /* this just shuts up compiler */
 
@@ -1215,11 +1215,11 @@ signed sampling is always true if the samples are floating point.
 
 *******************************************************************************/
 
-int pa_sgnwavein(int p)
+int ami_sgnwavein(int p)
 
 {
 
-    error("pa_sgnwavein: Is not implemented");
+    error("ami_sgnwavein: Is not implemented");
 
     return (1); /* this just shuts up compiler */
 
@@ -1233,11 +1233,11 @@ Returns true if the given wave input device has big endian sampling.
 
 *******************************************************************************/
 
-int pa_endwavein(int p)
+int ami_endwavein(int p)
 
 {
 
-    error("pa_endwavein: Is not implemented");
+    error("ami_endwavein: Is not implemented");
 
     return (1); /* this just shuts up compiler */
 
@@ -1251,11 +1251,11 @@ Returns true if the given wave input device has floating point sampling.
 
 *******************************************************************************/
 
-int pa_fltwavein(int p)
+int ami_fltwavein(int p)
 
 {
 
-    error("pa_fltwavein: Is not implemented");
+    error("ami_fltwavein: Is not implemented");
 
     return (1); /* this just shuts up compiler */
 
@@ -1284,16 +1284,16 @@ Thus (for example) 1024*channels would be an appropriate buffer size. Not
 providing enough buffering will not cause an error, but will cause the read
 rate to fall behind the data rate.
 
-pa_rdwave() will return the actual number of bytes read, which will contain
-3*pa_chanwavein() bytes of samples. This will then be the actual buffer content.
+ami_rdwave() will return the actual number of bytes read, which will contain
+3*ami_chanwavein() bytes of samples. This will then be the actual buffer content.
 
 *******************************************************************************/
 
-int pa_rdwave(int p, byte* buff, int len)
+int ami_rdwave(int p, byte* buff, int len)
 
 {
 
-    error("pa_rdwave: Is not implemented");
+    error("ami_rdwave: Is not implemented");
 
     return (1); /* this just shuts up compiler */
 
@@ -1307,11 +1307,11 @@ Returns the ALSA device name of the given synthsizer output port.
 
 *******************************************************************************/
 
-void pa_synthoutname(int p, string name, int len)
+void ami_synthoutname(int p, string name, int len)
 
 {
 
-    error("pa_synthoutname: Is not implemented");
+    error("ami_synthoutname: Is not implemented");
 
 }
 
@@ -1323,11 +1323,11 @@ Returns the ALSA device name of the given synthsizer input port.
 
 *******************************************************************************/
 
-void pa_synthinname(int p, string name, int len)
+void ami_synthinname(int p, string name, int len)
 
 {
 
-    error("pa_synthinname: Is not implemented");
+    error("ami_synthinname: Is not implemented");
 
 }
 
@@ -1339,11 +1339,11 @@ Returns the ALSA device name of the given wave output port.
 
 *******************************************************************************/
 
-void pa_waveoutname(int p, string name, int len)
+void ami_waveoutname(int p, string name, int len)
 
 {
 
-    error("pa_waveoutname: Is not implemented");
+    error("ami_waveoutname: Is not implemented");
 
 }
 
@@ -1355,11 +1355,11 @@ Returns the ALSA device name of the given wave input port.
 
 *******************************************************************************/
 
-void pa_waveinname(int p, string name, int len)
+void ami_waveinname(int p, string name, int len)
 
 {
 
-    error("pa_waveinname: Is not implemented");
+    error("ami_waveinname: Is not implemented");
 
 }
 
@@ -1371,11 +1371,11 @@ The given synthesizer port is opened and ready for reading.
 
 *******************************************************************************/
 
-void pa_opensynthin(int p)
+void ami_opensynthin(int p)
 
 {
 
-    error("pa_opensynthin: Is not implemented");
+    error("ami_opensynthin: Is not implemented");
 
 }
 
@@ -1387,11 +1387,11 @@ Closes the given synthsizer port for reading.
 
 *******************************************************************************/
 
-void pa_closesynthin(int p)
+void ami_closesynthin(int p)
 
 {
 
-    error("pa_closesynthin: Is not implemented");
+    error("ami_closesynthin: Is not implemented");
 
 }
 
@@ -1411,11 +1411,11 @@ a parameter.
 
 *******************************************************************************/
 
-void pa_wrsynth(int p, pa_seqptr sp)
+void ami_wrsynth(int p, ami_seqptr sp)
 
 {
 
-    error("pa_wrsynth: Is not implemented");
+    error("ami_wrsynth: Is not implemented");
 
 }
 
@@ -1440,11 +1440,11 @@ a full MIDI decoder.
 
 *******************************************************************************/
 
-void pa_rdsynth(int p, pa_seqptr sp)
+void ami_rdsynth(int p, ami_seqptr sp)
 
 {
 
-    error("pa_rdsynth: Is not implemented");
+    error("ami_rdsynth: Is not implemented");
 
 }
 
@@ -1461,11 +1461,11 @@ parameters implemented on a particular device are dependent on that device.
 
 *******************************************************************************/
 
-void pa_getparamsynthout(int p, string name, string value, int len)
+void ami_getparamsynthout(int p, string name, string value, int len)
 
 {
 
-    error("pa_getparamsynthout: Is not implemented");
+    error("ami_getparamsynthout: Is not implemented");
 
 }
 
@@ -1482,11 +1482,11 @@ parameters implemented on a particular device are dependent on that device.
 
 *******************************************************************************/
 
-void pa_getparamsynthin(int p, string name, string value, int len)
+void ami_getparamsynthin(int p, string name, string value, int len)
 
 {
 
-    error("pa_getparamsynthin: Is not implemented");
+    error("ami_getparamsynthin: Is not implemented");
 
 }
 
@@ -1503,11 +1503,11 @@ parameters implemented on a particular device are dependent on that device.
 
 *******************************************************************************/
 
-void pa_getparamwaveout(int p, string name, string value, int len)
+void ami_getparamwaveout(int p, string name, string value, int len)
 
 {
 
-    error("pa_getparamwaveout: Is not implemented");
+    error("ami_getparamwaveout: Is not implemented");
 
 }
 
@@ -1524,11 +1524,11 @@ parameters implemented on a particular device are dependent on that device.
 
 *******************************************************************************/
 
-void pa_getparamwavein(int p, string name, string value, int len)
+void ami_getparamwavein(int p, string name, string value, int len)
 
 {
 
-    error("pa_getparamwavein: Is not implemented");
+    error("ami_getparamwavein: Is not implemented");
 
 }
 
@@ -1545,11 +1545,11 @@ parameters implemented on a particular device are dependent on that device.
 
 *******************************************************************************/
 
-int pa_setparamsynthout(int p, string name, string value)
+int ami_setparamsynthout(int p, string name, string value)
 
 {
 
-    error("pa_setparamsynthout: Is not implemented");
+    error("ami_setparamsynthout: Is not implemented");
 
     return (1); /* this just shuts up compiler */
 
@@ -1568,11 +1568,11 @@ parameters implemented on a particular device are dependent on that device.
 
 *******************************************************************************/
 
-int pa_setparamsynthin(int p, string name, string value)
+int ami_setparamsynthin(int p, string name, string value)
 
 {
 
-    error("pa_setparamsynthin: Is not implemented");
+    error("ami_setparamsynthin: Is not implemented");
 
     return (1); /* this just shuts up compiler */
 
@@ -1591,11 +1591,11 @@ parameters implemented on a particular device are dependent on that device.
 
 *******************************************************************************/
 
-int pa_setparamwaveout(int p, string name, string value)
+int ami_setparamwaveout(int p, string name, string value)
 
 {
 
-    error("pa_setparamwaveout: Is not implemented");
+    error("ami_setparamwaveout: Is not implemented");
 
     return (1); /* this just shuts up compiler */
 
@@ -1614,11 +1614,11 @@ parameters implemented on a particular device are dependent on that device.
 
 *******************************************************************************/
 
-int pa_setparamwavein(int p, string name, string value)
+int ami_setparamwavein(int p, string name, string value)
 
 {
 
-    error("pa_setparamwavein: Is not implemented");
+    error("ami_setparamwavein: Is not implemented");
 
     return (1); /* this just shuts up compiler */
 

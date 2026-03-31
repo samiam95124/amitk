@@ -80,12 +80,12 @@ typedef struct {
 int       timcnt;                /* move countdown */
 scnpos    snakel[MAXSN];         /* snake's positions */
 int       sntop;                 /* current snake array top */
-pa_evtcod lstmov;                /* player move type */
+ami_evtcod lstmov;                /* player move type */
 char      scrsav[SCRNUM];        /* screen score counter */
 int       scrlft;                /* units of score left to add */
 int       scrloc;                /* location of score digits */
 int   fblink;                /* crash blinker */
-pa_evtrec er;                    /* event record */
+ami_evtrec er;                    /* event record */
 char      image[MAXSCN][MAXSCN]; /* screen image */
 int   crash;                 /* crash occurred flag */
 int       i;
@@ -106,7 +106,7 @@ void writescreen(int x, int y, /* position to place character */
 
 {
 
-    pa_cursor(stdout, x, y); /* position to the given location */
+    ami_cursor(stdout, x, y); /* position to the given location */
     if (c != image[x][y]) { /* filter redundant placements */
 
         putchar(c); /* write the character */
@@ -133,7 +133,7 @@ void wrtcen(int    y,   /* y position of string */
 
     int i; /* index for string */
 
-    *off = pa_maxx(stdout) / 2-strlen(s) / 2;
+    *off = ami_maxx(stdout) / 2-strlen(s) / 2;
     /* write out contents */
     for (i = 1; i < strlen(s); i++) writescreen(i+*off, y, s[i]);
 
@@ -158,23 +158,23 @@ void clrscn(void)
     int x; /* index x */
 
     putchar('\f'); /* clear display screen */
-    for (x = 1; x <= pa_maxx(stdout); x++) /* clear image */
-        for (y = 1; y <= pa_maxy(stdout); y++) image[x][y] = ' ';
+    for (x = 1; x <= ami_maxx(stdout); x++) /* clear image */
+        for (y = 1; y <= ami_maxy(stdout); y++) image[x][y] = ' ';
     /* place top */
-    for (x = 1; x <= pa_maxx(stdout); x++) writescreen(x, 1, '*');
+    for (x = 1; x <= ami_maxx(stdout); x++) writescreen(x, 1, '*');
     /* place sides */
-    for (y = 2; y <= pa_maxy(stdout)-1; y++) { /* lines */
+    for (y = 2; y <= ami_maxy(stdout)-1; y++) { /* lines */
 
         writescreen(1, y, '*'); /* place left border */
-        writescreen(pa_maxx(stdout), y, '*'); /* place right border */
+        writescreen(ami_maxx(stdout), y, '*'); /* place right border */
 
     }
     /* place bottom */
-    for (x = 1; x <= pa_maxx(stdout); x++) writescreen(x, pa_maxy(stdout), '*');
+    for (x = 1; x <= ami_maxx(stdout); x++) writescreen(x, ami_maxy(stdout), '*');
     /* size and place banners */
     wrtcen(1, " -> FUNCTION 1 RESTARTS <-   SCORE - 0000 ", &x);
     scrloc = x+38;
-    wrtcen(pa_maxy(stdout), " SNAKE VS. 2.0 ", &x);
+    wrtcen(ami_maxy(stdout), " SNAKE VS. 2.0 ", &x);
 
 }
 
@@ -216,8 +216,8 @@ void plctrg(void)
 
         /* find x, y locations, not on a border using
            a zero - n random function */
-        y = randn(pa_maxy(stdout)-2)+2;
-        x = randn(pa_maxx(stdout)-2)+2;
+        y = randn(ami_maxy(stdout)-2)+2;
+        x = randn(ami_maxx(stdout)-2)+2;
         c = image[x][y]; /* get character at position */
 
     } while (c != ' '); /* area is unoccupied */
@@ -286,7 +286,7 @@ opposite the new one).
 
 *******************************************************************************/
 
-void movesnake(pa_evtcod usrmov)
+void movesnake(ami_evtcod usrmov)
 
 {
 
@@ -295,17 +295,17 @@ void movesnake(pa_evtcod usrmov)
     int   x;  /* index x */
     int   y;  /* index y */
 
-    if (usrmov == pa_etdown || usrmov == pa_etup || usrmov == pa_etleft ||
-        usrmov == pa_etright) {
+    if (usrmov == ami_etdown || usrmov == ami_etup || usrmov == ami_etleft ||
+        usrmov == ami_etright) {
 
         x = snakel[sntop].scnx; /* save present top */
         y = snakel[sntop].scny;
         switch (usrmov) {
 
-            case pa_etdown:  y++; break; /* move down */
-            case pa_etup:    y--; break; /* move up */
-            case pa_etleft:  x--; break; /* move left */
-            case pa_etright: x++; break; /* move right */
+            case ami_etdown:  y++; break; /* move down */
+            case ami_etup:    y--; break; /* move up */
+            case ami_etleft:  x--; break; /* move left */
+            case ami_etright: x++; break; /* move right */
             default:;
 
         }
@@ -315,7 +315,7 @@ void movesnake(pa_evtcod usrmov)
 
             c = image[x][y]; /* load new character */
             /* check terminate */
-            if (y == 1 || y == pa_maxy(stdout) || x == 1 || x == pa_maxx(stdout) ||
+            if (y == 1 || y == ami_maxy(stdout) || x == 1 || x == ami_maxx(stdout) ||
                 (c != ' ' && !isdigit(c))) {
 
                 crash = TRUE; /* set crash occurred */
@@ -389,23 +389,23 @@ void getevt(int tim) /* accept timer events */
 
         do { /* event rejection loop */
 
-            pa_event(stdin, &er); /* get event */
+            ami_event(stdin, &er); /* get event */
 
-        } while (er.etype != pa_etleft && er.etype != pa_etright &&
-                 er.etype != pa_etup   && er.etype != pa_etdown &&
-                 er.etype != pa_etterm && er.etype != pa_ettim &&
-                 er.etype != pa_etfun  && er.etype != pa_etjoymov);
+        } while (er.etype != ami_etleft && er.etype != ami_etright &&
+                 er.etype != ami_etup   && er.etype != ami_etdown &&
+                 er.etype != ami_etterm && er.etype != ami_ettim &&
+                 er.etype != ami_etfun  && er.etype != ami_etjoymov);
         accept = TRUE; /* set event accepted by default */
-        if (er.etype == pa_etjoymov) { /* handle joystick */
+        if (er.etype == ami_etjoymov) { /* handle joystick */
 
             /* change joystick to default move directions */
-            if (er.joypx > INT_MAX/10) lstmov = pa_etright;
-            else if (er.joypx < -INT_MAX/10) lstmov = pa_etleft;
-            else if (er.joypy > INT_MAX/10) lstmov = pa_etdown;
-            else if (er.joypy < -INT_MAX/10) lstmov = pa_etup;
+            if (er.joypx > INT_MAX/10) lstmov = ami_etright;
+            else if (er.joypx < -INT_MAX/10) lstmov = ami_etleft;
+            else if (er.joypy > INT_MAX/10) lstmov = ami_etdown;
+            else if (er.joypy < -INT_MAX/10) lstmov = ami_etup;
             accept = FALSE; /* these events don't exit */
 
-        } else if (er.etype == pa_ettim) { /* timer */
+        } else if (er.etype == ami_ettim) { /* timer */
 
             if (tim) {
 
@@ -415,7 +415,7 @@ void getevt(int tim) /* accept timer events */
 
             } else accept = FALSE; /* suppress exit */
 
-        } else if (er.etype != pa_etfun && er.etype != pa_etterm) /* movement */
+        } else if (er.etype != ami_etfun && er.etype != ami_etterm) /* movement */
             movesnake(er.etype); /* process user move */
 
    } while (!accept);
@@ -439,41 +439,41 @@ int main(void) /* snake */
 
 {
 
-    if (pa_maxx(stdout) > MAXSCN || pa_maxy(stdout) > MAXSCN) {
+    if (ami_maxx(stdout) > MAXSCN || ami_maxy(stdout) > MAXSCN) {
 
         fprintf(stderr, "*** Error: Screen exceeds maximum size\n");
         exit(1);
 
     }
-    pa_select(stdout, 2, 2); /* switch screens */
-    pa_curvis(stdout, FALSE); /* remove drawing cursor */
-    pa_auto(stdout, FALSE); /* remove automatic scrolling */
-    pa_bcolor(stdout, pa_cyan); /* on cyan background */
-    pa_timer(stdout, 1, TIMMAX, TRUE); /* set move timer */
-    pa_timer(stdout, 2, BLNTIM, TRUE); /* set blinker timer */
+    ami_select(stdout, 2, 2); /* switch screens */
+    ami_curvis(stdout, FALSE); /* remove drawing cursor */
+    ami_auto(stdout, FALSE); /* remove automatic scrolling */
+    ami_bcolor(stdout, ami_cyan); /* on cyan background */
+    ami_timer(stdout, 1, TIMMAX, TRUE); /* set move timer */
+    ami_timer(stdout, 2, BLNTIM, TRUE); /* set blinker timer */
     do { /* game */
 
         restart: /* start new game */
 
         scrlft = 0; /* clear score add count */
         clrscn();
-        snakel[0].scnx = pa_maxx(stdout)/2; /* set snake position middle */
-        snakel[0].scny = pa_maxy(stdout)/2;
+        snakel[0].scnx = ami_maxx(stdout)/2; /* set snake position middle */
+        snakel[0].scny = ami_maxy(stdout)/2;
         sntop = 0; /* set top snake character */
-        writescreen(pa_maxx(stdout)/2, pa_maxy(stdout)/2, '@'); /* place snake */
+        writescreen(ami_maxx(stdout)/2, ami_maxy(stdout)/2, '@'); /* place snake */
         timcnt = TIMMAX;
         for (i = 0; i < SCRNUM; i++) scrsav[i] = '0'; /* zero score */
         nxtscr();
         getevt(FALSE); /* get the next event, without timers */
-        if (er.etype == pa_etterm) goto terminate; /* immediate termination */
-        else if (er.etype == pa_etfun) goto restart; /* start new game */
+        if (er.etype == ami_etterm) goto terminate; /* immediate termination */
+        else if (er.etype == ami_etfun) goto restart; /* start new game */
         plctrg(); /* place starting target */
         crash = FALSE; /* set no crash occurred */
         do { /* game loop */
 
             getevt(TRUE); /* get next event, with timers */
-            if (er.etype == pa_etterm) goto terminate; /* immediate termination */
-            if (er.etype == pa_etfun) goto restart; /* start new game */
+            if (er.etype == ami_etterm) goto terminate; /* immediate termination */
+            if (er.etype == ami_etfun) goto restart; /* start new game */
 
         } while (!crash); /* we crash into an object */
         /* not a voluntary cancel, must have *** crashed *** */
@@ -485,10 +485,10 @@ int main(void) /* snake */
         do { /* blink cycles */
 
             /* wait for an interesting event */
-            do { pa_event(stdin, &er); }
-            while (er.etype != pa_ettim && er.etype != pa_etterm && er.etype != pa_etfun);
-            if (er.etype == pa_etterm) goto terminate; /* immediate termination */
-            if (er.etype == pa_etfun) goto restart; /* restart game */
+            do { ami_event(stdin, &er); }
+            while (er.etype != ami_ettim && er.etype != ami_etterm && er.etype != ami_etfun);
+            if (er.etype == ami_etterm) goto terminate; /* immediate termination */
+            if (er.etype == ami_etfun) goto restart; /* restart game */
             /* must be timer */
             if (er.timnum == 2) { /* blink cycle */
 
@@ -506,9 +506,9 @@ int main(void) /* snake */
 
    terminate: /* terminate program */
 
-   pa_curvis(stdout, TRUE); /* restore drawing cursor */
-   pa_auto(stdout, TRUE); /* restore automatic scrolling */
-   pa_select(stdout, 1, 1); /* back to original screen */
+   ami_curvis(stdout, TRUE); /* restore drawing cursor */
+   ami_auto(stdout, TRUE); /* restore automatic scrolling */
+   ami_select(stdout, 1, 1); /* back to original screen */
 
    return (0); /* exit no error */
 

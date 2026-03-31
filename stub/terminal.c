@@ -77,11 +77,11 @@ This is the external interface to cursor.
 
 *******************************************************************************/
 
-void pa_cursor(FILE *f, int x, int y)
+void ami_cursor(FILE *f, int x, int y)
 
 {
 
-    error("pa_cursor: Is not implemented");
+    error("ami_cursor: Is not implemented");
 
 }
 
@@ -93,11 +93,11 @@ This is the external interface to curbnd.
 
 *******************************************************************************/
 
-int pa_curbnd(FILE *f)
+int ami_curbnd(FILE *f)
 
 {
 
-    error("pa_curbnd: Is not implemented");
+    error("ami_curbnd: Is not implemented");
 
     return (1); /* this just shuts up compiler */
 
@@ -112,11 +112,11 @@ display. Because ANSI has no information return capability, this is preset.
 
 *******************************************************************************/
 
-int pa_maxx(FILE *f)
+int ami_maxx(FILE *f)
 
 {
 
-    error("pa_maxx: Is not implemented");
+    error("ami_maxx: Is not implemented");
 
     return (1); /* this just shuts up compiler */
 
@@ -131,11 +131,11 @@ display. Because ANSI has no information return capability, this is preset.
 
 *******************************************************************************/
 
-int pa_maxy(FILE *f)
+int ami_maxy(FILE *f)
 
 {
 
-    error("pa_maxy: Is not implemented");
+    error("ami_maxy: Is not implemented");
 
     return (1); /* this just shuts up compiler */
 
@@ -149,11 +149,11 @@ Moves the cursor to the home position at (1, 1), the upper right hand corner.
 
 *******************************************************************************/
 
-void pa_home(FILE *f)
+void ami_home(FILE *f)
 
 {
 
-    error("pa_home: Is not implemented");
+    error("ami_home: Is not implemented");
 
 }
 
@@ -166,11 +166,11 @@ position left.
 
 *******************************************************************************/
 
-void pa_del(FILE* f)
+void ami_del(FILE* f)
 
 {
 
-    error("pa_del: Is not implemented");
+    error("ami_del: Is not implemented");
 
 }
 
@@ -182,11 +182,11 @@ This is the external interface to up.
 
 *******************************************************************************/
 
-void pa_up(FILE *f)
+void ami_up(FILE *f)
 
 {
 
-    error("pa_up: Is not implemented");
+    error("ami_up: Is not implemented");
 
 }
 
@@ -199,11 +199,11 @@ This is the external interface to down.
 
 *******************************************************************************/
 
-void pa_down(FILE *f)
+void ami_down(FILE *f)
 
 {
 
-    error("pa_down: Is not implemented");
+    error("ami_down: Is not implemented");
 
 }
 
@@ -215,11 +215,11 @@ This is the external interface to left.
 
 *******************************************************************************/
 
-void pa_left(FILE *f)
+void ami_left(FILE *f)
 
 {
 
-    error("pa_left: Is not implemented");
+    error("ami_left: Is not implemented");
 
 }
 
@@ -231,11 +231,11 @@ This is the external interface to right.
 
 *******************************************************************************/
 
-void pa_right(FILE *f)
+void ami_right(FILE *f)
 
 {
 
-    error("pa_right: Is not implemented");
+    error("ami_right: Is not implemented");
 
 }
 
@@ -253,11 +253,11 @@ colors, which an ATTRIBUTE command seems to mess with !
 
 *******************************************************************************/
 
-void pa_blink(FILE *f, int e)
+void ami_blink(FILE *f, int e)
 
 {
 
-    error("pa_blink: Is not implemented");
+    error("ami_blink: Is not implemented");
 
 }
 
@@ -273,11 +273,11 @@ colors, which an ATTRIBUTE command seems to mess with !
 
 *******************************************************************************/
 
-void pa_reverse(FILE *f, int e)
+void ami_reverse(FILE *f, int e)
 
 {
 
-    error("pa_reverse: Is not implemented");
+    error("ami_reverse: Is not implemented");
 
 }
 
@@ -293,11 +293,11 @@ colors, which an ATTRIBUTE command seems to mess with !
 
 *******************************************************************************/
 
-void pa_underline(FILE *f, int e)
+void ami_underline(FILE *f, int e)
 
 {
 
-    error("pa_underline: Is not implemented");
+    error("ami_underline: Is not implemented");
 
 }
 
@@ -310,11 +310,11 @@ Note that the attributes can only be set singly.
 
 *******************************************************************************/
 
-void pa_superscript(FILE *f, int e)
+void ami_superscript(FILE *f, int e)
 
 {
 
-    error("pa_superscript: Is not implemented");
+    error("ami_superscript: Is not implemented");
 
 }
 
@@ -327,11 +327,11 @@ Note that the attributes can only be set singly.
 
 *******************************************************************************/
 
-void pa_subscript(FILE *f, int e)
+void ami_subscript(FILE *f, int e)
 
 {
 
-    error("pa_subscript: Is not implemented");
+    error("ami_subscript: Is not implemented");
 
 }
 
@@ -344,11 +344,11 @@ Note that the attributes can only be set singly.
 
 *******************************************************************************/
 
-void pa_italic(FILE *f, int e)
+void ami_italic(FILE *f, int e)
 
 {
 
-    error("pa_italic: Is not implemented");
+    error("ami_italic: Is not implemented");
 
 }
 
@@ -364,11 +364,11 @@ colors, which an ATTRIBUTE command seems to mess with !
 
 *******************************************************************************/
 
-void pa_bold(FILE *f, int e)
+void ami_bold(FILE *f, int e)
 
 {
 
-    error("pa_bold: Is not implemented");
+    error("ami_bold: Is not implemented");
 
 }
 
@@ -382,11 +382,11 @@ Not implemented.
 
 *******************************************************************************/
 
-void pa_strikeout(FILE *f, int e)
+void ami_strikeout(FILE *f, int e)
 
 {
 
-    error("pa_strikeout: Is not implemented");
+    error("ami_strikeout: Is not implemented");
 
 }
 
@@ -399,11 +399,11 @@ Note that the attributes can only be set singly.
 
 *******************************************************************************/
 
-void pa_standout(FILE *f, int e)
+void ami_standout(FILE *f, int e)
 
 {
 
-    error("pa_standout: Is not implemented");
+    error("ami_standout: Is not implemented");
 
 }
 
@@ -415,11 +415,11 @@ Sets the foreground (text) color from the universal primary code.
 
 *******************************************************************************/
 
-void pa_fcolor(FILE *f, pa_color c)
+void ami_fcolor(FILE *f, ami_color c)
 
 {
 
-    error("pa_fcolor: Is not implemented");
+    error("ami_fcolor: Is not implemented");
 
 }
 
@@ -431,11 +431,11 @@ Sets the background color from the universal primary code.
 
 *******************************************************************************/
 
-void pa_bcolor(FILE *f, pa_color c)
+void ami_bcolor(FILE *f, ami_color c)
 
 {
 
-    error("pa_bcolor: Is not implemented");
+    error("ami_bcolor: Is not implemented");
 
 }
 
@@ -448,11 +448,11 @@ off the screen at the top or bottom will scroll up or down, respectively.
 
 *******************************************************************************/
 
-void pa_auto(FILE *f, int e)
+void ami_auto(FILE *f, int e)
 
 {
 
-    error("pa_auto: Is not implemented");
+    error("ami_auto: Is not implemented");
 
 }
 
@@ -464,11 +464,11 @@ Enable or disable cursor visibility.
 
 *******************************************************************************/
 
-void pa_curvis(FILE *f, int e)
+void ami_curvis(FILE *f, int e)
 
 {
 
-    error("pa_curvis: Is not implemented");
+    error("ami_curvis: Is not implemented");
 
 }
 
@@ -481,11 +481,11 @@ int.
 
 *******************************************************************************/
 
-void pa_scroll(FILE *f, int x, int y)
+void ami_scroll(FILE *f, int x, int y)
 
 {
 
-    error("pa_scroll: Is not implemented");
+    error("ami_scroll: Is not implemented");
 
 }
 
@@ -497,11 +497,11 @@ Returns the current location of the cursor in x.
 
 *******************************************************************************/
 
-int pa_curx(FILE *f)
+int ami_curx(FILE *f)
 
 {
 
-    error("pa_curx: Is not implemented");
+    error("ami_curx: Is not implemented");
 
     return (1); /* this just shuts up compiler */
 
@@ -515,11 +515,11 @@ Returns the current location of the cursor in y.
 
 *******************************************************************************/
 
-int pa_cury(FILE *f)
+int ami_cury(FILE *f)
 
 {
 
-    error("pa_cury: Is not implemented");
+    error("ami_cury: Is not implemented");
 
     return (1); /* this just shuts up compiler */
 
@@ -542,11 +542,11 @@ Note that split update and display screens are not implemented at present.
 
 *******************************************************************************/
 
-void pa_select(FILE *f, int u, int d)
+void ami_select(FILE *f, int u, int d)
 
 {
 
-    error("pa_select: Is not implemented");
+    error("ami_select: Is not implemented");
 
 }
 
@@ -560,11 +560,11 @@ caller.
 
 *******************************************************************************/
 
-void pa_event(FILE* f, pa_evtrec *er)
+void ami_event(FILE* f, ami_evtrec *er)
 
 {
 
-    error("pa_event: Is not implemented");
+    error("ami_event: Is not implemented");
 
 }
 
@@ -574,14 +574,14 @@ Set timer
 
 *******************************************************************************/
 
-void pa_timer(/* file to send event to */              FILE *f,
+void ami_timer(/* file to send event to */              FILE *f,
               /* timer handle */                       int i,
               /* number of 100us counts */             int t,
               /* timer is to rerun after completion */ int r)
 
 {
 
-    error("pa_timer: Is not implemented");
+    error("ami_timer: Is not implemented");
 
 }
 
@@ -595,12 +595,12 @@ in reserve.
 
 *******************************************************************************/
 
-void pa_killtimer(/* file to kill timer on */ FILE *f,
+void ami_killtimer(/* file to kill timer on */ FILE *f,
                   /* handle of timer */       int i)
 
 {
 
-    error("pa_killtimer: Is not implemented");
+    error("ami_killtimer: Is not implemented");
 
 }
 
@@ -614,11 +614,11 @@ if none is available, never changing it's state.
 
 *******************************************************************************/
 
-int pa_mouse(FILE *f)
+int ami_mouse(FILE *f)
 
 {
 
-    error("pa_mouse: Is not implemented");
+    error("ami_mouse: Is not implemented");
 
     return (1); /* this just shuts up compiler */
 
@@ -633,11 +633,11 @@ to assume 3 buttons.
 
 *******************************************************************************/
 
-int pa_mousebutton(FILE *f, int m)
+int ami_mousebutton(FILE *f, int m)
 
 {
 
-    error("pa_mousebutton: Is not implemented");
+    error("ami_mousebutton: Is not implemented");
 
     return (1); /* this just shuts up compiler */
 
@@ -652,11 +652,11 @@ Note that Windows 95 has no joystick capability.
 
 *******************************************************************************/
 
-int pa_joystick(FILE *f)
+int ami_joystick(FILE *f)
 
 {
 
-    error("pa_joystick: Is not implemented");
+    error("ami_joystick: Is not implemented");
 
     return (1); /* this just shuts up compiler */
 
@@ -671,11 +671,11 @@ Note that Windows 95 has no joystick capability.
 
 *******************************************************************************/
 
-int pa_joybutton(FILE *f, int j)
+int ami_joybutton(FILE *f, int j)
 
 {
 
-    error("pa_joybutton: Is not implemented");
+    error("ami_joybutton: Is not implemented");
 
     return (1); /* this just shuts up compiler */
 
@@ -692,11 +692,11 @@ Note that Windows 95 has no joystick capability.
 
 *******************************************************************************/
 
-int pa_joyaxis(FILE *f, int j)
+int ami_joyaxis(FILE *f, int j)
 
 {
 
-    error("pa_joyaxis: Is not implemented");
+    error("ami_joyaxis: Is not implemented");
 
     return (1); /* this just shuts up compiler */
 
@@ -712,11 +712,11 @@ tab stop that is set. If there is no next tab stop, nothing will happen.
 
 *******************************************************************************/
 
-void pa_settab(FILE* f, int t)
+void ami_settab(FILE* f, int t)
 
 {
 
-    error("pa_settab: Is not implemented");
+    error("ami_settab: Is not implemented");
 
 }
 
@@ -728,11 +728,11 @@ Resets a tab. The tab number t is 1 to n, and indicates the column for the tab.
 
 *******************************************************************************/
 
-void pa_restab(FILE* f, int t)
+void ami_restab(FILE* f, int t)
 
 {
 
-    error("pa_restab: Is not implemented");
+    error("ami_restab: Is not implemented");
 
 }
 
@@ -744,11 +744,11 @@ Clears all tabs.
 
 *******************************************************************************/
 
-void pa_clrtab(FILE* f)
+void ami_clrtab(FILE* f)
 
 {
 
-    error("pa_clrtab: Is not implemented");
+    error("ami_clrtab: Is not implemented");
 
 }
 
@@ -764,11 +764,11 @@ but more can be allocated if needed.
 
 *******************************************************************************/
 
-int pa_funkey(FILE* f)
+int ami_funkey(FILE* f)
 
 {
 
-    error("pa_funkey: Is not implemented");
+    error("ami_funkey: Is not implemented");
 
     return (1); /* this just shuts up compiler */
 
@@ -784,11 +784,11 @@ Not currently implemented.
 
 *******************************************************************************/
 
-void pa_frametimer(FILE* f, int e)
+void ami_frametimer(FILE* f, int e)
 
 {
 
-    error("pa_frametimer: Is not implemented");
+    error("ami_frametimer: Is not implemented");
 
 }
 
@@ -802,11 +802,11 @@ We don't implement automatic hold here.
 
 *******************************************************************************/
 
-void pa_autohold(FILE* f, int e)
+void ami_autohold(FILE* f, int e)
 
 {
 
-    error("pa_autohold: Is not implemented");
+    error("ami_autohold: Is not implemented");
 
 }
 
@@ -818,11 +818,11 @@ Writes a string direct to the terminal, bypassing character handling.
 
 *******************************************************************************/
 
-void pa_wrtstr(FILE* f, char *s)
+void ami_wrtstr(FILE* f, char *s)
 
 {
 
-    error("pa_wrtstr: Is not implemented");
+    error("ami_wrtstr: Is not implemented");
 
 }
 
@@ -837,10 +837,10 @@ call down into the stack by executing the overridden event.
 
 *******************************************************************************/
 
-void pa_eventover(pa_evtcod e, pa_pevthan eh,  pa_pevthan* oeh)
+void ami_eventover(ami_evtcod e, ami_pevthan eh,  ami_pevthan* oeh)
 
 {
 
-    error("pa_eventover: Is not implemented");
+    error("ami_eventover: Is not implemented");
 
 }

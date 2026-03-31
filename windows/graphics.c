@@ -417,7 +417,7 @@ typedef struct winrec {
    Events are kept as a double linked "bubble" to ease their FIFO status. */
 typedef struct eqerec {
 
-    pa_evtrec evt;       /* event */
+    ami_evtrec evt;       /* event */
     struct eqerec* last; /* last list pointer */
     struct eqerec* next; /* next list pointer */
 
@@ -647,7 +647,7 @@ static char*     trmnam;       /* program termination string */
    Windows calls us back, and the results have to be passed via a global. */
 static fontptr   fntlst;       /* list of windows fonts */
 static int       fntcnt;       /* number of fonts in font list */
-static pa_evtrec er;           /* event record */
+static ami_evtrec er;           /* event record */
 static int       r;            /* result holder */
 static int       b;            /* int result holder */
 static eqeptr    eqefre;       /* free event queuing entry list */
@@ -688,8 +688,8 @@ static int       stdwinj2c;    /* joystick 1 capture */
 /* lock for all global structures */
 CRITICAL_SECTION mainlock;     /* main task lock */
 static imptr     freitm;       /* intratask message free list */
-static pa_pevthan evthan[pa_ettabbar+1]; /* array of event handler routines */
-static pa_pevthan evtshan;     /* single master event handler routine */
+static ami_pevthan evthan[ami_ettabbar+1]; /* array of event handler routines */
+static ami_pevthan evtshan;     /* single master event handler routine */
 
 /* The double fault flag is set when exiting, so if we exit again, it
   is checked,  forces an immediate exit. This keeps faults from
@@ -712,7 +712,7 @@ static int dmpevt;    /* enable dump Petit-Ami messages */
 static void clswin(int fn);
 static LRESULT CALLBACK wndproc(HWND hwnd, UINT imsg, WPARAM wparam, LPARAM lparam);
 static LRESULT CALLBACK wndprocdialog(HWND hwnd, UINT imsg, WPARAM wparam, LPARAM lparam);
-void pa_alert(char* title, char* message);
+void ami_alert(char* title, char* message);
 static void error(errcod e);
 
 /******************************************************************************
@@ -785,7 +785,7 @@ static void dooff(int offset)
 
 }
 
-static void prtmenuelm(pa_menuptr m, int offset)
+static void prtmenuelm(ami_menuptr m, int offset)
 
 {
 
@@ -806,7 +806,7 @@ static void prtmenuelm(pa_menuptr m, int offset)
 
 }
 
-static void prtmenu(pa_menuptr m)
+static void prtmenu(ami_menuptr m)
 
 {
 
@@ -995,7 +995,7 @@ static void wrterr(char* es)
 {
 
    /* Output in a dialog */
-   pa_alert("Runtime Error", es);
+   ami_alert("Runtime Error", es);
 
 }
 
@@ -1012,7 +1012,7 @@ static void grawrterr(char* es)
 {
 
     unlockmain(); /* end exclusive access */
-    if (dialogerr) pa_alert("Graphics Module", es);
+    if (dialogerr) ami_alert("Graphics Module", es);
     else {
 
         fprintf(stderr, "\nError: Graphics: ");
@@ -1588,81 +1588,81 @@ A diagnostic, print the given event code as a symbol to the error file.
 
 ******************************************************************************/
 
-void prtevtcod(pa_evtcod e)
+void prtevtcod(ami_evtcod e)
 
 {
 
     switch (e) {
 
-        case pa_etchar:    fprintf(stderr, "etchar"); break;
-        case pa_etup:      fprintf(stderr, "etup"); break;
-        case pa_etdown:    fprintf(stderr, "etdown"); break;
-        case pa_etleft:    fprintf(stderr, "etleft"); break;
-        case pa_etright:   fprintf(stderr, "etright"); break;
-        case pa_etleftw:   fprintf(stderr, "etleftw"); break;
-        case pa_etrightw:  fprintf(stderr, "etrightw"); break;
-        case pa_ethome:    fprintf(stderr, "ethome"); break;
-        case pa_ethomes:   fprintf(stderr, "ethomes"); break;
-        case pa_ethomel:   fprintf(stderr, "ethomel"); break;
-        case pa_etend:     fprintf(stderr, "etend"); break;
-        case pa_etends:    fprintf(stderr, "etends"); break;
-        case pa_etendl:    fprintf(stderr, "etendl"); break;
-        case pa_etscrl:    fprintf(stderr, "etscrl"); break;
-        case pa_etscrr:    fprintf(stderr, "etscrr"); break;
-        case pa_etscru:    fprintf(stderr, "etscru"); break;
-        case pa_etscrd:    fprintf(stderr, "etscrd"); break;
-        case pa_etpagd:    fprintf(stderr, "etpagd"); break;
-        case pa_etpagu:    fprintf(stderr, "etpagu"); break;
-        case pa_ettab:     fprintf(stderr, "ettab"); break;
-        case pa_etenter:   fprintf(stderr, "etenter"); break;
-        case pa_etinsert:  fprintf(stderr, "etinsert"); break;
-        case pa_etinsertl: fprintf(stderr, "etinsertl"); break;
-        case pa_etinsertt: fprintf(stderr, "etinsertt"); break;
-        case pa_etdel:     fprintf(stderr, "etdel"); break;
-        case pa_etdell:    fprintf(stderr, "etdell"); break;
-        case pa_etdelcf:   fprintf(stderr, "etdelcf"); break;
-        case pa_etdelcb:   fprintf(stderr, "etdelcb"); break;
-        case pa_etcopy:    fprintf(stderr, "etcopy"); break;
-        case pa_etcopyl:   fprintf(stderr, "etcopyl"); break;
-        case pa_etcan:     fprintf(stderr, "etcan"); break;
-        case pa_etstop:    fprintf(stderr, "etstop"); break;
-        case pa_etcont:    fprintf(stderr, "etcont"); break;
-        case pa_etprint:   fprintf(stderr, "etprint"); break;
-        case pa_etprintb:  fprintf(stderr, "etprintb"); break;
-        case pa_etprints:  fprintf(stderr, "etprints"); break;
-        case pa_etfun:     fprintf(stderr, "etfun"); break;
-        case pa_etmenu:    fprintf(stderr, "etmenu"); break;
-        case pa_etmouba:   fprintf(stderr, "etmouba"); break;
-        case pa_etmoubd:   fprintf(stderr, "etmoubd"); break;
-        case pa_etmoumov:  fprintf(stderr, "etmoumov"); break;
-        case pa_ettim:     fprintf(stderr, "ettim"); break;
-        case pa_etjoyba:   fprintf(stderr, "etjoyba"); break;
-        case pa_etjoybd:   fprintf(stderr, "etjoybd"); break;
-        case pa_etjoymov:  fprintf(stderr, "etjoymov"); break;
-        case pa_etresize:  fprintf(stderr, "etresize"); break;
-        case pa_etterm:    fprintf(stderr, "etterm"); break;
-        case pa_etmoumovg: fprintf(stderr, "etmoumovg"); break;
-        case pa_etframe:   fprintf(stderr, "etframe"); break;
-        case pa_etredraw:  fprintf(stderr, "etredraw"); break;
-        case pa_etmin:     fprintf(stderr, "etmin"); break;
-        case pa_etmax:     fprintf(stderr, "etmax"); break;
-        case pa_etnorm:    fprintf(stderr, "etnorm"); break;
-        case pa_etmenus:   fprintf(stderr, "etmenus"); break;
-        case pa_etbutton:  fprintf(stderr, "etbutton"); break;
-        case pa_etchkbox:  fprintf(stderr, "etchkbox"); break;
-        case pa_etradbut:  fprintf(stderr, "etradbut"); break;
-        case pa_etsclull:  fprintf(stderr, "etsclull"); break;
-        case pa_etscldrl:  fprintf(stderr, "etscldrl"); break;
-        case pa_etsclulp:  fprintf(stderr, "etsclulp"); break;
-        case pa_etscldrp:  fprintf(stderr, "etscldrp"); break;
-        case pa_etsclpos:  fprintf(stderr, "etsclpos"); break;
-        case pa_etedtbox:  fprintf(stderr, "etedtbox"); break;
-        case pa_etnumbox:  fprintf(stderr, "etnumbox"); break;
-        case pa_etlstbox:  fprintf(stderr, "etlstbox"); break;
-        case pa_etdrpbox:  fprintf(stderr, "etdrpbox"); break;
-        case pa_etdrebox:  fprintf(stderr, "etdrebox"); break;
-        case pa_etsldpos:  fprintf(stderr, "etsldpos"); break;
-        case pa_ettabbar:   fprintf(stderr, "ettabbar"); break;
+        case ami_etchar:    fprintf(stderr, "etchar"); break;
+        case ami_etup:      fprintf(stderr, "etup"); break;
+        case ami_etdown:    fprintf(stderr, "etdown"); break;
+        case ami_etleft:    fprintf(stderr, "etleft"); break;
+        case ami_etright:   fprintf(stderr, "etright"); break;
+        case ami_etleftw:   fprintf(stderr, "etleftw"); break;
+        case ami_etrightw:  fprintf(stderr, "etrightw"); break;
+        case ami_ethome:    fprintf(stderr, "ethome"); break;
+        case ami_ethomes:   fprintf(stderr, "ethomes"); break;
+        case ami_ethomel:   fprintf(stderr, "ethomel"); break;
+        case ami_etend:     fprintf(stderr, "etend"); break;
+        case ami_etends:    fprintf(stderr, "etends"); break;
+        case ami_etendl:    fprintf(stderr, "etendl"); break;
+        case ami_etscrl:    fprintf(stderr, "etscrl"); break;
+        case ami_etscrr:    fprintf(stderr, "etscrr"); break;
+        case ami_etscru:    fprintf(stderr, "etscru"); break;
+        case ami_etscrd:    fprintf(stderr, "etscrd"); break;
+        case ami_etpagd:    fprintf(stderr, "etpagd"); break;
+        case ami_etpagu:    fprintf(stderr, "etpagu"); break;
+        case ami_ettab:     fprintf(stderr, "ettab"); break;
+        case ami_etenter:   fprintf(stderr, "etenter"); break;
+        case ami_etinsert:  fprintf(stderr, "etinsert"); break;
+        case ami_etinsertl: fprintf(stderr, "etinsertl"); break;
+        case ami_etinsertt: fprintf(stderr, "etinsertt"); break;
+        case ami_etdel:     fprintf(stderr, "etdel"); break;
+        case ami_etdell:    fprintf(stderr, "etdell"); break;
+        case ami_etdelcf:   fprintf(stderr, "etdelcf"); break;
+        case ami_etdelcb:   fprintf(stderr, "etdelcb"); break;
+        case ami_etcopy:    fprintf(stderr, "etcopy"); break;
+        case ami_etcopyl:   fprintf(stderr, "etcopyl"); break;
+        case ami_etcan:     fprintf(stderr, "etcan"); break;
+        case ami_etstop:    fprintf(stderr, "etstop"); break;
+        case ami_etcont:    fprintf(stderr, "etcont"); break;
+        case ami_etprint:   fprintf(stderr, "etprint"); break;
+        case ami_etprintb:  fprintf(stderr, "etprintb"); break;
+        case ami_etprints:  fprintf(stderr, "etprints"); break;
+        case ami_etfun:     fprintf(stderr, "etfun"); break;
+        case ami_etmenu:    fprintf(stderr, "etmenu"); break;
+        case ami_etmouba:   fprintf(stderr, "etmouba"); break;
+        case ami_etmoubd:   fprintf(stderr, "etmoubd"); break;
+        case ami_etmoumov:  fprintf(stderr, "etmoumov"); break;
+        case ami_ettim:     fprintf(stderr, "ettim"); break;
+        case ami_etjoyba:   fprintf(stderr, "etjoyba"); break;
+        case ami_etjoybd:   fprintf(stderr, "etjoybd"); break;
+        case ami_etjoymov:  fprintf(stderr, "etjoymov"); break;
+        case ami_etresize:  fprintf(stderr, "etresize"); break;
+        case ami_etterm:    fprintf(stderr, "etterm"); break;
+        case ami_etmoumovg: fprintf(stderr, "etmoumovg"); break;
+        case ami_etframe:   fprintf(stderr, "etframe"); break;
+        case ami_etredraw:  fprintf(stderr, "etredraw"); break;
+        case ami_etmin:     fprintf(stderr, "etmin"); break;
+        case ami_etmax:     fprintf(stderr, "etmax"); break;
+        case ami_etnorm:    fprintf(stderr, "etnorm"); break;
+        case ami_etmenus:   fprintf(stderr, "etmenus"); break;
+        case ami_etbutton:  fprintf(stderr, "etbutton"); break;
+        case ami_etchkbox:  fprintf(stderr, "etchkbox"); break;
+        case ami_etradbut:  fprintf(stderr, "etradbut"); break;
+        case ami_etsclull:  fprintf(stderr, "etsclull"); break;
+        case ami_etscldrl:  fprintf(stderr, "etscldrl"); break;
+        case ami_etsclulp:  fprintf(stderr, "etsclulp"); break;
+        case ami_etscldrp:  fprintf(stderr, "etscldrp"); break;
+        case ami_etsclpos:  fprintf(stderr, "etsclpos"); break;
+        case ami_etedtbox:  fprintf(stderr, "etedtbox"); break;
+        case ami_etnumbox:  fprintf(stderr, "etnumbox"); break;
+        case ami_etlstbox:  fprintf(stderr, "etlstbox"); break;
+        case ami_etdrpbox:  fprintf(stderr, "etdrpbox"); break;
+        case ami_etdrebox:  fprintf(stderr, "etdrebox"); break;
+        case ami_etsldpos:  fprintf(stderr, "etsldpos"); break;
+        case ami_ettabbar:   fprintf(stderr, "ettabbar"); break;
 
         default: fprintf(stderr, "???");
 
@@ -1678,7 +1678,7 @@ A diagnostic, prints the given event with possible parameters.
 
 *******************************************************************************/
 
-static void prtevt(pa_evtrec* ev)
+static void prtevt(ami_evtrec* ev)
 
 {
 
@@ -1686,66 +1686,66 @@ static void prtevt(pa_evtrec* ev)
     fprintf(stderr, " Window: %d Handled: %d", ev->winid, ev->handled);
     switch (ev->etype) {
 
-        case pa_etchar: fprintf(stderr, " Char: %c", ev->echar); break;
-        case pa_ettim: fprintf(stderr, " Timer: %d", ev->timnum); break;
-        case pa_etmoumov:
+        case ami_etchar: fprintf(stderr, " Char: %c", ev->echar); break;
+        case ami_ettim: fprintf(stderr, " Timer: %d", ev->timnum); break;
+        case ami_etmoumov:
             fprintf(stderr, " Mouse: %d x: %d y: %d", ev->mmoun, ev->moupx,
                     ev->moupy);
             break;
-        case pa_etmouba:
+        case ami_etmouba:
             fprintf(stderr, " Mouse: %d Button: %d", ev->amoun, ev->amoubn);
             break;
-        case pa_etmoubd:
+        case ami_etmoubd:
             fprintf(stderr, " Mouse: %d Button: %d", ev->dmoun, ev->dmoubn);
             break;
-        case pa_etjoyba:
+        case ami_etjoyba:
             fprintf(stderr, " Joystick: %d Button: %d", ev->ajoyn, ev->ajoybn);
             break;
-        case pa_etjoybd:
+        case ami_etjoybd:
             fprintf(stderr, " Joystick: %d Button: %d", ev->djoyn, ev->djoybn);
             break;
-        case pa_etjoymov:
+        case ami_etjoymov:
             fprintf(stderr, " Joystick: %d x: %d y: %d z: %d", ev->mjoyn,
                     ev->joypx, ev->joypy, ev->joypz);
             break;
-        case pa_etfun: fprintf(stderr, " Function key: %d", ev->fkey);
-        case pa_etmoumovg:
+        case ami_etfun: fprintf(stderr, " Function key: %d", ev->fkey);
+        case ami_etmoumovg:
             fprintf(stderr, " Mouse: %d x: %d y: %d", ev->mmoung, ev->moupxg,
                     ev->moupyg);
             break;
-        case pa_etredraw:
+        case ami_etredraw:
             fprintf(stderr, " bounds: sx: %d sy: %d ex: %d ey: %d", ev->rsx,
                     ev->rsy, ev->rex, ev->rey);
             break;
-        case pa_etmenus: fprintf(stderr, " Menu: %d", ev->menuid); break;
-        case pa_etbutton: fprintf(stderr, " Button: %d", ev->butid); break;
-        case pa_etchkbox: fprintf(stderr, " Checkbox: %d", ev->ckbxid); break;
-        case pa_etradbut: fprintf(stderr, " Button: %d", ev->radbid); break;
-        case pa_etsclull: fprintf(stderr, " Scroll bar: %d", ev->sclulid); break;
-        case pa_etscldrl: fprintf(stderr, " Scroll bar: %d", ev->scldrid); break;
-        case pa_etsclulp: fprintf(stderr, " Scroll bar: %d", ev->sclupid); break;
-        case pa_etscldrp: fprintf(stderr, " Scroll bar: %d", ev->scldpid); break;
-        case pa_etsclpos:
+        case ami_etmenus: fprintf(stderr, " Menu: %d", ev->menuid); break;
+        case ami_etbutton: fprintf(stderr, " Button: %d", ev->butid); break;
+        case ami_etchkbox: fprintf(stderr, " Checkbox: %d", ev->ckbxid); break;
+        case ami_etradbut: fprintf(stderr, " Button: %d", ev->radbid); break;
+        case ami_etsclull: fprintf(stderr, " Scroll bar: %d", ev->sclulid); break;
+        case ami_etscldrl: fprintf(stderr, " Scroll bar: %d", ev->scldrid); break;
+        case ami_etsclulp: fprintf(stderr, " Scroll bar: %d", ev->sclupid); break;
+        case ami_etscldrp: fprintf(stderr, " Scroll bar: %d", ev->scldpid); break;
+        case ami_etsclpos:
             fprintf(stderr, " Scroll bar: %d position: %d", ev->sclpid,
                     ev->sclpos);
             break;
-        case pa_etedtbox: fprintf(stderr, " Edit box: %d", ev->edtbid); break;
-        case pa_etnumbox:
+        case ami_etedtbox: fprintf(stderr, " Edit box: %d", ev->edtbid); break;
+        case ami_etnumbox:
             fprintf(stderr, " Number box: %d value: %d", ev->numbid,
                     ev->numbsl);
             break;
-        case pa_etlstbox:
+        case ami_etlstbox:
             fprintf(stderr, " List box: %d select: %d", ev->lstbid, ev->lstbsl);
             break;
-        case pa_etdrpbox:
+        case ami_etdrpbox:
             fprintf(stderr, " Drop box: %d select: %d", ev->drpbid, ev->drpbsl);
             break;
-        case pa_etdrebox: fprintf(stderr, " Drop edit box: %d", ev->drebid);
+        case ami_etdrebox: fprintf(stderr, " Drop edit box: %d", ev->drebid);
             break;
-        case pa_etsldpos:
+        case ami_etsldpos:
             fprintf(stderr, " Slider: %d position: %d", ev->sldpid, ev->sldpos);
             break;
-        case pa_ettabbar:
+        case ami_ettabbar:
             fprintf(stderr, " Tab bar: %d select: %d", ev->tabid, ev->tabsel);
             break;
 
@@ -1764,7 +1764,7 @@ which will cause the event to return to the event() caller.
 
 *******************************************************************************/
 
-static void defaultevent(pa_evtrec* ev)
+static void defaultevent(ami_evtrec* ev)
 
 {
 
@@ -2469,7 +2469,7 @@ Translates an independent to a terminal specific primary color code for Windows.
 
 *******************************************************************************/
 
-static int colnum(pa_color c)
+static int colnum(ami_color c)
 
 {
 
@@ -2478,15 +2478,15 @@ static int colnum(pa_color c)
     /* translate color number */
     switch (c) { /* color */
 
-      case pa_black:     n = 0x000000; break;
-      case pa_white:     n = 0xffffff; break;
-      case pa_red:       n = 0x0000ff; break;
-      case pa_green:     n = 0x00ff00; break;
-      case pa_blue:      n = 0xff0000; break;
-      case pa_cyan:      n = 0xffff00; break;
-      case pa_yellow:    n = 0x00ffff; break;
-      case pa_magenta:   n = 0xff00ff; break;
-      case pa_backcolor: n = 0xd8e9ea; break;
+      case ami_black:     n = 0x000000; break;
+      case ami_white:     n = 0xffffff; break;
+      case ami_red:       n = 0x0000ff; break;
+      case ami_green:     n = 0x00ff00; break;
+      case ami_blue:      n = 0xff0000; break;
+      case ami_cyan:      n = 0xffff00; break;
+      case ami_yellow:    n = 0x00ffff; break;
+      case ami_magenta:   n = 0xff00ff; break;
+      case ami_backcolor: n = 0xd8e9ea; break;
 
    }
 
@@ -2502,22 +2502,22 @@ Translates colors to rgb, in ratioed INT_MAX form.
 
 *******************************************************************************/
 
-static void colrgb(pa_color c, int* r, int* g, int* b)
+static void colrgb(ami_color c, int* r, int* g, int* b)
 
 {
 
     /* translate color number */
     switch (c) { /* color */
 
-        case pa_black:     *r = 0; *g = 0; *b = 0; break;
-        case pa_white:     *r = INT_MAX; *g = INT_MAX; *b = INT_MAX; break;
-        case pa_red:       *r = INT_MAX; *g = 0; *b = 0; break;
-        case pa_green:     *r = 0; *g = INT_MAX; *b = 0; break;
-        case pa_blue:      *r = 0; *g = 0; *b = INT_MAX; break;
-        case pa_cyan:      *r = 0; *g = INT_MAX; *b = INT_MAX; break;
-        case pa_yellow:    *r = INT_MAX; *g = INT_MAX; *b = 0; break;
-        case pa_magenta:   *r = INT_MAX; *g = 0; *b = INT_MAX; break;
-        case pa_backcolor: *r = 0xea*0x800000; *g = 0xe9*0x800000;
+        case ami_black:     *r = 0; *g = 0; *b = 0; break;
+        case ami_white:     *r = INT_MAX; *g = INT_MAX; *b = INT_MAX; break;
+        case ami_red:       *r = INT_MAX; *g = 0; *b = 0; break;
+        case ami_green:     *r = 0; *g = INT_MAX; *b = 0; break;
+        case ami_blue:      *r = 0; *g = 0; *b = INT_MAX; break;
+        case ami_cyan:      *r = 0; *g = INT_MAX; *b = INT_MAX; break;
+        case ami_yellow:    *r = INT_MAX; *g = INT_MAX; *b = 0; break;
+        case ami_magenta:   *r = INT_MAX; *g = 0; *b = INT_MAX; break;
+        case ami_backcolor: *r = 0xea*0x800000; *g = 0xe9*0x800000;
                            *b = 0xd8*0x800000; break;
 
     }
@@ -2533,18 +2533,18 @@ colors.
 
 *******************************************************************************/
 
-static void rgbcol(int r, int g, int b, pa_color* c)
+static void rgbcol(int r, int g, int b, ami_color* c)
 
 {
 
-   if (r < INT_MAX/2 && g < INT_MAX/2 && b < INT_MAX/2) *c = pa_black;
-   else if (r >= INT_MAX/2 && g < INT_MAX/2 && b < INT_MAX/2) *c = pa_red;
-   else if (r < INT_MAX/2 && g >= INT_MAX/2 && b < INT_MAX/2) *c = pa_green;
-   else if (r < INT_MAX/2 && g < INT_MAX/2 && b >= INT_MAX/2) *c = pa_blue;
-   else if (r < INT_MAX/2 && g >= INT_MAX/2 && b >= INT_MAX/2) *c = pa_cyan;
-   else if (r >= INT_MAX/2 && g >= INT_MAX/2 && b < INT_MAX/2) *c = pa_yellow;
-   else if (r >= INT_MAX/2 && g < INT_MAX/2 && b >= INT_MAX/2) *c = pa_magenta;
-   else if (r >= INT_MAX/2 && g >= INT_MAX/2 && b >= INT_MAX/2) *c = pa_white;
+   if (r < INT_MAX/2 && g < INT_MAX/2 && b < INT_MAX/2) *c = ami_black;
+   else if (r >= INT_MAX/2 && g < INT_MAX/2 && b < INT_MAX/2) *c = ami_red;
+   else if (r < INT_MAX/2 && g >= INT_MAX/2 && b < INT_MAX/2) *c = ami_green;
+   else if (r < INT_MAX/2 && g < INT_MAX/2 && b >= INT_MAX/2) *c = ami_blue;
+   else if (r < INT_MAX/2 && g >= INT_MAX/2 && b >= INT_MAX/2) *c = ami_cyan;
+   else if (r >= INT_MAX/2 && g >= INT_MAX/2 && b < INT_MAX/2) *c = ami_yellow;
+   else if (r >= INT_MAX/2 && g < INT_MAX/2 && b >= INT_MAX/2) *c = ami_magenta;
+   else if (r >= INT_MAX/2 && g >= INT_MAX/2 && b >= INT_MAX/2) *c = ami_white;
    else error(esystem); /* should have been one of those */
 
 }
@@ -2680,7 +2680,7 @@ static int icurbnd(scnptr sc)
 
 }
 
-int pa_curbnd(FILE* f)
+int ami_curbnd(FILE* f)
 
 {
 
@@ -3376,7 +3376,7 @@ static void iscrollg(winptr win, int x, int y)
 
 }
 
-void pa_scrollg(FILE* f, int x, int y)
+void ami_scrollg(FILE* f, int x, int y)
 
 {
 
@@ -3389,7 +3389,7 @@ void pa_scrollg(FILE* f, int x, int y)
 
 }
 
-void pa_scroll(FILE* f, int x, int y)
+void ami_scroll(FILE* f, int x, int y)
 
 {
 
@@ -3430,7 +3430,7 @@ static void icursor(winptr win, int x, int y)
 
 }
 
-void pa_cursor(FILE* f, int x, int y)
+void ami_cursor(FILE* f, int x, int y)
 
 {
 
@@ -3470,7 +3470,7 @@ static void icursorg(winptr win, int x, int y)
 
 }
 
-void pa_cursorg(FILE* f, int x, int y)
+void ami_cursorg(FILE* f, int x, int y)
 
 {
 
@@ -3492,7 +3492,7 @@ to the font baseline. The baseline is the line all characters rest on.
 
 *******************************************************************************/
 
-int pa_baseline(FILE* f)
+int ami_baseline(FILE* f)
 
 {
 
@@ -3517,7 +3517,7 @@ display. Because ANSI has no information return capability, this is preset.
 
 *******************************************************************************/
 
-int pa_maxx(FILE* f)
+int ami_maxx(FILE* f)
 
 {
 
@@ -3542,7 +3542,7 @@ display. Because ANSI has no information return capability, this is preset.
 
 *******************************************************************************/
 
-int pa_maxy(FILE* f)
+int ami_maxy(FILE* f)
 
 {
 
@@ -3567,7 +3567,7 @@ pixels.
 
 *******************************************************************************/
 
-int pa_maxxg(FILE* f)
+int ami_maxxg(FILE* f)
 
 {
 
@@ -3592,7 +3592,7 @@ pixels.
 
 *******************************************************************************/
 
-int pa_maxyg(FILE* f)
+int ami_maxyg(FILE* f)
 
 {
 
@@ -3628,7 +3628,7 @@ static void ihome(winptr win)
 
 }
 
-void pa_home(FILE* f)
+void ami_home(FILE* f)
 
 {
 
@@ -3678,7 +3678,7 @@ static void iup(winptr win)
 
 }
 
-void pa_up(FILE* f)
+void ami_up(FILE* f)
 
 {
 
@@ -3725,7 +3725,7 @@ static void idown(winptr win)
 
 }
 
-void pa_down(FILE* f)
+void ami_down(FILE* f)
 
 {
 
@@ -3784,7 +3784,7 @@ static void ileft(winptr win)
 
 }
 
-void pa_left(FILE* f)
+void ami_left(FILE* f)
 
 {
 
@@ -3840,7 +3840,7 @@ void iright(winptr win)
 
 }
 
-void pa_right(FILE* f)
+void ami_right(FILE* f)
 
 {
 
@@ -3899,7 +3899,7 @@ Note that the attributes can only be set singly.
 
 *******************************************************************************/
 
-void pa_blink(FILE* f, int e)
+void ami_blink(FILE* f, int e)
 
 {
 
@@ -3966,7 +3966,7 @@ static void ireverse(winptr win, int e)
 
 }
 
-void pa_reverse(FILE* f, int e)
+void ami_reverse(FILE* f, int e)
 
 {
 
@@ -4012,7 +4012,7 @@ static void iunderline(winptr win, int e)
 
 }
 
-void pa_underline(FILE* f, int e)
+void ami_underline(FILE* f, int e)
 
 {
 
@@ -4056,7 +4056,7 @@ static void isuperscript(winptr win, int e)
 
 }
 
-void pa_superscript(FILE* f, int e)
+void ami_superscript(FILE* f, int e)
 
 {
 
@@ -4100,7 +4100,7 @@ static void isubscript(winptr win, int e)
 
 }
 
-void pa_subscript(FILE* f, int e)
+void ami_subscript(FILE* f, int e)
 
 {
 
@@ -4149,7 +4149,7 @@ static void iitalic(winptr win, int e)
 
 }
 
-void pa_italic(FILE* f, int e)
+void ami_italic(FILE* f, int e)
 
 {
 
@@ -4197,7 +4197,7 @@ static void ibold(winptr win, int e)
 
 }
 
-void pa_bold(FILE* f, int e)
+void ami_bold(FILE* f, int e)
 
 {
 
@@ -4243,7 +4243,7 @@ static void istrikeout(winptr win, int e)
 
 }
 
-void pa_strikeout(FILE* f, int e)
+void ami_strikeout(FILE* f, int e)
 
 {
 
@@ -4265,11 +4265,11 @@ Note that the attributes can only be set singly.
 
 *******************************************************************************/
 
-void pa_standout(FILE* f, int e)
+void ami_standout(FILE* f, int e)
 
 {
 
-   pa_reverse(f, e); /* implement as reverse */
+   ami_reverse(f, e); /* implement as reverse */
 
 }
 
@@ -4281,7 +4281,7 @@ Sets the foreground color from the universal primary code.
 
 *******************************************************************************/
 
-static void ifcolor(winptr win, pa_color c)
+static void ifcolor(winptr win, ami_color c)
 
 {
 
@@ -4350,7 +4350,7 @@ static void ifcolor(winptr win, pa_color c)
 
 }
 
-void pa_fcolor(FILE* f, pa_color c)
+void ami_fcolor(FILE* f, ami_color c)
 
 {
 
@@ -4442,7 +4442,7 @@ static void ifcolorg(winptr win, int r, int g, int b)
 
 }
 
-void pa_fcolorg(FILE* f, int r, int g, int b)
+void ami_fcolorg(FILE* f, int r, int g, int b)
 
 {
 
@@ -4463,7 +4463,7 @@ Sets the background color from the universal primary code.
 
 *******************************************************************************/
 
-static void ibcolor(winptr win, pa_color c)
+static void ibcolor(winptr win, ami_color c)
 
 {
 
@@ -4504,7 +4504,7 @@ static void ibcolor(winptr win, pa_color c)
 
 }
 
-void pa_bcolor(FILE* f, pa_color c)
+void ami_bcolor(FILE* f, ami_color c)
 
 {
 
@@ -4568,7 +4568,7 @@ static void ibcolorg(winptr win, int r, int g, int b)
 
 }
 
-void pa_bcolorg(FILE* f, int r, int g, int b)
+void ami_bcolorg(FILE* f, int r, int g, int b)
 
 {
 
@@ -4627,7 +4627,7 @@ static void iauto(winptr win, int e)
 
 }
 
-void pa_auto(FILE* f, int e)
+void ami_auto(FILE* f, int e)
 
 {
 
@@ -4658,7 +4658,7 @@ void icurvis(winptr win, int e)
 
 }
 
-void pa_curvis(FILE* f, int e)
+void ami_curvis(FILE* f, int e)
 
 {
 
@@ -4679,7 +4679,7 @@ Returns the current location of the cursor in x.
 
 *******************************************************************************/
 
-int pa_curx(FILE* f)
+int ami_curx(FILE* f)
 
 {
 
@@ -4703,7 +4703,7 @@ Returns the current location of the cursor in y.
 
 *******************************************************************************/
 
-int pa_cury(FILE* f)
+int ami_cury(FILE* f)
 
 {
 
@@ -4727,7 +4727,7 @@ Returns the current location of the cursor in x, in pixels.
 
 *******************************************************************************/
 
-int pa_curxg(FILE* f)
+int ami_curxg(FILE* f)
 
 {
 
@@ -4751,7 +4751,7 @@ Returns the current location of the cursor in y, in pixels.
 
 *******************************************************************************/
 
-int pa_curyg(FILE* f)
+int ami_curyg(FILE* f)
 
 {
 
@@ -4818,7 +4818,7 @@ static void iselect(winptr win, int u, int d)
 
 }
 
-void pa_select(FILE* f, int u, int d)
+void ami_select(FILE* f, int u, int d)
 
 {
 
@@ -4980,7 +4980,7 @@ static void iwrtstr(winptr win,  char* s)
 
 }
 
-void pa_wrtstr(FILE* f, char* s)
+void ami_wrtstr(FILE* f, char* s)
 
 {
 
@@ -5012,7 +5012,7 @@ static void idel(winptr win)
 
 }
 
-void pa_del(FILE* f)
+void ami_del(FILE* f)
 
 {
 
@@ -5083,7 +5083,7 @@ static void iline(winptr win, int x1, int y1, int x2, int y2)
 
 }
 
-void pa_line(FILE* f, int x1, int y1, int x2, int y2)
+void ami_line(FILE* f, int x1, int y1, int x2, int y2)
 
 {
 
@@ -5130,7 +5130,7 @@ static void irect(winptr win, int x1, int y1, int x2, int y2)
 
 }
 
-void pa_rect(FILE* f, int x1, int y1, int x2, int y2)
+void ami_rect(FILE* f, int x1, int y1, int x2, int y2)
 
 {
 
@@ -5199,7 +5199,7 @@ static void ifrect(winptr win, int x1, int y1, int x2, int y2)
 
 }
 
-void pa_frect(FILE* f, int x1, int y1, int x2, int y2)
+void ami_frect(FILE* f, int x1, int y1, int x2, int y2)
 
 {
 
@@ -5247,7 +5247,7 @@ static void irrect(winptr win, int x1, int y1, int x2, int y2, int xs, int ys)
 
 }
 
-void pa_rrect(FILE* f, int x1, int y1, int x2, int y2, int xs, int ys)
+void ami_rrect(FILE* f, int x1, int y1, int x2, int y2, int xs, int ys)
 
 {
 
@@ -5316,7 +5316,7 @@ static void ifrrect(winptr win, int x1, int y1, int x2, int y2, int xs, int ys)
 
 }
 
-void pa_frrect(FILE* f, int x1, int y1, int x2, int y2, int xs, int ys)
+void ami_frrect(FILE* f, int x1, int y1, int x2, int y2, int xs, int ys)
 
 {
 
@@ -5363,7 +5363,7 @@ static void iellipse(winptr win, int x1, int y1, int x2, int y2)
 
 }
 
-void pa_ellipse(FILE* f, int x1, int y1, int x2, int y2)
+void ami_ellipse(FILE* f, int x1, int y1, int x2, int y2)
 
 {
 
@@ -5432,7 +5432,7 @@ static void ifellipse(winptr win, int x1, int y1, int x2, int y2)
 
 }
 
-void pa_fellipse(FILE* f, int x1, int y1, int x2, int y2)
+void ami_fellipse(FILE* f, int x1, int y1, int x2, int y2)
 
 {
 
@@ -5519,7 +5519,7 @@ static void iarc(winptr win, int x1, int y1, int x2, int y2, int sa, int ea)
 
 }
 
-void pa_arc(FILE* f, int x1, int y1, int x2, int y2, int sa, int ea)
+void ami_arc(FILE* f, int x1, int y1, int x2, int y2, int sa, int ea)
 
 {
 
@@ -5610,7 +5610,7 @@ static void ifarc(winptr win, int x1, int y1, int x2, int y2, int sa, int ea)
 
 }
 
-void pa_farc(FILE* f, int x1, int y1, int x2, int y2, int sa, int ea)
+void ami_farc(FILE* f, int x1, int y1, int x2, int y2, int sa, int ea)
 
 {
 
@@ -5701,7 +5701,7 @@ static void ifchord(winptr win, int x1, int y1, int x2, int y2, int sa, int ea)
 
 }
 
-void pa_fchord(FILE* f, int x1, int y1, int x2, int y2, int sa, int ea)
+void ami_fchord(FILE* f, int x1, int y1, int x2, int y2, int sa, int ea)
 
 {
 
@@ -5778,7 +5778,7 @@ static void iftriangle(winptr win, int x1, int y1, int x2, int y2, int x3, int y
 
 }
 
-void pa_ftriangle(FILE* f, int x1, int y1, int x2, int y2, int x3, int y3)
+void ami_ftriangle(FILE* f, int x1, int y1, int x2, int y2, int x3, int y3)
 
 {
 
@@ -5826,7 +5826,7 @@ static void isetpixel(winptr win, int x, int y)
 
 }
 
-void pa_setpixel(FILE* f, int x, int y)
+void ami_setpixel(FILE* f, int x, int y)
 
 {
 
@@ -5861,7 +5861,7 @@ static void ifover(winptr win)
 
 }
 
-void pa_fover(FILE* f)
+void ami_fover(FILE* f)
 
 {
 
@@ -5896,7 +5896,7 @@ static void ibover(winptr win)
 
 }
 
-void pa_bover(FILE* f)
+void ami_bover(FILE* f)
 
 {
 
@@ -5931,7 +5931,7 @@ static void ifinvis(winptr win)
 
 }
 
-void pa_finvis(FILE* f)
+void ami_finvis(FILE* f)
 
 {
 
@@ -5966,7 +5966,7 @@ static void ibinvis(winptr win)
 
 }
 
-void pa_binvis(FILE* f)
+void ami_binvis(FILE* f)
 
 {
 
@@ -6001,7 +6001,7 @@ static void ifxor(winptr win)
 
 }
 
-void pa_fxor(FILE* f)
+void ami_fxor(FILE* f)
 
 {
 
@@ -6031,7 +6031,7 @@ static void ibxor(winptr win)
 
 }
 
-void pa_bxor(FILE* f)
+void ami_bxor(FILE* f)
 
 {
 
@@ -6084,7 +6084,7 @@ static void ilinewidth(winptr win, int w)
 
 }
 
-void pa_linewidth(FILE* f, int w)
+void ami_linewidth(FILE* f, int w)
 
 {
 
@@ -6105,7 +6105,7 @@ Returns the character width.
 
 *******************************************************************************/
 
-int pa_chrsizx(FILE* f)
+int ami_chrsizx(FILE* f)
 
 {
 
@@ -6129,7 +6129,7 @@ Returns the character height.
 
 *******************************************************************************/
 
-int pa_chrsizy(FILE* f)
+int ami_chrsizy(FILE* f)
 
 {
 
@@ -6153,7 +6153,7 @@ Finds the total number of installed fonts.
 
 *******************************************************************************/
 
-int pa_fonts(FILE* f)
+int ami_fonts(FILE* f)
 
 {
 
@@ -6195,7 +6195,7 @@ static void ifont(winptr win, int fc)
 
 }
 
-void pa_font(FILE* f, int fc)
+void ami_font(FILE* f, int fc)
 
 {
 
@@ -6237,7 +6237,7 @@ static void ifontnam(winptr win, int fc, char* fns, int fnsl)
 
 }
 
-void pa_fontnam(FILE* f, int fc, char* fns, int fnsl)
+void ami_fontnam(FILE* f, int fc, char* fns, int fnsl)
 
 {
 
@@ -6272,7 +6272,7 @@ static void ifontsiz(winptr win, int s)
 
 }
 
-void pa_fontsiz(FILE* f, int s)
+void ami_fontsiz(FILE* f, int s)
 
 {
 
@@ -6296,7 +6296,7 @@ Not implemented yet.
 
 *******************************************************************************/
 
-void pa_chrspcy(FILE* f, int s)
+void ami_chrspcy(FILE* f, int s)
 
 {
 
@@ -6315,7 +6315,7 @@ Not implemented yet.
 
 *******************************************************************************/
 
-void pa_chrspcx(FILE* f, int s)
+void ami_chrspcx(FILE* f, int s)
 
 {
 
@@ -6331,7 +6331,7 @@ Returns the number of dots per meter resolution in x.
 
 *******************************************************************************/
 
-int pa_dpmx(FILE* f)
+int ami_dpmx(FILE* f)
 
 {
 
@@ -6355,7 +6355,7 @@ Returns the number of dots per meter resolution in y.
 
 *******************************************************************************/
 
-int pa_dpmy(FILE* f)
+int ami_dpmy(FILE* f)
 
 {
 
@@ -6398,7 +6398,7 @@ static int istrsiz(winptr win, const char* s)
 
 }
 
-int pa_strsiz(FILE* f, const char* s)
+int ami_strsiz(FILE* f, const char* s)
 
 {
 
@@ -6447,7 +6447,7 @@ static int ichrpos(winptr win, const char* s, int p)
 
 }
 
-int pa_chrpos(FILE* f, const char* s, int p)
+int ami_chrpos(FILE* f, const char* s, int p)
 
 {
 
@@ -6536,7 +6536,7 @@ static void iwritejust(winptr win, const char* s, int n)
 
 }
 
-void pa_writejust(FILE* f, const char* s, int n)
+void ami_writejust(FILE* f, const char* s, int n)
 
 {
 
@@ -6606,7 +6606,7 @@ static int ijustpos(winptr win, const char* s, int p, int n)
 
 }
 
-int pa_justpos(FILE* f, const char* s, int p, int n)
+int ami_justpos(FILE* f, const char* s, int p, int n)
 
 {
 
@@ -6655,7 +6655,7 @@ static void icondensed(winptr win, int e)
 
 }
 
-void pa_condensed(FILE* f, int e)
+void ami_condensed(FILE* f, int e)
 
 {
 
@@ -6703,7 +6703,7 @@ static void iextended(winptr win, int e)
 
 }
 
-void pa_extended(FILE* f, int e)
+void ami_extended(FILE* f, int e)
 
 {
 
@@ -6749,7 +6749,7 @@ static void ixlight(winptr win, int e)
 
 }
 
-void pa_xlight(FILE* f, int e)
+void ami_xlight(FILE* f, int e)
 
 {
 
@@ -6795,7 +6795,7 @@ static void ilight(winptr win, int e)
 
 }
 
-void pa_light(FILE* f, int e)
+void ami_light(FILE* f, int e)
 
 {
 
@@ -6841,7 +6841,7 @@ static void ixbold(winptr win, int e)
 
 }
 
-void pa_xbold(FILE* f, int e)
+void ami_xbold(FILE* f, int e)
 
 {
 
@@ -6887,7 +6887,7 @@ static void ihollow(winptr win, int e)
 
 }
 
-void pa_hollow(FILE* f, int e)
+void ami_hollow(FILE* f, int e)
 
 {
 
@@ -6933,7 +6933,7 @@ static void iraised(winptr win, int e)
 
 }
 
-void pa_raised(FILE* f, int e)
+void ami_raised(FILE* f, int e)
 
 {
 
@@ -6974,7 +6974,7 @@ static void idelpict(winptr win, int p)
 
 }
 
-void pa_delpict(FILE* f, int p)
+void ami_delpict(FILE* f, int p)
 
 {
 
@@ -7080,7 +7080,7 @@ static void iloadpict(winptr win, int p, char* fn)
 
 }
 
-void pa_loadpict(FILE* f, int p, char* fn)
+void ami_loadpict(FILE* f, int p, char* fn)
 
 {
 
@@ -7101,7 +7101,7 @@ Returns the size in x of the logical picture.
 
 *******************************************************************************/
 
-int pa_pictsizx(FILE* f, int p)
+int ami_pictsizx(FILE* f, int p)
 
 {
 
@@ -7127,7 +7127,7 @@ Returns the size in y of the logical picture.
 
 *******************************************************************************/
 
-int pa_pictsizy(FILE* f, int p)
+int ami_pictsizy(FILE* f, int p)
 
 {
 
@@ -7201,7 +7201,7 @@ static void ipicture(winptr win, int p, int x1, int y1, int x2, int y2)
 
 }
 
-void pa_picture(FILE* f, int p, int x1, int y1, int x2, int y2)
+void ami_picture(FILE* f, int p, int x1, int y1, int x2, int y2)
 
 {
 
@@ -7241,7 +7241,7 @@ static void iviewoffg(winptr win, int x, int y)
 
 }
 
-void pa_viewoffg(FILE* f, int x, int y)
+void ami_viewoffg(FILE* f, int x, int y)
 
 {
 
@@ -7292,7 +7292,7 @@ static void iviewscale(winptr win, float x, float y)
 
 }
 
-void pa_viewscale(FILE* f, float x, float y)
+void ami_viewscale(FILE* f, float x, float y)
 
 {
 
@@ -7363,28 +7363,28 @@ various local extentions.
 
 */
 
-static void keyevent(pa_evtrec* er, MSG* msg, int* keep)
+static void keyevent(ami_evtrec* er, MSG* msg, int* keep)
 
 {
 
-   if (msg->wParam == '\r') er->etype = pa_etenter; /* set enter line */
+   if (msg->wParam == '\r') er->etype = ami_etenter; /* set enter line */
    else if (msg->wParam == '\b')
-      er->etype = pa_etdelcb; /* set delete character backwards */
-   else if (msg->wParam == '\t') er->etype = pa_ettab; /* set tab */
+      er->etype = ami_etdelcb; /* set delete character backwards */
+   else if (msg->wParam == '\t') er->etype = ami_ettab; /* set tab */
    else if (msg->wParam == 0x03) /*etx*/  {
 
-      er->etype = pa_etterm; /* set end program */
+      er->etype = ami_etterm; /* set end program */
       fend = TRUE; /* set end was ordered */
 
    } else if (msg->wParam == 0x13) /* xoff */
-      er->etype = pa_etstop; /* set stop program */
+      er->etype = ami_etstop; /* set stop program */
    else if (msg->wParam == 0x11) /* xon */
-      er->etype = pa_etcont; /* set continue program */
+      er->etype = ami_etcont; /* set continue program */
    else if (msg->wParam == 0x1b) /* esc */
-      er->etype = pa_etcan; /* set cancel operation */
+      er->etype = ami_etcan; /* set cancel operation */
    else { /* normal character */
 
-      er->etype = pa_etchar; /* set character event */
+      er->etype = ami_etchar; /* set character event */
       er->echar = msg->wParam;
 
    }
@@ -7392,7 +7392,7 @@ static void keyevent(pa_evtrec* er, MSG* msg, int* keep)
 
 }
 
-static void ctlevent(winptr win, pa_evtrec* er, MSG* msg, int* keep)
+static void ctlevent(winptr win, ami_evtrec* er, MSG* msg, int* keep)
 
 {
 
@@ -7401,132 +7401,132 @@ static void ctlevent(winptr win, pa_evtrec* er, MSG* msg, int* keep)
     switch (msg->wParam) { /* key */
 
         case VK_HOME: /* home */
-            if (win->cntrl) er->etype = pa_ethome; /* home document */
-            else if (win->shift) er->etype = pa_ethomes; /* home screen */
-            else er->etype = pa_ethomel; /* home line */
+            if (win->cntrl) er->etype = ami_ethome; /* home document */
+            else if (win->shift) er->etype = ami_ethomes; /* home screen */
+            else er->etype = ami_ethomel; /* home line */
             break;
 
         case VK_END: /* end */
-            if (win->cntrl) er->etype = pa_etend; /* } document */
-            else if (win->shift) er->etype = pa_etends; /* } screen */
-            else er->etype = pa_etendl; /* } line */
+            if (win->cntrl) er->etype = ami_etend; /* } document */
+            else if (win->shift) er->etype = ami_etends; /* } screen */
+            else er->etype = ami_etendl; /* } line */
             break;
 
         case VK_UP: /* up */
-            if (win->cntrl) er->etype = pa_etscru; /* scroll up */
-            else er->etype = pa_etup; /* up line */
+            if (win->cntrl) er->etype = ami_etscru; /* scroll up */
+            else er->etype = ami_etup; /* up line */
             break;
 
         case VK_DOWN: /* down */
-            if (win->cntrl) er->etype = pa_etscrd; /* scroll down */
-            else er->etype = pa_etdown; /* up line */
+            if (win->cntrl) er->etype = ami_etscrd; /* scroll down */
+            else er->etype = ami_etdown; /* up line */
             break;
 
         case VK_LEFT: /* left */
-            if (win->cntrl) er->etype = pa_etleftw; /* left one word */
-            else if (win->shift) er->etype = pa_etscrl; /* scroll left one character */
-            else er->etype = pa_etleft; /* left one character */
+            if (win->cntrl) er->etype = ami_etleftw; /* left one word */
+            else if (win->shift) er->etype = ami_etscrl; /* scroll left one character */
+            else er->etype = ami_etleft; /* left one character */
             break;
 
         case VK_RIGHT: /* right */
-            if (win->cntrl) er->etype = pa_etrightw; /* right one word */
-            else if (win->shift) er->etype = pa_etscrr; /* scroll right one character */
-            else er->etype = pa_etright; /* left one character */
+            if (win->cntrl) er->etype = ami_etrightw; /* right one word */
+            else if (win->shift) er->etype = ami_etscrr; /* scroll right one character */
+            else er->etype = ami_etright; /* left one character */
             break;
 
         case VK_INSERT: /* insert */
-            if (win->cntrl) er->etype = pa_etinsert; /* insert block */
-            else if (win->shift) er->etype = pa_etinsertl; /* insert line */
-            else er->etype = pa_etinsertt; /* insert toggle */
+            if (win->cntrl) er->etype = ami_etinsert; /* insert block */
+            else if (win->shift) er->etype = ami_etinsertl; /* insert line */
+            else er->etype = ami_etinsertt; /* insert toggle */
             break;
 
         case VK_DELETE: /* delete */
-            if (win->cntrl) er->etype = pa_etdel; /* delete block */
-            else if (win->shift) er->etype = pa_etdell; /* delete line */
-            else er->etype = pa_etdelcf; /* insert toggle */
+            if (win->cntrl) er->etype = ami_etdel; /* delete block */
+            else if (win->shift) er->etype = ami_etdell; /* delete line */
+            else er->etype = ami_etdelcf; /* insert toggle */
             break;
 
-        case VK_PRIOR: er->etype = pa_etpagu; /* page up */
-        case VK_NEXT: er->etype = pa_etpagd; /* page down */
+        case VK_PRIOR: er->etype = ami_etpagu; /* page up */
+        case VK_NEXT: er->etype = ami_etpagd; /* page down */
         case VK_F1: /* f1 */
-            if (win->cntrl) er->etype = pa_etcopy; /* copy block */
-            else if (win->shift) er->etype = pa_etcopyl; /* copy line */
+            if (win->cntrl) er->etype = ami_etcopy; /* copy block */
+            else if (win->shift) er->etype = ami_etcopyl; /* copy line */
             else { /* f1 */
 
-                er->etype = pa_etfun;
+                er->etype = ami_etfun;
                 er->fkey = 1;
 
             }
             break;
 
         case VK_F2: /* f2 */
-            if (win->cntrl) er->etype = pa_etprintb; /* print block */
-            else if (win->shift) er->etype = pa_etprint; /* print document */
+            if (win->cntrl) er->etype = ami_etprintb; /* print block */
+            else if (win->shift) er->etype = ami_etprint; /* print document */
             else { /* f2 */
 
-                er->etype = pa_etfun;
+                er->etype = ami_etfun;
                 er->fkey = 2;
 
             }
             break;
 
         case VK_F3: /* f3 */
-            if (win->cntrl) er->etype = pa_etprints; /* print screen */
+            if (win->cntrl) er->etype = ami_etprints; /* print screen */
             else { /* f3 */
 
-                er->etype = pa_etfun;
+                er->etype = ami_etfun;
                 er->fkey = 3;
 
             }
             break;
 
         case VK_F4: /* f4 */
-            er->etype = pa_etfun;
+            er->etype = ami_etfun;
             er->fkey = 4;
             break;
 
         case VK_F5: /* f5 */
-            er->etype = pa_etfun;
+            er->etype = ami_etfun;
             er->fkey = 5;
             break;
 
         case VK_F6: /* f6 */
-            er->etype = pa_etfun;
+            er->etype = ami_etfun;
             er->fkey = 6;
             break;
 
         case VK_F7: /* f7 */
-            er->etype = pa_etfun;
+            er->etype = ami_etfun;
             er->fkey = 7;
             break;
 
         case VK_F8: /* f8 */
-            er->etype = pa_etfun;
+            er->etype = ami_etfun;
             er->fkey = 8;
             break;
 
         case VK_F9: /* f9 */
-            er->etype = pa_etfun;
+            er->etype = ami_etfun;
             er->fkey = 9;
             break;
 
         case VK_F10: /* f10 */
-            er->etype = pa_etfun;
+            er->etype = ami_etfun;
             er->fkey = 10;
             break;
 
         case VK_F11: /* f11 */
-            er->etype = pa_etfun;
+            er->etype = ami_etfun;
             er->fkey = 11;
             break;
 
         case VK_F12: /* f12 */
-            er->etype = pa_etfun;
+            er->etype = ami_etfun;
             er->fkey = 12;
             break;
 
-        case VK_MENU: er->etype = pa_etmenu; break; /* alt */
-        case VK_CANCEL: er->etype = pa_etterm; break; /* ctl-brk */
+        case VK_MENU: er->etype = ami_etmenu; break; /* alt */
+        case VK_CANCEL: er->etype = ami_etterm; break; /* ctl-brk */
 
         default: *keep = FALSE; /* others are dropped */
             break;
@@ -7551,7 +7551,7 @@ contempt for the whole double click concept.
 
 /* update mouse parameters */
 
-static void mouseupdate(winptr win, pa_evtrec* er, int* keep)
+static void mouseupdate(winptr win, ami_evtrec* er, int* keep)
 
 {
 
@@ -7559,7 +7559,7 @@ static void mouseupdate(winptr win, pa_evtrec* er, int* keep)
     if (win->nmpx != win->mpx || win->nmpy != win->mpy) {
 
       /* create movement event */
-       er->etype = pa_etmoumov; /* set movement event */
+       er->etype = ami_etmoumov; /* set movement event */
        er->mmoun = 1; /* mouse 1 */
        er->moupx = win->nmpx; /* set new mouse position */
        er->moupy = win->nmpy;
@@ -7570,7 +7570,7 @@ static void mouseupdate(winptr win, pa_evtrec* er, int* keep)
     } else if (win->nmpxg != win->mpxg || win->nmpyg != win->mpyg) {
 
        /* create graphical movement event */
-       er->etype = pa_etmoumovg; /* set movement event */
+       er->etype = ami_etmoumovg; /* set movement event */
        er->mmoung = 1; /* mouse 1 */
        er->moupxg = win->nmpxg; /* set new mouse position */
        er->moupyg = win->nmpyg;
@@ -7580,7 +7580,7 @@ static void mouseupdate(winptr win, pa_evtrec* er, int* keep)
 
     } else if (win->nmb1 > win->mb1) {
 
-       er->etype = pa_etmouba; /* button 1 assert */
+       er->etype = ami_etmouba; /* button 1 assert */
        er->amoun = 1; /* mouse 1 */
        er->amoubn = 1; /* button 1 */
        win->mb1 = win->nmb1; /* update status */
@@ -7588,7 +7588,7 @@ static void mouseupdate(winptr win, pa_evtrec* er, int* keep)
 
     } else if (win->nmb2 > win->mb2) {
 
-       er->etype = pa_etmouba; /* button 2 assert */
+       er->etype = ami_etmouba; /* button 2 assert */
        er->amoun = 1; /* mouse 1 */
        er->amoubn = 2; /* button 2 */
        win->mb2 = win->nmb2; /* update status */
@@ -7596,7 +7596,7 @@ static void mouseupdate(winptr win, pa_evtrec* er, int* keep)
 
     } else if (win->nmb3 > win->mb3) {
 
-       er->etype = pa_etmouba; /* button 3 assert */
+       er->etype = ami_etmouba; /* button 3 assert */
        er->amoun = 1; /* mouse 1 */
        er->amoubn = 3; /* button 3 */
        win->mb3 = win->nmb3; /* update status */
@@ -7604,7 +7604,7 @@ static void mouseupdate(winptr win, pa_evtrec* er, int* keep)
 
     } else if (win->nmb1 < win->mb1) {
 
-       er->etype = pa_etmoubd; /* button 1 deassert */
+       er->etype = ami_etmoubd; /* button 1 deassert */
        er->dmoun = 1; /* mouse 1 */
        er->dmoubn = 1; /* button 1 */
        win->mb1 = win->nmb1; /* update status */
@@ -7612,7 +7612,7 @@ static void mouseupdate(winptr win, pa_evtrec* er, int* keep)
 
     } else if (win->nmb2 < win->mb2) {
 
-       er->etype = pa_etmoubd; /* button 2 deassert */
+       er->etype = ami_etmoubd; /* button 2 deassert */
        er->dmoun = 1; /* mouse 1 */
        er->dmoubn = 2; /* button 2 */
        win->mb2 = win->nmb2; /* update status */
@@ -7620,7 +7620,7 @@ static void mouseupdate(winptr win, pa_evtrec* er, int* keep)
 
     } else if (win->nmb3 < win->mb3) {
 
-       er->etype = pa_etmoubd; /* button 3 deassert */
+       er->etype = ami_etmoubd; /* button 3 deassert */
        er->dmoun = 1; /* mouse 1 */
        er->dmoubn = 3; /* button 3 */
        win->mb3 = win->nmb3; /* update status */
@@ -7652,14 +7652,14 @@ static void mouseevent(winptr win, MSG* msg)
 
 /* queue event to window */
 
-static void enqueue(eqeptr* el, pa_evtrec* er)
+static void enqueue(eqeptr* el, ami_evtrec* er)
 
 {
 
     eqeptr ep; /* pointer to queue entries */
 
     geteqe(&ep); /* get a new event container */
-    memcpy(&ep->evt, er, sizeof(pa_evtrec)); /* copy event to container */
+    memcpy(&ep->evt, er, sizeof(ami_evtrec)); /* copy event to container */
     /* insert into bubble list */
     if (*el == NULL) { /* list empty, place as first entry */
 
@@ -7681,7 +7681,7 @@ static void enqueue(eqeptr* el, pa_evtrec* er)
 
 /* issue event for changed button */
 
-static void updn(pa_evtrec* er, MSG* msg, int ofn, int bn, int bm, int* keep)
+static void updn(ami_evtrec* er, MSG* msg, int ofn, int bn, int bm, int* keep)
 
 {
 
@@ -7689,7 +7689,7 @@ static void updn(pa_evtrec* er, MSG* msg, int ofn, int bn, int bm, int* keep)
    if (*keep) enqueue(&opnfil[opnfil[ofn]->inl]->evt, er); /* queue it */
    if (msg->wParam && bm) { /* assert */
 
-      er->etype = pa_etjoyba; /* set assert */
+      er->etype = ami_etjoyba; /* set assert */
       if (msg->message == MM_JOY1BUTTONDOWN ||
           msg->message == MM_JOY1BUTTONUP) er->ajoyn = 1;
       else er->ajoyn = 2;
@@ -7697,7 +7697,7 @@ static void updn(pa_evtrec* er, MSG* msg, int ofn, int bn, int bm, int* keep)
 
    } else { /* deassert */
 
-      er->etype = pa_etjoybd; /* set deassert */
+      er->etype = ami_etjoybd; /* set deassert */
       if (msg->message == MM_JOY1BUTTONDOWN ||
           msg->message == MM_JOY1BUTTONUP) er->ajoyn = 1;
       else er->ajoyn = 2;
@@ -7710,7 +7710,7 @@ static void updn(pa_evtrec* er, MSG* msg, int ofn, int bn, int bm, int* keep)
 
 /* process joystick messages */
 
-static void joymes(pa_evtrec* er, MSG* msg, int ofn, int* keep)
+static void joymes(ami_evtrec* er, MSG* msg, int ofn, int* keep)
 
 {
 
@@ -7724,7 +7724,7 @@ static void joymes(pa_evtrec* er, MSG* msg, int ofn, int* keep)
 
 /* process windows messages to event */
 
-static void winevt(winptr win, pa_evtrec* er, MSG* msg, int ofn, int* keep)
+static void winevt(winptr win, ami_evtrec* er, MSG* msg, int ofn, int* keep)
 
 {
 
@@ -7746,7 +7746,7 @@ static void winevt(winptr win, pa_evtrec* er, MSG* msg, int ofn, int* keep)
 
             /* form redraw request */
             b = GetUpdateRect(win->winhan, &cr, FALSE);
-            er->etype = pa_etredraw; /* set redraw message */
+            er->etype = ami_etredraw; /* set redraw message */
             er->rsx = msg->wParam/0x10000; /* fill the rectangle with update */
             er->rsy = msg->wParam%0x10000;
             er->rex = msg->lParam/0x10000;
@@ -7762,13 +7762,13 @@ static void winevt(winptr win, pa_evtrec* er, MSG* msg, int ofn, int* keep)
             /* check if maximize, minimize, or exit from either mode */
             if (msg->wParam == SIZE_MAXIMIZED)  {
 
-                er->etype = pa_etmax; /* set maximize event */
+                er->etype = ami_etmax; /* set maximize event */
                 /* save the event ahead of the resize */
                 enqueue(&opnfil[opnfil[ofn]->inl]->evt, er); /* queue it */
 
             } else if (msg->wParam == SIZE_MINIMIZED)  {
 
-                er->etype = pa_etmin; /* set minimize event */
+                er->etype = ami_etmin; /* set minimize event */
                 /* save the event ahead of the resize */
                 enqueue(&opnfil[opnfil[ofn]->inl]->evt, er); /* queue it */
 
@@ -7777,7 +7777,7 @@ static void winevt(winptr win, pa_evtrec* er, MSG* msg, int ofn, int* keep)
                         win->sizests == SIZE_MAXIMIZED)) {
 
                 /* window is restored, and was minimized or maximized */
-                er->etype = pa_etnorm; /* set normalize event */
+                er->etype = ami_etnorm; /* set normalize event */
                 /* save the event ahead of the resize */
                 enqueue(&opnfil[opnfil[ofn]->inl]->evt, er); /* queue it */
 
@@ -7793,7 +7793,7 @@ static void winevt(winptr win, pa_evtrec* er, MSG* msg, int ofn, int* keep)
             win->screens[win->curdsp-1]->maxxg = win->gmaxxg;
             win->screens[win->curdsp-1]->maxyg = win->gmaxyg;
             /* place the resize message */
-            er->etype = pa_etresize; /* set resize message */
+            er->etype = ami_etresize; /* set resize message */
             *keep = TRUE; /* set keep event */
 
         }
@@ -7812,7 +7812,7 @@ static void winevt(winptr win, pa_evtrec* er, MSG* msg, int ofn, int* keep)
 
     } else if (msg->message == WM_QUIT || msg->message == WM_CLOSE) {
 
-        er->etype = pa_etterm; /* set terminate */
+        er->etype = ami_etterm; /* set terminate */
         fend = TRUE; /* set } of program ordered */
         *keep = TRUE; /* set keep event */
 
@@ -7829,13 +7829,13 @@ static void winevt(winptr win, pa_evtrec* er, MSG* msg, int ofn, int* keep)
         /* check its a standard timer */
         if (msg->wParam > 0 && msg->wParam <= PA_MAXTIM)  {
 
-            er->etype = pa_ettim; /* set timer event occurred */
+            er->etype = ami_ettim; /* set timer event occurred */
             er->timnum = msg->wParam; /* set what timer */
             *keep = TRUE; /* set keep event */
 
         } else if (msg->wParam == FRMTIM) { /* its the framing timer */
 
-            er->etype = pa_etframe; /* set frame event occurred */
+            er->etype = ami_etframe; /* set frame event occurred */
             *keep = TRUE; /* set keep event */
 
         }
@@ -7843,7 +7843,7 @@ static void winevt(winptr win, pa_evtrec* er, MSG* msg, int ofn, int* keep)
     } else if (msg->message == MM_JOY1MOVE || msg->message == MM_JOY2MOVE ||
                msg->message == MM_JOY1ZMOVE || msg->message == MM_JOY2ZMOVE) {
 
-        er->etype = pa_etjoymov; /* set joystick moved */
+        er->etype = ami_etjoymov; /* set joystick moved */
         /* set what joystick */
         if (msg->message == MM_JOY1MOVE || msg->message == MM_JOY1ZMOVE)
             er->mjoyn = 1;
@@ -7921,7 +7921,7 @@ static void winevt(winptr win, pa_evtrec* er, MSG* msg, int ofn, int* keep)
                 case wtbutton: /* button */
                     if (nm == BN_CLICKED) {
 
-                        er->etype = pa_etbutton; /* set button assert event */
+                        er->etype = ami_etbutton; /* set button assert event */
                         er->butid = wp->id; /* get widget id */
                         *keep = TRUE; /* set keep event */
 
@@ -7929,13 +7929,13 @@ static void winevt(winptr win, pa_evtrec* er, MSG* msg, int ofn, int* keep)
                     break;
 
                 case wtcheckbox: /* checkbox */
-                    er->etype = pa_etchkbox; /* set checkbox select event */
+                    er->etype = ami_etchkbox; /* set checkbox select event */
                     er->ckbxid = wp->id; /* get widget id */
                     *keep = TRUE; /* set keep event */
                     break;
 
                 case wtradiobutton: /* radio button */
-                    er->etype = pa_etradbut; /* set checkbox select event */
+                    er->etype = ami_etradbut; /* set checkbox select event */
                     er->radbid = wp->id; /* get widget id */
                     *keep = TRUE; /* set keep event */
                     break;
@@ -7952,7 +7952,7 @@ static void winevt(winptr win, pa_evtrec* er, MSG* msg, int ofn, int* keep)
                         r = SendMessage(wp->han, LB_GETCURSEL, 0, 0);
                         lockmain(); /* start exclusive access */
                         if (r == -1) error(esystem); /* should be a select */
-                        er->etype = pa_etlstbox; /* set list box select event */
+                        er->etype = ami_etlstbox; /* set list box select event */
                         er->lstbid = wp->id; /* get widget id */
                         er->lstbsl = r+1; /* set selection */
                         *keep = TRUE; /* set keep event */
@@ -7967,7 +7967,7 @@ static void winevt(winptr win, pa_evtrec* er, MSG* msg, int ofn, int* keep)
                         r = SendMessage(wp->han, CB_GETCURSEL, 0, 0);
                         lockmain(); /* start exclusive access */
                         if (r == -1) error(esystem); /* should be a select */
-                        er->etype = pa_etdrpbox; /* set list box select event */
+                        er->etype = ami_etdrpbox; /* set list box select event */
                         er->drpbid = wp->id; /* get widget id */
                         er->drpbsl = r+1; /* set selection */
                         *keep = TRUE; /* set keep event */
@@ -7984,7 +7984,7 @@ static void winevt(winptr win, pa_evtrec* er, MSG* msg, int ofn, int* keep)
 
         } else { /* it"s a menu select */
 
-            er->etype = pa_etmenus; /* set menu select event */
+            er->etype = ami_etmenus; /* set menu select event */
             er->menuid = msg->wParam & 0xffff; /* get menu id */
             *keep = TRUE; /* set keep event */
 
@@ -8004,27 +8004,27 @@ static void winevt(winptr win, pa_evtrec* er, MSG* msg, int ofn, int* keep)
 
                 if (v == SB_LINEUP) {
 
-                    er->etype = pa_etsclull; /* line up */
+                    er->etype = ami_etsclull; /* line up */
                     er->sclulid = wp->id;
 
                 } else if (v == SB_LINEDOWN) {
 
-                    er->etype = pa_etscldrl; /* line down */
+                    er->etype = ami_etscldrl; /* line down */
                     er->scldrid = wp->id;
 
                 } else if (v == SB_PAGEUP) {
 
-                    er->etype = pa_etsclulp; /* page up */
+                    er->etype = ami_etsclulp; /* page up */
                     er->sclupid = wp->id;
 
                 } else if (v == SB_PAGEDOWN) {
 
-                    er->etype = pa_etscldrp; /* page down */
+                    er->etype = ami_etscldrp; /* page down */
                     er->scldpid = wp->id;
 
                 } else {
 
-                    er->etype = pa_etsclpos; /* set scroll position event */
+                    er->etype = ami_etsclpos; /* set scroll position event */
                     er->sclpid = wp->id; /* set widget id */
                     f = msg->wParam/0x10000; /* get current position to float */
                     /* clamp to INT_MAX */
@@ -8037,7 +8037,7 @@ static void winevt(winptr win, pa_evtrec* er, MSG* msg, int ofn, int* keep)
 
             } else if (wp->typ == wtslidevert) { /* slider */
 
-                er->etype = pa_etsldpos; /* set scroll position event */
+                er->etype = ami_etsldpos; /* set scroll position event */
                 er->sldpid = wp->id; /* set widget id */
                 /* get position */
                 if (v == SB_THUMBTRACK) /* message includes position */
@@ -8069,27 +8069,27 @@ static void winevt(winptr win, pa_evtrec* er, MSG* msg, int ofn, int* keep)
 
                 if (v == SB_LINELEFT) {
 
-                    er->etype = pa_etsclull; /* line up */
+                    er->etype = ami_etsclull; /* line up */
                     er->sclulid = wp->id;
 
                 } else if (v == SB_LINERIGHT) {
 
-                    er->etype = pa_etscldrl; /* line down */
+                    er->etype = ami_etscldrl; /* line down */
                     er->scldrid = wp->id;
 
                 } else if (v == SB_PAGELEFT) {
 
-                    er->etype = pa_etsclulp; /* page up */
+                    er->etype = ami_etsclulp; /* page up */
                     er->sclupid = wp->id;
 
                 } else if (v == SB_PAGERIGHT) {
 
-                    er->etype = pa_etscldrp; /* page down */
+                    er->etype = ami_etscldrp; /* page down */
                     er->scldpid = wp->id;
 
                 } else {
 
-                    er->etype = pa_etsclpos; /* set scroll position event */
+                    er->etype = ami_etsclpos; /* set scroll position event */
                     er->sclpid = wp->id; /* set widget id */
                     er->sclpos = msg->wParam / 65536*0x800000; /* get position */
 
@@ -8098,7 +8098,7 @@ static void winevt(winptr win, pa_evtrec* er, MSG* msg, int ofn, int* keep)
 
             } else if (wp->typ == wtslidehoriz) { /* slider */
 
-                er->etype = pa_etsldpos; /* set scroll position event */
+                er->etype = ami_etsldpos; /* set scroll position event */
                 er->sldpid = wp->id; /* set widget id */
                 /* get position */
                 if (v == SB_THUMBTRACK) /* message includes position */
@@ -8131,7 +8131,7 @@ static void winevt(winptr win, pa_evtrec* er, MSG* msg, int ofn, int* keep)
             unlockmain(); /* end exclusive access */
             r = SendMessage(wp->han, TCM_GETCURSEL, 0, 0);
             lockmain(); /* start exclusive access */
-            er->etype = pa_ettabbar; /* set tab bar type */
+            er->etype = ami_ettabbar; /* set tab bar type */
             er->tabid = wp->id; /* set id */
             er->tabsel = r+1; /* set tab number */
             *keep = TRUE; /* keep event */
@@ -8144,12 +8144,12 @@ static void winevt(winptr win, pa_evtrec* er, MSG* msg, int ofn, int* keep)
         if (!wp) error(esystem); /* should have been found */
         if (wp->typ == wteditbox) {
 
-             er->etype = pa_etedtbox; /* set edit box complete event */
+             er->etype = ami_etedtbox; /* set edit box complete event */
              er->edtbid = wp->id; /* get widget id */
 
         } else {
 
-            er->etype = pa_etdrebox; /* set drop edit box complete event */
+            er->etype = ami_etdrebox; /* set drop edit box complete event */
             er->drebid = wp->id; /* get widget id */
 
         }
@@ -8159,7 +8159,7 @@ static void winevt(winptr win, pa_evtrec* er, MSG* msg, int ofn, int* keep)
 
         wp = fndwig(win, msg->wParam); /* find widget tracking entry */
         if (!wp) error(esystem); /* should have been found */
-        er->etype = pa_etnumbox; /* set number select box complete event */
+        er->etype = ami_etnumbox; /* set number select box complete event */
         er->numbid = wp->id; /* get widget id */
         er->numbsl = msg->lParam; /* set number selected */
         *keep = TRUE; /* set keep event */
@@ -8168,13 +8168,13 @@ static void winevt(winptr win, pa_evtrec* er, MSG* msg, int ofn, int* keep)
 
 }
 
-static void sigevt(pa_evtrec* er, MSG* msg, int* keep)
+static void sigevt(ami_evtrec* er, MSG* msg, int* keep)
 
 {
 
     if (msg->message == WM_QUIT || msg->message == WM_CLOSE)  {
 
-        er->etype = pa_etterm; /* set terminate */
+        er->etype = ami_etterm; /* set terminate */
         fend = TRUE; /* set end of program ordered */
         *keep = TRUE; /* set keep event */
 
@@ -8182,7 +8182,7 @@ static void sigevt(pa_evtrec* er, MSG* msg, int* keep)
 
 }
 
-static void ievent(int ifn, pa_evtrec* er)
+static void ievent(int ifn, ami_evtrec* er)
 
 {
 
@@ -8266,7 +8266,7 @@ static void ievent(int ifn, pa_evtrec* er)
 
 /* external event interface */
 
-void pa_event(FILE* f, pa_evtrec* er)
+void ami_event(FILE* f, ami_evtrec* er)
 
 {
 
@@ -8301,7 +8301,7 @@ call down into the stack by executing the overridden event.
 
 *******************************************************************************/
 
-void pa_eventover(pa_evtcod e, pa_pevthan eh,  pa_pevthan* oeh)
+void ami_eventover(ami_evtcod e, ami_pevthan eh,  ami_pevthan* oeh)
 
 {
 
@@ -8321,7 +8321,7 @@ call down into the stack by executing the overridden event.
 
 *******************************************************************************/
 
-void pa_eventsover(pa_pevthan eh,  pa_pevthan* oeh)
+void ami_eventsover(ami_pevthan eh,  ami_pevthan* oeh)
 
 {
 
@@ -8452,7 +8452,7 @@ static void itimer(winptr win, /* file to send event to */
 
 }
 
-void pa_timer(FILE* f, /* file to send event to */
+void ami_timer(FILE* f, /* file to send event to */
                      int   i, /* timer handle */
                      long  t, /* number of tenth-milliseconds to run */
                      int   r) /* timer is to rerun after completion */
@@ -8489,7 +8489,7 @@ static void ikilltimer(winptr win, /* file to kill timer on */
 
 }
 
-void pa_killtimer(FILE* f, /* file to kill timer on */
+void ami_killtimer(FILE* f, /* file to kill timer on */
                int   i) /* handle of timer */
 
 {
@@ -8546,7 +8546,7 @@ static void iframetimer(winptr win, int lf, int e)
 
 }
 
-void pa_frametimer(FILE* f, int e)
+void ami_frametimer(FILE* f, int e)
 
 {
 
@@ -8574,7 +8574,7 @@ holding graph unaware programs.
 
 *******************************************************************************/
 
-void pa_autohold(int e)
+void ami_autohold(int e)
 
 {
 
@@ -8590,7 +8590,7 @@ Returns the number of mice implemented. Windows supports only one mouse.
 
 *******************************************************************************/
 
-int pa_mouse(FILE* f)
+int ami_mouse(FILE* f)
 
 {
 
@@ -8611,7 +8611,7 @@ version.
 
 *******************************************************************************/
 
-int pa_mousebutton(FILE* f, int m)
+int ami_mousebutton(FILE* f, int m)
 
 {
 
@@ -8634,7 +8634,7 @@ Return number of joysticks attached.
 
 *******************************************************************************/
 
-int pa_joystick(FILE* f)
+int ami_joystick(FILE* f)
 
 {
 
@@ -8658,7 +8658,7 @@ Returns the number of buttons on a given joystick.
 
 *******************************************************************************/
 
-int pa_joybutton(FILE* f, int j)
+int ami_joybutton(FILE* f, int j)
 
 {
 
@@ -8710,7 +8710,7 @@ static int ijoyaxis(winptr win, int j)
 
 }
 
-int pa_joyaxis(FILE* f, int j)
+int ami_joyaxis(FILE* f, int j)
 
 {
 
@@ -8760,7 +8760,7 @@ static void isettabg(winptr win, int t)
 
 }
 
-void pa_settabg(FILE* f, int t)
+void ami_settabg(FILE* f, int t)
 
 {
 
@@ -8781,7 +8781,7 @@ Sets a tab at the indicated collumn number.
 
 *******************************************************************************/
 
-void pa_settab(FILE* f, int t)
+void ami_settab(FILE* f, int t)
 
 {
 
@@ -8825,7 +8825,7 @@ static void irestabg(winptr win, int t)
 
 }
 
-void pa_restabg(FILE* f, int t)
+void ami_restabg(FILE* f, int t)
 
 {
 
@@ -8846,7 +8846,7 @@ Resets the tab at the indicated collumn number.
 
 *******************************************************************************/
 
-void pa_restab(FILE* f, int t)
+void ami_restab(FILE* f, int t)
 
 {
 
@@ -8868,7 +8868,7 @@ arrangement.
 
 *******************************************************************************/
 
-void pa_clrtab(FILE* f)
+void ami_clrtab(FILE* f)
 
 {
 
@@ -8892,7 +8892,7 @@ function keys as well.
 
 *******************************************************************************/
 
-int pa_funkey(FILE* f)
+int ami_funkey(FILE* f)
 
 {
 
@@ -8919,7 +8919,7 @@ static void readline(int fd)
 
 {
 
-    pa_evtrec er;   /* event record */
+    ami_evtrec er;   /* event record */
     scnptr    sc;   /* pointer to current screen */
     winptr    win;  /* window pointer */
     int       ins;  /* insert/overwrite mode */
@@ -8945,8 +8945,8 @@ static void readline(int fd)
         }
         switch (er.etype) { /* event */
 
-            case pa_etterm: exit(1); /* halt program */
-            case pa_etenter: /* line terminate */
+            case ami_etterm: exit(1); /* halt program */
+            case ami_etenter: /* line terminate */
                 while (win->inpbuf[win->inpptr])
                     win->inpptr++; /* advance to end */
                 win->inpbuf[win->inpptr] = '\n'; /* return newline */
@@ -8956,7 +8956,7 @@ static void readline(int fd)
                 plcchr(win, '\n');
                 lcmp = TRUE; /* set line complete */
                 break;
-            case pa_etchar: /* character */
+            case ami_etchar: /* character */
                 if (win->inpptr < MAXLIN-2) {
 
                     if (ins) { /* insert */
@@ -8992,7 +8992,7 @@ static void readline(int fd)
 
                 }
                 break;
-            case pa_etdelcb: /* delete character backwards */
+            case ami_etdelcb: /* delete character backwards */
                 if (win->inpptr > 0) { /* not at extreme left */
 
                     win->inpptr--; /* back up pointer */
@@ -9011,7 +9011,7 @@ static void readline(int fd)
 
                 }
                 break;
-            case pa_etdelcf: /* delete character forward */
+            case ami_etdelcf: /* delete character forward */
                 if (win->inpbuf[win->inpptr]) { /* not at extreme right */
 
                     /* move characters down */
@@ -9028,7 +9028,7 @@ static void readline(int fd)
 
                 }
                 break;
-            case pa_etright: /* right character */
+            case ami_etright: /* right character */
                 /* not at extreme right, go right */
                 if (win->inpbuf[win->inpptr]) {
 
@@ -9038,7 +9038,7 @@ static void readline(int fd)
                 }
                 break;
 
-            case pa_etleft: /* left character */
+            case ami_etleft: /* left character */
                 /* not at extreme left, go left */
                 if (win->inpptr > 0) {
 
@@ -9048,11 +9048,11 @@ static void readline(int fd)
                 }
                 break;
 
-            case pa_etmoumov: /* mouse moved */
+            case ami_etmoumov: /* mouse moved */
                 /* we can track this internally */
                 break;
 
-            case pa_etmouba: /* mouse click */
+            case ami_etmouba: /* mouse click */
                 if (er.amoubn == 1) {
 
                     l = strlen(win->inpbuf);
@@ -9068,7 +9068,7 @@ static void readline(int fd)
                 }
                 break;
 
-            case pa_ethomel: /* beginning of line */
+            case ami_ethomel: /* beginning of line */
                 /* back up to start of line */
                 while (win->inpptr) {
 
@@ -9078,7 +9078,7 @@ static void readline(int fd)
                 }
                 break;
 
-            case pa_etendl: /* end of line */
+            case ami_etendl: /* end of line */
                 /* go to end of line */
                 while (win->inpbuf[win->inpptr]) {
 
@@ -9088,11 +9088,11 @@ static void readline(int fd)
                 }
                 break;
 
-            case pa_etinsertt: /* toggle insert mode */
+            case ami_etinsertt: /* toggle insert mode */
                 ins = !ins; /* toggle insert mode */
                 break;
 
-            case pa_etdell: /* delete whole line */
+            case ami_etdell: /* delete whole line */
                 /* back up to start of line */
                 while (win->inpptr) {
 
@@ -9117,7 +9117,7 @@ static void readline(int fd)
                 win->inpbuf[win->inpptr] = 0; /* clear line */
                 break;
 
-            case pa_etleftw: /* left word */
+            case ami_etleftw: /* left word */
                 /* back over any spaces */
                 while (win->inpptr && win->inpbuf[win->inpptr-1] == ' ') {
 
@@ -9134,7 +9134,7 @@ static void readline(int fd)
                 }
                 break;
 
-            case pa_etrightw: /* right word */
+            case ami_etrightw: /* right word */
                 /* advance over any non-space */
                 while (win->inpbuf[win->inpptr] && win->inpbuf[win->inpptr] != ' ') {
 
@@ -9578,7 +9578,7 @@ Sets the title of the current window.
 
 *******************************************************************************/
 
-void pa_title(FILE* f, char* ts)
+void ami_title(FILE* f, char* ts)
 
 {
 
@@ -9684,7 +9684,7 @@ static void opnwin(int fn, int pfn)
     RECT       cr;   /* client rectangle holder */
     int        r;    /* result holder */
     int        b;    /* int result holder */
-    pa_evtrec  er;   /* event holding record */
+    ami_evtrec  er;   /* event holding record */
     int        ti;   /* index for repeat array */
     int        pin;  /* index for loadable pictures array */
     int        si;   /* index for current display screen */
@@ -9868,8 +9868,8 @@ static void opnwin(int fn, int pfn)
 
     win->gattr = 0; /* no attribute */
     win->gauto = TRUE; /* auto on */
-    win->gfcrgb = colnum(pa_black); /* foreground black */
-    win->gbcrgb = colnum(pa_white); /* background white */
+    win->gfcrgb = colnum(ami_black); /* foreground black */
+    win->gbcrgb = colnum(ami_white); /* background white */
     win->gcurv = TRUE; /* cursor visible */
     win->gfmod = mdnorm; /* set mix modes */
     win->gbmod = mdnorm;
@@ -9894,8 +9894,8 @@ static void opnwin(int fn, int pfn)
                           TIME_ONESHOT);
     if (!frmhan) error(etimacc); /* no timer available */
     do { ievent(opnfil[fn]->inl, er);
-    } while (er.etype != pa_ettim && er.etype != pa_etterm);
-    if (er.etype == pa_etterm) abortm();
+    } while (er.etype != ami_ettim && er.etype != ami_etterm);
+    if (er.etype == ami_etterm) abortm();
 #endif
 
 }
@@ -10128,7 +10128,7 @@ static void iopenwin(FILE** infile, FILE** outfile, int pfn, int wid)
 
 }
 
-void pa_openwin(FILE** infile, FILE** outfile, FILE* parent, int wid)
+void ami_openwin(FILE** infile, FILE** outfile, FILE* parent, int wid)
 
 {
 
@@ -10199,7 +10199,7 @@ static void isizbufg(winptr win, int x, int y)
 
 }
 
-void pa_sizbufg(FILE* f, int x, int y)
+void ami_sizbufg(FILE* f, int x, int y)
 
 {
 
@@ -10220,7 +10220,7 @@ Sets or resets the size of the buffer surface, in character counts.
 
 *******************************************************************************/
 
-void pa_sizbuf(FILE* f, int x, int y)
+void ami_sizbuf(FILE* f, int x, int y)
 
 {
 
@@ -10316,7 +10316,7 @@ static void ibuffer(winptr win, int e)
 
 }
 
-void pa_buffer(FILE* f, int e)
+void ami_buffer(FILE* f, int e)
 
 {
 
@@ -10340,7 +10340,7 @@ deleted.
 *******************************************************************************/
 
 /* create menu tracking entry */
-static void mettrk(winptr win, HMENU han, int inx, pa_menuptr m)
+static void mettrk(winptr win, HMENU han, int inx, ami_menuptr m)
 
 {
 
@@ -10367,7 +10367,7 @@ static void mettrk(winptr win, HMENU han, int inx, pa_menuptr m)
 }
 
 /* create menu list */
-static void createmenu(winptr win, pa_menuptr m, HMENU* mh)
+static void createmenu(winptr win, ami_menuptr m, HMENU* mh)
 
 {
 
@@ -10410,7 +10410,7 @@ static void createmenu(winptr win, pa_menuptr m, HMENU* mh)
 
 }
 
-static void imenu(winptr win, pa_menuptr m)
+static void imenu(winptr win, ami_menuptr m)
 
 {
 
@@ -10471,7 +10471,7 @@ static void imenu(winptr win, pa_menuptr m)
 
 }
 
-void pa_menu(FILE* f, pa_menuptr m)
+void ami_menu(FILE* f, ami_menuptr m)
 
 {
 
@@ -10549,7 +10549,7 @@ static void imenuena(winptr win, int id, int onoff)
 
 }
 
-void pa_menuena(FILE* f, int id, int onoff)
+void ami_menuena(FILE* f, int id, int onoff)
 
 {
 
@@ -10630,7 +10630,7 @@ static void imenusel(winptr win, int id, int select)
 
 }
 
-void pa_menusel(FILE* f, int id, int select)
+void ami_menusel(FILE* f, int id, int select)
 
 {
 
@@ -10692,7 +10692,7 @@ static void ifront(winptr win)
 
 }
 
-void pa_front(FILE* f)
+void ami_front(FILE* f)
 
 {
 
@@ -10727,7 +10727,7 @@ static void iback(winptr win)
 
 }
 
-void pa_back(FILE* f)
+void ami_back(FILE* f)
 
 {
 
@@ -10762,7 +10762,7 @@ static void igetsizg(winptr win, int* x, int* y)
 
 }
 
-void pa_getsizg(FILE* f, int* x, int* y)
+void ami_getsizg(FILE* f, int* x, int* y)
 
 {
 
@@ -10788,7 +10788,7 @@ relative measurement.
 
 *******************************************************************************/
 
-void pa_getsiz(FILE* f, int* x, int* y)
+void ami_getsiz(FILE* f, int* x, int* y)
 
 {
 
@@ -10836,7 +10836,7 @@ static void isetsizg(winptr win, int x, int y)
 
 }
 
-void pa_setsizg(FILE* f, int x, int y)
+void ami_setsizg(FILE* f, int x, int y)
 
 {
 
@@ -10862,7 +10862,7 @@ relative measurement.
 
 *******************************************************************************/
 
-void pa_setsiz(FILE* f, int x, int y)
+void ami_setsiz(FILE* f, int x, int y)
 
 {
 
@@ -10910,7 +10910,7 @@ static void isetposg(winptr win, int x, int y)
 
 }
 
-void pa_setposg(FILE* f, int x, int y)
+void ami_setposg(FILE* f, int x, int y)
 
 {
 
@@ -10936,7 +10936,7 @@ relative measurement.
 
 *******************************************************************************/
 
-void pa_setpos(FILE* f, int x, int y)
+void ami_setpos(FILE* f, int x, int y)
 
 {
 
@@ -10987,7 +10987,7 @@ static void iscnsizg(winptr win, int* x, int* y)
 
 }
 
-void pa_scnsizg(FILE* f, int* x, int* y)
+void ami_scnsizg(FILE* f, int* x, int* y)
 
 {
 
@@ -11016,7 +11016,7 @@ Do we also need a menu style type ?
 *******************************************************************************/
 
 static void iwinclientg(winptr win, int cx, int cy, int* wx, int* wy,
-                        pa_winmodset ms)
+                        ami_winmodset ms)
 
 {
 
@@ -11032,10 +11032,10 @@ static void iwinclientg(winptr win, int cx, int cy, int* wx, int* wy,
     fl = WS_OVERLAPPED | WS_CLIPCHILDREN;
     /* add flags for child window */
     if (win->parhan) fl |= WS_CHILD | WS_CLIPSIBLINGS;
-    if (BIT(pa_wmframe) & ms) { /* add frame features */
+    if (BIT(ami_wmframe) & ms) { /* add frame features */
 
-        if (BIT(pa_wmsize) & ms) fl |= WS_THICKFRAME;
-        if (BIT(pa_wmsysbar) & ms) fl |= WS_CAPTION | WS_SYSMENU |
+        if (BIT(ami_wmsize) & ms) fl |= WS_THICKFRAME;
+        if (BIT(ami_wmsysbar) & ms) fl |= WS_CAPTION | WS_SYSMENU |
                                          WS_MINIMIZEBOX | WS_MAXIMIZEBOX;
 
     }
@@ -11048,7 +11048,7 @@ static void iwinclientg(winptr win, int cx, int cy, int* wx, int* wy,
 
 }
 
-void pa_winclient(FILE* f, int cx, int cy, int* wx, int* wy, pa_winmodset ms)
+void ami_winclient(FILE* f, int cx, int cy, int* wx, int* wy, ami_winmodset ms)
 
 {
 
@@ -11077,7 +11077,7 @@ void pa_winclient(FILE* f, int cx, int cy, int* wx, int* wy, pa_winmodset ms)
 
 }
 
-void pa_winclientg(FILE* f, int cx, int cy, int* wx, int* wy, pa_winmodset ms)
+void ami_winclientg(FILE* f, int cx, int cy, int* wx, int* wy, ami_winmodset ms)
 
 {
 
@@ -11101,7 +11101,7 @@ because it can only be used as a relative measurement.
 
 *******************************************************************************/
 
-void pa_scnsiz(FILE* f, int* x, int* y)
+void ami_scnsiz(FILE* f, int* x, int* y)
 
 {
 
@@ -11173,7 +11173,7 @@ static void iframe(winptr win, int e)
 
 }
 
-void pa_frame(FILE* f, int e)
+void ami_frame(FILE* f, int e)
 
 {
 
@@ -11250,7 +11250,7 @@ static void isizable(winptr win, int e)
 
 }
 
-void pa_sizable(FILE* f, int e)
+void ami_sizable(FILE* f, int e)
 
 {
 
@@ -11327,7 +11327,7 @@ static void isysbar(winptr win, int e)
 
 }
 
-void pa_sysbar(FILE* f, int e)
+void ami_sysbar(FILE* f, int e)
 
 {
 
@@ -11348,11 +11348,11 @@ Appends a new menu entry to the given list.
 
 *******************************************************************************/
 
-static void appendmenu(pa_menuptr* list, pa_menuptr m)
+static void appendmenu(ami_menuptr* list, ami_menuptr m)
 
 {
 
-    pa_menuptr lp;
+    ami_menuptr lp;
 
     /* clear these links for insurance */
     m->next = NULL; /* clear next */
@@ -11386,11 +11386,11 @@ end of the menu,  the program selections placed in the menu.
 *******************************************************************************/
 
 /* get menu entry */
-static void getmenu(pa_menuptr* m, int id, char* face)
+static void getmenu(ami_menuptr* m, int id, char* face)
 
 {
 
-    *m = imalloc(sizeof(pa_menurec));
+    *m = imalloc(sizeof(ami_menurec));
     (*m)->next   = NULL; /* no next */
     (*m)->branch = NULL; /* no branch */
     (*m)->onoff  = FALSE; /* not an on/off value */
@@ -11402,7 +11402,7 @@ static void getmenu(pa_menuptr* m, int id, char* face)
 }
 
 /* add standard list item */
-static void additem(pa_stdmenusel sms, int i, pa_menuptr* m, pa_menuptr* l,
+static void additem(ami_stdmenusel sms, int i, ami_menuptr* m, ami_menuptr* l,
                     char* s, int b)
 
 {
@@ -11417,11 +11417,11 @@ static void additem(pa_stdmenusel sms, int i, pa_menuptr* m, pa_menuptr* l,
 
 }
 
-void pa_stdmenu(pa_stdmenusel sms, pa_menuptr* sm, pa_menuptr pm)
+void ami_stdmenu(ami_stdmenusel sms, ami_menuptr* sm, ami_menuptr pm)
 
 {
 
-    pa_menuptr m, hm; /* pointer for menu entries */
+    ami_menuptr m, hm; /* pointer for menu entries */
 
     *sm = NULL; /* clear menu */
 
@@ -11681,7 +11681,7 @@ static void ikillwidget(winptr win, int id)
 
 }
 
-void pa_killwidget(FILE* f, int id)
+void ami_killwidget(FILE* f, int id)
 
 {
 
@@ -11720,7 +11720,7 @@ static void iselectwidget(winptr win, int id, int e)
 
 }
 
-void pa_selectwidget(FILE* f, int id, int e)
+void ami_selectwidget(FILE* f, int id, int e)
 
 {
 
@@ -11765,7 +11765,7 @@ static void ienablewidget(winptr win, int id, int e)
 
 }
 
-void pa_enablewidget(FILE* f, int id, int e)
+void ami_enablewidget(FILE* f, int id, int e)
 
 {
 
@@ -11813,7 +11813,7 @@ static void igetwidgettext(winptr win, int id, char* s, int sl)
 
 }
 
-void pa_getwidgettext(FILE* f, int id, char* s, int sl)
+void ami_getwidgettext(FILE* f, int id, char* s, int sl)
 
 {
 
@@ -11853,7 +11853,7 @@ static void iputwidgettext(winptr win, int id, char* s)
 
 }
 
-void pa_putwidgettext(FILE* f, int id, char* s)
+void ami_putwidgettext(FILE* f, int id, char* s)
 
 {
 
@@ -11898,7 +11898,7 @@ static void isizwidgetg(winptr win, int id,  int x, int y)
 
 }
 
-void pa_sizwidgetg(FILE* f, int id, int x, int y)
+void ami_sizwidgetg(FILE* f, int id, int x, int y)
 
 {
 
@@ -11943,7 +11943,7 @@ static void iposwidgetg(winptr win, int id, int x, int y)
 
 }
 
-void pa_poswidgetg(FILE* f, int id, int x, int y)
+void ami_poswidgetg(FILE* f, int id, int x, int y)
 
 {
 
@@ -11988,7 +11988,7 @@ static void ibackwidget(winptr win, int id)
 
 }
 
-void pa_backwidget(FILE* f, int id)
+void ami_backwidget(FILE* f, int id)
 
 {
 
@@ -12034,7 +12034,7 @@ static void ifrontwidget(winptr win, int id)
 
 }
 
-void pa_frontwidget(FILE* f, int id)
+void ami_frontwidget(FILE* f, int id)
 
 {
 
@@ -12085,7 +12085,7 @@ static void ibuttonsiz(winptr win, char* s, int* w, int* h)
 
 }
 
-void pa_buttonsizg(FILE* f, char* s, int* w, int* h)
+void ami_buttonsizg(FILE* f, char* s, int* w, int* h)
 
 {
 
@@ -12098,7 +12098,7 @@ void pa_buttonsizg(FILE* f, char* s, int* w, int* h)
 
 }
 
-void pa_buttonsiz(FILE* f, char* s, int* w, int* h)
+void ami_buttonsiz(FILE* f, char* s, int* w, int* h)
 
 {
 
@@ -12143,7 +12143,7 @@ static void ibutton(winptr win, int x1, int y1, int x2, int y2, char* s, int id)
 
 }
 
-void pa_buttong(FILE* f, int x1, int y1, int x2, int y2, char* s, int id)
+void ami_buttong(FILE* f, int x1, int y1, int x2, int y2, char* s, int id)
 
 {
 
@@ -12156,7 +12156,7 @@ void pa_buttong(FILE* f, int x1, int y1, int x2, int y2, char* s, int id)
 
 }
 
-void pa_button(FILE* f, int x1, int y1, int x2, int y2, char* s, int id)
+void ami_button(FILE* f, int x1, int y1, int x2, int y2, char* s, int id)
 
 {
 
@@ -12208,7 +12208,7 @@ static void icheckboxsiz(winptr win, char* s, int* w, int* h)
 
 }
 
-void pa_checkboxsizg(FILE* f, char* s, int* w, int* h)
+void ami_checkboxsizg(FILE* f, char* s, int* w, int* h)
 
 {
 
@@ -12221,7 +12221,7 @@ void pa_checkboxsizg(FILE* f, char* s, int* w, int* h)
 
 }
 
-void pa_checkboxsiz(FILE* f, char* s, int* w, int* h)
+void ami_checkboxsiz(FILE* f, char* s, int* w, int* h)
 
 {
 
@@ -12267,7 +12267,7 @@ static void icheckbox(winptr win, int x1, int y1, int x2, int y2, char* s, int i
 
 }
 
-void pa_checkboxg(FILE* f, int x1, int y1, int x2, int y2, char* s, int id)
+void ami_checkboxg(FILE* f, int x1, int y1, int x2, int y2, char* s, int id)
 
 {
 
@@ -12280,7 +12280,7 @@ void pa_checkboxg(FILE* f, int x1, int y1, int x2, int y2, char* s, int id)
 
 }
 
-void pa_checkbox(FILE* f, int x1, int y1, int x2, int y2, char* s, int id)
+void ami_checkbox(FILE* f, int x1, int y1, int x2, int y2, char* s, int id)
 
 {
 
@@ -12332,7 +12332,7 @@ static void iradiobuttonsiz(winptr win, char* s, int* w, int* h)
 
 }
 
-void pa_radiobuttonsizg(FILE* f, char* s, int* w, int* h)
+void ami_radiobuttonsizg(FILE* f, char* s, int* w, int* h)
 
 {
 
@@ -12345,7 +12345,7 @@ void pa_radiobuttonsizg(FILE* f, char* s, int* w, int* h)
 
 }
 
-void pa_radiobuttonsiz(FILE* f, char* s, int* w, int* h)
+void ami_radiobuttonsiz(FILE* f, char* s, int* w, int* h)
 
 {
 
@@ -12391,7 +12391,7 @@ static void iradiobutton(winptr win, int x1, int y1, int x2, int y2, char* s, in
 
 }
 
-void pa_radiobuttong(FILE* f, int x1, int y1, int x2, int y2, char* s, int id)
+void ami_radiobuttong(FILE* f, int x1, int y1, int x2, int y2, char* s, int id)
 
 {
 
@@ -12404,7 +12404,7 @@ void pa_radiobuttong(FILE* f, int x1, int y1, int x2, int y2, char* s, int id)
 
 }
 
-void pa_radiobutton(FILE* f, int x1, int y1, int x2, int y2, char* s, int id)
+void ami_radiobutton(FILE* f, int x1, int y1, int x2, int y2, char* s, int id)
 
 {
 
@@ -12467,7 +12467,7 @@ static void igroupsiz(winptr win, char* s, int cw, int ch, int* w, int* h,
 
 }
 
-void pa_groupsizg(FILE* f, char* s, int cw, int ch, int* w, int* h,
+void ami_groupsizg(FILE* f, char* s, int cw, int ch, int* w, int* h,
                   int* ox, int* oy)
 
 {
@@ -12481,7 +12481,7 @@ void pa_groupsizg(FILE* f, char* s, int cw, int ch, int* w, int* h,
 
 }
 
-void pa_groupsiz(FILE* f, char* s, int cw, int ch, int* w, int* h,
+void ami_groupsiz(FILE* f, char* s, int cw, int ch, int* w, int* h,
               int* ox, int* oy)
 
 {
@@ -12528,7 +12528,7 @@ static void igroup(winptr win, int x1, int y1, int x2, int y2, char* s, int id)
 
 }
 
-void pa_groupg(FILE* f, int x1, int y1, int x2, int y2, char* s, int id)
+void ami_groupg(FILE* f, int x1, int y1, int x2, int y2, char* s, int id)
 
 {
 
@@ -12541,7 +12541,7 @@ void pa_groupg(FILE* f, int x1, int y1, int x2, int y2, char* s, int id)
 
 }
 
-void pa_group(FILE* f, int x1, int y1, int x2, int y2, char* s, int id)
+void ami_group(FILE* f, int x1, int y1, int x2, int y2, char* s, int id)
 
 {
 
@@ -12587,7 +12587,7 @@ static void ibackground(winptr win, int x1, int y1, int x2, int y2, int id)
 
 }
 
-void pa_backgroundg(FILE* f, int x1, int y1, int x2, int y2, int id)
+void ami_backgroundg(FILE* f, int x1, int y1, int x2, int y2, int id)
 
 {
 
@@ -12600,7 +12600,7 @@ void pa_backgroundg(FILE* f, int x1, int y1, int x2, int y2, int id)
 
 }
 
-void pa_background(FILE* f, int x1, int y1, int x2, int y2, int id)
+void ami_background(FILE* f, int x1, int y1, int x2, int y2, int id)
 
 {
 
@@ -12643,7 +12643,7 @@ static void iscrollvertsiz(winptr win, int* w, int* h)
 
 }
 
-void pa_scrollvertsizg(FILE* f, int* w, int* h)
+void ami_scrollvertsizg(FILE* f, int* w, int* h)
 
 {
 
@@ -12656,7 +12656,7 @@ void pa_scrollvertsizg(FILE* f, int* w, int* h)
 
 }
 
-void pa_scrollvertsiz(FILE* f, int* w, int* h)
+void ami_scrollvertsiz(FILE* f, int* w, int* h)
 
 {
 
@@ -12717,7 +12717,7 @@ static void iscrollvert(winptr win, int x1, int y1, int x2, int y2, int id)
 
 }
 
-void pa_scrollvertg(FILE* f, int x1, int y1, int x2, int y2, int id)
+void ami_scrollvertg(FILE* f, int x1, int y1, int x2, int y2, int id)
 
 {
 
@@ -12730,7 +12730,7 @@ void pa_scrollvertg(FILE* f, int x1, int y1, int x2, int y2, int id)
 
 }
 
-void pa_scrollvert(FILE* f, int x1, int y1, int x2, int y2, int id)
+void ami_scrollvert(FILE* f, int x1, int y1, int x2, int y2, int id)
 
 {
 
@@ -12773,7 +12773,7 @@ static void iscrollhorizsiz(winptr win, int* w, int* h)
 
 }
 
-void pa_scrollhorizsizg(FILE* f, int* w, int* h)
+void ami_scrollhorizsizg(FILE* f, int* w, int* h)
 
 {
 
@@ -12786,7 +12786,7 @@ void pa_scrollhorizsizg(FILE* f, int* w, int* h)
 
 }
 
-void pa_scrollhorizsiz(FILE* f, int* w, int* h)
+void ami_scrollhorizsiz(FILE* f, int* w, int* h)
 
 {
 
@@ -12847,7 +12847,7 @@ static void iscrollhoriz(winptr win, int x1, int y1, int x2, int y2, int id)
 
 }
 
-void pa_scrollhorizg(FILE* f, int x1, int y1, int x2, int y2, int id)
+void ami_scrollhorizg(FILE* f, int x1, int y1, int x2, int y2, int id)
 
 {
 
@@ -12860,7 +12860,7 @@ void pa_scrollhorizg(FILE* f, int x1, int y1, int x2, int y2, int id)
 
 }
 
-void pa_scrollhoriz(FILE* f, int x1, int y1, int x2, int y2, int id)
+void ami_scrollhoriz(FILE* f, int x1, int y1, int x2, int y2, int id)
 
 {
 
@@ -12904,7 +12904,7 @@ static void iscrollpos(winptr win, int id, int r)
 
 }
 
-void pa_scrollpos(FILE* f, int id, int r)
+void ami_scrollpos(FILE* f, int id, int r)
 
 {
 
@@ -12951,7 +12951,7 @@ static void iscrollsiz(winptr win, int id, int r)
 
 }
 
-void pa_scrollsiz(FILE* f, int id, int r)
+void ami_scrollsiz(FILE* f, int id, int r)
 
 {
 
@@ -13081,7 +13081,7 @@ static void inumselboxsiz(winptr win, int l, int u, int* w, int* h)
 
 }
 
-void pa_numselboxsizg(FILE* f, int l, int u, int* w, int* h)
+void ami_numselboxsizg(FILE* f, int l, int u, int* w, int* h)
 
 {
 
@@ -13094,7 +13094,7 @@ void pa_numselboxsizg(FILE* f, int l, int u, int* w, int* h)
 
 }
 
-void pa_numselboxsiz(FILE* f, int l, int u, int* w, int* h)
+void ami_numselboxsiz(FILE* f, int l, int u, int* w, int* h)
 
 {
 
@@ -13184,7 +13184,7 @@ static void inumselbox(winptr win, int x1, int y1, int x2, int y2, int l, int u,
 
 }
 
-void pa_numselboxg(FILE* f, int x1, int y1, int x2, int y2, int l, int u, int id)
+void ami_numselboxg(FILE* f, int x1, int y1, int x2, int y2, int l, int u, int id)
 
 {
 
@@ -13197,7 +13197,7 @@ void pa_numselboxg(FILE* f, int x1, int y1, int x2, int y2, int l, int u, int id
 
 }
 
-void pa_numselbox(FILE* f, int x1, int y1, int x2, int y2, int l, int u, int id)
+void ami_numselbox(FILE* f, int x1, int y1, int x2, int y2, int l, int u, int id)
 
 {
 
@@ -13295,7 +13295,7 @@ static void ieditboxsiz(winptr win, char* s, int* w, int* h)
 
 }
 
-void pa_editboxsizg(FILE* f, char* s, int* w, int* h)
+void ami_editboxsizg(FILE* f, char* s, int* w, int* h)
 
 {
 
@@ -13308,7 +13308,7 @@ void pa_editboxsizg(FILE* f, char* s, int* w, int* h)
 
 }
 
-void pa_editboxsiz(FILE* f, char* s, int* w, int* h)
+void ami_editboxsiz(FILE* f, char* s, int* w, int* h)
 
 {
 
@@ -13359,7 +13359,7 @@ static void ieditbox(winptr win, int x1, int y1, int x2, int y2, int id)
 
 }
 
-void pa_editboxg(FILE* f,  int x1, int y1, int x2, int y2, int id)
+void ami_editboxg(FILE* f,  int x1, int y1, int x2, int y2, int id)
 
 {
 
@@ -13372,7 +13372,7 @@ void pa_editboxg(FILE* f,  int x1, int y1, int x2, int y2, int id)
 
 }
 
-void pa_editbox(FILE* f, int x1, int y1, int x2, int y2, int id)
+void ami_editbox(FILE* f, int x1, int y1, int x2, int y2, int id)
 
 {
 
@@ -13417,7 +13417,7 @@ static void iprogbarsiz(winptr win, int* w, int* h)
 
 };
 
-void pa_progbarsizg(FILE* f, int* w, int* h)
+void ami_progbarsizg(FILE* f, int* w, int* h)
 
 {
 
@@ -13430,7 +13430,7 @@ void pa_progbarsizg(FILE* f, int* w, int* h)
 
 }
 
-void pa_progbarsiz(FILE* f, int* w, int* h)
+void ami_progbarsiz(FILE* f, int* w, int* h)
 
 {
 
@@ -13481,7 +13481,7 @@ static void iprogbar(winptr win, int x1, int y1, int x2, int y2, int id)
 
 }
 
-void pa_progbarg(FILE* f, int x1, int y1, int x2, int y2, int id)
+void ami_progbarg(FILE* f, int x1, int y1, int x2, int y2, int id)
 
 {
 
@@ -13494,7 +13494,7 @@ void pa_progbarg(FILE* f, int x1, int y1, int x2, int y2, int id)
 
 }
 
-void pa_progbar(FILE* f, int x1, int y1, int x2, int y2, int id)
+void ami_progbar(FILE* f, int x1, int y1, int x2, int y2, int id)
 
 {
 
@@ -13533,7 +13533,7 @@ static void iprogbarpos(winptr win, int id, int pos)
 
 }
 
-void pa_progbarpos(FILE* f, int id, int pos)
+void ami_progbarpos(FILE* f, int id, int pos)
 
 {
 
@@ -13562,7 +13562,7 @@ specified rectangle, one way or another.
 
 *******************************************************************************/
 
-static void ilistboxsizg(winptr win, pa_strptr sp, int* w, int* h)
+static void ilistboxsizg(winptr win, ami_strptr sp, int* w, int* h)
 
 {
 
@@ -13589,7 +13589,7 @@ static void ilistboxsizg(winptr win, pa_strptr sp, int* w, int* h)
 
 }
 
-static void ilistboxsiz(winptr win, pa_strptr sp, int* w, int* h)
+static void ilistboxsiz(winptr win, ami_strptr sp, int* w, int* h)
 
 {
 
@@ -13600,7 +13600,7 @@ static void ilistboxsiz(winptr win, pa_strptr sp, int* w, int* h)
 
 }
 
-void pa_listboxsizg(FILE* f, pa_strptr sp, int* w, int* h)
+void ami_listboxsizg(FILE* f, ami_strptr sp, int* w, int* h)
 
 {
 
@@ -13613,7 +13613,7 @@ void pa_listboxsizg(FILE* f, pa_strptr sp, int* w, int* h)
 
 }
 
-void pa_listboxsiz(FILE* f, pa_strptr sp, int* w, int* h)
+void ami_listboxsiz(FILE* f, ami_strptr sp, int* w, int* h)
 
 {
 
@@ -13634,7 +13634,7 @@ Creates a list box. Fills it with the string list provided.
 
 *******************************************************************************/
 
-static void ilistboxg(winptr win, int x1, int y1, int x2, int y2, pa_strptr sp, int id)
+static void ilistboxg(winptr win, int x1, int y1, int x2, int y2, ami_strptr sp, int id)
 
 {
 
@@ -13655,7 +13655,7 @@ static void ilistboxg(winptr win, int x1, int y1, int x2, int y2, pa_strptr sp, 
 
 }
 
-static void ilistbox(winptr win, int x1, int y1, int x2, int y2, pa_strptr sp, int id)
+static void ilistbox(winptr win, int x1, int y1, int x2, int y2, ami_strptr sp, int id)
 
 {
 
@@ -13668,7 +13668,7 @@ static void ilistbox(winptr win, int x1, int y1, int x2, int y2, pa_strptr sp, i
 
 }
 
-void pa_listboxg(FILE* f, int x1, int y1, int x2, int y2, pa_strptr sp, int id)
+void ami_listboxg(FILE* f, int x1, int y1, int x2, int y2, ami_strptr sp, int id)
 
 {
 
@@ -13681,7 +13681,7 @@ void pa_listboxg(FILE* f, int x1, int y1, int x2, int y2, pa_strptr sp, int id)
 
 }
 
-void pa_listbox(FILE* f, int x1, int y1, int x2, int y2, pa_strptr sp, int id)
+void ami_listbox(FILE* f, int x1, int y1, int x2, int y2, ami_strptr sp, int id)
 
 {
 
@@ -13728,7 +13728,7 @@ selections can be scrolled.
 
 *******************************************************************************/
 
-static void idropboxsizg(winptr win, pa_strptr sp, int* cw, int* ch,
+static void idropboxsizg(winptr win, ami_strptr sp, int* cw, int* ch,
                          int* ow, int* oh)
 
 {
@@ -13767,7 +13767,7 @@ static void idropboxsizg(winptr win, pa_strptr sp, int* cw, int* ch,
 
 }
 
-static void idropboxsiz(winptr win, pa_strptr sp, int* cw, int* ch,
+static void idropboxsiz(winptr win, ami_strptr sp, int* cw, int* ch,
                         int* ow, int* oh)
 
 {
@@ -13781,7 +13781,7 @@ static void idropboxsiz(winptr win, pa_strptr sp, int* cw, int* ch,
 
 }
 
-void pa_dropboxsizg(FILE* f, pa_strptr sp, int* cw, int* ch, int* ow, int* oh)
+void ami_dropboxsizg(FILE* f, ami_strptr sp, int* cw, int* ch, int* ow, int* oh)
 
 {
 
@@ -13794,7 +13794,7 @@ void pa_dropboxsizg(FILE* f, pa_strptr sp, int* cw, int* ch, int* ow, int* oh)
 
 }
 
-void pa_dropboxsiz(FILE* f, pa_strptr sp, int* cw, int* ch, int* ow, int* oh)
+void ami_dropboxsiz(FILE* f, ami_strptr sp, int* cw, int* ch, int* ow, int* oh)
 
 {
 
@@ -13815,13 +13815,13 @@ Creates a dropdown box. Fills it with the string list provided.
 
 *******************************************************************************/
 
-static void idropboxg(winptr win, int x1, int y1, int x2, int y2, pa_strptr sp,
+static void idropboxg(winptr win, int x1, int y1, int x2, int y2, ami_strptr sp,
                       int id)
 
 {
 
     wigptr wp;  /* widget pointer */
-    pa_strptr sp1;  /* string pointer */
+    ami_strptr sp1;  /* string pointer */
     LRESULT r; /* return value */
 
     if (!win->visible) winvis(win); /* make sure we are displayed */
@@ -13843,7 +13843,7 @@ static void idropboxg(winptr win, int x1, int y1, int x2, int y2, pa_strptr sp,
 
 }
 
-static void idropbox(winptr win, int x1, int y1, int x2, int y2, pa_strptr sp,
+static void idropbox(winptr win, int x1, int y1, int x2, int y2, ami_strptr sp,
                      int id)
 
 {
@@ -13857,7 +13857,7 @@ static void idropbox(winptr win, int x1, int y1, int x2, int y2, pa_strptr sp,
 
 }
 
-void pa_dropboxg(FILE* f, int x1, int y1, int x2, int y2, pa_strptr sp, int id)
+void ami_dropboxg(FILE* f, int x1, int y1, int x2, int y2, ami_strptr sp, int id)
 
 {
 
@@ -13870,7 +13870,7 @@ void pa_dropboxg(FILE* f, int x1, int y1, int x2, int y2, pa_strptr sp, int id)
 
 }
 
-void pa_dropbox(FILE* f, int x1, int y1, int x2, int y2, pa_strptr sp, int id)
+void ami_dropbox(FILE* f, int x1, int y1, int x2, int y2, ami_strptr sp, int id)
 
 {
 
@@ -13897,7 +13897,7 @@ selections can be scrolled.
 
 *******************************************************************************/
 
-static void idropeditboxsizg(winptr win, pa_strptr sp, int* cw, int* ch,
+static void idropeditboxsizg(winptr win, ami_strptr sp, int* cw, int* ch,
                              int* ow, int* oh)
 
 {
@@ -13936,7 +13936,7 @@ static void idropeditboxsizg(winptr win, pa_strptr sp, int* cw, int* ch,
 
 }
 
-static void idropeditboxsiz(winptr win, pa_strptr sp, int* cw, int* ch, int* ow, int* oh)
+static void idropeditboxsiz(winptr win, ami_strptr sp, int* cw, int* ch, int* ow, int* oh)
 
 {
 
@@ -13949,7 +13949,7 @@ static void idropeditboxsiz(winptr win, pa_strptr sp, int* cw, int* ch, int* ow,
 
 }
 
-void pa_dropeditboxsizg(FILE* f, pa_strptr sp, int* cw, int* ch, int* ow, int* oh)
+void ami_dropeditboxsizg(FILE* f, ami_strptr sp, int* cw, int* ch, int* ow, int* oh)
 
 {
 
@@ -13962,7 +13962,7 @@ void pa_dropeditboxsizg(FILE* f, pa_strptr sp, int* cw, int* ch, int* ow, int* o
 
 }
 
-void pa_dropeditboxsiz(FILE* f, pa_strptr sp, int* cw, int* ch, int* ow, int* oh)
+void ami_dropeditboxsiz(FILE* f, ami_strptr sp, int* cw, int* ch, int* ow, int* oh)
 
 {
 
@@ -13986,13 +13986,13 @@ box.
 
 *******************************************************************************/
 
-static void idropeditboxg(winptr win, int x1, int y1, int x2, int y2, pa_strptr sp,
+static void idropeditboxg(winptr win, int x1, int y1, int x2, int y2, ami_strptr sp,
                    int id)
 
 {
 
     wigptr    wp;  /* widget pointer */
-    pa_strptr sp1; /* string pointer */
+    ami_strptr sp1; /* string pointer */
     LRESULT   r;   /* return value */
 
     if (!win->visible) winvis(win); /* make sure we are displayed */
@@ -14015,7 +14015,7 @@ static void idropeditboxg(winptr win, int x1, int y1, int x2, int y2, pa_strptr 
 
 }
 
-static void idropeditbox(winptr win, int x1, int y1, int x2, int y2, pa_strptr sp, int id)
+static void idropeditbox(winptr win, int x1, int y1, int x2, int y2, ami_strptr sp, int id)
 
 {
 
@@ -14028,7 +14028,7 @@ static void idropeditbox(winptr win, int x1, int y1, int x2, int y2, pa_strptr s
 
 }
 
-void pa_dropeditboxg(FILE* f, int x1, int y1, int x2, int y2, pa_strptr sp, int id)
+void ami_dropeditboxg(FILE* f, int x1, int y1, int x2, int y2, ami_strptr sp, int id)
 
 {
 
@@ -14041,7 +14041,7 @@ void pa_dropeditboxg(FILE* f, int x1, int y1, int x2, int y2, pa_strptr sp, int 
 
 }
 
-void pa_dropeditbox(FILE* f, int x1, int y1, int x2, int y2, pa_strptr sp, int id)
+void ami_dropeditbox(FILE* f, int x1, int y1, int x2, int y2, ami_strptr sp, int id)
 
 {
 
@@ -14085,7 +14085,7 @@ static void islidehorizsiz(winptr win, int* w, int* h)
 
 }
 
-void pa_slidehorizsizg(FILE* f, int* w, int* h)
+void ami_slidehorizsizg(FILE* f, int* w, int* h)
 
 {
 
@@ -14098,7 +14098,7 @@ void pa_slidehorizsizg(FILE* f, int* w, int* h)
 
 }
 
-void pa_slidehorizsiz(FILE* f, int* w, int* h)
+void ami_slidehorizsiz(FILE* f, int* w, int* h)
 
 {
 
@@ -14153,7 +14153,7 @@ static void islidehoriz(winptr win, int x1, int y1, int x2, int y2, int mark, in
 
 }
 
-void pa_slidehorizg(FILE* f, int x1, int y1, int x2, int y2, int mark, int id)
+void ami_slidehorizg(FILE* f, int x1, int y1, int x2, int y2, int mark, int id)
 
 {
 
@@ -14166,7 +14166,7 @@ void pa_slidehorizg(FILE* f, int x1, int y1, int x2, int y2, int mark, int id)
 
 }
 
-void pa_slidehoriz(FILE* f, int x1, int y1, int x2, int y2, int mark, int id)
+void ami_slidehoriz(FILE* f, int x1, int y1, int x2, int y2, int mark, int id)
 
 {
 
@@ -14210,7 +14210,7 @@ static void islidevertsiz(winptr win, int* w, int* h)
 
 }
 
-void pa_slidevertsizg(FILE* f, int* w, int* h)
+void ami_slidevertsizg(FILE* f, int* w, int* h)
 
 {
 
@@ -14223,7 +14223,7 @@ void pa_slidevertsizg(FILE* f, int* w, int* h)
 
 }
 
-void pa_slidevertsiz(FILE* f, int* w, int* h)
+void ami_slidevertsiz(FILE* f, int* w, int* h)
 
 {
 
@@ -14279,7 +14279,7 @@ static void islidevert(winptr win, int x1, int y1, int x2, int y2, int mark, int
 
 }
 
-void pa_slidevertg(FILE* f, int x1, int y1, int x2, int y2, int mark, int id)
+void ami_slidevertg(FILE* f, int x1, int y1, int x2, int y2, int mark, int id)
 
 {
 
@@ -14292,7 +14292,7 @@ void pa_slidevertg(FILE* f, int x1, int y1, int x2, int y2, int mark, int id)
 
 }
 
-void pa_slidevert(FILE* f, int x1, int y1, int x2, int y2, int mark, int id)
+void ami_slidevert(FILE* f, int x1, int y1, int x2, int y2, int mark, int id)
 
 {
 
@@ -14358,18 +14358,18 @@ calculated and returned.
 
 *******************************************************************************/
 
-static void itabbarsizg(winptr win, pa_tabori tor, int cw, int ch, int* w, int* h,
+static void itabbarsizg(winptr win, ami_tabori tor, int cw, int ch, int* w, int* h,
                         int* ox, int* oy)
 
 {
 
-    if (tor == pa_toright || tor == pa_toleft)  { /* vertical bar */
+    if (tor == ami_toright || tor == ami_toleft)  { /* vertical bar */
 
         *w = 32; /* set minimum width */
         *h = 2+20*2; /* set minimum height */
         *w = *w+cw; /* add client space to width */
         if (ch+4 > *h) *h = ch+4; /* set to client if greater */
-        if (tor == pa_toleft) {
+        if (tor == ami_toleft) {
 
             *ox = 28; /* set offsets */
             *oy = 4;
@@ -14387,7 +14387,7 @@ static void itabbarsizg(winptr win, pa_tabori tor, int cw, int ch, int* w, int* 
         *h = 32; /* set minimum height */
         if (cw+4 > *w) *w = cw+4; /* set to client if greater */
         *h = *h+ch; /* add client space to height */
-        if (tor == pa_totop)  {
+        if (tor == ami_totop)  {
 
             *ox = 4; /* set offsets */
             *oy = 28;
@@ -14403,7 +14403,7 @@ static void itabbarsizg(winptr win, pa_tabori tor, int cw, int ch, int* w, int* 
 
 }
 
-static void itabbarsiz(winptr win, pa_tabori tor, int cw, int ch, int* w, int* h,
+static void itabbarsiz(winptr win, ami_tabori tor, int cw, int ch, int* w, int* h,
                        int* ox, int* oy)
 
 {
@@ -14425,7 +14425,7 @@ static void itabbarsiz(winptr win, pa_tabori tor, int cw, int ch, int* w, int* h
 
 }
 
-void pa_tabbarsizg(FILE* f, pa_tabori tor, int cw, int ch, int* w, int* h,
+void ami_tabbarsizg(FILE* f, ami_tabori tor, int cw, int ch, int* w, int* h,
                 int* ox, int* oy)
 
 {
@@ -14439,7 +14439,7 @@ void pa_tabbarsizg(FILE* f, pa_tabori tor, int cw, int ch, int* w, int* h,
 
 }
 
-void pa_tabbarsiz(FILE* f, pa_tabori tor, int cw, int ch, int* w, int* h,
+void ami_tabbarsiz(FILE* f, ami_tabori tor, int cw, int ch, int* w, int* h,
                int* ox, int* oy)
 
 {
@@ -14463,18 +14463,18 @@ flexible.
 
 *******************************************************************************/
 
-static void itabbarclientg(winptr win, pa_tabori tor, int w, int h, int* cw, int* ch,
+static void itabbarclientg(winptr win, ami_tabori tor, int w, int h, int* cw, int* ch,
                            int* ox, int* oy)
 
 {
 
-    if (tor == pa_toright || tor == pa_toleft)  { /* vertical bar */
+    if (tor == ami_toright || tor == ami_toleft)  { /* vertical bar */
 
         /* Find client height and width from total height and width minus
          tabbar overhead. */
         *cw = w-32;
         *ch = h-8;
-        if (tor == pa_toleft) {
+        if (tor == ami_toleft) {
 
             *ox = 28; /* set offsets */
             *oy = 4;
@@ -14492,7 +14492,7 @@ static void itabbarclientg(winptr win, pa_tabori tor, int w, int h, int* cw, int
            tabbar overhead. */
         *cw = w-8;
         *ch = h-32;
-        if (tor == pa_totop) {
+        if (tor == ami_totop) {
 
             *ox = 4; /* set offsets */
             *oy = 28;
@@ -14508,7 +14508,7 @@ static void itabbarclientg(winptr win, pa_tabori tor, int w, int h, int* cw, int
 
 }
 
-static void itabbarclient(winptr win, pa_tabori tor, int w, int h, int* cw, int* ch,
+static void itabbarclient(winptr win, ami_tabori tor, int w, int h, int* cw, int* ch,
                           int* ox, int* oy)
 
 {
@@ -14530,7 +14530,7 @@ static void itabbarclient(winptr win, pa_tabori tor, int w, int h, int* cw, int*
 
 }
 
-void pa_tabbarclientg(FILE* f, pa_tabori tor, int w, int h, int*  cw, int* ch,
+void ami_tabbarclientg(FILE* f, ami_tabori tor, int w, int h, int*  cw, int* ch,
                    int* ox, int* oy)
 
 {
@@ -14544,7 +14544,7 @@ void pa_tabbarclientg(FILE* f, pa_tabori tor, int w, int h, int*  cw, int* ch,
 
 }
 
-void pa_tabbarclient(FILE* f, pa_tabori tor, int w, int h, int* cw, int* ch,
+void ami_tabbarclient(FILE* f, ami_tabori tor, int w, int h, int* cw, int* ch,
                   int* ox, int* oy)
 
 {
@@ -14570,8 +14570,8 @@ creating and distroying another widget.
 
 *******************************************************************************/
 
-static void itabbarg(winptr win, int x1, int y1, int x2, int y2, pa_strptr sp,
-                     pa_tabori tor, int id)
+static void itabbarg(winptr win, int x1, int y1, int x2, int y2, ami_strptr sp,
+                     ami_tabori tor, int id)
 
 {
 
@@ -14585,9 +14585,9 @@ static void itabbarg(winptr win, int x1, int y1, int x2, int y2, pa_strptr sp,
 
     if (!win->visible) winvis(win); /* make sure we are displayed */
     fl = 0; /* clear parameter flags */
-    if (tor == pa_toright || tor == pa_toleft) fl |= TCS_VERTICAL;
-    if (tor == pa_toright) fl |= TCS_RIGHT;
-    if (tor == pa_tobottom) fl |= TCS_BOTTOM;
+    if (tor == ami_toright || tor == ami_toleft) fl |= TCS_VERTICAL;
+    if (tor == ami_toright) fl |= TCS_RIGHT;
+    if (tor == ami_tobottom) fl |= TCS_BOTTOM;
     widget(win, x1, y1, x2, y2, "", id, wttabbar, fl, &wp);
     inx = 0; /* set index */
     while (sp) { /* add strings to list */
@@ -14612,8 +14612,8 @@ static void itabbarg(winptr win, int x1, int y1, int x2, int y2, pa_strptr sp,
 
 }
 
-static void itabbar(winptr win, int x1, int y1, int x2, int y2, pa_strptr sp,
-                    pa_tabori tor, int id)
+static void itabbar(winptr win, int x1, int y1, int x2, int y2, ami_strptr sp,
+                    ami_tabori tor, int id)
 
 {
 
@@ -14626,7 +14626,7 @@ static void itabbar(winptr win, int x1, int y1, int x2, int y2, pa_strptr sp,
 
 }
 
-void pa_tabbarg(FILE* f, int x1, int y1, int x2, int y2, pa_strptr sp, pa_tabori tor,
+void ami_tabbarg(FILE* f, int x1, int y1, int x2, int y2, ami_strptr sp, ami_tabori tor,
              int id)
 
 {
@@ -14640,7 +14640,7 @@ void pa_tabbarg(FILE* f, int x1, int y1, int x2, int y2, pa_strptr sp, pa_tabori
 
 }
 
-void pa_tabbar(FILE* f, int x1, int y1, int x2, int y2, pa_strptr sp, pa_tabori tor,
+void ami_tabbar(FILE* f, int x1, int y1, int x2, int y2, ami_strptr sp, ami_tabori tor,
             int id)
 
 {
@@ -14681,7 +14681,7 @@ static void itabsel(winptr win, int id, int tn)
 
 }
 
-void pa_tabsel(FILE* f, int id, int tn)
+void ami_tabsel(FILE* f, int id, int tn)
 
 {
 
@@ -14702,7 +14702,7 @@ Outputs a message dialog with the given title and message strings.
 
 *******************************************************************************/
 
-void pa_alert(char* title, char* message)
+void ami_alert(char* title, char* message)
 
 {
 
@@ -14731,7 +14731,7 @@ Bug: does not take the input color as the default.
 
 *******************************************************************************/
 
-void pa_querycolor(int* r, int* g, int* b)
+void ami_querycolor(int* r, int* g, int* b)
 
 {
 
@@ -14773,7 +14773,7 @@ result.
 
 *******************************************************************************/
 
-void pa_queryopen(char* s, int sl)
+void ami_queryopen(char* s, int sl)
 
 {
 
@@ -14816,7 +14816,7 @@ result.
 
 *******************************************************************************/
 
-void pa_querysave(char* s, int sl)
+void ami_querysave(char* s, int sl)
 
 {
 
@@ -14863,7 +14863,7 @@ table this issue until later.
 
 *******************************************************************************/
 
-void pa_queryfind(char* s, int sl, int* opt)
+void ami_queryfind(char* s, int sl, int* opt)
 
 {
 
@@ -14904,7 +14904,7 @@ Bug: See comment, queryfind.
 
 *******************************************************************************/
 
-void pa_queryfindrep(char* s, int sl, char* r, int rl, int* opt)
+void ami_queryfindrep(char* s, int sl, char* r, int rl, int* opt)
 
 {
 
@@ -15013,7 +15013,7 @@ static void iqueryfont(winptr win, int* fc, int* s, int* fr, int* fg, int* fb,
 
 }
 
-void pa_queryfont(FILE* f, int* fc, int* s, int* fr, int* fg, int* fb,
+void ami_queryfont(FILE* f, int* fc, int* s, int* fr, int* fg, int* fb,
                int* br, int* bg, int* bb, int* effect)
 
 {
@@ -15543,9 +15543,9 @@ static LRESULT CALLBACK wndprocdialog(HWND hwnd, UINT imsg, WPARAM wparam,
                 /* set flags */
                 fl = FR_HIDEWHOLEWORD; /* or FR_ENABLEHOOK*/;
                 /* set status of down */
-                if (!(BIT(pa_qfnup) & ip->fndopt)) fl |= FR_DOWN;
+                if (!(BIT(ami_qfnup) & ip->fndopt)) fl |= FR_DOWN;
                 /* set status of case */
-                if (BIT(pa_qfncase) & ip->fndopt) fl |= FR_MATCHCASE;
+                if (BIT(ami_qfncase) & ip->fndopt) fl |= FR_MATCHCASE;
                 frrp->Flags = fl;
                 frrp->lpstrFindWhat = fs; /* place finder string */
                 frrp->lpstrReplaceWith = NULL; /* set no replacement string */
@@ -15585,8 +15585,8 @@ static LRESULT CALLBACK wndprocdialog(HWND hwnd, UINT imsg, WPARAM wparam,
                 frrp->hInstance = 0; /* no instance */
                 /* set flags */
                 fl = FR_HIDEWHOLEWORD;
-                if (!(BIT(pa_qfrup) & ip->fnropt)) fl |= FR_DOWN; /* set status of down */
-                if (BIT(pa_qfrcase) & ip->fnropt) fl |= FR_MATCHCASE; /* set status of case */
+                if (!(BIT(ami_qfrup) & ip->fnropt)) fl |= FR_DOWN; /* set status of down */
+                if (BIT(ami_qfrcase) & ip->fnropt) fl |= FR_MATCHCASE; /* set status of case */
                 frrp->Flags = fl;
                 frrp->lpstrFindWhat = fs; /* place finder string */
                 frrp->lpstrReplaceWith = rs; /* place replacement string */
@@ -15612,11 +15612,11 @@ static LRESULT CALLBACK wndprocdialog(HWND hwnd, UINT imsg, WPARAM wparam,
                 lf->lfWidth = 0; /* use default width */
                 lf->lfEscapement = 0; /* no escapement */
                 lf->lfOrientation = 0; /* orient to x axis */
-                if (BIT(pa_qftebold) & ip->fnteff) lf->lfWeight = FW_BOLD; /* set bold */
+                if (BIT(ami_qftebold) & ip->fnteff) lf->lfWeight = FW_BOLD; /* set bold */
                 else lf->lfWeight = FW_DONTCARE; /* default weight */
-                lf->lfItalic = BIT(pa_qfteitalic) & ip->fnteff;  /* italic */
-                lf->lfUnderline = BIT(pa_qfteunderline) & ip->fnteff; /* underline */
-                lf->lfStrikeOut = BIT(pa_qftestrikeout) & ip->fnteff; /* strikeout */
+                lf->lfItalic = BIT(ami_qfteitalic) & ip->fnteff;  /* italic */
+                lf->lfUnderline = BIT(ami_qfteunderline) & ip->fnteff; /* underline */
+                lf->lfStrikeOut = BIT(ami_qftestrikeout) & ip->fnteff; /* strikeout */
                 lf->lfCharSet = DEFAULT_CHARSET; /* use default characters */
                 /* use default precision */
                 lf->lfOutPrecision = OUT_DEFAULT_PRECIS;
@@ -15662,18 +15662,18 @@ static LRESULT CALLBACK wndprocdialog(HWND hwnd, UINT imsg, WPARAM wparam,
                 } else { /* set what the dialog changed */
 
                     ip->fnteff = 0; /* clear what was set */
-                    if (lf->lfItalic) ip->fnteff |= BIT(pa_qfteitalic); /* italic */
-                    else ip->fnteff &= ~BIT(pa_qfteitalic);
+                    if (lf->lfItalic) ip->fnteff |= BIT(ami_qfteitalic); /* italic */
+                    else ip->fnteff &= ~BIT(ami_qfteitalic);
                     if (fns.nFontType & BOLD_FONTTYPE)
-                        ip->fnteff |= BIT(pa_qftebold); /* bold */
+                        ip->fnteff |= BIT(ami_qftebold); /* bold */
                     else
-                        ip->fnteff &= ~BIT(pa_qftebold);
+                        ip->fnteff &= ~BIT(ami_qftebold);
                     if (lf->lfUnderline)
-                        ip->fnteff |= BIT(pa_qfteunderline); /* underline */
-                    else ip->fnteff &= ~BIT(pa_qfteunderline);
+                        ip->fnteff |= BIT(ami_qfteunderline); /* underline */
+                    else ip->fnteff &= ~BIT(ami_qfteunderline);
                     if (lf->lfStrikeOut)
-                        ip->fnteff |= BIT(pa_qftestrikeout); /* strikeout */
-                    else ip->fnteff &= ~BIT(pa_qftestrikeout);
+                        ip->fnteff |= BIT(ami_qftestrikeout); /* strikeout */
+                    else ip->fnteff &= ~BIT(ami_qftestrikeout);
                     /* place foreground colors */
                     win2rgb(fns.rgbColors, &ip->fntfr, &ip->fntfg, &ip->fntfb);
                     strncpy(ip->fntstr, lf->lfFaceName, 32); /* copy font string back */
@@ -15698,30 +15698,30 @@ static LRESULT CALLBACK wndprocdialog(HWND hwnd, UINT imsg, WPARAM wparam,
 
             b = DestroyWindow(ip->fndhan); /* destroy the dialog */
             /* check and set case match mode */
-            if (frrp->Flags & FR_MATCHCASE) ip->fndopt |= BIT(pa_qfncase);
-            else ip->fndopt &= ~BIT(pa_qfncase);
+            if (frrp->Flags & FR_MATCHCASE) ip->fndopt |= BIT(ami_qfncase);
+            else ip->fndopt &= ~BIT(ami_qfncase);
             /* check and set up/down mode */
-            if (frrp->Flags & FR_DOWN) ip->fndopt &= ~BIT(pa_qfnup);
-            else ip->fndopt |= BIT(pa_qfnup);
+            if (frrp->Flags & FR_DOWN) ip->fndopt &= ~BIT(ami_qfnup);
+            else ip->fndopt |= BIT(ami_qfnup);
 
         } else { /* it's a find/replace */
 
             b = DestroyWindow(ip->fnrhan); /* destroy the dialog */
             /* check and set case match mode */
-            if (frrp->Flags & FR_MATCHCASE) ip->fnropt |= BIT(pa_qfrcase);
-            else ip->fnropt &= ~BIT(pa_qfrcase);
+            if (frrp->Flags & FR_MATCHCASE) ip->fnropt |= BIT(ami_qfrcase);
+            else ip->fnropt &= ~BIT(ami_qfrcase);
             /* check and set find mode */
             if (frrp->Flags & FR_FINDNEXT)
-                ip->fnropt = (ip->fnropt & ~BIT(pa_qfrallfil) &
-                              ~BIT(pa_qfralllin)) | BIT(pa_qfrfind);
+                ip->fnropt = (ip->fnropt & ~BIT(ami_qfrallfil) &
+                              ~BIT(ami_qfralllin)) | BIT(ami_qfrfind);
             /* check and set replace mode */
             if (frrp->Flags & FR_REPLACE)
-                ip->fnropt = (ip->fnropt & ~BIT(pa_qfrfind) &
-                              ~BIT(pa_qfrallfil) & ~BIT(pa_qfralllin));
+                ip->fnropt = (ip->fnropt & ~BIT(ami_qfrfind) &
+                              ~BIT(ami_qfrallfil) & ~BIT(ami_qfralllin));
             /* check and set replace all mode */
             if (frrp->Flags & FR_REPLACEALL)
-                ip->fnropt = (ip->fnropt & ~BIT(pa_qfrfind) &
-                              ~BIT(pa_qfralllin)) | BIT(pa_qfrallfil);
+                ip->fnropt = (ip->fnropt & ~BIT(ami_qfrfind) &
+                              ~BIT(ami_qfralllin)) | BIT(ami_qfrallfil);
 
         }
         ifree(frrp); /* release find/replace entry */
@@ -15977,22 +15977,22 @@ Graph startup
 
 *******************************************************************************/
 
-static void pa_init_graph (void) __attribute__((constructor (103)));
-static void pa_init_graph()
+static void ami_init_graph (void) __attribute__((constructor (103)));
+static void ami_init_graph()
 
 {
 
     int       i;
     int       fi;
     int       ofn, ifn;
-    pa_valptr config_root; /* root for config block */
-    pa_valptr term_root; /* root for terminal block */
-    pa_valptr graph_root; /* root for graphics block */
-    pa_valptr diag_root; /* root for diagnostics block */
-    pa_valptr win_root; /* root for windows */
-    pa_valptr vp;
+    ami_valptr config_root; /* root for config block */
+    ami_valptr term_root; /* root for terminal block */
+    ami_valptr graph_root; /* root for graphics block */
+    ami_valptr diag_root; /* root for diagnostics block */
+    ami_valptr win_root; /* root for windows */
+    ami_valptr vp;
     char*     errstr;
-    pa_evtcod e;
+    ami_evtcod e;
 
     /* override system calls for basic I/O */
     ovr_read(iread, &ofpread);
@@ -16019,43 +16019,43 @@ static void pa_init_graph()
 
     /* get setup configuration */
     config_root = NULL;
-    pa_config(&config_root);
+    ami_config(&config_root);
 
     /* find "terminal" block */
-    term_root = pa_schlst("terminal", config_root);
+    term_root = ami_schlst("terminal", config_root);
     if (term_root && term_root->sublist) term_root = term_root->sublist;
 
     /* find x an y max if they exist */
-    vp = pa_schlst("maxxd", term_root);
+    vp = ami_schlst("maxxd", term_root);
     if (vp) maxxd = strtol(vp->value, &errstr, 10);
     if (*errstr) error(ecfgval);
-    vp = pa_schlst("maxyd", term_root);
+    vp = ami_schlst("maxyd", term_root);
     if (vp) maxyd = strtol(vp->value, &errstr, 10);
     if (*errstr) error(ecfgval);
-    vp = pa_schlst("joystick", term_root);
+    vp = ami_schlst("joystick", term_root);
     if (vp) joyenb = strtol(vp->value, &errstr, 10);
-    vp = pa_schlst("mouse", term_root);
+    vp = ami_schlst("mouse", term_root);
     if (vp) mouseenb = strtol(vp->value, &errstr, 10);
-    vp = pa_schlst("dump_event", term_root);
+    vp = ami_schlst("dump_event", term_root);
     if (vp) dmpevt = strtol(vp->value, &errstr, 10);
 
     /* find graph block */
-    graph_root = pa_schlst("graphics", config_root);
+    graph_root = ami_schlst("graphics", config_root);
     if (graph_root) {
 
-        vp = pa_schlst("dialogerr", graph_root->sublist);
+        vp = ami_schlst("dialogerr", graph_root->sublist);
         if (vp) dialogerr = strtol(vp->value, &errstr, 10);
         if (*errstr) error(ecfgval);
 
         /* find windows subsection */
-        win_root = pa_schlst("windows", graph_root->sublist);
+        win_root = ami_schlst("windows", graph_root->sublist);
         if (win_root) {
 
             /* find diagnostic subsection */
-            diag_root = pa_schlst("diagnostics", win_root->sublist);
+            diag_root = ami_schlst("diagnostics", win_root->sublist);
             if (diag_root) {
 
-                vp = pa_schlst("dump_messages", diag_root->sublist);
+                vp = ami_schlst("dump_messages", diag_root->sublist);
                 if (vp) dmpmsg = strtol(vp->value, &errstr, 10);
                 if (*errstr) error(ecfgval);
 
@@ -16080,7 +16080,7 @@ static void pa_init_graph()
 
     /* clear event vector table */
     evtshan = defaultevent;
-    for (e = pa_etchar; e <= pa_ettabbar; e++) evthan[e] = defaultevent;
+    for (e = ami_etchar; e <= ami_ettabbar; e++) evthan[e] = defaultevent;
 
     /* clear open files table */
     for (fi = 0; fi < MAXFIL; fi++) {
@@ -16141,8 +16141,8 @@ Graph shutdown
 
 *******************************************************************************/
 
-static void pa_deinit_graph (void) __attribute__((destructor (102)));
-static void pa_deinit_graph(void)
+static void ami_deinit_graph (void) __attribute__((destructor (102)));
+static void ami_deinit_graph(void)
 
 {
 

@@ -79,11 +79,11 @@ address is returned as an integer.
 
 *******************************************************************************/
 
-void pa_addrnet(string name, unsigned long* addr)
+void ami_addrnet(string name, unsigned long* addr)
 
 {
 
-    error("pa_addrnet: Is not implemented");
+    error("ami_addrnet: Is not implemented");
 
 }
 
@@ -96,12 +96,12 @@ address is returned as an integer.
 
 *******************************************************************************/
 
-void pa_addrnetv6(string name, unsigned long long* addrh,
+void ami_addrnetv6(string name, unsigned long long* addrh,
                 unsigned long long* addrl)
 
 {
 
-    error("pa_addrnetv6: Is not implemented");
+    error("ami_addrnetv6: Is not implemented");
 
 }
 
@@ -118,20 +118,20 @@ are used.
 
 *******************************************************************************/
 
-FILE* pa_opennet(/* IP address */      unsigned long addr,
+FILE* ami_opennet(/* IP address */      unsigned long addr,
                  /* port */            int port,
                  /* link is secured */ int secure
 )
 
 {
 
-    error("pa_opennet: Is not implemented");
+    error("ami_opennet: Is not implemented");
 
     return (NULL); /* this just shuts up compiler */
 
 }
 
-FILE* pa_opennetv6(
+FILE* ami_opennetv6(
     /* v6 address low */  unsigned long long addrh,
     /* v6 address high */ unsigned long long addrl,
     /* port */            int port,
@@ -140,7 +140,7 @@ FILE* pa_opennetv6(
 
 {
 
-    error("pa_opennetv6: Is not implemented");
+    error("ami_opennetv6: Is not implemented");
 
     return (NULL); /* this just shuts up compiler */
 
@@ -156,7 +156,7 @@ DTLS, with fixed length messages.
 
 *******************************************************************************/
 
-int pa_openmsg(
+int ami_openmsg(
     /* ip address */      unsigned long addr,
     /* port */            int port,
     /* link is secured */ int secure
@@ -164,13 +164,13 @@ int pa_openmsg(
 
 {
 
-    error("pa_openmsg: Is not implemented");
+    error("ami_openmsg: Is not implemented");
 
     return (1); /* this just shuts up compiler */
 
 }
 
-int pa_openmsgv6(
+int ami_openmsgv6(
     /* v6 address low */  unsigned long long addrh,
     /* v6 address high */ unsigned long long addrl,
     /* port */            int port,
@@ -179,7 +179,7 @@ int pa_openmsgv6(
 
 {
 
-    error("pa_openmsgv6: Is not implemented");
+    error("ami_openmsgv6: Is not implemented");
 
     return (1); /* this just shuts up compiler */
 
@@ -197,13 +197,13 @@ another program tries to take the same port, it is blocked.
 
 *******************************************************************************/
 
-int pa_waitmsg(/* port number to wait on */ int port,
+int ami_waitmsg(/* port number to wait on */ int port,
                /* secure mode */            int secure
                )
 
 {
 
-    error("pa_waitmsg: Is not implemented");
+    error("ami_waitmsg: Is not implemented");
 
     return (1); /* this just shuts up compiler */
 
@@ -223,11 +223,11 @@ packet breakage is possible.
 
 *******************************************************************************/
 
-int pa_maxmsg(unsigned long addr)
+int ami_maxmsg(unsigned long addr)
 
 {
 
-    error("pa_maxmsg: Is not implemented");
+    error("ami_maxmsg: Is not implemented");
 
     return (1); /* this just shuts up compiler */
 
@@ -247,11 +247,11 @@ packet breakage is possible.
 
 *******************************************************************************/
 
-int pa_maxmsgv6(unsigned long long addrh, unsigned long long addrl)
+int ami_maxmsgv6(unsigned long long addrh, unsigned long long addrl)
 
 {
 
-    error("pa_maxmsgv6: Is not implemented");
+    error("ami_maxmsgv6: Is not implemented");
 
     return (1); /* this just shuts up compiler */
 
@@ -262,15 +262,15 @@ int pa_maxmsgv6(unsigned long long addrh, unsigned long long addrl)
 Write message to message file
 
 Writes a message to the given message file. The message file must be open. Any
-size (including 0) up to pa_maxmsg() is allowed.
+size (including 0) up to ami_maxmsg() is allowed.
 
 *******************************************************************************/
 
-void pa_wrmsg(int fn, void* msg, unsigned long len)
+void ami_wrmsg(int fn, void* msg, unsigned long len)
 
 {
 
-    error("pa_wrmsg: Is not implemented");
+    error("ami_wrmsg: Is not implemented");
 
 }
 
@@ -285,11 +285,11 @@ is known that a given message size will never be exceeded.
 
 *******************************************************************************/
 
-int pa_rdmsg(int fn, void* msg, unsigned long len)
+int ami_rdmsg(int fn, void* msg, unsigned long len)
 
 {
 
-    error("pa_rdmsg: Is not implemented");
+    error("ami_rdmsg: Is not implemented");
 
     return (1); /* this just shuts up compiler */
 
@@ -303,11 +303,11 @@ Closes the given message file.
 
 *******************************************************************************/
 
-void pa_clsmsg(int fn)
+void ami_clsmsg(int fn)
 
 {
 
-    error("pa_clsmsg: Is not implemented");
+    error("ami_clsmsg: Is not implemented");
 
 }
 
@@ -323,13 +323,13 @@ program tries to take the same port, it is blocked.
 
 *******************************************************************************/
 
-FILE* pa_waitnet(/* port number to wait on */ int port,
+FILE* ami_waitnet(/* port number to wait on */ int port,
                  /* secure mode */            int secure
                 )
 
 {
 
-    error("pa_waitnet: Is not implemented");
+    error("ami_waitnet: Is not implemented");
 
     return (NULL); /* this just shuts up compiler */
 
@@ -354,21 +354,21 @@ carried on the wire. Thus it is reliable by definition.
 
 *******************************************************************************/
 
-int pa_relymsg(unsigned long addr)
+int ami_relymsg(unsigned long addr)
 
 {
 
-    error("pa_relymsg: Is not implemented");
+    error("ami_relymsg: Is not implemented");
 
     return (1); /* this just shuts up compiler */
 
 }
 
-int pa_relymsgv6(unsigned long long addrh, unsigned long long addrl)
+int ami_relymsgv6(unsigned long long addrh, unsigned long long addrl)
 
 {
 
-    error("pa_relymsgv6: Is not implemented");
+    error("ami_relymsgv6: Is not implemented");
 
     return (1); /* this just shuts up compiler */
 
@@ -402,11 +402,11 @@ line. Servers are required to provide certificates. Clients are not.
 
 *******************************************************************************/
 
-int pa_certmsg(int fn, int which, string buff, int len)
+int ami_certmsg(int fn, int which, string buff, int len)
 
 {
 
-    error("pa_certmsg: Is not implemented");
+    error("ami_certmsg: Is not implemented");
 
     return (1); /* this just shuts up compiler */
 
@@ -439,21 +439,21 @@ line. Servers are required to provide certificates. Clients are not.
 
 *******************************************************************************/
 
-int pa_certnet(FILE* f, int which, string buff, int len)
+int ami_certnet(FILE* f, int which, string buff, int len)
 
 {
 
-    error("pa_certnet: Is not implemented");
+    error("ami_certnet: Is not implemented");
 
     return (1); /* this just shuts up compiler */
 
 }
 
-void pa_certlistnet(FILE *f, int which, pa_certptr* list)
+void ami_certlistnet(FILE *f, int which, ami_certptr* list)
 
 {
 
-    error("pa_certlistnet: Is not implemented");
+    error("ami_certlistnet: Is not implemented");
 
 }
 
@@ -481,10 +481,10 @@ line. Servers are required to provide certificates. Clients are not.
 
 *******************************************************************************/
 
-void pa_certlistmsg(int fn, int which, pa_certptr* list)
+void ami_certlistmsg(int fn, int which, ami_certptr* list)
 
 {
 
-    error("pa_certlistmsg: Is not implemented");
+    error("ami_certlistmsg: Is not implemented");
 
 }

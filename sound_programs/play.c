@@ -26,7 +26,7 @@ https://www.qbasic.net/en/reference/qb11/Statement/PLAY-006.htm
 
 int dport = PA_SYNTH_OUT; /* set default synth out */
 
-pa_optrec opttbl[] = {
+ami_optrec opttbl[] = {
 
     { "port",  NULL, &dport,  NULL, NULL },
     { "p",     NULL, &dport,  NULL, NULL },
@@ -35,7 +35,7 @@ pa_optrec opttbl[] = {
 };
 
 int     ntime;  /* normal beat time in quarter notes */
-pa_note octave; /* current octave */
+ami_note octave; /* current octave */
 int     deftim; /* default note time */
 int     i;
 
@@ -43,22 +43,22 @@ static void waittime(int t)
 
 {
 
-    pa_evtrec er; /* event record */
+    ami_evtrec er; /* event record */
 
-    pa_timer(stdout, 1, t, FALSE);
-    do { pa_event(stdin, &er); } while (er.etype != pa_ettim && er.etype != pa_etterm);
-    if (er.etype == pa_etterm) exit(0);
+    ami_timer(stdout, 1, t, FALSE);
+    do { ami_event(stdin, &er); } while (er.etype != ami_ettim && er.etype != ami_etterm);
+    if (er.etype == ami_etterm) exit(0);
 
 }
 
-static void playnote(pa_note n, int nt)
+static void playnote(ami_note n, int nt)
 
 {
 
 /*printf("Note: %d Time: %d\n", n, nt);*/
-   pa_noteon(dport, 0, 1, n, INT_MAX); /* turn on the note */
+   ami_noteon(dport, 0, 1, n, INT_MAX); /* turn on the note */
    waittime(nt); /* wait time */
-   pa_noteoff(dport, 0, 1, n, INT_MAX); /* turn off the note */
+   ami_noteoff(dport, 0, 1, n, INT_MAX); /* turn off the note */
 
 }
 
@@ -108,7 +108,7 @@ static void play(string ms)
 
 {
 
-    pa_note n;
+    ami_note n;
     int     nt;
     int     x;
     int     i;
@@ -240,7 +240,7 @@ int main(int argc, char **argv)
     char buff[20];
 
     /* parse user options */
-    pa_options(&argi, &argc, argv, opttbl, TRUE);
+    ami_options(&argi, &argc, argv, opttbl, TRUE);
 
     if (argc != 1) {
 
@@ -254,10 +254,10 @@ int main(int argc, char **argv)
     octave = PA_OCTAVE_5; /* start in middle octave */
     deftim = ntime; /* set whole notes default */
 
-    printf("Synthesisers: %d\n", pa_synthout());
-    pa_opensynthout(dport); /* open main synthesiser */
+    printf("Synthesisers: %d\n", ami_synthout());
+    ami_opensynthout(dport); /* open main synthesiser */
 
-    pa_instchange(dport, 0, 1, PA_INST_ACOUSTIC_GRAND);
+    ami_instchange(dport, 0, 1, PA_INST_ACOUSTIC_GRAND);
 
     printf("1: Mozart's Sonata in C\n");
     printf("2: Stars And Stripes Forever\n");

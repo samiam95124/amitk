@@ -59,7 +59,7 @@ int ncend = FALSE;
 /* only print html content */
 int htmlonly = FALSE;
 
-pa_optrec opttbl[] = {
+ami_optrec opttbl[] = {
 
     { "secure", &secure,   NULL, NULL, NULL },
     { "s",      &secure,   NULL, NULL, NULL },
@@ -83,7 +83,7 @@ int main(int argc, char **argv)
     int inhtml;
 
     /* parse user options */
-    pa_options(&argi, &argc, argv, opttbl, TRUE);
+    ami_options(&argi, &argc, argv, opttbl, TRUE);
 
     if (argc < 3) {
 
@@ -102,13 +102,13 @@ int main(int argc, char **argv)
     /* open the server file */
     if (ipv6) {
 
-        pa_addrnetv6(argv[argi], &addrh, &addrl);
-        fp = pa_opennetv6(addrh, addrl, port, secure);
+        ami_addrnetv6(argv[argi], &addrh, &addrl);
+        fp = ami_opennetv6(addrh, addrl, port, secure);
 
     } else {
 
-        pa_addrnet(argv[argi], &addr);
-        fp = pa_opennet(addr, port, secure);
+        ami_addrnet(argv[argi], &addr);
+        fp = ami_opennet(addr, port, secure);
 
     }
 

@@ -87,19 +87,19 @@ to the window.
 
 *******************************************************************************/
 
-void pa_scrollg(FILE* f, int x, int y)
+void ami_scrollg(FILE* f, int x, int y)
 
 {
 
-    error("pa_scrollg: Is not implemented");
+    error("ami_scrollg: Is not implemented");
 
 }
 
-void pa_scroll(FILE* f, int x, int y)
+void ami_scroll(FILE* f, int x, int y)
 
 {
 
-    error("pa_scroll: Is not implemented");
+    error("ami_scroll: Is not implemented");
 
 }
 
@@ -111,11 +111,11 @@ Moves the cursor to the specified x and y location.
 
 *******************************************************************************/
 
-void pa_cursor(FILE* f, int x, int y)
+void ami_cursor(FILE* f, int x, int y)
 
 {
 
-    error("pa_cursor: Is not implemented");
+    error("ami_cursor: Is not implemented");
 
 }
 
@@ -127,11 +127,11 @@ Moves the cursor to the specified x and y location in pixels.
 
 *******************************************************************************/
 
-void pa_cursorg(FILE* f, int x, int y)
+void ami_cursorg(FILE* f, int x, int y)
 
 {
 
-    error("pa_cursorg: Is not implemented");
+    error("ami_cursorg: Is not implemented");
 
 }
 
@@ -144,11 +144,11 @@ to the font baseline. The baseline is the line all characters rest on.
 
 *******************************************************************************/
 
-int pa_baseline(FILE* f)
+int ami_baseline(FILE* f)
 
 {
 
-    error("pa_baseline: Is not implemented");
+    error("ami_baseline: Is not implemented");
 
     return (1); /* this just shuts up compiler */
 
@@ -163,11 +163,11 @@ display. Because ANSI has no information return capability, this is preset.
 
 *******************************************************************************/
 
-int pa_maxx(FILE* f)
+int ami_maxx(FILE* f)
 
 {
 
-    error("pa_maxx: Is not implemented");
+    error("ami_maxx: Is not implemented");
 
     return (1); /* this just shuts up compiler */
 
@@ -182,11 +182,11 @@ display. Because ANSI has no information return capability, this is preset.
 
 *******************************************************************************/
 
-int pa_maxy(FILE* f)
+int ami_maxy(FILE* f)
 
 {
 
-    error("pa_maxy: Is not implemented");
+    error("ami_maxy: Is not implemented");
 
     return (1); /* this just shuts up compiler */
 
@@ -201,11 +201,11 @@ pixels.
 
 *******************************************************************************/
 
-int pa_maxxg(FILE* f)
+int ami_maxxg(FILE* f)
 
 {
 
-    error("pa_maxxg: Is not implemented");
+    error("ami_maxxg: Is not implemented");
 
     return (1); /* this just shuts up compiler */
 
@@ -220,11 +220,11 @@ pixels.
 
 *******************************************************************************/
 
-int pa_maxyg(FILE* f)
+int ami_maxyg(FILE* f)
 
 {
 
-    error("pa_maxyg: Is not implemented");
+    error("ami_maxyg: Is not implemented");
 
     return (1); /* this just shuts up compiler */
 
@@ -238,11 +238,11 @@ Moves the cursor to the home position at (1, 1), the upper right hand corner.
 
 *******************************************************************************/
 
-void pa_home(FILE* f)
+void ami_home(FILE* f)
 
 {
 
-    error("pa_home: Is not implemented");
+    error("ami_home: Is not implemented");
 
 }
 
@@ -254,11 +254,11 @@ Moves the cursor position up one line.
 
 *******************************************************************************/
 
-void pa_up(FILE* f)
+void ami_up(FILE* f)
 
 {
 
-    error("pa_up: Is not implemented");
+    error("ami_up: Is not implemented");
 
 }
 
@@ -270,11 +270,11 @@ Moves the cursor position down one line.
 
 *******************************************************************************/
 
-void pa_down(FILE* f)
+void ami_down(FILE* f)
 
 {
 
-    error("pa_down: Is not implemented");
+    error("ami_down: Is not implemented");
 
 }
 
@@ -288,11 +288,11 @@ the cursor will move into negative space, limited only by maxint.
 
 *******************************************************************************/
 
-void pa_left(FILE* f)
+void ami_left(FILE* f)
 
 {
 
-    error("pa_left: Is not implemented");
+    error("ami_left: Is not implemented");
 
 }
 
@@ -304,11 +304,11 @@ Moves the cursor one character right.
 
 *******************************************************************************/
 
-void pa_right(FILE* f)
+void ami_right(FILE* f)
 
 {
 
-    error("pa_right: Is not implemented");
+    error("ami_right: Is not implemented");
 
 }
 
@@ -324,11 +324,11 @@ Graphical mode does not implement blink mode.
 
 *******************************************************************************/
 
-void pa_blink(FILE* f, int e)
+void ami_blink(FILE* f, int e)
 
 {
 
-    error("pa_blink: Is not implemented");
+    error("ami_blink: Is not implemented");
 
 }
 
@@ -341,11 +341,11 @@ and foreground writing colors.
 
 *******************************************************************************/
 
-void pa_reverse(FILE* f, int e)
+void ami_reverse(FILE* f, int e)
 
 {
 
-    error("pa_reverse: Is not implemented");
+    error("ami_reverse: Is not implemented");
 
 }
 
@@ -360,11 +360,11 @@ character drawn.
 
 *******************************************************************************/
 
-void pa_underline(FILE* f, int e)
+void ami_underline(FILE* f, int e)
 
 {
 
-    error("pa_underline: Is not implemented");
+    error("ami_underline: Is not implemented");
 
 }
 
@@ -377,11 +377,11 @@ Note that the attributes can only be set singly.
 
 *******************************************************************************/
 
-void pa_superscript(FILE* f, int e)
+void ami_superscript(FILE* f, int e)
 
 {
 
-    error("pa_superscript: Is not implemented");
+    error("ami_superscript: Is not implemented");
 
 }
 
@@ -394,11 +394,11 @@ Note that the attributes can only be set singly.
 
 *******************************************************************************/
 
-void pa_subscript(FILE* f, int e)
+void ami_subscript(FILE* f, int e)
 
 {
 
-    error("pa_subscript: Is not implemented");
+    error("ami_subscript: Is not implemented");
 
 }
 
@@ -416,11 +416,11 @@ italic on fixed fonts.
 
 *******************************************************************************/
 
-void pa_italic(FILE* f, int e)
+void ami_italic(FILE* f, int e)
 
 {
 
-    error("pa_italic: Is not implemented");
+    error("ami_italic: Is not implemented");
 
 }
 
@@ -436,11 +436,11 @@ colors, which an ATTRIBUTE command seems to mess with !
 
 *******************************************************************************/
 
-void pa_bold(FILE* f, int e)
+void ami_bold(FILE* f, int e)
 
 {
 
-    error("pa_bold: Is not implemented");
+    error("ami_bold: Is not implemented");
 }
 
 /*******************************************************************************
@@ -454,11 +454,11 @@ just placed.
 
 *******************************************************************************/
 
-void pa_strikeout(FILE* f, int e)
+void ami_strikeout(FILE* f, int e)
 
 {
 
-    error("pa_strikeout: Is not implemented");
+    error("ami_strikeout: Is not implemented");
 
 }
 
@@ -471,11 +471,11 @@ Note that the attributes can only be set singly.
 
 *******************************************************************************/
 
-void pa_standout(FILE* f, int e)
+void ami_standout(FILE* f, int e)
 
 {
 
-    error("pa_standout: Is not implemented");
+    error("ami_standout: Is not implemented");
 
 }
 
@@ -487,19 +487,19 @@ Sets the foreground color from the universal primary code.
 
 *******************************************************************************/
 
-void pa_fcolor(FILE* f, pa_color c)
+void ami_fcolor(FILE* f, ami_color c)
 
 {
 
-    error("pa_fcolor: Is not implemented");
+    error("ami_fcolor: Is not implemented");
 
 }
 
-void pa_fcolorc(FILE* f, int r, int g, int b)
+void ami_fcolorc(FILE* f, int r, int g, int b)
 
 {
 
-    error("pa_fcolorc: Is not implemented");
+    error("ami_fcolorc: Is not implemented");
 
 }
 
@@ -516,11 +516,11 @@ fcolorg for backward compatiblity to the days before overloads.
 
 *******************************************************************************/
 
-void pa_fcolorg(FILE* f, int r, int g, int b)
+void ami_fcolorg(FILE* f, int r, int g, int b)
 
 {
 
-    error("pa_fcolorg: Is not implemented");
+    error("ami_fcolorg: Is not implemented");
 
 }
 
@@ -532,19 +532,19 @@ Sets the background color from the universal primary code.
 
 *******************************************************************************/
 
-void pa_bcolor(FILE* f, pa_color c)
+void ami_bcolor(FILE* f, ami_color c)
 
 {
 
-    error("pa_bcolor: Is not implemented");
+    error("ami_bcolor: Is not implemented");
 
 }
 
-void pa_bcolorc(FILE* f, int r, int g, int b)
+void ami_bcolorc(FILE* f, int r, int g, int b)
 
 {
 
-    error("pa_bcolorc: Is not implemented");
+    error("ami_bcolorc: Is not implemented");
 
 }
 
@@ -558,11 +558,11 @@ up, we will be ready.
 
 *******************************************************************************/
 
-void pa_bcolorg(FILE* f, int r, int g, int b)
+void ami_bcolorg(FILE* f, int r, int g, int b)
 
 {
 
-    error("pa_bcolorg: Is not implemented");
+    error("ami_bcolorg: Is not implemented");
 
 }
 
@@ -591,11 +591,11 @@ anywhere.
 
 *******************************************************************************/
 
-void pa_auto(FILE* f, int e)
+void ami_auto(FILE* f, int e)
 
 {
 
-    error("pa_auto: Is not implemented");
+    error("ami_auto: Is not implemented");
 
 }
 
@@ -607,11 +607,11 @@ Enable or disable cursor visibility.
 
 *******************************************************************************/
 
-void pa_curvis(FILE* f, int e)
+void ami_curvis(FILE* f, int e)
 
 {
 
-    error("pa_curvis: Is not implemented");
+    error("ami_curvis: Is not implemented");
 
 }
 
@@ -623,11 +623,11 @@ Returns the current location of the cursor in x.
 
 *******************************************************************************/
 
-int pa_curx(FILE* f)
+int ami_curx(FILE* f)
 
 {
 
-    error("pa_curx: Is not implemented");
+    error("ami_curx: Is not implemented");
 
     return (1); /* this just shuts up compiler */
 
@@ -641,11 +641,11 @@ Returns the current location of the cursor in y.
 
 *******************************************************************************/
 
-int pa_cury(FILE* f)
+int ami_cury(FILE* f)
 
 {
 
-    error("pa_cury: Is not implemented");
+    error("ami_cury: Is not implemented");
 
     return (1); /* this just shuts up compiler */
 
@@ -659,11 +659,11 @@ Returns the current location of the cursor in x, in pixels.
 
 *******************************************************************************/
 
-int pa_curxg(FILE* f)
+int ami_curxg(FILE* f)
 
 {
 
-    error("pa_curxg: Is not implemented");
+    error("ami_curxg: Is not implemented");
 
     return (1); /* this just shuts up compiler */
 
@@ -677,11 +677,11 @@ Returns the current location of the cursor in y, in pixels.
 
 *******************************************************************************/
 
-int pa_curyg(FILE* f)
+int ami_curyg(FILE* f)
 
 {
 
-    error("pa_curyg: Is not implemented");
+    error("ami_curyg: Is not implemented");
 
     return (1); /* this just shuts up compiler */
 
@@ -701,11 +701,11 @@ forces a screen refresh, which can be important when working on terminals.
 
 *******************************************************************************/
 
-void pa_select(FILE* f, int u, int d)
+void ami_select(FILE* f, int u, int d)
 
 {
 
-    error("pa_select: Is not implemented");
+    error("ami_select: Is not implemented");
 
 }
 
@@ -726,11 +726,11 @@ such as controls are not suppressed.
 
 *******************************************************************************/
 
-void pa_wrtstr(FILE* f, char* s)
+void ami_wrtstr(FILE* f, char* s)
 
 {
 
-    error("pa_wrtstr: Is not implemented");
+    error("ami_wrtstr: Is not implemented");
 
 }
 
@@ -743,11 +743,11 @@ position left.
 
 *******************************************************************************/
 
-void pa_del(FILE* f)
+void ami_del(FILE* f)
 
 {
 
-    error("pa_del: Is not implemented");
+    error("ami_del: Is not implemented");
 
 }
 
@@ -759,11 +759,11 @@ Draws a single line in the foreground color.
 
 *******************************************************************************/
 
-void pa_line(FILE* f, int x1, int y1, int x2, int y2)
+void ami_line(FILE* f, int x1, int y1, int x2, int y2)
 
 {
 
-    error("pa_line: Is not implemented");
+    error("ami_line: Is not implemented");
 
 }
 
@@ -775,11 +775,11 @@ Draws a rectangle in foreground color.
 
 *******************************************************************************/
 
-void pa_rect(FILE* f, int x1, int y1, int x2, int y2)
+void ami_rect(FILE* f, int x1, int y1, int x2, int y2)
 
 {
 
-    error("pa_rect: Is not implemented");
+    error("ami_rect: Is not implemented");
 
 }
 
@@ -791,11 +791,11 @@ Draws a filled rectangle in foreground color.
 
 *******************************************************************************/
 
-void pa_frect(FILE* f, int x1, int y1, int x2, int y2)
+void ami_frect(FILE* f, int x1, int y1, int x2, int y2)
 
 {
 
-    error("pa_frect: Is not implemented");
+    error("ami_frect: Is not implemented");
 
 }
 
@@ -807,11 +807,11 @@ Draws a rounded rectangle in foreground color.
 
 *******************************************************************************/
 
-void pa_rrect(FILE* f, int x1, int y1, int x2, int y2, int xs, int ys)
+void ami_rrect(FILE* f, int x1, int y1, int x2, int y2, int xs, int ys)
 
 {
 
-    error("pa_rrect: Is not implemented");
+    error("ami_rrect: Is not implemented");
 
 }
 
@@ -823,11 +823,11 @@ Draws a filled rounded rectangle in foreground color.
 
 *******************************************************************************/
 
-void pa_frrect(FILE* f, int x1, int y1, int x2, int y2, int xs, int ys)
+void ami_frrect(FILE* f, int x1, int y1, int x2, int y2, int xs, int ys)
 
 {
 
-    error("pa_frrect: Is not implemented");
+    error("ami_frrect: Is not implemented");
 
 }
 
@@ -839,11 +839,11 @@ Draws an ellipse with the current foreground color and line width.
 
 *******************************************************************************/
 
-void pa_ellipse(FILE* f, int x1, int y1, int x2, int y2)
+void ami_ellipse(FILE* f, int x1, int y1, int x2, int y2)
 
 {
 
-    error("pa_ellipse: Is not implemented");
+    error("ami_ellipse: Is not implemented");
 
 }
 
@@ -855,11 +855,11 @@ Draws a filled ellipse with the current foreground color.
 
 *******************************************************************************/
 
-void pa_fellipse(FILE* f, int x1, int y1, int x2, int y2)
+void ami_fellipse(FILE* f, int x1, int y1, int x2, int y2)
 
 {
 
-    error("pa_fellipse: Is not implemented");
+    error("ami_fellipse: Is not implemented");
 
 }
 
@@ -891,11 +891,11 @@ Negative angles are allowed.
 
 *******************************************************************************/
 
-void pa_arc(FILE* f, int x1, int y1, int x2, int y2, int sa, int ea)
+void ami_arc(FILE* f, int x1, int y1, int x2, int y2, int sa, int ea)
 
 {
 
-    error("pa_arc: Is not implemented");
+    error("ami_arc: Is not implemented");
 
 }
 
@@ -908,11 +908,11 @@ as for the arc function above.
 
 *******************************************************************************/
 
-void pa_farc(FILE* f, int x1, int y1, int x2, int y2, int sa, int ea)
+void ami_farc(FILE* f, int x1, int y1, int x2, int y2, int sa, int ea)
 
 {
 
-    error("pa_farc: Is not implemented");
+    error("ami_farc: Is not implemented");
 
 }
 
@@ -925,11 +925,11 @@ as for the arc function above.
 
 *******************************************************************************/
 
-void pa_fchord(FILE* f, int x1, int y1, int x2, int y2, int sa, int ea)
+void ami_fchord(FILE* f, int x1, int y1, int x2, int y2, int sa, int ea)
 
 {
 
-    error("pa_fchord: Is not implemented");
+    error("ami_fchord: Is not implemented");
 
 }
 
@@ -941,11 +941,11 @@ Draws a filled triangle in the current foreground color.
 
 *******************************************************************************/
 
-void pa_ftriangle(FILE* f, int x1, int y1, int x2, int y2, int x3, int y3)
+void ami_ftriangle(FILE* f, int x1, int y1, int x2, int y2, int x3, int y3)
 
 {
 
-    error("pa_ftriangle: Is not implemented");
+    error("ami_ftriangle: Is not implemented");
 
 }
 
@@ -957,11 +957,11 @@ Sets a single logical pixel to the foreground color.
 
 *******************************************************************************/
 
-void pa_setpixel(FILE* f, int x, int y)
+void ami_setpixel(FILE* f, int x, int y)
 
 {
 
-    error("pa_setpixel: Is not implemented");
+    error("ami_setpixel: Is not implemented");
 
 }
 
@@ -973,11 +973,11 @@ Sets the foreground write mode to overwrite.
 
 *******************************************************************************/
 
-void pa_fover(FILE* f)
+void ami_fover(FILE* f)
 
 {
 
-    error("pa_fover: Is not implemented");
+    error("ami_fover: Is not implemented");
 
 }
 
@@ -989,11 +989,11 @@ Sets the background write mode to overwrite.
 
 *******************************************************************************/
 
-void pa_bover(FILE* f)
+void ami_bover(FILE* f)
 
 {
 
-    error("pa_bover: Is not implemented");
+    error("ami_bover: Is not implemented");
 
 }
 
@@ -1005,11 +1005,11 @@ Sets the foreground write mode to invisible.
 
 *******************************************************************************/
 
-void pa_finvis(FILE* f)
+void ami_finvis(FILE* f)
 
 {
 
-    error("pa_finvis: Is not implemented");
+    error("ami_finvis: Is not implemented");
 
 }
 
@@ -1021,11 +1021,11 @@ Sets the background write mode to invisible.
 
 *******************************************************************************/
 
-void pa_binvis(FILE* f)
+void ami_binvis(FILE* f)
 
 {
 
-    error("pa_binvis: Is not implemented");
+    error("ami_binvis: Is not implemented");
 
 }
 
@@ -1037,11 +1037,11 @@ Sets the foreground write mode to xor.
 
 *******************************************************************************/
 
-void pa_fxor(FILE* f)
+void ami_fxor(FILE* f)
 
 {
 
-    error("pa_fxor: Is not implemented");
+    error("ami_fxor: Is not implemented");
 
 }
 
@@ -1053,11 +1053,11 @@ Sets the background write mode to xor.
 
 *******************************************************************************/
 
-void pa_bxor(FILE* f)
+void ami_bxor(FILE* f)
 
 {
 
-    error("pa_bxor: Is not implemented");
+    error("ami_bxor: Is not implemented");
 
 }
 
@@ -1069,11 +1069,11 @@ Sets the width of lines and several other figures.
 
 *******************************************************************************/
 
-void pa_linewidth(FILE* f, int w)
+void ami_linewidth(FILE* f, int w)
 
 {
 
-    error("pa_linewidth: Is not implemented");
+    error("ami_linewidth: Is not implemented");
 
 }
 
@@ -1085,11 +1085,11 @@ Returns the character width.
 
 *******************************************************************************/
 
-int pa_chrsizx(FILE* f)
+int ami_chrsizx(FILE* f)
 
 {
 
-    error("pa_chrsizx: Is not implemented");
+    error("ami_chrsizx: Is not implemented");
 
     return (1); /* this just shuts up compiler */
 
@@ -1103,11 +1103,11 @@ Returns the character height.
 
 *******************************************************************************/
 
-int pa_chrsizy(FILE* f)
+int ami_chrsizy(FILE* f)
 
 {
 
-    error("pa_chrsizy: Is not implemented");
+    error("ami_chrsizy: Is not implemented");
 
     return (1); /* this just shuts up compiler */
 
@@ -1121,11 +1121,11 @@ Finds the total number of installed fonts.
 
 *******************************************************************************/
 
-int pa_fonts(FILE* f)
+int ami_fonts(FILE* f)
 
 {
 
-    error("pa_fonts: Is not implemented");
+    error("ami_fonts: Is not implemented");
 
     return (1); /* this just shuts up compiler */
 
@@ -1139,11 +1139,11 @@ Changes the current font to the indicated logical font number.
 
 *******************************************************************************/
 
-void pa_font(FILE* f, int fc)
+void ami_font(FILE* f, int fc)
 
 {
 
-    error("pa_font: Is not implemented");
+    error("ami_font: Is not implemented");
 
 }
 
@@ -1155,11 +1155,11 @@ Returns the name of a font by number.
 
 *******************************************************************************/
 
-void pa_fontnam(FILE* f, int fc, char* fns, int fnsl)
+void ami_fontnam(FILE* f, int fc, char* fns, int fnsl)
 
 {
 
-    error("pa_fontnam: Is not implemented");
+    error("ami_fontnam: Is not implemented");
 
 }
 
@@ -1172,11 +1172,11 @@ and line spacing are changed, as well as the baseline.
 
 *******************************************************************************/
 
-void pa_fontsiz(FILE* f, int s)
+void ami_fontsiz(FILE* f, int s)
 
 {
 
-    error("pa_fontsiz: Is not implemented");
+    error("ami_fontsiz: Is not implemented");
 
 }
 
@@ -1191,11 +1191,11 @@ Not implemented yet.
 
 *******************************************************************************/
 
-void pa_chrspcy(FILE* f, int s)
+void ami_chrspcy(FILE* f, int s)
 
 {
 
-    error("pa_chrspcy: Is not implemented");
+    error("ami_chrspcy: Is not implemented");
 
 }
 
@@ -1210,11 +1210,11 @@ Not implemented yet.
 
 *******************************************************************************/
 
-void pa_chrspcx(FILE* f, int s)
+void ami_chrspcx(FILE* f, int s)
 
 {
 
-    error("pa_chrspcx: Is not implemented");
+    error("ami_chrspcx: Is not implemented");
 
 }
 
@@ -1226,11 +1226,11 @@ Returns the number of dots per meter resolution in x.
 
 *******************************************************************************/
 
-int pa_dpmx(FILE* f)
+int ami_dpmx(FILE* f)
 
 {
 
-    error("pa_dpmx: Is not implemented");
+    error("ami_dpmx: Is not implemented");
 
     return (1); /* this just shuts up compiler */
 
@@ -1244,11 +1244,11 @@ Returns the number of dots per meter resolution in y.
 
 *******************************************************************************/
 
-int pa_dpmy(FILE* f)
+int ami_dpmy(FILE* f)
 
 {
 
-    error("pa_dpmy: Is not implemented");
+    error("ami_dpmy: Is not implemented");
 
     return (1); /* this just shuts up compiler */
 
@@ -1263,11 +1263,11 @@ character spacing and kerning.
 
 *******************************************************************************/
 
-int pa_strsiz(FILE* f, const char* s)
+int ami_strsiz(FILE* f, const char* s)
 
 {
 
-    error("pa_strsiz: Is not implemented");
+    error("ami_strsiz: Is not implemented");
 
     return (1); /* this just shuts up compiler */
 
@@ -1281,11 +1281,11 @@ Finds the pixel offset to the given character in the string.
 
 *******************************************************************************/
 
-int pa_chrpos(FILE* f, const char* s, int p)
+int ami_chrpos(FILE* f, const char* s, int p)
 
 {
 
-    error("pa_chrpos: Is not implemented");
+    error("ami_chrpos: Is not implemented");
 
     return (1); /* this just shuts up compiler */
 
@@ -1301,11 +1301,11 @@ the system font.
 
 *******************************************************************************/
 
-void pa_writejust(FILE* f, const char* s, int n)
+void ami_writejust(FILE* f, const char* s, int n)
 
 {
 
-    error("pa_writejust: Is not implemented");
+    error("ami_writejust: Is not implemented");
 
 }
 
@@ -1321,11 +1321,11 @@ spaces, with the fractional part lost.
 
 *******************************************************************************/
 
-int pa_justpos(FILE* f, const char* s, int p, int n)
+int ami_justpos(FILE* f, const char* s, int p, int n)
 
 {
 
-    error("pa_justpos: Is not implemented");
+    error("ami_justpos: Is not implemented");
 
     return (1); /* this just shuts up compiler */
 
@@ -1344,11 +1344,11 @@ Not implemented yet.
 
 *******************************************************************************/
 
-void pa_condensed(FILE* f, int e)
+void ami_condensed(FILE* f, int e)
 
 {
 
-    error("pa_condensed: Is not implemented");
+    error("ami_condensed: Is not implemented");
 
 }
 
@@ -1365,11 +1365,11 @@ Not implemented yet.
 
 *******************************************************************************/
 
-void pa_extended(FILE* f, int e)
+void ami_extended(FILE* f, int e)
 
 {
 
-    error("pa_extended: Is not implemented");
+    error("ami_extended: Is not implemented");
 
 }
 
@@ -1386,11 +1386,11 @@ Not implemented yet.
 
 *******************************************************************************/
 
-void pa_xlight(FILE* f, int e)
+void ami_xlight(FILE* f, int e)
 
 {
 
-    error("pa_xlight: Is not implemented");
+    error("ami_xlight: Is not implemented");
 
 }
 
@@ -1407,11 +1407,11 @@ Not implemented yet.
 
 *******************************************************************************/
 
-void pa_light(FILE* f, int e)
+void ami_light(FILE* f, int e)
 
 {
 
-    error("pa_light: Is not implemented");
+    error("ami_light: Is not implemented");
 
 }
 
@@ -1428,11 +1428,11 @@ Not implemented yet.
 
 *******************************************************************************/
 
-void pa_xbold(FILE* f, int e)
+void ami_xbold(FILE* f, int e)
 
 {
 
-    error("pa_xbold: Is not implemented");
+    error("ami_xbold: Is not implemented");
 
 }
 
@@ -1449,11 +1449,11 @@ Not implemented yet.
 
 *******************************************************************************/
 
-void pa_hollow(FILE* f, int e)
+void ami_hollow(FILE* f, int e)
 
 {
 
-    error("pa_hollow: Is not implemented");
+    error("ami_hollow: Is not implemented");
 
 }
 
@@ -1470,11 +1470,11 @@ Not implemented yet.
 
 *******************************************************************************/
 
-void pa_raised(FILE* f, int e)
+void ami_raised(FILE* f, int e)
 
 {
 
-    error("pa_raised: Is not implemented");
+    error("ami_raised: Is not implemented");
 
 }
 
@@ -1486,11 +1486,11 @@ Deletes a loaded picture.
 
 *******************************************************************************/
 
-void pa_delpict(FILE* f, int p)
+void ami_delpict(FILE* f, int p)
 
 {
 
-    error("pa_delpict: Is not implemented");
+    error("ami_delpict: Is not implemented");
 
 }
 
@@ -1502,11 +1502,11 @@ Loads a picture into a slot of the loadable pictures array.
 
 *******************************************************************************/
 
-void pa_loadpict(FILE* f, int p, char* fn)
+void ami_loadpict(FILE* f, int p, char* fn)
 
 {
 
-    error("pa_loadpict: Is not implemented");
+    error("ami_loadpict: Is not implemented");
 
 }
 
@@ -1518,11 +1518,11 @@ Returns the size in x of the logical picture.
 
 *******************************************************************************/
 
-int pa_pictsizx(FILE* f, int p)
+int ami_pictsizx(FILE* f, int p)
 
 {
 
-    error("pa_pictsizx: Is not implemented");
+    error("ami_pictsizx: Is not implemented");
 
     return (1); /* this just shuts up compiler */
 
@@ -1536,11 +1536,11 @@ Returns the size in y of the logical picture.
 
 *******************************************************************************/
 
-int pa_pictsizy(FILE* f, int p)
+int ami_pictsizy(FILE* f, int p)
 
 {
 
-    error("pa_pictsizy: Is not implemented");
+    error("ami_pictsizy: Is not implemented");
 
     return (1); /* this just shuts up compiler */
 
@@ -1557,11 +1557,11 @@ Images will be kept in a rotating cache to prevent repeating reloads.
 
 *******************************************************************************/
 
-void pa_picture(FILE* f, int p, int x1, int y1, int x2, int y2)
+void ami_picture(FILE* f, int p, int x1, int y1, int x2, int y2)
 
 {
 
-    error("pa_picture: Is not implemented");
+    error("ami_picture: Is not implemented");
 
 }
 
@@ -1574,11 +1574,11 @@ Sets the offset of the viewport in logical space, in pixels, anywhere from
 
 *******************************************************************************/
 
-void pa_viewoffg(FILE* f, int x, int y)
+void ami_viewoffg(FILE* f, int x, int y)
 
 {
 
-    error("pa_viewoffg: Is not implemented");
+    error("ami_viewoffg: Is not implemented");
 
 }
 
@@ -1602,11 +1602,11 @@ painting into a buffer and transfering asymmetrically, or using outlines.
 
 *******************************************************************************/
 
-void pa_viewscale(FILE* f, float x, float y)
+void ami_viewscale(FILE* f, float x, float y)
 
 {
 
-    error("pa_viewscale: Is not implemented");
+    error("ami_viewscale: Is not implemented");
 
 }
 
@@ -1623,11 +1623,11 @@ Our event loop here is like an event to event translation.
 
 *******************************************************************************/
 
-void pa_event(FILE* f, pa_evtrec* er)
+void ami_event(FILE* f, ami_evtrec* er)
 
 {
 
-    error("pa_event: Is not implemented");
+    error("ami_event: Is not implemented");
 
 }
 
@@ -1646,14 +1646,14 @@ the associated input file.
 
 *******************************************************************************/
 
-void pa_timer(FILE* f, /* file to send event to */
+void ami_timer(FILE* f, /* file to send event to */
               int   i, /* timer handle */
               long  t, /* number of tenth-milliseconds to run */
               int   r) /* timer is to rerun after completion */
 
 {
 
-    error("pa_timer: Is not implemented");
+    error("ami_timer: Is not implemented");
 
 }
 
@@ -1665,12 +1665,12 @@ Kills a given timer, by it's id number. Only repeating timers should be killed.
 
 *******************************************************************************/
 
-void pa_killtimer(FILE*  f, /* file to kill timer on */
+void ami_killtimer(FILE*  f, /* file to kill timer on */
                   int    i) /* handle of timer */
 
 {
 
-    error("pa_killtimer: Is not implemented");
+    error("ami_killtimer: Is not implemented");
 
 }
 
@@ -1685,11 +1685,11 @@ of the blanking interval.
 
 *******************************************************************************/
 
-void pa_frametimer(FILE* f, int e)
+void ami_frametimer(FILE* f, int e)
 
 {
 
-    error("pa_frametimer: Is not implemented");
+    error("ami_frametimer: Is not implemented");
 
 }
 
@@ -1708,11 +1708,11 @@ holding gralib unaware programs.
 
 *******************************************************************************/
 
-void pa_autohold(int e)
+void ami_autohold(int e)
 
 {
 
-    error("pa_autohold: Is not implemented");
+    error("ami_autohold: Is not implemented");
 
 }
 
@@ -1724,11 +1724,11 @@ Returns the number of mice implemented. Windows supports only one mouse.
 
 *******************************************************************************/
 
-int pa_mouse(FILE* f)
+int ami_mouse(FILE* f)
 
 {
 
-    error("pa_mouse: Is not implemented");
+    error("ami_mouse: Is not implemented");
 
     return (0); /* this just shuts up compiler */
 
@@ -1743,11 +1743,11 @@ version.
 
 *******************************************************************************/
 
-int pa_mousebutton(FILE* f, int m)
+int ami_mousebutton(FILE* f, int m)
 
 {
 
-    error("pa_mousebutton: Is not implemented");
+    error("ami_mousebutton: Is not implemented");
 
     return (0); /* this just shuts up compiler */
 
@@ -1761,11 +1761,11 @@ Return number of joysticks attached.
 
 *******************************************************************************/
 
-int pa_joystick(FILE* f)
+int ami_joystick(FILE* f)
 
 {
 
-    error("pa_joystick: Is not implemented");
+    error("ami_joystick: Is not implemented");
 
     return (0); /* this just shuts up compiler */
 
@@ -1779,11 +1779,11 @@ Returns the number of buttons on a given joystick.
 
 *******************************************************************************/
 
-int pa_joybutton(FILE* f, int j)
+int ami_joybutton(FILE* f, int j)
 
 {
 
-    error("pa_joybutton: Is not implemented");
+    error("ami_joybutton: Is not implemented");
 
     return (0); /* this just shuts up compiler */
 
@@ -1799,11 +1799,11 @@ joystick can be considered a slider without positional meaning.
 
 *******************************************************************************/
 
-int pa_joyaxis(FILE* f, int j)
+int ami_joyaxis(FILE* f, int j)
 
 {
 
-    error("pa_joyaxis: Is not implemented");
+    error("ami_joyaxis: Is not implemented");
 
     return (0); /* this just shuts up compiler */
 
@@ -1817,11 +1817,11 @@ Sets a tab at the indicated pixel number.
 
 *******************************************************************************/
 
-void pa_settabg(FILE* f, int t)
+void ami_settabg(FILE* f, int t)
 
 {
 
-    error("pa_settabg: Is not implemented");
+    error("ami_settabg: Is not implemented");
 
 }
 
@@ -1833,11 +1833,11 @@ Sets a tab at the indicated collumn number.
 
 *******************************************************************************/
 
-void pa_settab(FILE* f, int t)
+void ami_settab(FILE* f, int t)
 
 {
 
-    error("pa_settab: Is not implemented");
+    error("ami_settab: Is not implemented");
 
 }
 
@@ -1849,11 +1849,11 @@ Resets the tab at the indicated pixel number.
 
 *******************************************************************************/
 
-void pa_restabg(FILE* f, int t)
+void ami_restabg(FILE* f, int t)
 
 {
 
-    error("pa_restabg: Is not implemented");
+    error("ami_restabg: Is not implemented");
 
 }
 
@@ -1865,11 +1865,11 @@ Resets the tab at the indicated collumn number.
 
 *******************************************************************************/
 
-void pa_restab(FILE* f, int t)
+void ami_restab(FILE* f, int t)
 
 {
 
-    error("pa_restab: Is not implemented");
+    error("ami_restab: Is not implemented");
 
 }
 
@@ -1882,11 +1882,11 @@ arrangement.
 
 *******************************************************************************/
 
-void pa_clrtab(FILE* f)
+void ami_clrtab(FILE* f)
 
 {
 
-    error("pa_clrtab: Is not implemented");
+    error("ami_clrtab: Is not implemented");
 
 }
 
@@ -1900,11 +1900,11 @@ function keys as well.
 
 *******************************************************************************/
 
-int pa_funkey(FILE* f)
+int ami_funkey(FILE* f)
 
 {
 
-    error("pa_funkey: Is not implemented");
+    error("ami_funkey: Is not implemented");
 
     return (0); /* this just shuts up compiler */
 
@@ -1918,11 +1918,11 @@ Sets the title of the current window.
 
 *******************************************************************************/
 
-void pa_title(FILE* f, char* ts)
+void ami_title(FILE* f, char* ts)
 
 {
 
-    error("pa_title: Is not implemented");
+    error("ami_title: Is not implemented");
 
 }
 
@@ -1939,11 +1939,11 @@ directly. These ids will be be opened as a pair anytime the "_input" or
 
 *******************************************************************************/
 
-void pa_openwin(FILE** infile, FILE** outfile, FILE* parent, int wid)
+void ami_openwin(FILE** infile, FILE** outfile, FILE* parent, int wid)
 
 {
 
-    error("pa_openwin: Is not implemented");
+    error("ami_openwin: Is not implemented");
 
 }
 
@@ -1955,11 +1955,11 @@ Sets or resets the size of the buffer surface, in pixel units.
 
 *******************************************************************************/
 
-void pa_sizbufg(FILE* f, int x, int y)
+void ami_sizbufg(FILE* f, int x, int y)
 
 {
 
-    error("pa_sizbufg: Is not implemented");
+    error("ami_sizbufg: Is not implemented");
 
 }
 
@@ -1971,11 +1971,11 @@ Sets or resets the size of the buffer surface, in character counts.
 
 *******************************************************************************/
 
-void pa_sizbuf(FILE* f, int x, int y)
+void ami_sizbuf(FILE* f, int x, int y)
 
 {
 
-    error("pa_sizbuf: Is not implemented");
+    error("ami_sizbuf: Is not implemented");
 
 }
 
@@ -1988,11 +1988,11 @@ freed.
 
 *******************************************************************************/
 
-void pa_buffer(FILE* f, int e)
+void ami_buffer(FILE* f, int e)
 
 {
 
-    error("pa_buffer: Is not implemented");
+    error("ami_buffer: Is not implemented");
 
 }
 
@@ -2006,11 +2006,11 @@ deleted.
 
 *******************************************************************************/
 
-void pa_menu(FILE* f, pa_menuptr m)
+void ami_menu(FILE* f, ami_menuptr m)
 
 {
 
-    error("pa_menu: Is not implemented");
+    error("ami_menu: Is not implemented");
 
 }
 
@@ -2023,11 +2023,11 @@ and will no longer send messages.
 
 *******************************************************************************/
 
-void pa_menuena(FILE* f, int id, int onoff)
+void ami_menuena(FILE* f, int id, int onoff)
 
 {
 
-    error("pa_menuena: Is not implemented");
+    error("ami_menuena: Is not implemented");
 
 }
 
@@ -2040,11 +2040,11 @@ selected, with no check if not.
 
 *******************************************************************************/
 
-void pa_menusel(FILE* f, int id, int select)
+void ami_menusel(FILE* f, int id, int select)
 
 {
 
-    error("pa_menusel: Is not implemented");
+    error("ami_menusel: Is not implemented");
 
 }
 
@@ -2056,11 +2056,11 @@ Brings the indicated window to the front of the Z order.
 
 *******************************************************************************/
 
-void pa_front(FILE* f)
+void ami_front(FILE* f)
 
 {
 
-    error("pa_front: Is not implemented");
+    error("ami_front: Is not implemented");
 
 }
 
@@ -2072,11 +2072,11 @@ Puts the indicated window to the back of the Z order.
 
 *******************************************************************************/
 
-void pa_back(FILE* f)
+void ami_back(FILE* f)
 
 {
 
-    error("pa_back: Is not implemented");
+    error("ami_back: Is not implemented");
 
 }
 
@@ -2088,11 +2088,11 @@ Gets the onscreen window size.
 
 *******************************************************************************/
 
-void pa_getsizg(FILE* f, int* x, int* y)
+void ami_getsizg(FILE* f, int* x, int* y)
 
 {
 
-    error("pa_getsizg: Is not implemented");
+    error("ami_getsizg: Is not implemented");
 
 }
 
@@ -2109,11 +2109,11 @@ relative measurement.
 
 *******************************************************************************/
 
-void pa_getsiz(FILE* f, int* x, int* y)
+void ami_getsiz(FILE* f, int* x, int* y)
 
 {
 
-    error("pa_getsiz: Is not implemented");
+    error("ami_getsiz: Is not implemented");
 
 }
 
@@ -2125,11 +2125,11 @@ Sets the onscreen window to the given size.
 
 *******************************************************************************/
 
-void pa_setsizg(FILE* f, int x, int y)
+void ami_setsizg(FILE* f, int x, int y)
 
 {
 
-    error("pa_setsizg: Is not implemented");
+    error("ami_setsizg: Is not implemented");
 
 }
 
@@ -2146,11 +2146,11 @@ relative measurement.
 
 *******************************************************************************/
 
-void pa_setsiz(FILE* f, int x, int y)
+void ami_setsiz(FILE* f, int x, int y)
 
 {
 
-    error("pa_setsiz: Is not implemented");
+    error("ami_setsiz: Is not implemented");
 
 }
 
@@ -2162,11 +2162,11 @@ Sets the onscreen window to the given position in its parent.
 
 *******************************************************************************/
 
-void pa_setposg(FILE* f, int x, int y)
+void ami_setposg(FILE* f, int x, int y)
 
 {
 
-    error("pa_setposg: Is not implemented");
+    error("ami_setposg: Is not implemented");
 
 }
 
@@ -2183,11 +2183,11 @@ relative measurement.
 
 *******************************************************************************/
 
-void pa_setpos(FILE* f, int x, int y)
+void ami_setpos(FILE* f, int x, int y)
 
 {
 
-    error("pa_setpos: Is not implemented");
+    error("ami_setpos: Is not implemented");
 
 }
 
@@ -2199,11 +2199,11 @@ Gets the total screen size.
 
 *******************************************************************************/
 
-void pa_scnsizg(FILE* f, int* x, int* y)
+void ami_scnsizg(FILE* f, int* x, int* y)
 
 {
 
-    error("pa_scnsizg: Is not implemented");
+    error("ami_scnsizg: Is not implemented");
 
 }
 
@@ -2222,21 +2222,21 @@ Do we also need a menu style type ?
 
 *******************************************************************************/
 
-void pa_winclient(FILE* f, int cx, int cy, int* wx, int* wy,
-               pa_winmodset msset)
+void ami_winclient(FILE* f, int cx, int cy, int* wx, int* wy,
+               ami_winmodset msset)
 
 {
 
-    error("pa_winclient: Is not implemented");
+    error("ami_winclient: Is not implemented");
 
 }
 
-void pa_winclientg(FILE* f, int cx, int cy, int* wx, int* wy,
-                pa_winmodset ms)
+void ami_winclientg(FILE* f, int cx, int cy, int* wx, int* wy,
+                ami_winmodset ms)
 
 {
 
-    error("pa_winclientg: Is not implemented");
+    error("ami_winclientg: Is not implemented");
 
 }
 
@@ -2251,11 +2251,11 @@ because it can only be used as a relative measurement.
 
 *******************************************************************************/
 
-void pa_scnsiz(FILE* f, int* x, int* y)
+void ami_scnsiz(FILE* f, int* x, int* y)
 
 {
 
-    error("pa_scnsiz: Is not implemented");
+    error("ami_scnsiz: Is not implemented");
 
 }
 
@@ -2267,11 +2267,11 @@ Turns the window frame on and off.
 
 *******************************************************************************/
 
-void pa_frame(FILE* f, int e)
+void ami_frame(FILE* f, int e)
 
 {
 
-    error("pa_frame: Is not implemented");
+    error("ami_frame: Is not implemented");
 
 }
 
@@ -2283,11 +2283,11 @@ Turns the window sizing on and off.
 
 *******************************************************************************/
 
-void pa_sizable(FILE* f, int e)
+void ami_sizable(FILE* f, int e)
 
 {
 
-    error("pa_sizable: Is not implemented");
+    error("ami_sizable: Is not implemented");
 
 }
 
@@ -2299,11 +2299,11 @@ Turns the system bar on and off.
 
 *******************************************************************************/
 
-void pa_sysbar(FILE* f, int e)
+void ami_sysbar(FILE* f, int e)
 
 {
 
-    error("pa_sysbar: Is not implemented");
+    error("ami_sysbar: Is not implemented");
 
 }
 
@@ -2323,11 +2323,11 @@ end of the menu, then the program selections placed in the menu.
 
 *******************************************************************************/
 
-void pa_stdmenu(pa_stdmenusel sms, pa_menuptr* sm, pa_menuptr pm)
+void ami_stdmenu(ami_stdmenusel sms, ami_menuptr* sm, ami_menuptr pm)
 
 {
 
-    error("pa_stdmenu: Is not implemented");
+    error("ami_stdmenu: Is not implemented");
 
 }
 
@@ -2339,11 +2339,11 @@ Removes the widget by id from the window.
 
 *******************************************************************************/
 
-void pa_killwidget(FILE* f, int id)
+void ami_killwidget(FILE* f, int id)
 
 {
 
-    error("pa_killwidget: Is not implemented");
+    error("ami_killwidget: Is not implemented");
 
 }
 
@@ -2355,11 +2355,11 @@ Selects or deselects a widget.
 
 *******************************************************************************/
 
-void pa_selectwidget(FILE* f, int id, int e)
+void ami_selectwidget(FILE* f, int id, int e)
 
 {
 
-    error("pa_selectwidget: Is not implemented");
+    error("ami_selectwidget: Is not implemented");
 
 }
 
@@ -2371,11 +2371,11 @@ Enables or disables a widget.
 
 *******************************************************************************/
 
-void pa_enablewidget(FILE* f, int id, int e)
+void ami_enablewidget(FILE* f, int id, int e)
 
 {
 
-    error("pa_enablewidget: Is not implemented");
+    error("ami_enablewidget: Is not implemented");
 
 }
 
@@ -2389,11 +2389,11 @@ This error is currently unchecked.
 
 *******************************************************************************/
 
-void pa_getwidgettext(FILE* f, int id, char* s, int sl)
+void ami_getwidgettext(FILE* f, int id, char* s, int sl)
 
 {
 
-    error("pa_getwidgettext: Is not implemented");
+    error("ami_getwidgettext: Is not implemented");
 
 }
 
@@ -2405,11 +2405,11 @@ Places text into an edit box.
 
 *******************************************************************************/
 
-void pa_putwidgettext(FILE* f, int id, char* s)
+void ami_putwidgettext(FILE* f, int id, char* s)
 
 {
 
-    error("pa_putwidgettext: Is not implemented");
+    error("ami_putwidgettext: Is not implemented");
 
 }
 
@@ -2421,11 +2421,11 @@ Changes the size of a widget.
 
 *******************************************************************************/
 
-void pa_sizwidgetg(FILE* f, int id, int x, int y)
+void ami_sizwidgetg(FILE* f, int id, int x, int y)
 
 {
 
-    error("pa_sizewidgetg: Is not implemented");
+    error("ami_sizewidgetg: Is not implemented");
 
 }
 
@@ -2437,11 +2437,11 @@ Changes the parent position of a widget.
 
 *******************************************************************************/
 
-void pa_poswidgetg(FILE* f, int id, int x, int y)
+void ami_poswidgetg(FILE* f, int id, int x, int y)
 
 {
 
-    error("pa_poswidgetg: Is not implemented");
+    error("ami_poswidgetg: Is not implemented");
 
 }
 
@@ -2451,11 +2451,11 @@ Place widget to back of Z order
 
 *******************************************************************************/
 
-void pa_backwidget(FILE* f, int id)
+void ami_backwidget(FILE* f, int id)
 
 {
 
-    error("pa_backwidget: Is not implemented");
+    error("ami_backwidget: Is not implemented");
 
 }
 
@@ -2465,11 +2465,11 @@ Place widget to back of Z order
 
 *******************************************************************************/
 
-void pa_frontwidget(FILE* f, int id)
+void ami_frontwidget(FILE* f, int id)
 
 {
 
-    error("pa_frontwidget: Is not implemented");
+    error("ami_frontwidget: Is not implemented");
 
 }
 
@@ -2482,19 +2482,19 @@ a button is calculated and returned.
 
 *******************************************************************************/
 
-void pa_buttonsizg(FILE* f, char* s, int* w, int* h)
+void ami_buttonsizg(FILE* f, char* s, int* w, int* h)
 
 {
 
-    error("pa_buttonsizg: Is not implemented");
+    error("ami_buttonsizg: Is not implemented");
 
 }
 
-void pa_buttonsiz(FILE* f, char* s, int* w, int* h)
+void ami_buttonsiz(FILE* f, char* s, int* w, int* h)
 
 {
 
-    error("pa_buttonsiz: Is not implemented");
+    error("ami_buttonsiz: Is not implemented");
 
 }
 
@@ -2506,19 +2506,19 @@ Creates a standard button within the specified rectangle, on the given window.
 
 *******************************************************************************/
 
-void pa_buttong(FILE* f, int x1, int y1, int x2, int y2, char* s, int id)
+void ami_buttong(FILE* f, int x1, int y1, int x2, int y2, char* s, int id)
 
 {
 
-    error("pa_buttong: Is not implemented");
+    error("ami_buttong: Is not implemented");
 
 }
 
-void pa_button(FILE* f, int x1, int y1, int x2, int y2, char* s, int id)
+void ami_button(FILE* f, int x1, int y1, int x2, int y2, char* s, int id)
 
 {
 
-    error("pa_button: Is not implemented");
+    error("ami_button: Is not implemented");
 
 }
 
@@ -2531,19 +2531,19 @@ a checkbox is calculated and returned.
 
 *******************************************************************************/
 
-void pa_checkboxsizg(FILE* f, char* s, int* w, int* h)
+void ami_checkboxsizg(FILE* f, char* s, int* w, int* h)
 
 {
 
-    error("pa_checkboxsizg: Is not implemented");
+    error("ami_checkboxsizg: Is not implemented");
 
 }
 
-void pa_checkboxsiz(FILE* f, char* s,  int* w, int* h)
+void ami_checkboxsiz(FILE* f, char* s,  int* w, int* h)
 
 {
 
-    error("pa_checkboxsiz: Is not implemented");
+    error("ami_checkboxsiz: Is not implemented");
 
 }
 
@@ -2556,19 +2556,19 @@ window.
 
 *******************************************************************************/
 
-void pa_checkboxg(FILE* f, int x1, int y1, int x2, int y2, char* s, int id)
+void ami_checkboxg(FILE* f, int x1, int y1, int x2, int y2, char* s, int id)
 
 {
 
-    error("pa_checkboxg: Is not implemented");
+    error("ami_checkboxg: Is not implemented");
 
 }
 
-void pa_checkbox(FILE* f, int x1, int y1, int x2, int y2, char* s, int id)
+void ami_checkbox(FILE* f, int x1, int y1, int x2, int y2, char* s, int id)
 
 {
 
-    error("pa_checkbox: Is not implemented");
+    error("ami_checkbox: Is not implemented");
 
 }
 
@@ -2581,19 +2581,19 @@ size of a radio button is calculated and returned.
 
 *******************************************************************************/
 
-void pa_radiobuttonsizg(FILE* f, char* s, int* w, int* h)
+void ami_radiobuttonsizg(FILE* f, char* s, int* w, int* h)
 
 {
 
-    error("pa_radiobuttonsizg: Is not implemented");
+    error("ami_radiobuttonsizg: Is not implemented");
 
 }
 
-void pa_radiobuttonsiz(FILE* f, char* s, int* w, int* h)
+void ami_radiobuttonsiz(FILE* f, char* s, int* w, int* h)
 
 {
 
-    error("pa_radiobuttonsiz: Is not implemented");
+    error("ami_radiobuttonsiz: Is not implemented");
 
 }
 
@@ -2606,19 +2606,19 @@ window.
 
 *******************************************************************************/
 
-void pa_radiobuttong(FILE* f, int x1, int y1, int x2, int y2, char* s, int id)
+void ami_radiobuttong(FILE* f, int x1, int y1, int x2, int y2, char* s, int id)
 
 {
 
-    error("pa_radiobuttong: Is not implemented");
+    error("ami_radiobuttong: Is not implemented");
 
 }
 
-void pa_radiobutton(FILE* f, int x1, int y1, int x2, int y2, char* s, int id)
+void ami_radiobutton(FILE* f, int x1, int y1, int x2, int y2, char* s, int id)
 
 {
 
-    error("pa_radiobutton: Is not implemented");
+    error("ami_radiobutton: Is not implemented");
 
 }
 
@@ -2631,21 +2631,21 @@ size of a group is calculated and returned.
 
 *******************************************************************************/
 
-void pa_groupsizg(FILE* f, char* s, int cw, int ch, int* w, int* h,
+void ami_groupsizg(FILE* f, char* s, int cw, int ch, int* w, int* h,
                int* ox, int* oy)
 
 {
 
-    error("pa_groupsizg: Is not implemented");
+    error("ami_groupsizg: Is not implemented");
 
 }
 
-void pa_groupsiz(FILE* f, char* s, int cw, int ch, int* w, int* h,
+void ami_groupsiz(FILE* f, char* s, int cw, int ch, int* w, int* h,
               int* ox, int* oy)
 
 {
 
-    error("pa_groupsiz: Is not implemented");
+    error("ami_groupsiz: Is not implemented");
 
 }
 
@@ -2658,19 +2658,19 @@ no messages. It is used as a background for other widgets.
 
 *******************************************************************************/
 
-void pa_groupg(FILE* f, int x1, int y1, int x2, int y2, char* s, int id)
+void ami_groupg(FILE* f, int x1, int y1, int x2, int y2, char* s, int id)
 
 {
 
-    error("pa_groupg: Is not implemented");
+    error("ami_groupg: Is not implemented");
 
 }
 
-void pa_group(FILE* f, int x1, int y1, int x2, int y2, char* s, int id)
+void ami_group(FILE* f, int x1, int y1, int x2, int y2, char* s, int id)
 
 {
 
-    error("pa_group: Is not implemented");
+    error("ami_group: Is not implemented");
 
 }
 
@@ -2683,19 +2683,19 @@ generates no messages. It is used as a background for other widgets.
 
 *******************************************************************************/
 
-void pa_backgroundg(FILE* f, int x1, int y1, int x2, int y2, int id)
+void ami_backgroundg(FILE* f, int x1, int y1, int x2, int y2, int id)
 
 {
 
-    error("pa_backgroundg: Is not implemented");
+    error("ami_backgroundg: Is not implemented");
 
 }
 
-void pa_background(FILE* f, int x1, int y1, int x2, int y2, int id)
+void ami_background(FILE* f, int x1, int y1, int x2, int y2, int id)
 
 {
 
-    error("pa_background: Is not implemented");
+    error("ami_background: Is not implemented");
 
 }
 
@@ -2708,19 +2708,19 @@ scrollbar is calculated and returned.
 
 *******************************************************************************/
 
-void pa_scrollvertsizg(FILE* f, int* w, int* h)
+void ami_scrollvertsizg(FILE* f, int* w, int* h)
 
 {
 
-    error("pa_scrollvertsizg: Is not implemented");
+    error("ami_scrollvertsizg: Is not implemented");
 
 }
 
-void pa_scrollvertsiz(FILE* f, int* w, int* h)
+void ami_scrollvertsiz(FILE* f, int* w, int* h)
 
 {
 
-    error("pa_scrollvertsiz: Is not implemented");
+    error("ami_scrollvertsiz: Is not implemented");
 
 }
 
@@ -2732,19 +2732,19 @@ Creates a vertical scrollbar.
 
 *******************************************************************************/
 
-void pa_scrollvertg(FILE* f, int x1, int y1, int x2, int y2, int id)
+void ami_scrollvertg(FILE* f, int x1, int y1, int x2, int y2, int id)
 
 {
 
-    error("pa_scrollvertg: Is not implemented");
+    error("ami_scrollvertg: Is not implemented");
 
 }
 
-void pa_scrollvert(FILE* f, int x1, int y1, int x2, int y2, int id)
+void ami_scrollvert(FILE* f, int x1, int y1, int x2, int y2, int id)
 
 {
 
-    error("pa_scrollvert: Is not implemented");
+    error("ami_scrollvert: Is not implemented");
 
 }
 
@@ -2757,19 +2757,19 @@ horizontal scrollbar is calculated and returned.
 
 *******************************************************************************/
 
-void pa_scrollhorizsizg(FILE* f, int* w, int* h)
+void ami_scrollhorizsizg(FILE* f, int* w, int* h)
 
 {
 
-    error("pa_scrolhorizsizg: Is not implemented");
+    error("ami_scrolhorizsizg: Is not implemented");
 
 }
 
-void pa_scrollhorizsiz(FILE* f, int* w, int* h)
+void ami_scrollhorizsiz(FILE* f, int* w, int* h)
 
 {
 
-    error("pa_scrollhorizsiz: Is not implemented");
+    error("ami_scrollhorizsiz: Is not implemented");
 
 }
 
@@ -2781,19 +2781,19 @@ Creates a horizontal scrollbar.
 
 *******************************************************************************/
 
-void pa_scrollhorizg(FILE* f, int x1, int y1, int x2, int y2, int id)
+void ami_scrollhorizg(FILE* f, int x1, int y1, int x2, int y2, int id)
 
 {
 
-    error("pa_scrollhorizg: Is not implemented");
+    error("ami_scrollhorizg: Is not implemented");
 
 }
 
-void pa_scrollhoriz(FILE* f, int x1, int y1, int x2, int y2, int id)
+void ami_scrollhoriz(FILE* f, int x1, int y1, int x2, int y2, int id)
 
 {
 
-    error("pa_scrollhoriz: Is not implemented");
+    error("ami_scrollhoriz: Is not implemented");
 
 }
 
@@ -2805,11 +2805,11 @@ Sets the current position of a scrollbar slider.
 
 *******************************************************************************/
 
-void pa_scrollpos(FILE* f, int id, int r)
+void ami_scrollpos(FILE* f, int id, int r)
 
 {
 
-    error("pa_scrollpos: Is not implemented");
+    error("ami_scrollpos: Is not implemented");
 
 }
 
@@ -2821,11 +2821,11 @@ Sets the current size of a scrollbar slider.
 
 *******************************************************************************/
 
-void pa_scrollsiz(FILE* f, int id, int r)
+void ami_scrollsiz(FILE* f, int id, int r)
 
 {
 
-    error("pa_scrollsiz: Is not implemented");
+    error("ami_scrollsiz: Is not implemented");
 
 }
 
@@ -2838,19 +2838,19 @@ select box is calculated and returned.
 
 *******************************************************************************/
 
-void pa_numselboxsizg(FILE* f, int l, int u, int* w, int* h)
+void ami_numselboxsizg(FILE* f, int l, int u, int* w, int* h)
 
 {
 
-    error("pa_numselboxsizg: Is not implemented");
+    error("ami_numselboxsizg: Is not implemented");
 
 }
 
-void pa_numselboxsiz(FILE* f, int l, int u, int* w, int* h)
+void ami_numselboxsiz(FILE* f, int l, int u, int* w, int* h)
 
 {
 
-    error("pa_numselboxsiz: Is not implemented");
+    error("ami_numselboxsiz: Is not implemented");
 
 }
 
@@ -2862,19 +2862,19 @@ Creates an up/down control for numeric selection.
 
 *******************************************************************************/
 
-void pa_numselboxg(FILE* f, int x1, int y1, int x2, int y2, int l, int u, int id)
+void ami_numselboxg(FILE* f, int x1, int y1, int x2, int y2, int l, int u, int id)
 
 {
 
-    error("pa_numselboxg: Is not implemented");
+    error("ami_numselboxg: Is not implemented");
 
 }
 
-void pa_numselbox(FILE* f, int x1, int y1, int x2, int y2, int l, int u, int id)
+void ami_numselbox(FILE* f, int x1, int y1, int x2, int y2, int l, int u, int id)
 
 {
 
-    error("pa_numselbox: Is not implemented");
+    error("ami_numselbox: Is not implemented");
 
 }
 
@@ -2887,19 +2887,19 @@ size of an edit box is calculated and returned.
 
 *******************************************************************************/
 
-void pa_editboxsizg(FILE* f, char* s, int* w, int* h)
+void ami_editboxsizg(FILE* f, char* s, int* w, int* h)
 
 {
 
-    error("pa_editboxsizg: Is not implemented");
+    error("ami_editboxsizg: Is not implemented");
 
 }
 
-void pa_editboxsiz(FILE* f, char* s, int* w, int* h)
+void ami_editboxsiz(FILE* f, char* s, int* w, int* h)
 
 {
 
-    error("pa_editboxsiz: Is not implemented");
+    error("ami_editboxsiz: Is not implemented");
 
 }
 
@@ -2911,19 +2911,19 @@ Creates single line edit box
 
 *******************************************************************************/
 
-void pa_editboxg(FILE* f, int x1, int y1, int x2, int y2, int id)
+void ami_editboxg(FILE* f, int x1, int y1, int x2, int y2, int id)
 
 {
 
-    error("pa_editboxg: Is not implemented");
+    error("ami_editboxg: Is not implemented");
 
 }
 
-void pa_editbox(FILE* f, int x1, int y1, int x2, int y2, int id)
+void ami_editbox(FILE* f, int x1, int y1, int x2, int y2, int id)
 
 {
 
-    error("pa_editbox: Is not implemented");
+    error("ami_editbox: Is not implemented");
 
 }
 
@@ -2936,19 +2936,19 @@ size of an edit box is calculated and returned.
 
 *******************************************************************************/
 
-void pa_progbarsizg(FILE* f, int* w, int* h)
+void ami_progbarsizg(FILE* f, int* w, int* h)
 
 {
 
-    error("pa_progbarsizg: Is not implemented");
+    error("ami_progbarsizg: Is not implemented");
 
 }
 
-void pa_progbarsiz(FILE* f, int* w, int* h)
+void ami_progbarsiz(FILE* f, int* w, int* h)
 
 {
 
-    error("pa_progbarsiz: Is not implemented");
+    error("ami_progbarsiz: Is not implemented");
 
 }
 
@@ -2960,11 +2960,11 @@ Creates a progress bar.
 
 *******************************************************************************/
 
-void pa_progbarg(FILE* f, int x1, int y1, int x2, int y2, int id)
+void ami_progbarg(FILE* f, int x1, int y1, int x2, int y2, int id)
 
 {
 
-    error("pa_progbarg: Is not implemented");
+    error("ami_progbarg: Is not implemented");
 
 }
 
@@ -2972,7 +2972,7 @@ void progbar(FILE* f, int x1, int y1, int x2, int y2, int id)
 
 {
 
-    error("pa_progbar: Is not implemented");
+    error("ami_progbar: Is not implemented");
 
 }
 
@@ -2984,11 +2984,11 @@ Sets the position of a progress bar, from 0 to maxint.
 
 *******************************************************************************/
 
-void pa_progbarpos(FILE* f, int id, int pos)
+void ami_progbarpos(FILE* f, int id, int pos)
 
 {
 
-    error("pa_progbarpos: Is not implemented");
+    error("ami_progbarpos: Is not implemented");
 
 }
 
@@ -3008,19 +3008,19 @@ specified rectangle, one way or another.
 
 *******************************************************************************/
 
-void pa_boxsizg(FILE* f, pa_strptr sp, int* w, int* h)
+void ami_boxsizg(FILE* f, ami_strptr sp, int* w, int* h)
 
 {
 
-    error("pa_boxsizg: Is not implemented");
+    error("ami_boxsizg: Is not implemented");
 
 }
 
-void pa_boxsiz(FILE* f, pa_strptr sp, int* w, int* h)
+void ami_boxsiz(FILE* f, ami_strptr sp, int* w, int* h)
 
 {
 
-    error("pa_boxsiz: Is not implemented");
+    error("ami_boxsiz: Is not implemented");
 
 }
 
@@ -3032,19 +3032,19 @@ Creates a list box. Fills it with the string list provided.
 
 *******************************************************************************/
 
-void pa_boxg(FILE* f, int x1, int y1, int x2, int y2, pa_strptr sp, int id)
+void ami_boxg(FILE* f, int x1, int y1, int x2, int y2, ami_strptr sp, int id)
 
 {
 
-    error("pa_boxg: Is not implemented");
+    error("ami_boxg: Is not implemented");
 
 }
 
-void pa_box(FILE* f, int x1, int y1, int x2, int y2, pa_strptr sp, int id)
+void ami_box(FILE* f, int x1, int y1, int x2, int y2, ami_strptr sp, int id)
 
 {
 
-    error("pa_box: Is not implemented");
+    error("ami_box: Is not implemented");
 
 }
 
@@ -3061,19 +3061,19 @@ selections can be scrolled.
 
 *******************************************************************************/
 
-void pa_dropboxsizg(FILE* f, pa_strptr sp, int* cw, int* ch, int* ow, int* oh)
+void ami_dropboxsizg(FILE* f, ami_strptr sp, int* cw, int* ch, int* ow, int* oh)
 
 {
 
-    error("pa_dropboxsizg: Is not implemented");
+    error("ami_dropboxsizg: Is not implemented");
 
 }
 
-void pa_dropboxsiz(FILE* f, pa_strptr sp, int* cw, int* ch, int* ow, int* oh)
+void ami_dropboxsiz(FILE* f, ami_strptr sp, int* cw, int* ch, int* ow, int* oh)
 
 {
 
-    error("pa_dropboxsiz: Is not implemented");
+    error("ami_dropboxsiz: Is not implemented");
 
 }
 
@@ -3085,19 +3085,19 @@ Creates a dropdown box. Fills it with the string list provided.
 
 *******************************************************************************/
 
-void pa_dropboxg(FILE* f, int x1, int y1, int x2, int y2, pa_strptr sp, int id)
+void ami_dropboxg(FILE* f, int x1, int y1, int x2, int y2, ami_strptr sp, int id)
 
 {
 
-    error("pa_dropboxg: Is not implemented");
+    error("ami_dropboxg: Is not implemented");
 
 }
 
-void pa_dropbox(FILE* f, int x1, int y1, int x2, int y2, pa_strptr sp, int id)
+void ami_dropbox(FILE* f, int x1, int y1, int x2, int y2, ami_strptr sp, int id)
 
 {
 
-    error("pa_dropbox: Is not implemented");
+    error("ami_dropbox: Is not implemented");
 
 }
 
@@ -3115,19 +3115,19 @@ selections can be scrolled.
 
 *******************************************************************************/
 
-void pa_dropeditboxsizg(FILE* f, pa_strptr sp, int* cw, int* ch, int* ow, int* oh)
+void ami_dropeditboxsizg(FILE* f, ami_strptr sp, int* cw, int* ch, int* ow, int* oh)
 
 {
 
-    error("pa_dropeditboxsizg: Is not implemented");
+    error("ami_dropeditboxsizg: Is not implemented");
 
 }
 
-void pa_dropeditboxsiz(FILE* f, pa_strptr sp, int* cw, int* ch, int* ow, int* oh)
+void ami_dropeditboxsiz(FILE* f, ami_strptr sp, int* cw, int* ch, int* ow, int* oh)
 
 {
 
-    error("pa_dropeditboxsiz: Is not implemented");
+    error("ami_dropeditboxsiz: Is not implemented");
 
 }
 
@@ -3142,19 +3142,19 @@ box.
 
 *******************************************************************************/
 
-void pa_dropeditboxg(FILE* f, int x1, int y1, int x2, int y2, pa_strptr sp, int id)
+void ami_dropeditboxg(FILE* f, int x1, int y1, int x2, int y2, ami_strptr sp, int id)
 
 {
 
-    error("pa_dropeditboxg: Is not implemented");
+    error("ami_dropeditboxg: Is not implemented");
 
 }
 
-void pa_dropeditbox(FILE* f, int x1, int y1, int x2, int y2, pa_strptr sp, int id)
+void ami_dropeditbox(FILE* f, int x1, int y1, int x2, int y2, ami_strptr sp, int id)
 
 {
 
-    error("pa_dropeditbox: Is not implemented");
+    error("ami_dropeditbox: Is not implemented");
 
 }
 
@@ -3167,19 +3167,19 @@ slider is calculated and returned.
 
 *******************************************************************************/
 
-void pa_slidehorizsizg(FILE* f, int * w, int* h)
+void ami_slidehorizsizg(FILE* f, int * w, int* h)
 
 {
 
-    error("pa_slidehorizsizg: Is not implemented");
+    error("ami_slidehorizsizg: Is not implemented");
 
 }
 
-void pa_slidehorizsiz(FILE* f, int* w, int* h)
+void ami_slidehorizsiz(FILE* f, int* w, int* h)
 
 {
 
-    error("pa_slidehorizsiz: Is not implemented");
+    error("ami_slidehorizsiz: Is not implemented");
 
 }
 
@@ -3193,19 +3193,19 @@ Bugs: The tick marks should be in pixel terms, not logical terms.
 
 *******************************************************************************/
 
-void pa_slidehorizg(FILE* f, int x1, int y1, int x2, int y2, int mark, int id)
+void ami_slidehorizg(FILE* f, int x1, int y1, int x2, int y2, int mark, int id)
 
 {
 
-    error("pa_slidehorizg: Is not implemented");
+    error("ami_slidehorizg: Is not implemented");
 
 }
 
-void pa_slidehoriz(FILE* f, int x1, int y1, int x2, int y2, int mark, int id)
+void ami_slidehoriz(FILE* f, int x1, int y1, int x2, int y2, int mark, int id)
 
 {
 
-    error("pa_slidehoriz: Is not implemented");
+    error("ami_slidehoriz: Is not implemented");
 
 }
 
@@ -3218,19 +3218,19 @@ slider is calculated and returned.
 
 *******************************************************************************/
 
-void pa_slidevertsizg(FILE* f, int* w, int* h)
+void ami_slidevertsizg(FILE* f, int* w, int* h)
 
 {
 
-    error("pa_slidevertsizg: Is not implemented");
+    error("ami_slidevertsizg: Is not implemented");
 
 }
 
-void pa_slidevertsiz(FILE* f, int* w, int* h)
+void ami_slidevertsiz(FILE* f, int* w, int* h)
 
 {
 
-    error("pa_slidevertsiz: Is not implemented");
+    error("ami_slidevertsiz: Is not implemented");
 
 }
 
@@ -3244,19 +3244,19 @@ Bugs: The tick marks should be in pixel terms, not logical terms.
 
 *******************************************************************************/
 
-void pa_slidevertg(FILE* f, int x1, int y1, int x2, int y2, int mark, int id)
+void ami_slidevertg(FILE* f, int x1, int y1, int x2, int y2, int mark, int id)
 
 {
 
-    error("pa_slidevertg: Is not implemented");
+    error("ami_slidevertg: Is not implemented");
 
 }
 
-void pa_slidevert(FILE* f, int x1, int y1, int x2, int y2, int mark, int id)
+void ami_slidevert(FILE* f, int x1, int y1, int x2, int y2, int mark, int id)
 
 {
 
-    error("pa_slidevert: Is not implemented");
+    error("ami_slidevert: Is not implemented");
 
 }
 
@@ -3269,21 +3269,21 @@ calculated and returned.
 
 *******************************************************************************/
 
-void pa_tabbarsizg(FILE* f, pa_tabori tor, int cw, int ch, int* w, int* h,
+void ami_tabbarsizg(FILE* f, ami_tabori tor, int cw, int ch, int* w, int* h,
                 int* ox, int* oy)
 
 {
 
-    error("pa_tabbarsizg: Is not implemented");
+    error("ami_tabbarsizg: Is not implemented");
 
 }
 
-void pa_tabbarsiz(FILE* f, pa_tabori tor, int cw, int ch, int * w, int* h,
+void ami_tabbarsiz(FILE* f, ami_tabori tor, int cw, int ch, int * w, int* h,
                int* ox, int* oy)
 
 {
 
-    error("pa_tabbarsiz: Is not implemented");
+    error("ami_tabbarsiz: Is not implemented");
 
 }
 
@@ -3297,21 +3297,21 @@ flexible.
 
 *******************************************************************************/
 
-void pa_tabbarclientg(FILE* f, pa_tabori tor, int w, int h, int* cw, int* ch,
+void ami_tabbarclientg(FILE* f, ami_tabori tor, int w, int h, int* cw, int* ch,
                    int* ox, int* oy)
 
 {
 
-    error("pa_tabbarclientg: Is not implemented");
+    error("ami_tabbarclientg: Is not implemented");
 
 }
 
-void pa_tabbarclient(FILE* f, pa_tabori tor, int w, int h, int* cw, int* ch,
+void ami_tabbarclient(FILE* f, ami_tabori tor, int w, int h, int* cw, int* ch,
                   int* ox, int* oy)
 
 {
 
-    error("pa_tabbarclient: Is not implemented");
+    error("ami_tabbarclient: Is not implemented");
 
 }
 
@@ -3327,21 +3327,21 @@ creating and distroying another widget.
 
 *******************************************************************************/
 
-void pa_tabbarg(FILE* f, int x1, int y1, int x2, int y2, pa_strptr sp,
-             pa_tabori tor, int id)
+void ami_tabbarg(FILE* f, int x1, int y1, int x2, int y2, ami_strptr sp,
+             ami_tabori tor, int id)
 
 {
 
-    error("pa_tabbarg: Is not implemented");
+    error("ami_tabbarg: Is not implemented");
 
 }
 
-void pa_tabbar(FILE* f, int x1, int y1, int x2, int y2, pa_strptr sp,
-            pa_tabori tor, int id)
+void ami_tabbar(FILE* f, int x1, int y1, int x2, int y2, ami_strptr sp,
+            ami_tabori tor, int id)
 
 {
 
-    error("pa_tabbar: Is not implemented");
+    error("ami_tabbar: Is not implemented");
 
 }
 
@@ -3354,11 +3354,11 @@ of the tab.
 
 *******************************************************************************/
 
-void pa_tabsel(FILE* f, int id, int tn)
+void ami_tabsel(FILE* f, int id, int tn)
 
 {
 
-    error("pa_tabsel: Is not implemented");
+    error("ami_tabsel: Is not implemented");
 
 }
 
@@ -3370,11 +3370,11 @@ Outputs a message dialog with the given title and message strings.
 
 *******************************************************************************/
 
-void pa_alert(char* title, char* message)
+void ami_alert(char* title, char* message)
 
 {
 
-    error("pa_alert: Is not implemented");
+    error("ami_alert: Is not implemented");
 
 }
 
@@ -3388,11 +3388,11 @@ Bug: does not take the input color as the default.
 
 *******************************************************************************/
 
-void pa_querycolor(int* r, int* g, int* b)
+void ami_querycolor(int* r, int* g, int* b)
 
 {
 
-    error("pa_querycolor: Is not implemented");
+    error("ami_querycolor: Is not implemented");
 
 }
 
@@ -3412,11 +3412,11 @@ If the operation is cancelled, then a null string will be returned.
 
 *******************************************************************************/
 
-void pa_queryopen(char* s, int sl)
+void ami_queryopen(char* s, int sl)
 
 {
 
-    error("pa_queryopen: Is not implemented");
+    error("ami_queryopen: Is not implemented");
 
 }
 
@@ -3436,11 +3436,11 @@ If the operation is cancelled, then a null string will be returned.
 
 *******************************************************************************/
 
-void pa_querysave(char* s, int sl)
+void ami_querysave(char* s, int sl)
 
 {
 
-    error("pa_querysave: Is not implemented");
+    error("ami_querysave: Is not implemented");
 
 }
 
@@ -3469,11 +3469,11 @@ table this issue until later.
 
 *******************************************************************************/
 
-void pa_queryfind(char* s, int sl, pa_qfnopts* opt)
+void ami_queryfind(char* s, int sl, ami_qfnopts* opt)
 
 {
 
-    error("pa_queryfind: Is not implemented");
+    error("ami_queryfind: Is not implemented");
 
 }
 
@@ -3494,11 +3494,11 @@ Bug: See comment, queryfind.
 
 *******************************************************************************/
 
-void pa_queryfindrep(char* s, int sl, char* r, int rl, pa_qfropts* opt)
+void ami_queryfindrep(char* s, int sl, char* r, int rl, ami_qfropts* opt)
 
 {
 
-    error("pa_queryfindrep: Is not implemented");
+    error("ami_queryfindrep: Is not implemented");
 
 }
 
@@ -3517,11 +3517,11 @@ user as the defaults.
 
 *******************************************************************************/
 
-void pa_queryfont(FILE* f, int* fc, int* s, int* fr, int* fg, int* fb,
-               int* br, int* bg, int* bb, pa_qfteffects* effect)
+void ami_queryfont(FILE* f, int* fc, int* s, int* fr, int* fg, int* fb,
+               int* br, int* bg, int* bb, ami_qfteffects* effect)
 
 {
 
-    error("pa_queryfont: Is not implemented");
+    error("ami_queryfont: Is not implemented");
 
 }

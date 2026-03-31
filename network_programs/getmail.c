@@ -37,7 +37,7 @@ static int  sport = 995; /* secured port */
 
 int secure = FALSE;
 
-pa_optrec opttbl[] = {
+ami_optrec opttbl[] = {
 
     { "secure", &secure, NULL,   NULL, NULL },
     { "s",      &secure, NULL,   NULL, NULL },
@@ -77,7 +77,7 @@ int main(int argc, char **argv)
     printf("\n");
 
     /* parse user options */
-    pa_options(&argi, &argc, argv, opttbl, TRUE);
+    ami_options(&argi, &argc, argv, opttbl, TRUE);
 
     if (argc < 4) {
 
@@ -86,8 +86,8 @@ int main(int argc, char **argv)
         exit(1);
 
     }
-    pa_addrnet(argv[argi], &addr);
-    mail = pa_opennet(addr, secure?sport:port, secure);
+    ami_addrnet(argv[argi], &addr);
+    mail = ami_opennet(addr, secure?sport:port, secure);
     waitresp();
     fprintf(mail, "user %s\r\n", argv[argi+1]);
     waitresp();
