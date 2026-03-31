@@ -147,8 +147,8 @@ ifndef STDIO_SOURCE
         #
         # glibc assumes that this is a patched glibc with override calls.
         #
-        STDIO_SOURCE=glibc
-		#STDIO_SOURCE=stdio
+        #STDIO_SOURCE=glibc
+		STDIO_SOURCE=stdio
 
     endif
 endif
@@ -177,7 +177,7 @@ ifndef LINK_TYPE
     else ifeq ($(OSTYPE),FreeBSD)
     
         #
-        # Mac OS X is static
+        # FreeBSD is static
         #
         LINK_TYPE=static
 
@@ -236,31 +236,19 @@ ifeq ($(OSTYPE),Windows_NT)
 		CPP=g++
 
 	endif
-	ifeq ($(STDIO_SOURCE),stdio)
-		CFLAGS=-g3 -Ilibc -Iinclude
-	else
-		CFLAGS=-g3 -Iinclude
-	endif
+	CFLAGS=-g3 -Iinclude
 
 else ifeq ($(OSTYPE),Darwin)
 
 	CC=clang
 	CPP=clang++
-	ifeq ($(STDIO_SOURCE),stdio)
-		CFLAGS=-g3 -Ilibc -Iinclude
-	else
-		CFLAGS=-g3 -Iinclude
-	endif
+	CFLAGS=-g3 -Iinclude
 
 else ifeq ($(OSTYPE),FreeBSD)
 
 	CC=clang
 	CPP=clang++
-	ifeq ($(STDIO_SOURCE),stdio)
-		CFLAGS=-g3 -Ilibc -Iinclude
-	else
-		CFLAGS=-g3 -Iinclude
-	endif
+	CFLAGS=-g3 -Iinclude
 
 else
 
@@ -276,12 +264,7 @@ else
 		CPP=g++
 
 	endif
-	ifeq ($(STDIO_SOURCE),stdio)
-		CFLAGS=-g3 -Ilibc -Iinclude -fPIC
-	else
-		CFLAGS=-g3 -Iinclude -fPIC
-	endif
-
+	CFLAGS=-g3 -Iinclude -fPIC
 
 endif
 
@@ -328,6 +311,14 @@ ifeq ($(STDIO_SOURCE),stdio)
     # In local link, we need to get stdio.h from local directory
     #
     CFLAGS +=-Ilibc
+    ifneq ($(OSTYPE),Windows_NT)
+    ifneq ($(OSTYPE),Darwin)
+    ifneq ($(OSTYPE),FreeBSD)
+        # Linux needs bypass to coexist with system glibc
+        CFLAGS += -DSTDIO_BYPASS
+    endif
+    endif
+    endif
 endif
 
 #
@@ -356,6 +347,11 @@ ifeq ($(LINK_TYPE),static)
     endif
     
 endif
+
+#
+# No reason at present for CPP to be different than C
+#
+CFLAGSCPP = $(CFLAGS)
 
 #
 # Specify object file for libc
@@ -489,9 +485,9 @@ endif
 #
 # Create dependency macros
 #
-PLIBSD = lib/petit_ami_plain$(LIBEXT)
-CLIBSD = lib/petit_ami_term$(LIBEXT) stub/keeper.o
-GLIBSD = lib/petit_ami_graph$(LIBEXT) stub/keeper.o
+PLIBSD += lib/petit_ami_plain$(LIBEXT)
+CLIBSD += lib/petit_ami_term$(LIBEXT) stub/keeper.o
+GLIBSD += lib/petit_ami_graph$(LIBEXT) stub/keeper.o
 
 CLIBSCPPD = $(CLIBSD) cpp/terminal.o
 #
@@ -915,7 +911,7 @@ lib/petit_ami_graph.a: $(LINUXSTDIO) linux/services.o linux/sound.o \
 	portable/gnome_widgets.o utils/config.o utils/option.o cpp/terminal.o
 	ar rcs lib/petit_ami_graph.a $(LINUXSTDIO) linux/services.o linux/sound.o \
 		linux/fluidsynthplug.o linux/dumpsynthplug.o linux/network.o \
-		linux/graphics.o linux/rotated.o linux/system_event.o \ 
+		linux/graphics.o linux/rotated.o linux/system_event.o \
 		portable/gnome_widgets.o utils/config.o utils/option.o  \
 		cpp/terminal.o
 	
@@ -1052,8 +1048,8 @@ connectwaveg: $(GLIBSD) sound_programs/connectwave.c
 random: $(CLIBSD) sound_programs/random.c
 	$(CC) $(CFLAGS) sound_programs/random.c $(CLIBS) -o bin/random
 	
-randomg: $(CLIBSD) sound_programs/random.c
-	$(CC) $(CFLAGS) sound_programs/random.c $(CLIBS) -o bin/randomg
+randomg: $(GLIBSD) sound_programs/random.c
+	$(CC) $(CFLAGS) sound_programs/random.c $(GLIBS) -o bin/randomg
 
 #
 # Generate waveforms
@@ -1358,8 +1354,9 @@ clean:
 	rm -f bin/msgclientg bin/msgserver bin/msgserverg bin/prtcertnet
 	rm -f bin/prtcertnetg bin/prtcertmsg bin/prtcertmsgg bin/listcertnet 
 	rm -f bin/listcertnetg bin/prtconfig bin/prtconfigg bin/pixel bin/ball1
-	rm -f bin/ball2 bin/ball3 bin/ball4 bin/ball5 bin/line1 bin/line2 \
+	rm -f bin/ball2 bin/ball3 bin/ball4 bin/ball5 bin/ball6 bin/line1 bin/line2
 	rm -f bin/line4 bin/line5
+	rm -f bin/services_test1 bin/connectnet bin/connectnetg bin/clock
 	find . -name "*.o" -type f -delete
 	rm -f lib/*.a
 	rm -f lib/*.so

@@ -55,7 +55,7 @@ extern "C" {
 #define vprintf     stdio_vprintf
 #define vfprintf    stdio_vfprintf
 #define vsprintf    stdio_vsprintf
-#define scanf       stdio_scanf
+#define fscanf      stdio_fscanf
 #define scanf       stdio_scanf
 #define sscanf      stdio_sscanf
 #define fgetc       stdio_fgetc
