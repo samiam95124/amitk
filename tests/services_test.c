@@ -91,30 +91,6 @@ int main(void)
 
     }
     printf("s/b <the listing for the current directory>\n");
-    printf("test1.l:\n");
-    ami_listl("*", strlen("*"), &lp);
-    while (lp) {
-
-        printf("%-25s %-10lld %-10lld ", lp->name, lp->size, lp->alloc);
-        if (INISET(lp->attr, ami_atexec)) putchar('e'); else putchar(' ');
-        if (INISET(lp->attr, ami_atarc)) putchar('a'); else putchar(' ');
-        if (INISET(lp->attr, ami_atsys)) putchar('s'); else putchar(' ');
-        if (INISET(lp->attr, ami_atdir)) putchar('d'); else putchar(' ');
-        if (INISET(lp->attr, ami_atloop)) putchar('l'); else putchar(' ');
-        putchar(' ');
-        prttimdat(lp->create);
-        prttimdat(lp->modify);
-        prttimdat(lp->access);
-        prttimdat(lp->backup);
-        prtperm(lp->user);
-        prtperm(lp->group);
-        prtperm(lp->other);
-        putchar('\n');
-        lp = lp->next;
-
-    }
-    printf("s/b <the listing for the current directory>\n");
-
     ami_times(s, MAXSTR, ami_time());
     printf("test 3: %s s/b <the current time in zulu>\n", s);
     ami_times(s, MAXSTR, ami_local(ami_time()));
