@@ -1339,6 +1339,12 @@ clock: $(GLIBSD) graph_programs/clock.c
 chess: $(GLIBSD) graph_games/chess.c
 	$(CC) $(CFLAGS) graph_games/chess.c $(GLIBS) -o bin/chess
 
+#
+# Checkers game
+#
+checkers: $(GLIBSD) graph_games/checkers.c
+	$(CC) $(CFLAGS) graph_games/checkers.c $(GLIBS) -o bin/checkers
+
 ################################################################################
 #
 # Clean target
