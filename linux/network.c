@@ -2642,7 +2642,7 @@ Network startup
 
 *******************************************************************************/
 
-static void ami_init_network (void) __attribute__((constructor (103)));
+static void ami_init_network (void) __attribute__((constructor (104)));
 static void ami_init_network()
 
 {
@@ -2719,7 +2719,7 @@ Network shutdown
 
 *******************************************************************************/
 
-static void ami_deinit_network (void) __attribute__((destructor (103)));
+static void ami_deinit_network (void) __attribute__((destructor (104)));
 static void ami_deinit_network()
 
 {

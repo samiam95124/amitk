@@ -5342,7 +5342,7 @@ before the client program runs.
 
 *******************************************************************************/
 
-static void ami_init_terminal (int argc, char* argv[]) __attribute__((constructor (103)));
+static void ami_init_terminal (int argc, char* argv[]) __attribute__((constructor (106)));
 static void ami_init_terminal(int argc, char* argv[])
 
 {
@@ -5774,7 +5774,7 @@ and that should be corrected.
 
 *******************************************************************************/
 
-static void ami_deinit_terminal (void) __attribute__((destructor (103)));
+static void ami_deinit_terminal (void) __attribute__((destructor (106)));
 static void ami_deinit_terminal()
 
 {
