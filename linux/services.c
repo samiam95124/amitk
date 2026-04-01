@@ -408,21 +408,6 @@ If no files are matched, the returned list is nil.
 
 ********************************************************************************/
 
-void ami_listl(
-    /** file to search for */ char *f,
-    /** length of file string */ int l,
-    /** file list returned */ ami_filrec **lp
-)
-
-{
-
-    char buff[MAXSTR];
-
-    cpstrl2z(buff, MAXSTR, f, l);
-    ami_list(buff, lp);
-
-}
-
 void ami_list(
     /** file to search for */ char *f,
     /** file list returned */ ami_filrec **l
@@ -880,20 +865,6 @@ is null or all blanks
 
 ********************************************************************************/
 
-int ami_validfilel(
-    /** string to validate */ char *s,
-    /** length of filename string */ int l
-)
-
-{
-
-    char buff[MAXSTR];
-
-    cpstrl2z(buff, MAXSTR, s, l);
-    return (ami_validfile(buff));
-
-}
-
 int ami_validfile(
     /* string to validate */ char *s
 )
@@ -921,20 +892,6 @@ filename that is null or all blanks
 
 ********************************************************************************/
 
-int ami_validpathl(
-    /** string to validate */ char *s,
-    /** length of filename string */ int l
-)
-
-{
-
-    char buff[MAXSTR];
-
-    cpstrl2z(buff, MAXSTR, s, l);
-    return (ami_validpath(buff));
-
-}
-
 int ami_validpath(
     /* string to validate */ char *s
 )
@@ -960,20 +917,6 @@ Also checks if the filename ends in '/', which is an implied '*.*' wildcard
 on that directory.
 
 ********************************************************************************/
-
-int ami_wildl(
-    /** filename */ char *s,
-    /** length of filename string */ int l
-)
-
-{
-
-    char buff[MAXSTR];
-
-    cpstrl2z(buff, MAXSTR, s, l);
-    return (ami_wild(buff));
-
-}
 
 int ami_wild(
     /* filename */ char *s
@@ -1038,22 +981,6 @@ Returns an environment string by name.
 
 *******************************************************************************/
 
-void ami_getenvl(
-    /** string name */        char* esn,
-    /** name length  */       int esnl,
-    /** string data */        char* esd,
-    /** string data length */ int esdl
-)
-
-{
-
-    char buff[MAXSTR];
-
-    cpstrl2z(buff, MAXSTR, esn, esnl);
-    ami_getenv(buff, esd, esdl);
-
-}
-
 void ami_getenv(
     /** string name */        char* esn,
     /** string data */        char* esd,
@@ -1088,24 +1015,6 @@ Set environment string
 Sets an environment string by name.
 
 ********************************************************************************/
-
-void ami_setenvl(
-    /** name of string */      char *sn,
-    /** length of name */      int snl,
-    /** value of string */     char *sd,
-    /** value string length */ int sdl
-)
-
-{
-
-    char buff1[MAXSTR];
-    char buff2[MAXSTR];
-
-    cpstrl2z(buff1, MAXSTR, sn, snl);
-    cpstrl2z(buff2, MAXSTR, sd, sdl);
-    ami_setenv(buff1, buff2);
-
-}
 
 void ami_setenv(
     /** name of string */ char *sn,
@@ -1173,21 +1082,6 @@ Remove environment string
 Removes an environment string by name.
 
 ********************************************************************************/
-
-void ami_remenvl(
-    /** name of string */ char *sn,
-    /** length of name string */ int snl  
-)
-
-{
-
-    char buff[MAXSTR];
-
-    cpstrl2z(buff, MAXSTR, sn, snl);
-    ami_remenv(buff);
-
-}
-
 
 void ami_remenv(
         /* name of string */ char *sn
@@ -1415,20 +1309,6 @@ Executes a program by name. Does not wait for the program to complete.
 
 ********************************************************************************/
 
-void ami_execl(
-    /** program name to execute */ char *cmd,
-    /** length of name string */ int cmdl
-)
-
-{
-
-    char buff[MAXSTR];
-
-    cpstrl2z(buff, MAXSTR, cmd, cmdl);
-    ami_exec(buff);
-
-}
-
 void ami_exec(
     /* program name to execute */ char *cmd
 )
@@ -1476,21 +1356,6 @@ Execute program with wait
 Executes a program by name. Waits for the program to complete.
 
 ********************************************************************************/
-
-void ami_execwl(
-    /** program name to execute */ char *cmd,
-    /** length of name string */ int cmdl,
-    /** return error */ int *err
-)
-
-{
-
-    char buff[MAXSTR];
-
-    cpstrl2z(buff, MAXSTR, cmd, cmdl);
-    ami_execw(buff, err);
-
-}
 
 void ami_execw(
     /** program name to execute */ char *cmd,
@@ -1547,21 +1412,6 @@ the program environment.
 
 ********************************************************************************/
 
-void ami_execel(
-    /** program name to execute */ char *cmd,
-    /** length of name string */   int cmdl,
-    /** environment */             ami_envrec *el
-)
-
-{
-
-    char buff[MAXSTR];
-
-    cpstrl2z(buff, MAXSTR, cmd, cmdl);
-    ami_exece(buff, el);
-
-}
-
 void ami_exece(
     /** program name to execute */ char      *cmd,
     /** environment */             ami_envrec *el
@@ -1610,22 +1460,6 @@ Executes a program by name. Waits for the program to complete. Supplies the
 program environment.
 
 ********************************************************************************/
-
-void ami_execewl(
-    /** program name to execute */ char *cmd,
-    /** length of name string */   int cmdl,
-    /** environment */             ami_envrec *el,
-    /** return error */            int *err
-)
-
-{
-
-    char buff[MAXSTR];
-
-    cpstrl2z(buff, MAXSTR, cmd, cmdl);
-    ami_execew(buff, el, err);
-
-}
 
 void ami_execew(
         /** program name to execute */ char *cmd,
@@ -1699,21 +1533,6 @@ Sets the current path from the given string.
 
 ********************************************************************************/
 
-void ami_setcurl(
-    /** path to set */ char *fn,
-    /** length of path string */ int fnl
-
-)
-
-{
-
-    char buff[MAXSTR];
-
-    cpstrl2z(buff, MAXSTR, fn, fnl);
-    ami_setcur(buff);
-
-}
-
 void ami_setcur(
     /** path to set */ char *fn
 )
@@ -1749,23 +1568,6 @@ are properly paired, it will effectively be treated the same as if the "."
 were a normal character.
 
 ********************************************************************************/
-
-void ami_brknaml(
-    /** file specification */ char *fn,
-    /** file name length */   int fnl,
-    /** path */               char *p, int pl,
-    /** name */               char *n, int nl,
-    /** extention */          char *e, int el
-)
-
-{
-
-    char buff[MAXSTR];
-
-    cpstrl2z(buff, MAXSTR, fn, fnl);
-    ami_brknam(buff, p, pl, n, nl, e, el);
-
-}
 
 void ami_brknam(
     /** file specification */ char *fn,
@@ -1851,30 +1653,6 @@ We make sure that the path is properly terminated with ':' or '\' before
 concatenating.
 
 ********************************************************************************/
-
-void ami_maknaml(
-    /** file specification to build */ char *fn,
-    /** file specification length */   int fnl,
-    /** path */                        char *p,
-    /** path length */                 int  pl,
-    /** filename */                    char *n,
-    /** filename length */             int nl,
-    /** extension */                   char *e,
-    /** extension length */            int el
-)
-
-{
-
-    char buff1[MAXSTR];
-    char buff2[MAXSTR];
-    char buff3[MAXSTR];
-
-    cpstrl2z(buff1, MAXSTR, p, pl);
-    cpstrl2z(buff2, MAXSTR, n, nl);
-    cpstrl2z(buff3, MAXSTR, e, el);
-    ami_maknam(fn, fnl, buff1, buff2, buff3);
-
-}
 
 void ami_maknam(
     /** file specification to build */ char *fn,
@@ -2061,21 +1839,6 @@ possible. This is done with ami_makpth.
 
 ********************************************************************************/
 
-void ami_setatrl(
-    /** filename */ char *fn, 
-    /** filename length */ int fnl,
-    /** attributes */ ami_attrset a
-)
-
-{
-
-    char buff[MAXSTR];
-
-    cpstrl2z(buff, MAXSTR, fn, fnl);
-    ami_setatr(buff, a);
-
-}
-
 void ami_setatr(char *fn, ami_attrset a)
 {
 
@@ -2091,21 +1854,6 @@ Resets any of several attributes on a file. Reset directory attribute is not
 possible.
 
 ********************************************************************************/
-
-void ami_resatrl(
-    /** filename */ char *fn, 
-    /** filename length */ int fnl,
-    /** attributes */ ami_attrset a
-)
-
-{
-
-    char buff[MAXSTR];
-
-    cpstrl2z(buff, MAXSTR, fn, fnl);
-    ami_resatr(buff, a);
-
-}
 
 void ami_resatr(
     /** filename */ char *fn, 
@@ -2127,20 +1875,6 @@ which effectively means "back this file up now".
 
 ********************************************************************************/
 
-void ami_bakupdl(
-    /** filename */ char *fn,
-    /** filename length */ int fnl
-)
-
-{
-
-    char buff[MAXSTR];
-
-    cpstrl2z(buff, MAXSTR, fn, fnl);
-    ami_bakupd(buff);
-
-}
-
 void ami_bakupd(
     /** filename */ char *fn
 )
@@ -2158,21 +1892,6 @@ Set user permissions
 Sets user permisions
 
 ********************************************************************************/
-
-void ami_setuperl(
-    /** filename */ char *fn, 
-    /** filename length */ int fnl,
-    /** permissions */ ami_permset p
-)
-
-{
-
-    char buff[MAXSTR];
-
-    cpstrl2z(buff, MAXSTR, fn, fnl);
-    ami_setuper(buff, p);
-
-}
 
 void ami_setuper(
     /** filename */ char *fn, 
@@ -2205,21 +1924,6 @@ Resets user permissions.
 
 ********************************************************************************/
 
-void ami_resuperl(
-    /** filename */ char *fn, 
-    /** filename length */ int fnl,
-    /** permissions */ ami_permset p
-)
-
-{
-
-    char buff[MAXSTR];
-
-    cpstrl2z(buff, MAXSTR, fn, fnl);
-    ami_resuper(buff, p);
-
-}
-
 void ami_resuper(
     /** filename */ char *fn, 
     /** permissions */ ami_permset p
@@ -2249,21 +1953,6 @@ Set group permissions
 Sets group permissions.
 
 ********************************************************************************/
-
-void ami_setgperl(
-    /** filename */ char *fn, 
-    /** filename length */ int fnl,
-    /** permissions */ ami_permset p
-)
-
-{
-
-    char buff[MAXSTR];
-
-    cpstrl2z(buff, MAXSTR, fn, fnl);
-    ami_setgper(buff, p);
-
-}
 
 void ami_setgper(
     /** filename */ char *fn, 
@@ -2295,21 +1984,6 @@ Resets group permissions.
 
 ********************************************************************************/
 
-void ami_resgperl(
-    /** filename */ char *fn, 
-    /** filename length */ int fnl,
-    /** permissions */ ami_permset p
-)
-
-{
-
-    char buff[MAXSTR];
-
-    cpstrl2z(buff, MAXSTR, fn, fnl);
-    ami_resgper(buff, p);
-
-}
-
 void ami_resgper(
     /** filename */ char *fn, 
     /** permissions */ ami_permset p
@@ -2337,21 +2011,6 @@ Set other (global) permissions
 Sets other permissions.
 
 ********************************************************************************/
-
-void ami_setoperl(
-    /** filename */ char *fn, 
-    /** filename length */ int fnl,
-    /** permissions */ ami_permset p
-)
-
-{
-
-    char buff[MAXSTR];
-
-    cpstrl2z(buff, MAXSTR, fn, fnl);
-    ami_setoper(buff, p);
-
-}
 
 void ami_setoper(
     /** filename */ char *fn, 
@@ -2382,21 +2041,6 @@ Resets other permissions.
 
 ********************************************************************************/
 
-void ami_resoperl(
-    /** filename */ char *fn, 
-    /** filename length */ int fnl,
-    /** permissions */ ami_permset p
-)
-
-{
-
-    char buff[MAXSTR];
-
-    cpstrl2z(buff, MAXSTR, fn, fnl);
-    ami_resoper(buff, p);
-
-}
-
 void ami_resoper(
     /** filename */ char *fn, 
     /** permissions */ ami_permset p
@@ -2426,20 +2070,6 @@ Create a new path. Only one new level at a time may be created.
 
 ********************************************************************************/
 
-void ami_makpthl(
-    /** pathname */ char *fn,
-    /** pathname length */ int fnl
-)
-
-{
-
-    char buff[MAXSTR];
-
-    cpstrl2z(buff, MAXSTR, fn, fnl);
-    ami_makpth(buff);
-
-}
-
 void ami_makpth(
     /** pathname */ char *fn
 )
@@ -2463,20 +2093,6 @@ Remove path
 Create a new path. Only one new level at a time may be deleted.
 
 ********************************************************************************/
-
-void ami_rempthl(
-    /** pathname */ char *fn,
-    /** pathname length */ int fnl
-)
-
-{
-
-    char buff[MAXSTR];
-
-    cpstrl2z(buff, MAXSTR, fn, fnl);
-    ami_rempth(buff);
-
-}
 
 void ami_rempth(
     /** pathname */ char *fn
