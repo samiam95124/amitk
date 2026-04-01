@@ -1181,7 +1181,7 @@ static void widget(
     ami_buffer(wp->wf, FALSE); /* turn off buffering */
     ami_auto(wp->wf, FALSE); /* turn off auto */
     ami_curvis(wp->wf, FALSE); /* turn off cursor */
-    ami_font(wp->wf, PA_FONT_SIGN); /* set sign font */
+    ami_font(wp->wf, AMI_FONT_SIGN); /* set sign font */
     ami_frame(wp->wf, FALSE); /* turn off frame */
     ami_setposg(wp->wf, x1, y1); /* place at position */
     ami_setsizg(wp->wf, x2-x1, y2-y1); /* set size */
@@ -6132,7 +6132,7 @@ static void ialert(
     ami_buffer(out, FALSE); /* turn off buffering */
     ami_auto(out, FALSE); /* turn off auto */
     ami_curvis(out, FALSE); /* turn off cursor */
-    ami_font(out, PA_FONT_SIGN); /* set sign font */
+    ami_font(out, AMI_FONT_SIGN); /* set sign font */
     ami_binvis(out); /* no background write */
     ami_frame(out, FALSE); /* turn off sizing bars */
     /* find maximum text size */
@@ -6359,7 +6359,7 @@ static void iquerycolor(
     ami_buffer(out, FALSE); /* turn off buffering */
     ami_auto(out, FALSE); /* turn off auto */
     ami_curvis(out, FALSE); /* turn off cursor */
-    ami_font(out, PA_FONT_SIGN); /* set sign font */
+    ami_font(out, AMI_FONT_SIGN); /* set sign font */
     ami_binvis(out); /* no background write */
     ami_frame(out, FALSE); /* turn off sizing bars */
     /* size the dialog */
@@ -6834,7 +6834,7 @@ static void init_widgets()
     ami_openwin(&stdin, &win0, NULL, ami_getwinid()); /* open window */
     ami_buffer(win0, FALSE); /* turn off buffering */
     ami_auto(win0, FALSE); /* turn off auto (for font change) */
-    ami_font(win0, PA_FONT_SIGN); /* set sign font */
+    ami_font(win0, AMI_FONT_SIGN); /* set sign font */
     ami_frame(win0, FALSE); /* turn off frame */
 
     /* override system calls for basic I/O */

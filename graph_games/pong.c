@@ -25,9 +25,9 @@
 #define WALLCLR  ami_cyan              /* WALL color */
 #define PADCLR   ami_green             /* paddle color */
 #define BNCENOTE 5                 /* time to play bounce note */
-#define WALLNOTE (PA_NOTE_D+PA_OCTAVE_6) /* note to play off WALL */
+#define WALLNOTE (AMI_NOTE_D+AMI_OCTAVE_6) /* note to play off WALL */
 #define FAILTIME 30                /* note to play on failure */
-#define FAILNOTE (PA_NOTE_C+PA_OCTAVE_4) /* note to play on fail */
+#define FAILNOTE (AMI_NOTE_C+AMI_OCTAVE_4) /* note to play on fail */
 
 typedef struct { /* rectangle */
 
@@ -280,12 +280,12 @@ int main(void)
 
     nottim = 0; /* clear bounce note timer */
     failtimer = 0; /* clear fail timer */
-    ami_opensynthout(PA_SYNTH_OUT); /* open synthesizer */
-    ami_instchange(PA_SYNTH_OUT, 0, 1, PA_INST_LEAD_1_SQUARE);
+    ami_opensynthout(AMI_SYNTH_OUT); /* open synthesizer */
+    ami_instchange(AMI_SYNTH_OUT, 0, 1, AMI_INST_LEAD_1_SQUARE);
     jchr = INT_MAX/((ami_maxxg(stdout)-2)/2); /* find basic joystick increment */
     ami_curvis(stdout, FALSE); /* remove drawing cursor */
     ami_auto(stdout, FALSE); /* turn off scrolling */
-    ami_font(stdout, PA_FONT_SIGN); /* sign font */
+    ami_font(stdout, AMI_FONT_SIGN); /* sign font */
     wall = ami_maxyg(stdout)/20; /* set wall thickness */
     balls = ami_maxyg(stdout)/20; /* set ball size */
     hballs = balls/2; /* set half ball size */
@@ -363,7 +363,7 @@ int main(void)
 
                   	nottim--; /* derement */
                    	if (nottim == 0) /* times up, turn note off */
-                      	ami_noteoff(PA_SYNTH_OUT, 0, 1, WALLNOTE, INT_MAX);
+                      	ami_noteoff(AMI_SYNTH_OUT, 0, 1, WALLNOTE, INT_MAX);
 
                 }
                 /* if the fail note timer is running, decrement it */
@@ -371,7 +371,7 @@ int main(void)
 
                    	failtimer = failtimer-1; /* derement */
                    	if (!failtimer) /* times up, turn note off */
-                      	ami_noteoff(PA_SYNTH_OUT, 0, 1, FAILNOTE, INT_MAX);
+                      	ami_noteoff(AMI_SYNTH_OUT, 0, 1, FAILNOTE, INT_MAX);
 
                 }
                 if (ball.x1 > 0) { /* ball on screen */
@@ -386,7 +386,7 @@ int main(void)
                       	bdx = -bdx; /* change direction */
                       	offrect(&ball, bdx, bdy); /* recalculate */
                       	/* start bounce note */
-                      	ami_noteon(PA_SYNTH_OUT, 0, 1, WALLNOTE, INT_MAX);
+                      	ami_noteon(AMI_SYNTH_OUT, 0, 1, WALLNOTE, INT_MAX);
                       	nottim = BNCENOTE; /* set timer */
 
                    } else if (intrect(&ball, &wallt)) { /* hits top */
@@ -395,7 +395,7 @@ int main(void)
                       	bdy = -bdy; /* change direction */
                      	offrect(&ball, bdx, bdy); /* recalculate */
                       	/* start bounce note */
-                      	ami_noteon(PA_SYNTH_OUT, 0, 1, WALLNOTE, INT_MAX);
+                      	ami_noteon(AMI_SYNTH_OUT, 0, 1, WALLNOTE, INT_MAX);
                       	nottim = BNCENOTE; /* set timer */
 
                    } else if (intrect(&ball, &paddle)) {
@@ -411,7 +411,7 @@ int main(void)
                       	score = score+1; /* count hits */
                       	scrchg = TRUE; /* set changed */
                       	/* start bounce note */
-                      	ami_noteon(PA_SYNTH_OUT, 0, 1, WALLNOTE, INT_MAX);
+                      	ami_noteon(AMI_SYNTH_OUT, 0, 1, WALLNOTE, INT_MAX);
                       	nottim = BNCENOTE; /* set timer */
 
                    }
@@ -421,7 +421,7 @@ int main(void)
                         clrrect(&ball); /* set ball not on screen */
                         baltim = NEWBAL; /* start time on new ball wait */
                         /* start fail note */
-                        ami_noteon(PA_SYNTH_OUT, 0, 1, FAILNOTE, INT_MAX);
+                        ami_noteon(AMI_SYNTH_OUT, 0, 1, FAILNOTE, INT_MAX);
                         failtimer = FAILTIME; /* set timer */
 
                    } else { /* ball in play */
@@ -456,7 +456,7 @@ int main(void)
 
     endgame: /* exit game */
 
-    ami_closesynthout(PA_SYNTH_OUT); /* close synthesizer */
+    ami_closesynthout(AMI_SYNTH_OUT); /* close synthesizer */
 
 }
 

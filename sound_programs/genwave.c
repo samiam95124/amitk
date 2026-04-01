@@ -36,7 +36,7 @@ Set square wave output (the default is sine wave).
 #define SIZEBUF 2048
 #define PI 3.14159
 
-int dport = PA_SYNTH_OUT; /* set default synth out */
+int dport = AMI_SYNTH_OUT; /* set default synth out */
 int freq = 440; /* set default frequency */
 int square = FALSE; /* set not square wave */
 

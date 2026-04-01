@@ -4420,7 +4420,7 @@ void ami_loadsynth(int s, string fn)
                     /* decode midi instruction. Note that the output port is
                        irrelivant, since the actual port will be specified at
                        play time */
-                    len = dcdmidi(fh, b, &endtrk, PA_SYNTH_OUT, curtim, &qnote, &sp);
+                    len = dcdmidi(fh, b, &endtrk, AMI_SYNTH_OUT, curtim, &qnote, &sp);
                     rem -= len; /* count */
                     if (sp) { /* a sequencer entry was produced */
 

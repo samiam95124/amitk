@@ -24,7 +24,7 @@ https://www.qbasic.net/en/reference/qb11/Statement/PLAY-006.htm
 
 #define SECOND 10000
 
-int dport = PA_SYNTH_OUT; /* set default synth out */
+int dport = AMI_SYNTH_OUT; /* set default synth out */
 
 ami_optrec opttbl[] = {
 
@@ -90,13 +90,13 @@ static void setoct(int on)
     /* we place Plays' 6 7 octaves in the middle of midis' 11 octaves */
     switch (on) { /* octave */
 
-        case 0: octave = PA_OCTAVE_2; break;
-        case 1: octave = PA_OCTAVE_3; break;
-        case 2: octave = PA_OCTAVE_4; break;
-        case 3: octave = PA_OCTAVE_5; break;
-        case 4: octave = PA_OCTAVE_6; break;
-        case 5: octave = PA_OCTAVE_7; break;
-        case 6: octave = PA_OCTAVE_8; break;
+        case 0: octave = AMI_OCTAVE_2; break;
+        case 1: octave = AMI_OCTAVE_3; break;
+        case 2: octave = AMI_OCTAVE_4; break;
+        case 3: octave = AMI_OCTAVE_5; break;
+        case 4: octave = AMI_OCTAVE_6; break;
+        case 5: octave = AMI_OCTAVE_7; break;
+        case 6: octave = AMI_OCTAVE_8; break;
 
     }
 
@@ -122,13 +122,13 @@ static void play(string ms)
             /* its a note */
             switch (tolower(*ms)) { /* note */
 
-                case 'c': n = PA_NOTE_C; break;
-                case 'd': n = PA_NOTE_D; break;
-                case 'e': n = PA_NOTE_E; break;
-                case 'f': n = PA_NOTE_F; break;
-                case 'g': n = PA_NOTE_G; break;
-                case 'a': n = PA_NOTE_A; break;
-                case 'b': n = PA_NOTE_B;  break;
+                case 'c': n = AMI_NOTE_C; break;
+                case 'd': n = AMI_NOTE_D; break;
+                case 'e': n = AMI_NOTE_E; break;
+                case 'f': n = AMI_NOTE_F; break;
+                case 'g': n = AMI_NOTE_G; break;
+                case 'a': n = AMI_NOTE_A; break;
+                case 'b': n = AMI_NOTE_B;  break;
 
             }
             ms++; /* next character */
@@ -173,12 +173,12 @@ static void play(string ms)
 
         } else if (*ms == '>') { /* up octave */
 
-            if (octave < PA_OCTAVE_8) octave = octave+12;
+            if (octave < AMI_OCTAVE_8) octave = octave+12;
             ms++;
 
         } else if (*ms == '<') { /* down octave */
 
-            if (octave > PA_OCTAVE_2) octave = octave-12;
+            if (octave > AMI_OCTAVE_2) octave = octave-12;
             ms++;
 
         } else if (tolower(*ms) == 'n') { /* numbered note */
@@ -192,7 +192,7 @@ static void play(string ms)
 
             }
             if (i == 0) waittime(ntime); /* rest */
-            else playnote(i-1+PA_OCTAVE_2, deftim); /* play note */
+            else playnote(i-1+AMI_OCTAVE_2, deftim); /* play note */
 
         } else if (tolower(*ms) == 'p') { /* pause */
 
@@ -251,13 +251,13 @@ int main(int argc, char **argv)
 
     /* set up "play" parameters */
     ntime = SECOND/2; /* set default tempo for quarter notes */
-    octave = PA_OCTAVE_5; /* start in middle octave */
+    octave = AMI_OCTAVE_5; /* start in middle octave */
     deftim = ntime; /* set whole notes default */
 
     printf("Synthesisers: %d\n", ami_synthout());
     ami_opensynthout(dport); /* open main synthesiser */
 
-    ami_instchange(dport, 0, 1, PA_INST_ACOUSTIC_GRAND);
+    ami_instchange(dport, 0, 1, AMI_INST_ACOUSTIC_GRAND);
 
     printf("1: Mozart's Sonata in C\n");
     printf("2: Stars And Stripes Forever\n");

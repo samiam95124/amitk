@@ -641,7 +641,7 @@ static struct termios trmsav;
  */
 
 static pthread_mutex_t timlock; /* lock for timer table */
-static int timtbl[PA_MAXTIM];
+static int timtbl[AMI_MAXTIM];
 static int frmsev; /* frame timer system event number */
 /* end of timlock region */
 
@@ -2268,7 +2268,7 @@ static void ievent(void)
 
             /* look in timer set */
             pthread_mutex_lock(&timlock); /* take the timer lock */
-            for (ti = 0; ti < PA_MAXTIM && !evtfnd; ti++) {
+            for (ti = 0; ti < AMI_MAXTIM && !evtfnd; ti++) {
 
                 if (timtbl[ti] == sev.lse) {
 
@@ -4641,7 +4641,7 @@ static void timer_ivf(/* file to send event to */              FILE* f,
 {
 
     dbg_printf(dlapi, "API\n");
-    if (i < 1 || i > PA_MAXTIM) error(ami_dispeinvthn); /* invalid timer handle */
+    if (i < 1 || i > AMI_MAXTIM) error(ami_dispeinvthn); /* invalid timer handle */
     pthread_mutex_lock(&timlock); /* take the timer lock */
     timtbl[i-1] = system_event_addsetim(timtbl[i-1], t, r);
     pthread_mutex_unlock(&timlock); /* release the timer lock */
@@ -4666,7 +4666,7 @@ static void killtimer_ivf(/* file to kill timer on */ FILE *f,
 {
 
     dbg_printf(dlapi, "API\n");
-    if (i < 1 || i > PA_MAXTIM) error(ami_dispeinvthn); /* invalid timer handle */
+    if (i < 1 || i > AMI_MAXTIM) error(ami_dispeinvthn); /* invalid timer handle */
     pthread_mutex_lock(&timlock); /* take the timer lock */
     if (timtbl[i-1] <= 0) {
 
@@ -5663,7 +5663,7 @@ static void ami_init_terminal(int argc, char* argv[])
     inpsev = system_event_addseinp(0);
 
     /* clear the timers table */
-    for (i = 0; i < PA_MAXTIM; i++) timtbl[i] = 0;
+    for (i = 0; i < AMI_MAXTIM; i++) timtbl[i] = 0;
 
     /* clear joystick table */
     for (ji = 0; ji < MAXJOY; ji++) joytab[ji] = NULL;

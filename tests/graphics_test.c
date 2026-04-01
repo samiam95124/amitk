@@ -637,7 +637,7 @@ static void graphtest(int lw) /* line width */
     float yrat;  /* aspect ratio of y to x */
 
     ami_auto(stdout, OFF);
-    ami_font(stdout, PA_FONT_SIGN);
+    ami_font(stdout, AMI_FONT_SIGN);
     fsiz = ami_chrsizy(stdout); /* save character size to restore */
     ami_fontsiz(stdout, ami_maxyg(stdout)/20);
     ami_bcolor(stdout, ami_yellow);
@@ -716,7 +716,7 @@ static void graphtest(int lw) /* line width */
     ami_fontsiz(stdout, fsiz); /* restore font size */
     ami_fcolor(stdout, ami_black);
     ami_bcolor(stdout, ami_white);
-    ami_font(stdout, PA_FONT_TERM);
+    ami_font(stdout, AMI_FONT_TERM);
 
 }
 
@@ -1240,10 +1240,10 @@ int main(void)
     ami_auto(stdout, FALSE);
     ami_home(stdout);
     ami_binvis(stdout);
-    ami_fontnam(stdout, PA_FONT_TERM, fns, 100);
+    ami_fontnam(stdout, AMI_FONT_TERM, fns, 100);
     if (strlen(fns) > 0) {
 
-        ami_font(stdout, PA_FONT_TERM);
+        ami_font(stdout, AMI_FONT_TERM);
         printf("This is the terminal font: System name: \"%s\"\n", fns);
         printf("Size x -> %d y -> %d\n", ami_chrsizx(stdout), ami_chrsizy(stdout));
         prtall();
@@ -1255,10 +1255,10 @@ int main(void)
         printf("\n");
 
     }
-    ami_fontnam(stdout, PA_FONT_BOOK, fns, 100);
+    ami_fontnam(stdout, AMI_FONT_BOOK, fns, 100);
     if (strlen(fns) > 0) {
 
-        ami_font(stdout, PA_FONT_BOOK);
+        ami_font(stdout, AMI_FONT_BOOK);
         printf("This is the book font: System name: \"%s\"\n", fns);
         printf("Size x -> %d y -> %d\n", ami_chrsizx(stdout), ami_chrsizy(stdout));
         prtall();
@@ -1270,10 +1270,10 @@ int main(void)
         printf("\n");
 
     }
-    ami_fontnam(stdout, PA_FONT_SIGN, fns, 100);
+    ami_fontnam(stdout, AMI_FONT_SIGN, fns, 100);
     if (strlen(fns) > 0) {
 
-        ami_font(stdout, PA_FONT_SIGN);
+        ami_font(stdout, AMI_FONT_SIGN);
         printf("This is the sign font: System name: \"%s\"\n", fns);
         printf("Size x -> %d y -> %d\n", ami_chrsizx(stdout), ami_chrsizy(stdout));
         prtall();
@@ -1285,10 +1285,10 @@ int main(void)
         printf("\n");
 
     }
-    ami_fontnam(stdout, PA_FONT_TECH, fns, 100);
+    ami_fontnam(stdout, AMI_FONT_TECH, fns, 100);
     if (strlen(fns) > 0) {
 
-        ami_font(stdout, PA_FONT_TECH);
+        ami_font(stdout, AMI_FONT_TECH);
         printf("This is the technical font: System name: \"%s\"\n", fns);
         printf("Size x -> %d y -> %d\n", ami_chrsizx(stdout), ami_chrsizy(stdout));
         prtall();
@@ -1300,7 +1300,7 @@ int main(void)
         printf("\n");
 
     }
-    ami_font(stdout, PA_FONT_TERM);
+    ami_font(stdout, AMI_FONT_TERM);
     printf("Complete\n");
     waitnext();
 
@@ -2551,7 +2551,7 @@ int main(void)
     fsiz = ami_chrsizy(stdout); /* save character size to restore */
     h = 10;
     ami_auto(stdout, OFF);
-    ami_font(stdout, PA_FONT_SIGN);
+    ami_font(stdout, AMI_FONT_SIGN);
     c1 = ami_black;
     c2 = ami_blue;
     ami_bover(stdout);
@@ -2571,7 +2571,7 @@ int main(void)
     ami_fontsiz(stdout, fsiz); /* restore font size */
     ami_fcolor(stdout, ami_black);
     ami_bcolor(stdout, ami_white);
-    ami_font(stdout, PA_FONT_TERM);
+    ami_font(stdout, AMI_FONT_TERM);
     ami_binvis(stdout);
     prtcen(ami_maxy(stdout), "Font sizing test");
     waitnext();
@@ -2632,7 +2632,7 @@ int main(void)
         printf("%d: %s\n", i, fns);
         if (ami_cury(stdout) >= ami_maxy(stdout)) { /* screen overflows */
 
-            ami_font(stdout, PA_FONT_TERM);
+            ami_font(stdout, AMI_FONT_TERM);
             printf("Press return to continue");
             waitnext();
             ami_bcolor(stdout, ami_white);
@@ -2646,7 +2646,7 @@ int main(void)
 
     }
     ami_bcolor(stdout, ami_white);
-    ami_font(stdout, PA_FONT_TERM);
+    ami_font(stdout, AMI_FONT_TERM);
     ami_binvis(stdout);
     printf("\n");
     printf("List complete\n");
@@ -2657,7 +2657,7 @@ int main(void)
     putchar('\f');
     grid();
     ami_auto(stdout, OFF);
-    ami_font(stdout, PA_FONT_SIGN);
+    ami_font(stdout, AMI_FONT_SIGN);
     ami_condensed(stdout, ON);
     printf("Condensed\n");
     ami_condensed(stdout, OFF);
@@ -2679,7 +2679,7 @@ int main(void)
     ami_raised(stdout, ON);
     printf("Raised\n");
     ami_raised(stdout, OFF);
-    ami_font(stdout, PA_FONT_TERM);
+    ami_font(stdout, AMI_FONT_TERM);
     prtcen(ami_maxy(stdout), "Extended effects test");
     waitnext();
 
@@ -2689,7 +2689,7 @@ int main(void)
     grid();
     ami_auto(stdout, OFF);
     fsiz = ami_chrsizy(stdout); /* save character size to restore */
-    ami_font(stdout, PA_FONT_SIGN);
+    ami_font(stdout, AMI_FONT_SIGN);
     ami_fontsiz(stdout, ami_maxyg(stdout)/12);
     printf("Size of test string: %d\n", ami_strsiz(stdout, S3));
     printf("\n");
@@ -2716,7 +2716,7 @@ int main(void)
     justcenter(S4, l+80);
 
     ami_fontsiz(stdout, fsiz); /* restore font size */
-    ami_font(stdout, PA_FONT_TERM);
+    ami_font(stdout, AMI_FONT_TERM);
     ami_binvis(stdout);
     prtcen(ami_maxy(stdout), "Character sizes and positions");
     waitnext();
@@ -2727,7 +2727,7 @@ int main(void)
     putchar('\f');
     grid();
     ami_auto(stdout, OFF);
-    ami_font(stdout, PA_FONT_TERM);
+    ami_font(stdout, AMI_FONT_TERM);
     for (i = 1; i <= 5; i++) {
 
         for (x = 1; x <= i; x++) putchar('\t');
@@ -2901,7 +2901,7 @@ int main(void)
     ami_auto(stdout, OFF);
     ami_viewoffg(stdout, -(ami_maxxg(stdout)/2), -(ami_maxyg(stdout)/2));
     grid();
-    ami_fcolor(stdout, PA_GREEN);
+    ami_fcolor(stdout, AMI_GREEN);
     ami_frect(stdout, 0, 0, 100, 100);
     ami_cursorg(stdout, 1, -(maxyg(stdout)/2));
     ami_fcolor(stdout, ami_black);
@@ -2919,7 +2919,7 @@ int main(void)
     ami_auto(stdout, OFF);
     ami_viewscale(stdout, 0.5);
     grid();
-    ami_fcolor(stdout, PA_GREEN);
+    ami_fcolor(stdout, AMI_GREEN);
     ami_frect(stdout, 0, 0, 100, 100);
     prtcen(1, "Logical coordinates are now 1/2 size");
     prtcen(ami_maxy(stdout), "View scale text");
@@ -3102,7 +3102,7 @@ int main(void)
 
     putchar('\f');
     ami_auto(stdout, OFF);
-    ami_font(stdout, PA_FONT_SIGN);
+    ami_font(stdout, AMI_FONT_SIGN);
     ami_fontsiz(stdout, 50);
     prtceng(ami_maxy(stdout)/2, "Test complete");
 

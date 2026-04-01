@@ -23,7 +23,7 @@ extern "C" {
 
 #include <localdefs.h>
 
-#define PA_MAXTIM 10 /**< maximum number of timers available */
+#define AMI_MAXTIM 10 /**< maximum number of timers available */
 
 /** colors displayable in text mode */
 typedef enum { ami_black, ami_white, ami_red, ami_green, ami_blue, ami_cyan,

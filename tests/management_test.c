@@ -511,7 +511,7 @@ int main(void)
     printf("Position window for font/back test\n");
     printf("Then hit space to flip font/back status, or return to stop\n");
     fb = FALSE; /* clear front/back status */
-    ami_font(stdout, PA_FONT_SIGN);
+    ami_font(stdout, AMI_FONT_SIGN);
     ami_fontsiz(stdout, ys);
 
     do {
@@ -544,7 +544,7 @@ int main(void)
     } while (er.etype != ami_etenter);
     ami_home(stdout);
     ami_fontsiz(stdout, cs);
-    ami_font(stdout, PA_FONT_TERM);
+    ami_font(stdout, AMI_FONT_TERM);
     ami_auto(stdout, ON);
 
     /* ************************* Frame controls test buffered ****************** */
@@ -681,20 +681,20 @@ int main(void)
     putchar('\f');
     ami_auto(stdout, ON);
     ml = NULL; /* clear menu list */
-    newmenu(&mp, FALSE, FALSE, OFF, PA_SMMAX+1, "one");
+    newmenu(&mp, FALSE, FALSE, OFF, AMI_SMMAX+1, "one");
     appendmenu(&ml, mp);
-    newmenu(&mp, TRUE, FALSE,  ON, PA_SMMAX+2, "two");
+    newmenu(&mp, TRUE, FALSE,  ON, AMI_SMMAX+2, "two");
     appendmenu(&ml, mp);
-    newmenu(&mp, FALSE, FALSE, OFF, PA_SMMAX+3, "three");
+    newmenu(&mp, FALSE, FALSE, OFF, AMI_SMMAX+3, "three");
     appendmenu(&ml, mp);
-    ami_stdmenu(BIT(PA_SMNEW) | BIT(PA_SMOPEN) | BIT(PA_SMCLOSE) |
-               BIT(PA_SMSAVE) | BIT(PA_SMSAVEAS) | BIT(PA_SMPAGESET) |
-               BIT(PA_SMPRINT) | BIT(PA_SMEXIT) | BIT(PA_SMUNDO) |
-               BIT(PA_SMCUT) | BIT(PA_SMPASTE) | BIT(PA_SMDELETE) |
-               BIT(PA_SMFIND) | BIT(PA_SMFINDNEXT) | BIT(PA_SMREPLACE) |
-               BIT(PA_SMGOTO) | BIT(PA_SMSELECTALL) | BIT(PA_SMNEWWINDOW) |
-               BIT(PA_SMTILEHORIZ) | BIT(PA_SMTILEVERT) | BIT(PA_SMCASCADE) |
-               BIT(PA_SMCLOSEALL) | BIT(PA_SMHELPTOPIC) | BIT(PA_SMABOUT),
+    ami_stdmenu(BIT(AMI_SMNEW) | BIT(AMI_SMOPEN) | BIT(AMI_SMCLOSE) |
+               BIT(AMI_SMSAVE) | BIT(AMI_SMSAVEAS) | BIT(AMI_SMPAGESET) |
+               BIT(AMI_SMPRINT) | BIT(AMI_SMEXIT) | BIT(AMI_SMUNDO) |
+               BIT(AMI_SMCUT) | BIT(AMI_SMPASTE) | BIT(AMI_SMDELETE) |
+               BIT(AMI_SMFIND) | BIT(AMI_SMFINDNEXT) | BIT(AMI_SMREPLACE) |
+               BIT(AMI_SMGOTO) | BIT(AMI_SMSELECTALL) | BIT(AMI_SMNEWWINDOW) |
+               BIT(AMI_SMTILEHORIZ) | BIT(AMI_SMTILEVERT) | BIT(AMI_SMCASCADE) |
+               BIT(AMI_SMCLOSEALL) | BIT(AMI_SMHELPTOPIC) | BIT(AMI_SMABOUT),
                &mp, ml);
     ami_menu(stdout, mp);
     printf("Standard menu appears above\n");
@@ -709,33 +709,33 @@ int main(void)
             printf("Menu select: ");
             switch (er.menuid) {
 
-                case PA_SMNEW:       printf("new\n"); break;
-                case PA_SMOPEN:      printf("open\n"); break;
-                case PA_SMCLOSE:     printf("close\n"); break;
-                case PA_SMSAVE:      printf("save\n"); break;
-                case PA_SMSAVEAS:    printf("saveas\n"); break;
-                case PA_SMPAGESET:   printf("pageset\n"); break;
-                case PA_SMPRINT:     printf("print\n"); break;
-                case PA_SMEXIT:      printf("exit\n"); break;
-                case PA_SMUNDO:      printf("undo\n"); break;
-                case PA_SMCUT:       printf("cut\n"); break;
-                case PA_SMPASTE:     printf("paste\n"); break;
-                case PA_SMDELETE:    printf("delete\n"); break;
-                case PA_SMFIND:      printf("find\n"); break;
-                case PA_SMFINDNEXT:  printf("findnext\n"); break;
-                case PA_SMREPLACE:   printf("replace\n"); break;
-                case PA_SMGOTO:      printf("goto\n"); break;
-                case PA_SMSELECTALL: printf("selectall\n"); break;
-                case PA_SMNEWWINDOW: printf("newwindow\n"); break;
-                case PA_SMTILEHORIZ: printf("tilehoriz\n"); break;
-                case PA_SMTILEVERT:  printf("tilevert\n"); break;
-                case PA_SMCASCADE:   printf("cascade\n"); break;
-                case PA_SMCLOSEALL:  printf("closeall\n"); break;
-                case PA_SMHELPTOPIC: printf("helptopic\n"); break;
-                case PA_SMABOUT:     printf("about\n"); break;
-                case PA_SMMAX+1:     printf("one\n"); break;
-                case PA_SMMAX+2:     printf("two\n"); break;
-                case PA_SMMAX+3:     printf("three\n"); break;
+                case AMI_SMNEW:       printf("new\n"); break;
+                case AMI_SMOPEN:      printf("open\n"); break;
+                case AMI_SMCLOSE:     printf("close\n"); break;
+                case AMI_SMSAVE:      printf("save\n"); break;
+                case AMI_SMSAVEAS:    printf("saveas\n"); break;
+                case AMI_SMPAGESET:   printf("pageset\n"); break;
+                case AMI_SMPRINT:     printf("print\n"); break;
+                case AMI_SMEXIT:      printf("exit\n"); break;
+                case AMI_SMUNDO:      printf("undo\n"); break;
+                case AMI_SMCUT:       printf("cut\n"); break;
+                case AMI_SMPASTE:     printf("paste\n"); break;
+                case AMI_SMDELETE:    printf("delete\n"); break;
+                case AMI_SMFIND:      printf("find\n"); break;
+                case AMI_SMFINDNEXT:  printf("findnext\n"); break;
+                case AMI_SMREPLACE:   printf("replace\n"); break;
+                case AMI_SMGOTO:      printf("goto\n"); break;
+                case AMI_SMSELECTALL: printf("selectall\n"); break;
+                case AMI_SMNEWWINDOW: printf("newwindow\n"); break;
+                case AMI_SMTILEHORIZ: printf("tilehoriz\n"); break;
+                case AMI_SMTILEVERT:  printf("tilevert\n"); break;
+                case AMI_SMCASCADE:   printf("cascade\n"); break;
+                case AMI_SMCLOSEALL:  printf("closeall\n"); break;
+                case AMI_SMHELPTOPIC: printf("helptopic\n"); break;
+                case AMI_SMABOUT:     printf("about\n"); break;
+                case AMI_SMMAX+1:     printf("one\n"); break;
+                case AMI_SMMAX+2:     printf("two\n"); break;
+                case AMI_SMMAX+3:     printf("three\n"); break;
 
             }
 
@@ -1125,7 +1125,7 @@ int main(void)
     x = ami_maxxg(stdout);
     y = ami_maxyg(stdout);
     ami_linewidth(stdout, 5); /* set large lines */
-    ami_font(stdout, PA_FONT_SIGN);
+    ami_font(stdout, AMI_FONT_SIGN);
     ami_binvis(stdout);
     do {
 
@@ -1155,7 +1155,7 @@ int main(void)
     } while (er.etype != ami_etenter);
     ami_buffer(stdout, ON);
     ami_fontsiz(stdout, cs);
-    ami_font(stdout, PA_FONT_TERM);
+    ami_font(stdout, AMI_FONT_TERM);
     ami_home(stdout);
     ami_auto(stdout, ON);
 
@@ -1164,7 +1164,7 @@ int main(void)
     putchar('\f');
     ami_auto(stdout, OFF);
     ami_buffer(stdout, OFF);
-    ami_font(stdout, PA_FONT_TERM);
+    ami_font(stdout, AMI_FONT_TERM);
     mincnt = 0; /* clear minimize counter */
     maxcnt = 0; /* clear maximize counter */
     nrmcnt = 0; /* clear normalize counter */
@@ -1439,7 +1439,7 @@ int main(void)
 
     putchar('\f');
     ami_auto(stdout, OFF);
-    ami_font(stdout, PA_FONT_SIGN);
+    ami_font(stdout, AMI_FONT_SIGN);
     ami_fontsiz(stdout, 50);
     prtceng(ami_maxyg(stdout)/2-ami_chrsizy(stdout)/2, "Test complete");
 
