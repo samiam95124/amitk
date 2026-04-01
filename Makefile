@@ -1345,6 +1345,12 @@ chess: $(GLIBSD) graph_games/chess.c
 checkers: $(GLIBSD) graph_games/checkers.c
 	$(CC) $(CFLAGS) graph_games/checkers.c $(GLIBS) -o bin/checkers
 
+#
+# Defenders game (Space Invaders style)
+#
+defenders: $(GLIBSD) graph_games/defenders.c
+	$(CC) $(CFLAGS) graph_games/defenders.c $(GLIBS) -o bin/defenders
+
 ################################################################################
 #
 # Clean target
