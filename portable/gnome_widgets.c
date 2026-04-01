@@ -6809,7 +6809,7 @@ Widgets startup
 
 *******************************************************************************/
 
-static void init_widgets(void) __attribute__((constructor (103)));
+static void init_widgets(void) __attribute__((constructor (105)));
 static void init_widgets()
 
 {
@@ -7022,7 +7022,7 @@ Widgets shutdown
 
 *******************************************************************************/
 
-static void deinit_widgets(void) __attribute__((destructor (103)));
+static void deinit_widgets(void) __attribute__((destructor (105)));
 static void deinit_widgets()
 
 {

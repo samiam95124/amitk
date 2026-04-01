@@ -298,15 +298,15 @@ void ovr_unlink(vt_unlink_t nfp, vt_unlink_t* ofp)
     { *ofp = vt_unlink; vt_unlink = nfp; }
 void ovr_lseek(vt_lseek_t nfp, vt_lseek_t* ofp) { *ofp = vt_lseek; vt_lseek = nfp; }
 
-/* nocancel is a glibc thing. We equate it to the regular calls */
+/* nocancel overrides use separate vectors to avoid stomping the regular ones */
 void ovr_read_nocancel(vt_read_t nfp, vt_read_t* ofp)
-    { *ofp = vt_read; vt_read = nfp; }
+    { *ofp = vt_read_nocancel; vt_read_nocancel = nfp; }
 void ovr_write_nocancel(vt_write_t nfp, vt_write_t* ofp)
-    { *ofp = vt_write; vt_write = nfp; }
+    { *ofp = vt_write_nocancel; vt_write_nocancel = nfp; }
 void ovr_open_nocancel(vt_open_t nfp, vt_open_t* ofp)
-    { *ofp = vt_open; vt_open = nfp; }
+    { *ofp = vt_open_nocancel; vt_open_nocancel = nfp; }
 void ovr_close_nocancel(vt_close_t nfp, vt_close_t* ofp)
-    { *ofp = vt_close; vt_close = nfp; }
+    { *ofp = vt_close_nocancel; vt_close_nocancel = nfp; }
 
 /*******************************************************************************
 

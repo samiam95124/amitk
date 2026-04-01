@@ -14582,6 +14582,7 @@ static void ami_init_graphics(int argc, char *argv[])
     int       f;    /* window creation flags */
     ami_valptr config_root; /* root for config block */
     ami_valptr term_root; /* root for terminal block */
+
     ami_valptr graph_root; /* root for graphics block */
     ami_valptr diag_root; /* root for diagnostics block */
     ami_valptr xwin_root; /* root for xwindow */

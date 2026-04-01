@@ -6279,7 +6279,7 @@ table, and initalizes the sequencer task mutex.
 
 *******************************************************************************/
 
-static void ami_init_sound (void) __attribute__((constructor (102)));
+static void ami_init_sound (void) __attribute__((constructor (103)));
 static void ami_init_sound()
 
 {
@@ -6385,7 +6385,7 @@ Closes down all of the active devices.
 
 *******************************************************************************/
 
-static void ami_deinit_sound (void) __attribute__((destructor (102)));
+static void ami_deinit_sound (void) __attribute__((destructor (103)));
 static void ami_deinit_sound()
 
 {
