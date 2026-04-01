@@ -541,7 +541,7 @@ typedef struct winrec {
     char         inpbuf[MAXLIN];    /* input line buffer */
     int          inpptr;            /* input line index */
     int          frmrun;            /* framing timer is running */
-    int          timers[PA_MAXTIM]; /* timer id array */
+    int          timers[AMI_MAXTIM]; /* timer id array */
     int          frmsev;            /* frame timer system event */
     int          focus;             /* screen in focus */
     picptr       pictbl[MAXPIC];    /* loadable pictures table */
@@ -4935,7 +4935,7 @@ static void openmenu(
     ami_frame(mp->wf, FALSE); /* turn off frame */
     ami_auto(mp->wf, FALSE); /* turn off auto */
     ami_curvis(mp->wf, FALSE); /* turn off cursor */
-    ami_font(mp->wf, PA_FONT_SIGN); /* set button font */
+    ami_font(mp->wf, AMI_FONT_SIGN); /* set button font */
     ami_bold(mp->wf, TRUE); /* set bold */
     ami_setposg(mp->wf, x1, y1); /* place at position */
     ami_setsizg(mp->wf, x2-x1+1, y2-y1+1); /* set size */
@@ -11893,7 +11893,7 @@ static void timer_ivf(FILE* f, /* file to send event to */
     winptr win; /* windows record pointer */
     int    sid; /* system event */
 
-    if (i < 1 || i > PA_MAXTIM) error(einvhan); /* invalid timer handle */
+    if (i < 1 || i > AMI_MAXTIM) error(einvhan); /* invalid timer handle */
     win = txt2win(f); /* get window from file */
     /* set system event */
     sid = system_event_addsetim(win->timers[i-1], t, r);
@@ -11925,7 +11925,7 @@ static void killtimer_ivf(FILE* f, /* file to kill timer on */
 
     winptr win; /* windows record pointer */
 
-    if (i < 1 || i > PA_MAXTIM) error(einvhan); /* invalid timer handle */
+    if (i < 1 || i > AMI_MAXTIM) error(einvhan); /* invalid timer handle */
     win = txt2win(f); /* get window from file */
     if (!win->timers[i-1]) error(etimacc); /* no such timer */
     system_event_deasetim(win->timers[i-1]); /* deactivate timer */
@@ -12986,43 +12986,43 @@ static void stdmenu_ivf(ami_stdmenusel sms, ami_menuptr* sm, ami_menuptr pm)
 
     /* check and perform "file" menu */
 
-    if (sms & (BIT(PA_SMNEW) | BIT(PA_SMOPEN) | BIT(PA_SMCLOSE) |
-               BIT(PA_SMSAVE) | BIT(PA_SMSAVEAS) | BIT(PA_SMPAGESET) |
-               BIT(PA_SMPRINT) | BIT(PA_SMEXIT))) { /* file menu */
+    if (sms & (BIT(AMI_SMNEW) | BIT(AMI_SMOPEN) | BIT(AMI_SMCLOSE) |
+               BIT(AMI_SMSAVE) | BIT(AMI_SMSAVEAS) | BIT(AMI_SMPAGESET) |
+               BIT(AMI_SMPRINT) | BIT(AMI_SMEXIT))) { /* file menu */
 
         getmenu(&hm, 0, "File"); /* get entry */
         appendmenu(sm, hm);
 
-        additem(sms, PA_SMNEW, &m, &hm->branch, "New", FALSE);
-        additem(sms, PA_SMOPEN, &m, &hm->branch, "Open", FALSE);
-        additem(sms, PA_SMCLOSE, &m, &hm->branch, "Close", FALSE);
-        additem(sms, PA_SMSAVE, &m, &hm->branch, "Save", FALSE);
-        additem(sms, PA_SMSAVEAS, &m, &hm->branch, "Save As", TRUE);
-        additem(sms, PA_SMPAGESET, &m, &hm->branch, "Page Setup", FALSE);
-        additem(sms, PA_SMPRINT, &m, &hm->branch, "Print", TRUE);
-        additem(sms, PA_SMEXIT, &m, &hm->branch, "Exit", FALSE);
+        additem(sms, AMI_SMNEW, &m, &hm->branch, "New", FALSE);
+        additem(sms, AMI_SMOPEN, &m, &hm->branch, "Open", FALSE);
+        additem(sms, AMI_SMCLOSE, &m, &hm->branch, "Close", FALSE);
+        additem(sms, AMI_SMSAVE, &m, &hm->branch, "Save", FALSE);
+        additem(sms, AMI_SMSAVEAS, &m, &hm->branch, "Save As", TRUE);
+        additem(sms, AMI_SMPAGESET, &m, &hm->branch, "Page Setup", FALSE);
+        additem(sms, AMI_SMPRINT, &m, &hm->branch, "Print", TRUE);
+        additem(sms, AMI_SMEXIT, &m, &hm->branch, "Exit", FALSE);
 
    }
 
    /* check and perform "edit" menu */
 
-   if (sms&(BIT(PA_SMUNDO) | BIT(PA_SMCUT) | BIT(PA_SMPASTE) |
-            BIT(PA_SMDELETE) | BIT(PA_SMFIND) | BIT(PA_SMFINDNEXT) |
-            BIT(PA_SMREPLACE) | BIT(PA_SMGOTO) | BIT(PA_SMSELECTALL))) {
+   if (sms&(BIT(AMI_SMUNDO) | BIT(AMI_SMCUT) | BIT(AMI_SMPASTE) |
+            BIT(AMI_SMDELETE) | BIT(AMI_SMFIND) | BIT(AMI_SMFINDNEXT) |
+            BIT(AMI_SMREPLACE) | BIT(AMI_SMGOTO) | BIT(AMI_SMSELECTALL))) {
 
         /* file menu */
         getmenu(&hm, 0, "Edit"); /* get entry */
         appendmenu(sm, hm);
 
-        additem(sms, PA_SMUNDO, &m, &hm->branch, "Undo", TRUE);
-        additem(sms, PA_SMCUT, &m, &hm->branch, "Cut", FALSE);
-        additem(sms, PA_SMPASTE, &m, &hm->branch, "Paste", FALSE);
-        additem(sms, PA_SMDELETE, &m, &hm->branch, "Delete", TRUE);
-        additem(sms, PA_SMFIND, &m, &hm->branch, "Find", FALSE);
-        additem(sms, PA_SMFINDNEXT, &m, &hm->branch, "Find Next", FALSE);
-        additem(sms, PA_SMREPLACE, &m, &hm->branch, "Replace", FALSE);
-        additem(sms, PA_SMGOTO, &m, &hm->branch, "Goto", TRUE);
-        additem(sms, PA_SMSELECTALL, &m, &hm->branch, "Select All", FALSE);
+        additem(sms, AMI_SMUNDO, &m, &hm->branch, "Undo", TRUE);
+        additem(sms, AMI_SMCUT, &m, &hm->branch, "Cut", FALSE);
+        additem(sms, AMI_SMPASTE, &m, &hm->branch, "Paste", FALSE);
+        additem(sms, AMI_SMDELETE, &m, &hm->branch, "Delete", TRUE);
+        additem(sms, AMI_SMFIND, &m, &hm->branch, "Find", FALSE);
+        additem(sms, AMI_SMFINDNEXT, &m, &hm->branch, "Find Next", FALSE);
+        additem(sms, AMI_SMREPLACE, &m, &hm->branch, "Replace", FALSE);
+        additem(sms, AMI_SMGOTO, &m, &hm->branch, "Goto", TRUE);
+        additem(sms, AMI_SMSELECTALL, &m, &hm->branch, "Select All", FALSE);
 
    }
 
@@ -13038,29 +13038,29 @@ static void stdmenu_ivf(ami_stdmenusel sms, ami_menuptr* sm, ami_menuptr pm)
 
    /* check and perform "window" menu */
 
-   if (sms & (BIT(PA_SMNEWWINDOW) | BIT(PA_SMTILEHORIZ) | BIT(PA_SMTILEVERT) |
-              BIT(PA_SMCASCADE) | BIT(PA_SMCLOSEALL)))  { /* file menu */
+   if (sms & (BIT(AMI_SMNEWWINDOW) | BIT(AMI_SMTILEHORIZ) | BIT(AMI_SMTILEVERT) |
+              BIT(AMI_SMCASCADE) | BIT(AMI_SMCLOSEALL)))  { /* file menu */
 
         getmenu(&hm, 0, "Window"); /* get entry */
         appendmenu(sm, hm);
 
-        additem(sms, PA_SMNEWWINDOW, &m, &hm->branch, "New Window", TRUE);
-        additem(sms, PA_SMTILEHORIZ, &m, &hm->branch, "Tile Horizontally", FALSE);
-        additem(sms, PA_SMTILEVERT, &m, &hm->branch, "Tile Vertically", FALSE);
-        additem(sms, PA_SMCASCADE, &m, &hm->branch, "Cascade", TRUE);
-        additem(sms, PA_SMCLOSEALL, &m, &hm->branch, "Close All", FALSE);
+        additem(sms, AMI_SMNEWWINDOW, &m, &hm->branch, "New Window", TRUE);
+        additem(sms, AMI_SMTILEHORIZ, &m, &hm->branch, "Tile Horizontally", FALSE);
+        additem(sms, AMI_SMTILEVERT, &m, &hm->branch, "Tile Vertically", FALSE);
+        additem(sms, AMI_SMCASCADE, &m, &hm->branch, "Cascade", TRUE);
+        additem(sms, AMI_SMCLOSEALL, &m, &hm->branch, "Close All", FALSE);
 
    }
 
    /* check and perform "help" menu */
 
-   if (sms & (BIT(PA_SMHELPTOPIC) | BIT(PA_SMABOUT))) { /* file menu */
+   if (sms & (BIT(AMI_SMHELPTOPIC) | BIT(AMI_SMABOUT))) { /* file menu */
 
         getmenu(&hm, 0, "Help"); /* get entry */
         appendmenu(sm, hm);
 
-        additem(sms, PA_SMHELPTOPIC, &m, &hm->branch, "Help Topics", TRUE);
-        additem(sms, PA_SMABOUT, &m, &hm->branch, "About", FALSE);
+        additem(sms, AMI_SMHELPTOPIC, &m, &hm->branch, "Help Topics", TRUE);
+        additem(sms, AMI_SMABOUT, &m, &hm->branch, "About", FALSE);
 
     }
 

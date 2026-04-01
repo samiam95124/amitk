@@ -132,7 +132,7 @@ int main(void)
     ami_buffer(stdout, FALSE); /* turn off buffering */
     ami_auto(stdout, FALSE); /* turn off wrap/scroll */
     ami_binvis(stdout); /* set no background overwrite on text */
-    ami_font(stdout, PA_FONT_SIGN); /* use proportional font */
+    ami_font(stdout, AMI_FONT_SIGN); /* use proportional font */
     ami_bold(stdout, TRUE); /* turn on bold */
     frm = TRUE; /* set frame on */
     ami_timer(stdout, 1, 10000, TRUE); /* set second update timer */

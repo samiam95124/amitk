@@ -14,7 +14,7 @@ Plays the given midi file.
 #include <sound.h>
 #include <option.h>
 
-int dport = PA_WAVE_OUT; /* set default wave out */
+int dport = AMI_WAVE_OUT; /* set default wave out */
 
 ami_optrec opttbl[] = {
 

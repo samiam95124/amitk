@@ -7827,7 +7827,7 @@ static void winevt(winptr win, ami_evtrec* er, MSG* msg, int ofn, int* keep)
     } else if (msg->message == WM_TIMER) {
 
         /* check its a standard timer */
-        if (msg->wParam > 0 && msg->wParam <= PA_MAXTIM)  {
+        if (msg->wParam > 0 && msg->wParam <= AMI_MAXTIM)  {
 
             er->etype = ami_ettim; /* set timer event occurred */
             er->timnum = msg->wParam; /* set what timer */
@@ -8393,7 +8393,7 @@ static void CALLBACK timeout(UINT id, UINT msg, DWORD_PTR usr, DWORD_PTR dw1,
     HWND wh; /* window handle */
 
     lockmain(); /* start exclusive access */
-    fn = usr/PA_MAXTIM; /* get lfn multiplexed in user data */
+    fn = usr/AMI_MAXTIM; /* get lfn multiplexed in user data */
     /* Validate it, but do nothing if wrong. We just don"t want to crash on
        errors here. */
     if (fn >= 0 && fn < MAXFIL)  /* valid lfn */
@@ -8402,7 +8402,7 @@ static void CALLBACK timeout(UINT id, UINT msg, DWORD_PTR usr, DWORD_PTR dw1,
 
         wh = opnfil[fn]->win->winhan; /* get window handle */
         unlockmain(); /* end exclusive access */
-        putmsg(wh, WM_TIMER, usr%PA_MAXTIM /* multiplexed timer number*/, 0);
+        putmsg(wh, WM_TIMER, usr%AMI_MAXTIM /* multiplexed timer number*/, 0);
 
     } else unlockmain(); /* end exclusive access */
 
@@ -8434,7 +8434,7 @@ static void itimer(winptr win, /* file to send event to */
     int tf; /* timer flags */
     int mt; /* millisecond time */
 
-    if (i < 1 || i > PA_MAXTIM)  error(etimnum); /* bad timer number */
+    if (i < 1 || i > AMI_MAXTIM)  error(etimnum); /* bad timer number */
     mt = t / 10; /* find millisecond time */
     if (!mt) mt = 1; /* fell below minimum, must be >= 1 */
     /* set flags for timer */
@@ -8445,7 +8445,7 @@ static void itimer(winptr win, /* file to send event to */
     /* We need both the timer number, and the window number in the handler,
       but we only have a single callback parameter available. So we mux
       them together in a word. */
-    win->timers[i].han = timeSetEvent(mt, 0, timeout, lf*PA_MAXTIM+i, tf);
+    win->timers[i].han = timeSetEvent(mt, 0, timeout, lf*AMI_MAXTIM+i, tf);
     if (!win->timers[i].han) error(etimacc); /* no timer available */
     win->timers[i].rep = r; /* set timer repeat flag */
     /* should check and return an error */
@@ -8483,7 +8483,7 @@ static void ikilltimer(winptr win, /* file to kill timer on */
 
     MMRESULT r; /* return value */
 
-    if (i < 1 || i > PA_MAXTIM) error(etimnum); /* bad timer number */
+    if (i < 1 || i > AMI_MAXTIM) error(etimnum); /* bad timer number */
     r = timeKillEvent(win->timers[i].han); /* kill timer */
     if (r) error(etimacc); /* error */
 
@@ -8523,7 +8523,7 @@ static void iframetimer(winptr win, int lf, int e)
         if (!win->frmrun) { /* it is not running */
 
             /* set timer to run, 17ms */
-            win->frmhan = timeSetEvent(17, 0, timeout, lf*PA_MAXTIM+FRMTIM,
+            win->frmhan = timeSetEvent(17, 0, timeout, lf*AMI_MAXTIM+FRMTIM,
                                        TIME_CALLBACK_FUNCTION ||
                                        TIME_KILL_SYNCHRONOUS ||
                                        TIME_PERIODIC);
@@ -11427,43 +11427,43 @@ void ami_stdmenu(ami_stdmenusel sms, ami_menuptr* sm, ami_menuptr pm)
 
     /* check and perform "file" menu */
 
-    if (sms & (BIT(PA_SMNEW) | BIT(PA_SMOPEN) | BIT(PA_SMCLOSE) |
-               BIT(PA_SMSAVE) | BIT(PA_SMSAVEAS) | BIT(PA_SMPAGESET) |
-               BIT(PA_SMPRINT) | BIT(PA_SMEXIT))) { /* file menu */
+    if (sms & (BIT(AMI_SMNEW) | BIT(AMI_SMOPEN) | BIT(AMI_SMCLOSE) |
+               BIT(AMI_SMSAVE) | BIT(AMI_SMSAVEAS) | BIT(AMI_SMPAGESET) |
+               BIT(AMI_SMPRINT) | BIT(AMI_SMEXIT))) { /* file menu */
 
         getmenu(&hm, 0, "File"); /* get entry */
         appendmenu(sm, hm);
 
-        additem(sms, PA_SMNEW, &m, &hm->branch, "New", FALSE);
-        additem(sms, PA_SMOPEN, &m, &hm->branch, "Open", FALSE);
-        additem(sms, PA_SMCLOSE, &m, &hm->branch, "Close", FALSE);
-        additem(sms, PA_SMSAVE, &m, &hm->branch, "Save", FALSE);
-        additem(sms, PA_SMSAVEAS, &m, &hm->branch, "Save As", TRUE);
-        additem(sms, PA_SMPAGESET, &m, &hm->branch, "Page Setup", FALSE);
-        additem(sms, PA_SMPRINT, &m, &hm->branch, "Print", TRUE);
-        additem(sms, PA_SMEXIT, &m, &hm->branch, "Exit", FALSE);
+        additem(sms, AMI_SMNEW, &m, &hm->branch, "New", FALSE);
+        additem(sms, AMI_SMOPEN, &m, &hm->branch, "Open", FALSE);
+        additem(sms, AMI_SMCLOSE, &m, &hm->branch, "Close", FALSE);
+        additem(sms, AMI_SMSAVE, &m, &hm->branch, "Save", FALSE);
+        additem(sms, AMI_SMSAVEAS, &m, &hm->branch, "Save As", TRUE);
+        additem(sms, AMI_SMPAGESET, &m, &hm->branch, "Page Setup", FALSE);
+        additem(sms, AMI_SMPRINT, &m, &hm->branch, "Print", TRUE);
+        additem(sms, AMI_SMEXIT, &m, &hm->branch, "Exit", FALSE);
 
    }
 
    /* check and perform "edit" menu */
 
-   if (sms&(BIT(PA_SMUNDO) | BIT(PA_SMCUT) | BIT(PA_SMPASTE) |
-            BIT(PA_SMDELETE) | BIT(PA_SMFIND) | BIT(PA_SMFINDNEXT) |
-            BIT(PA_SMREPLACE) | BIT(PA_SMGOTO) | BIT(PA_SMSELECTALL))) {
+   if (sms&(BIT(AMI_SMUNDO) | BIT(AMI_SMCUT) | BIT(AMI_SMPASTE) |
+            BIT(AMI_SMDELETE) | BIT(AMI_SMFIND) | BIT(AMI_SMFINDNEXT) |
+            BIT(AMI_SMREPLACE) | BIT(AMI_SMGOTO) | BIT(AMI_SMSELECTALL))) {
 
         /* file menu */
         getmenu(&hm, 0, "Edit"); /* get entry */
         appendmenu(sm, hm);
 
-        additem(sms, PA_SMUNDO, &m, &hm->branch, "Undo", TRUE);
-        additem(sms, PA_SMCUT, &m, &hm->branch, "Cut", FALSE);
-        additem(sms, PA_SMPASTE, &m, &hm->branch, "Paste", FALSE);
-        additem(sms, PA_SMDELETE, &m, &hm->branch, "Delete", TRUE);
-        additem(sms, PA_SMFIND, &m, &hm->branch, "Find", FALSE);
-        additem(sms, PA_SMFINDNEXT, &m, &hm->branch, "Find Next", FALSE);
-        additem(sms, PA_SMREPLACE, &m, &hm->branch, "Replace", FALSE);
-        additem(sms, PA_SMGOTO, &m, &hm->branch, "Goto", TRUE);
-        additem(sms, PA_SMSELECTALL, &m, &hm->branch, "Select All", FALSE);
+        additem(sms, AMI_SMUNDO, &m, &hm->branch, "Undo", TRUE);
+        additem(sms, AMI_SMCUT, &m, &hm->branch, "Cut", FALSE);
+        additem(sms, AMI_SMPASTE, &m, &hm->branch, "Paste", FALSE);
+        additem(sms, AMI_SMDELETE, &m, &hm->branch, "Delete", TRUE);
+        additem(sms, AMI_SMFIND, &m, &hm->branch, "Find", FALSE);
+        additem(sms, AMI_SMFINDNEXT, &m, &hm->branch, "Find Next", FALSE);
+        additem(sms, AMI_SMREPLACE, &m, &hm->branch, "Replace", FALSE);
+        additem(sms, AMI_SMGOTO, &m, &hm->branch, "Goto", TRUE);
+        additem(sms, AMI_SMSELECTALL, &m, &hm->branch, "Select All", FALSE);
 
    }
 
@@ -11479,29 +11479,29 @@ void ami_stdmenu(ami_stdmenusel sms, ami_menuptr* sm, ami_menuptr pm)
 
    /* check and perform "window" menu */
 
-   if (sms & (BIT(PA_SMNEWWINDOW) | BIT(PA_SMTILEHORIZ) | BIT(PA_SMTILEVERT) |
-              BIT(PA_SMCASCADE) | BIT(PA_SMCLOSEALL)))  { /* file menu */
+   if (sms & (BIT(AMI_SMNEWWINDOW) | BIT(AMI_SMTILEHORIZ) | BIT(AMI_SMTILEVERT) |
+              BIT(AMI_SMCASCADE) | BIT(AMI_SMCLOSEALL)))  { /* file menu */
 
         getmenu(&hm, 0, "Window"); /* get entry */
         appendmenu(sm, hm);
 
-        additem(sms, PA_SMNEWWINDOW, &m, &hm->branch, "New Window", TRUE);
-        additem(sms, PA_SMTILEHORIZ, &m, &hm->branch, "Tile Horizontally", FALSE);
-        additem(sms, PA_SMTILEVERT, &m, &hm->branch, "Tile Vertically", FALSE);
-        additem(sms, PA_SMCASCADE, &m, &hm->branch, "Cascade", TRUE);
-        additem(sms, PA_SMCLOSEALL, &m, &hm->branch, "Close All", FALSE);
+        additem(sms, AMI_SMNEWWINDOW, &m, &hm->branch, "New Window", TRUE);
+        additem(sms, AMI_SMTILEHORIZ, &m, &hm->branch, "Tile Horizontally", FALSE);
+        additem(sms, AMI_SMTILEVERT, &m, &hm->branch, "Tile Vertically", FALSE);
+        additem(sms, AMI_SMCASCADE, &m, &hm->branch, "Cascade", TRUE);
+        additem(sms, AMI_SMCLOSEALL, &m, &hm->branch, "Close All", FALSE);
 
    }
 
    /* check and perform "help" menu */
 
-   if (sms & (BIT(PA_SMHELPTOPIC) | BIT(PA_SMABOUT))) { /* file menu */
+   if (sms & (BIT(AMI_SMHELPTOPIC) | BIT(AMI_SMABOUT))) { /* file menu */
 
         getmenu(&hm, 0, "Help"); /* get entry */
         appendmenu(sm, hm);
 
-        additem(sms, PA_SMHELPTOPIC, &m, &hm->branch, "Help Topics", TRUE);
-        additem(sms, PA_SMABOUT, &m, &hm->branch, "About", FALSE);
+        additem(sms, AMI_SMHELPTOPIC, &m, &hm->branch, "Help Topics", TRUE);
+        additem(sms, AMI_SMABOUT, &m, &hm->branch, "About", FALSE);
 
     }
 

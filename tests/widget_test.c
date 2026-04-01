@@ -2047,7 +2047,7 @@ int main(void)
     printf("\n");
     printf("There should be a font query dialog\n");
     printf("Both the dialog and this window should be fully reactive\n");
-    fc = PA_FONT_BOOK;
+    fc = AMI_FONT_BOOK;
     fs = ami_chrsizy(stdout);
     fr = 0; /* set foreground to ami_black */
     fg = 0;

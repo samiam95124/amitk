@@ -29,9 +29,9 @@
 #define MOVTIM 400    /* ball move time (1/25) sec */
 #define NEWBAL (25*2) /* wait for new ball time, 1 sec (in ball move units) */
 #define BNCENOTE 1    /* time to play bounce note */
-#define WALLNOTE (PA_NOTE_D+PA_OCTAVE_6) /* note to play off WALL */
+#define WALLNOTE (AMI_NOTE_D+AMI_OCTAVE_6) /* note to play off WALL */
 #define FAILTIME 4                /* note to play on failure */
-#define FAILNOTE (PA_NOTE_C+PA_OCTAVE_4) /* note to play on fail */
+#define FAILNOTE (AMI_NOTE_C+AMI_OCTAVE_4) /* note to play on fail */
 
 int       padx;   /* paddle position x */
 int       ballx;  /* ball position x */
@@ -136,8 +136,8 @@ int main(void)
     nottim = 0; /* clear bounce note timer */
     failtimer = 0; /* clear fail timer */
     #if SOUND
-    ami_opensynthout(PA_SYNTH_OUT); /* open synthesizer */
-    ami_instchange(PA_SYNTH_OUT, 0, 1, PA_INST_LEAD_1_SQUARE);
+    ami_opensynthout(AMI_SYNTH_OUT); /* open synthesizer */
+    ami_instchange(AMI_SYNTH_OUT, 0, 1, AMI_INST_LEAD_1_SQUARE);
     #endif
     jchr = INT_MAX/((ami_maxx(stdout)-2)/2); /* find basic joystick increment */
     ami_select(stdout, 2, 2); /* switch screens */
@@ -191,7 +191,7 @@ int main(void)
                     nottim--; /* derement */
                     #if SOUND
                     if (nottim == 0) /* times up, turn note off */
-                        ami_noteoff(PA_SYNTH_OUT, 0, 1, WALLNOTE, INT_MAX);
+                        ami_noteoff(AMI_SYNTH_OUT, 0, 1, WALLNOTE, INT_MAX);
                     #endif
 
                 }
@@ -201,7 +201,7 @@ int main(void)
                     failtimer = failtimer-1; /* derement */
                     #if SOUND
                     if (!failtimer) /* times up, turn note off */
-                        ami_noteoff(PA_SYNTH_OUT, 0, 1, FAILNOTE, INT_MAX);
+                        ami_noteoff(AMI_SYNTH_OUT, 0, 1, FAILNOTE, INT_MAX);
                     #endif
 
                 }
@@ -220,7 +220,7 @@ int main(void)
                         ballx = ballx+bdx; /* recalculate */
                         /* start bounce note */
                         #if SOUND
-                        ami_noteon(PA_SYNTH_OUT, 0, 1, WALLNOTE, INT_MAX);
+                        ami_noteon(AMI_SYNTH_OUT, 0, 1, WALLNOTE, INT_MAX);
                         #endif
                         nottim = BNCENOTE; /* set timer */
 
@@ -232,7 +232,7 @@ int main(void)
                         bally = bally+bdy; /* recalculate */
                         /* start bounce note */
                         #if SOUND
-                        ami_noteon(PA_SYNTH_OUT, 0, 1, WALLNOTE, INT_MAX);
+                        ami_noteon(AMI_SYNTH_OUT, 0, 1, WALLNOTE, INT_MAX);
                         #endif
                         nottim = BNCENOTE; /* set timer */
 
@@ -247,7 +247,7 @@ int main(void)
                         score = score+1; /* count hits */
                         /* start bounce note */
                         #if SOUND
-                        ami_noteon(PA_SYNTH_OUT, 0, 1, WALLNOTE, INT_MAX);
+                        ami_noteon(AMI_SYNTH_OUT, 0, 1, WALLNOTE, INT_MAX);
                         #endif
                         nottim = BNCENOTE; /* set timer */
 
@@ -269,7 +269,7 @@ int main(void)
             baltim = NEWBAL; /* start time on new ball wait */
             /* start fail note */
             #if SOUND
-            ami_noteon(PA_SYNTH_OUT, 0, 1, FAILNOTE, INT_MAX);
+            ami_noteon(AMI_SYNTH_OUT, 0, 1, FAILNOTE, INT_MAX);
             #endif
             failtimer = FAILTIME; /* set timer */
 
@@ -284,7 +284,7 @@ int main(void)
     ami_select(stdout, 1, 1); /* restore screen */
 
     #if SOUND
-    ami_closesynthout(PA_SYNTH_OUT); /* close synthesizer */
+    ami_closesynthout(AMI_SYNTH_OUT); /* close synthesizer */
     #endif
 
     return (0); /* exit no error */

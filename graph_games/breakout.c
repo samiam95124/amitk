@@ -30,10 +30,10 @@
 #define   WALLCLR     ami_cyan                 /* wall ami_color */
 #define   PADCLR      ami_green                /* paddle ami_color */
 #define   BOUNCETIME  250                     /* time to play bounce note */
-#define   WALLNOTE    (PA_NOTE_D+PA_OCTAVE_6) /* note to play off wall */
-#define   BRICKNOTE   (PA_NOTE_E+PA_OCTAVE_7) /* note to play off brick */
+#define   WALLNOTE    (AMI_NOTE_D+AMI_OCTAVE_6) /* note to play off wall */
+#define   BRICKNOTE   (AMI_NOTE_E+AMI_OCTAVE_7) /* note to play off brick */
 #define   FAILTIME    1500                    /* note to play on failure */
-#define   FAILNOTE    (PA_NOTE_C+PA_OCTAVE_4) /* note to play on fail */
+#define   FAILNOTE    (AMI_NOTE_C+AMI_OCTAVE_4) /* note to play on fail */
 #define   BRKROW      6                       /* number of brick rows */
 #define   BRKCOL      10                      /* number of brick columns */
 
@@ -473,14 +473,14 @@ int main(void)
 {
 
 #ifdef SOUND
-    ami_opensynthout(PA_SYNTH_OUT); /* open synthesizer */
-    ami_instchange(PA_SYNTH_OUT, 0, 1, PA_INST_LEAD_1_SQUARE);
+    ami_opensynthout(AMI_SYNTH_OUT); /* open synthesizer */
+    ami_instchange(AMI_SYNTH_OUT, 0, 1, AMI_INST_LEAD_1_SQUARE);
     ami_starttimeout(); /* start sequencer running */
 #endif
     jchr = INT_MAX/((ami_maxxg(stdout)-2)/2); /* find basic joystick increment */
     ami_curvis(stdout, FALSE); /* remove drawing cursor */
     ami_auto(stdout, FALSE); /* turn off scrolling */
-    ami_font(stdout, PA_FONT_SIGN); /* sign font */
+    ami_font(stdout, AMI_FONT_SIGN); /* sign font */
     wall = ami_maxyg(stdout)/20; /* set wall thickness */
     brkh = ami_maxyg(stdout)/25; /* set brick thickness */
     brkbrd = brkh/5; /* set brick border */
@@ -574,8 +574,8 @@ int main(void)
                             offrect(&ball, bdx, bdy); /* recalculate */
 #ifdef SOUND
                             /* start bounce note */
-                            ami_noteon(PA_SYNTH_OUT, 0, 1, WALLNOTE, INT_MAX);
-                            ami_noteoff(PA_SYNTH_OUT, ami_curtimeout()+BOUNCETIME, 1, WALLNOTE, INT_MAX);
+                            ami_noteon(AMI_SYNTH_OUT, 0, 1, WALLNOTE, INT_MAX);
+                            ami_noteoff(AMI_SYNTH_OUT, ami_curtimeout()+BOUNCETIME, 1, WALLNOTE, INT_MAX);
 #endif
 
                         } else if (intsec(&ball, &wallt)) { /* hits top */
@@ -585,8 +585,8 @@ int main(void)
                             offrect(&ball, bdx, bdy); /* recalculate */
 #ifdef SOUND
                             /* start bounce note */
-                            ami_noteon(PA_SYNTH_OUT, 0, 1, WALLNOTE, INT_MAX);
-                            ami_noteoff(PA_SYNTH_OUT, ami_curtimeout()+BOUNCETIME, 1, WALLNOTE, INT_MAX);
+                            ami_noteon(AMI_SYNTH_OUT, 0, 1, WALLNOTE, INT_MAX);
+                            ami_noteoff(AMI_SYNTH_OUT, ami_curtimeout()+BOUNCETIME, 1, WALLNOTE, INT_MAX);
 #endif
 
                         } else if (intsec(&ball, &paddle)) {
@@ -615,8 +615,8 @@ int main(void)
                                 offrect(&ball, 0, -(ball.y2-paddle.y1+1));
 #ifdef SOUND
                             /* start bounce note */
-                            ami_noteon(PA_SYNTH_OUT, 0, 1, WALLNOTE, INT_MAX);
-                            ami_noteoff(PA_SYNTH_OUT, ami_curtimeout()+BOUNCETIME, 1, WALLNOTE, INT_MAX);
+                            ami_noteon(AMI_SYNTH_OUT, 0, 1, WALLNOTE, INT_MAX);
+                            ami_noteoff(AMI_SYNTH_OUT, ami_curtimeout()+BOUNCETIME, 1, WALLNOTE, INT_MAX);
 #endif
 
                         } else { /* check brick hits */
@@ -629,8 +629,8 @@ int main(void)
                                 offrect(&ball, bdx, bdy); /* recalculate */
 #ifdef SOUND
                                 /* start bounce note */
-                                ami_noteon(PA_SYNTH_OUT, 0, 1, BRICKNOTE, INT_MAX);
-                                ami_noteoff(PA_SYNTH_OUT, ami_curtimeout()+BOUNCETIME, 1, BRICKNOTE, INT_MAX);
+                                ami_noteon(AMI_SYNTH_OUT, 0, 1, BRICKNOTE, INT_MAX);
+                                ami_noteoff(AMI_SYNTH_OUT, ami_curtimeout()+BOUNCETIME, 1, BRICKNOTE, INT_MAX);
 #endif
 
                             }
@@ -644,8 +644,8 @@ int main(void)
                             baltim = NEWBAL/BALMOV;
 #ifdef SOUND
                             /* start fail note */
-                            ami_noteon(PA_SYNTH_OUT, 0, 1, FAILNOTE, INT_MAX);
-                            ami_noteoff(PA_SYNTH_OUT, ami_curtimeout()+FAILTIME, 1, FAILNOTE, INT_MAX);
+                            ami_noteon(AMI_SYNTH_OUT, 0, 1, FAILNOTE, INT_MAX);
+                            ami_noteoff(AMI_SYNTH_OUT, ami_curtimeout()+FAILTIME, 1, FAILNOTE, INT_MAX);
 #endif
 
                         } else { /* ball in play */
@@ -678,18 +678,18 @@ int main(void)
 
         } while (fldbrk != BRKROW*BRKCOL); /* until bricks are cleared */
 #ifdef SOUND
-        ami_noteon(PA_SYNTH_OUT,  0,                  1, PA_NOTE_C+PA_OCTAVE_6, INT_MAX);
-        ami_noteoff(PA_SYNTH_OUT, ami_curtimeout()+OSEC*2,  1, PA_NOTE_C+PA_OCTAVE_6, INT_MAX);
-        ami_noteon(PA_SYNTH_OUT,  ami_curtimeout()+OSEC*3,  1, PA_NOTE_D+PA_OCTAVE_6, INT_MAX);
-        ami_noteoff(PA_SYNTH_OUT, ami_curtimeout()+OSEC*4,  1, PA_NOTE_D+PA_OCTAVE_6, INT_MAX);
-        ami_noteon(PA_SYNTH_OUT,  ami_curtimeout()+OSEC*5,  1, PA_NOTE_E+PA_OCTAVE_6, INT_MAX);
-        ami_noteoff(PA_SYNTH_OUT, ami_curtimeout()+OSEC*6,  1, PA_NOTE_E+PA_OCTAVE_6, INT_MAX);
-        ami_noteon(PA_SYNTH_OUT,  ami_curtimeout()+OSEC*7,  1, PA_NOTE_F+PA_OCTAVE_6, INT_MAX);
-        ami_noteoff(PA_SYNTH_OUT, ami_curtimeout()+OSEC*8,  1, PA_NOTE_F+PA_OCTAVE_6, INT_MAX);
-        ami_noteon(PA_SYNTH_OUT,  ami_curtimeout()+OSEC*9,  1, PA_NOTE_E+PA_OCTAVE_6, INT_MAX);
-        ami_noteoff(PA_SYNTH_OUT, ami_curtimeout()+OSEC*10, 1, PA_NOTE_E+PA_OCTAVE_6, INT_MAX);
-        ami_noteon(PA_SYNTH_OUT,  ami_curtimeout()+OSEC*11, 1, PA_NOTE_D+PA_OCTAVE_6, INT_MAX);
-        ami_noteoff(PA_SYNTH_OUT, ami_curtimeout()+OSEC*13, 1, PA_NOTE_D+PA_OCTAVE_6, INT_MAX);
+        ami_noteon(AMI_SYNTH_OUT,  0,                  1, AMI_NOTE_C+AMI_OCTAVE_6, INT_MAX);
+        ami_noteoff(AMI_SYNTH_OUT, ami_curtimeout()+OSEC*2,  1, AMI_NOTE_C+AMI_OCTAVE_6, INT_MAX);
+        ami_noteon(AMI_SYNTH_OUT,  ami_curtimeout()+OSEC*3,  1, AMI_NOTE_D+AMI_OCTAVE_6, INT_MAX);
+        ami_noteoff(AMI_SYNTH_OUT, ami_curtimeout()+OSEC*4,  1, AMI_NOTE_D+AMI_OCTAVE_6, INT_MAX);
+        ami_noteon(AMI_SYNTH_OUT,  ami_curtimeout()+OSEC*5,  1, AMI_NOTE_E+AMI_OCTAVE_6, INT_MAX);
+        ami_noteoff(AMI_SYNTH_OUT, ami_curtimeout()+OSEC*6,  1, AMI_NOTE_E+AMI_OCTAVE_6, INT_MAX);
+        ami_noteon(AMI_SYNTH_OUT,  ami_curtimeout()+OSEC*7,  1, AMI_NOTE_F+AMI_OCTAVE_6, INT_MAX);
+        ami_noteoff(AMI_SYNTH_OUT, ami_curtimeout()+OSEC*8,  1, AMI_NOTE_F+AMI_OCTAVE_6, INT_MAX);
+        ami_noteon(AMI_SYNTH_OUT,  ami_curtimeout()+OSEC*9,  1, AMI_NOTE_E+AMI_OCTAVE_6, INT_MAX);
+        ami_noteoff(AMI_SYNTH_OUT, ami_curtimeout()+OSEC*10, 1, AMI_NOTE_E+AMI_OCTAVE_6, INT_MAX);
+        ami_noteon(AMI_SYNTH_OUT,  ami_curtimeout()+OSEC*11, 1, AMI_NOTE_D+AMI_OCTAVE_6, INT_MAX);
+        ami_noteoff(AMI_SYNTH_OUT, ami_curtimeout()+OSEC*13, 1, AMI_NOTE_D+AMI_OCTAVE_6, INT_MAX);
 #endif
         baltim = (OSEC*13+NEWBAL)/BALMOV; /* wait fanfare */
         drwrect(&ball, ami_white); /* clear ball */
@@ -700,7 +700,7 @@ int main(void)
     endgame:; /* exit game */
 
 #ifdef SOUND
-    ami_closesynthout(PA_SYNTH_OUT); /* close synthesizer */
+    ami_closesynthout(AMI_SYNTH_OUT); /* close synthesizer */
 #endif
 
 }

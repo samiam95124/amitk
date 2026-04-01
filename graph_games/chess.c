@@ -22,10 +22,10 @@
 #include <graphics.h>
 
 /* sound defines */
-#define MOVE_NOTE    (PA_NOTE_E+PA_OCTAVE_5)
-#define CAPTURE_NOTE (PA_NOTE_G+PA_OCTAVE_5)
-#define CHECK_NOTE   (PA_NOTE_C+PA_OCTAVE_6)
-#define MATE_NOTE    (PA_NOTE_C+PA_OCTAVE_4)
+#define MOVE_NOTE    (AMI_NOTE_E+AMI_OCTAVE_5)
+#define CAPTURE_NOTE (AMI_NOTE_G+AMI_OCTAVE_5)
+#define CHECK_NOTE   (AMI_NOTE_C+AMI_OCTAVE_6)
+#define MATE_NOTE    (AMI_NOTE_C+AMI_OCTAVE_4)
 #define MOVE_DUR     150
 #define CHECK_DUR    300
 #define MATE_DUR     800
@@ -488,8 +488,8 @@ Execute a move on the board
 
 void play_sound(int note, int dur)
 {
-    ami_noteon(PA_SYNTH_OUT, 0, 1, note, INT_MAX);
-    ami_noteoff(PA_SYNTH_OUT, ami_curtimeout()+dur, 1, note, INT_MAX);
+    ami_noteon(AMI_SYNTH_OUT, 0, 1, note, INT_MAX);
+    ami_noteoff(AMI_SYNTH_OUT, ami_curtimeout()+dur, 1, note, INT_MAX);
 }
 
 int sound_enabled; /* only play sounds for real moves, not AI search */
@@ -1010,12 +1010,12 @@ int main(void)
     ami_curvis(stdout, FALSE);
     ami_auto(stdout, FALSE);
     ami_buffer(stdout, FALSE);
-    ami_font(stdout, PA_FONT_SIGN);
+    ami_font(stdout, AMI_FONT_SIGN);
     ami_bold(stdout, TRUE);
     ami_binvis(stdout);
 
-    ami_opensynthout(PA_SYNTH_OUT);
-    ami_instchange(PA_SYNTH_OUT, 0, 1, PA_INST_ACOUSTIC_GRAND);
+    ami_opensynthout(AMI_SYNTH_OUT);
+    ami_instchange(AMI_SYNTH_OUT, 0, 1, AMI_INST_ACOUSTIC_GRAND);
     ami_starttimeout();
     sound_enabled = TRUE;
 
@@ -1148,6 +1148,6 @@ int main(void)
 
     } while (er.etype != ami_etterm);
 
-    ami_closesynthout(PA_SYNTH_OUT);
+    ami_closesynthout(AMI_SYNTH_OUT);
     return 0;
 }

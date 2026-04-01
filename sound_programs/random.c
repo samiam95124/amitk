@@ -24,8 +24,8 @@ late 1970's-early 1980's.
 
 #define SECOND 10000
 
-int dport = PA_SYNTH_OUT; /* set default synth out */
-ami_instrument inst = PA_INST_ACOUSTIC_GRAND; /* set default instrument */
+int dport = AMI_SYNTH_OUT; /* set default synth out */
+ami_instrument inst = AMI_INST_ACOUSTIC_GRAND; /* set default instrument */
 
 ami_optrec opttbl[] = {
 

@@ -20,42 +20,42 @@ extern "C" {
 
 #include <stdio.h>
 
-#define PA_MAXTIM 10 /**< maximum number of timers available */
+#define AMI_MAXTIM 10 /**< maximum number of timers available */
 
 /* standard fonts */
 
-#define PA_FONT_TERM 1 /* terminal (fixed space) font */
-#define PA_FONT_BOOK 2 /* serif font */
-#define PA_FONT_SIGN 3 /* san-serif font */
-#define PA_FONT_TECH 4 /* technical (scalable) font */
+#define AMI_FONT_TERM 1 /* terminal (fixed space) font */
+#define AMI_FONT_BOOK 2 /* serif font */
+#define AMI_FONT_SIGN 3 /* san-serif font */
+#define AMI_FONT_TECH 4 /* technical (scalable) font */
 
 /* standardized menu entries */
 
-#define PA_SMNEW        1 /* new file */
-#define PA_SMOPEN       2 /* open file */
-#define PA_SMCLOSE      3 /* close file */
-#define PA_SMSAVE       4 /* save file */
-#define PA_SMSAVEAS     5 /* save file as name */
-#define PA_SMPAGESET    6 /* page setup */
-#define PA_SMPRINT      7 /* print */
-#define PA_SMEXIT       8 /* exit program */
-#define PA_SMUNDO       9 /* undo edit */
-#define PA_SMCUT       10 /* cut selection */
-#define PA_SMPASTE     11 /* paste selection */
-#define PA_SMDELETE    12 /* delete selection */
-#define PA_SMFIND      13 /* find text */
-#define PA_SMFINDNEXT  14 /* find next */
-#define PA_SMREPLACE   15 /* replace text */
-#define PA_SMGOTO      16 /* goto line */
-#define PA_SMSELECTALL 17 /* select all text */
-#define PA_SMNEWWINDOW 18 /* new window */
-#define PA_SMTILEHORIZ 19 /* tile child windows horizontally */
-#define PA_SMTILEVERT  20 /* tile child windows vertically */
-#define PA_SMCASCADE   21 /* cascade windows */
-#define PA_SMCLOSEALL  22 /* close all windows */
-#define PA_SMHELPTOPIC 23 /* help topics */
-#define PA_SMABOUT     24 /* about this program */
-#define PA_SMMAX       24 /* maximum defined standard menu entries */
+#define AMI_SMNEW        1 /* new file */
+#define AMI_SMOPEN       2 /* open file */
+#define AMI_SMCLOSE      3 /* close file */
+#define AMI_SMSAVE       4 /* save file */
+#define AMI_SMSAVEAS     5 /* save file as name */
+#define AMI_SMPAGESET    6 /* page setup */
+#define AMI_SMPRINT      7 /* print */
+#define AMI_SMEXIT       8 /* exit program */
+#define AMI_SMUNDO       9 /* undo edit */
+#define AMI_SMCUT       10 /* cut selection */
+#define AMI_SMPASTE     11 /* paste selection */
+#define AMI_SMDELETE    12 /* delete selection */
+#define AMI_SMFIND      13 /* find text */
+#define AMI_SMFINDNEXT  14 /* find next */
+#define AMI_SMREPLACE   15 /* replace text */
+#define AMI_SMGOTO      16 /* goto line */
+#define AMI_SMSELECTALL 17 /* select all text */
+#define AMI_SMNEWWINDOW 18 /* new window */
+#define AMI_SMTILEHORIZ 19 /* tile child windows horizontally */
+#define AMI_SMTILEVERT  20 /* tile child windows vertically */
+#define AMI_SMCASCADE   21 /* cascade windows */
+#define AMI_SMCLOSEALL  22 /* close all windows */
+#define AMI_SMHELPTOPIC 23 /* help topics */
+#define AMI_SMABOUT     24 /* about this program */
+#define AMI_SMMAX       24 /* maximum defined standard menu entries */
 
 /* Colors displayable in text mode. Background is the color that will match
    widgets placed onto it. */

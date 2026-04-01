@@ -366,7 +366,7 @@ typedef struct winrec {
     int      zorder;            /* Z ordering of window, 0 = bottom, N = top */
     unsigned char* fmask;       /* forward mask in bits per character */
     int      fmasklen;          /* length of the bitmask */
-    int      timers[PA_MAXTIM]; /* timer id array */
+    int      timers[AMI_MAXTIM]; /* timer id array */
     int      frmtim;            /* frame timer */
     ami_color frmcolor;          /* frame color */
 
@@ -468,8 +468,8 @@ static winptr   curfocus;     /* current focus window, or NULL */
 static int      ztop;         /* current maximum/front Z order */
 static int      mousex;       /* mouse tracking x */
 static int      mousey;       /* mouse tracking y */
-static winptr   timtbl[PA_MAXTIM]; /* timer translation table */
-static int      timids[PA_MAXTIM]; /* timer logical ids */
+static winptr   timtbl[AMI_MAXTIM]; /* timer translation table */
+static int      timids[AMI_MAXTIM]; /* timer logical ids */
 static int      fautohold;    /* automatic hold on exit flag */
 static int      fend;         /* end of program ordered flag */
 static drgtyp   drag;         /* drag type in progress */
@@ -2642,7 +2642,7 @@ static void opnwin(int fn, int pfn, int wid, int subclient, int root)
     /* clear tabs and set to 8ths */
     for (t = 1; t <= MAXTAB; t++) win->tab[t-1] = ((t-1)%8 == 0) && (t != 1);
     /* clear timer array */
-    for (ti = 0; ti < PA_MAXTIM; ti++) win->timers[ti] = 0;
+    for (ti = 0; ti < AMI_MAXTIM; ti++) win->timers[ti] = 0;
     win->frmtim = 0; /* clear frame timer */
 
     /* clear the screen array */
@@ -4740,13 +4740,13 @@ static void itimer(FILE* f, int i, long t, int r)
     winptr win; /* windows record pointer */
     int    ti;
 
-    if (i < 1 || i > PA_MAXTIM) error("Invalid timer handle");
+    if (i < 1 || i > AMI_MAXTIM) error("Invalid timer handle");
     win = txt2win(f); /* get window from file */
     if (!win->timers[i-1]) { /* no current timer assigned */
 
         ti = 0;
-        while (ti < PA_MAXTIM && timtbl[ti]) ti++;
-        if (ti >= PA_MAXTIM) error("Root timers are full");
+        while (ti < AMI_MAXTIM && timtbl[ti]) ti++;
+        if (ti >= AMI_MAXTIM) error("Root timers are full");
         timtbl[ti] = win; /* place owner link */
         timids[ti] = i; /* place timer logical id */
         win->timers[i-1] = ti+1; /* place root id */
@@ -4771,7 +4771,7 @@ static void ikilltimer(FILE* f, int i)
 
     winptr win; /* windows record pointer */
 
-    if (i < 1 || i > PA_MAXTIM) error("Invalid timer handle");
+    if (i < 1 || i > AMI_MAXTIM) error("Invalid timer handle");
     win = txt2win(f); /* get window from file */
     if (!win->timers[i-1]) error("No such timer");
     /* pass it down */
@@ -4970,8 +4970,8 @@ static void iframetimer(FILE* f, int e)
         if (!win->frmtim) { /* no current timer assigned */
 
             ti = 0;
-            while (ti < PA_MAXTIM && timtbl[ti]) ti++;
-            if (ti >= PA_MAXTIM) error("Root timers are full");
+            while (ti < AMI_MAXTIM && timtbl[ti]) ti++;
+            if (ti >= AMI_MAXTIM) error("Root timers are full");
             timtbl[ti] = win; /* place owner link */
             win->frmtim = ti+1; /* place root id */
 
@@ -6033,7 +6033,7 @@ static void init_managerc()
     }
 
     /* clear timer equivalence table */
-    for (ti = 0; ti < PA_MAXTIM; ti++) timtbl[ti] = NULL;
+    for (ti = 0; ti < AMI_MAXTIM; ti++) timtbl[ti] = NULL;
 
     /* clear event vector table */
     evtshan = defaultevent;
