@@ -2271,6 +2271,29 @@ int main(void)
     ami_bold(stdout, TRUE);
     ami_binvis(stdout);
 
+    /* restore saved window size/position if available */
+    {
+        FILE *pf;
+        pf = fopen("backgammon.pos", "r");
+        if (pf) {
+            int pw, ph, ppx, ppy;
+            char line[256];
+
+            /* skip header line */
+            if (fgets(line, sizeof(line), pf) &&
+                fgets(line, sizeof(line), pf) && /* blank line */
+                fgets(line, sizeof(line), pf)) {
+                if (sscanf(line, "width: %d height: %d position x: %d position y: %d",
+                           &pw, &ph, &ppx, &ppy) >= 2) {
+                    if (pw > 100 && ph > 100) {
+                        ami_setsizg(stdout, pw, ph);
+                    }
+                }
+            }
+            fclose(pf);
+        }
+    }
+
     ami_opensynthout(AMI_SYNTH_OUT);
     ami_instchange(AMI_SYNTH_OUT, 0, 1, AMI_INST_WOODBLOCK);
     ami_starttimeout();
@@ -2474,6 +2497,21 @@ int main(void)
         }
 
     } while (er.etype != ami_etterm);
+
+    /* save window position/size */
+    {
+        FILE *pf;
+        int wx, wy;
+
+        ami_getsizg(stdout, &wx, &wy);
+        pf = fopen("backgammon.pos", "w");
+        if (pf) {
+            fprintf(pf, "Backgammon position\n\n");
+            fprintf(pf, "width: %d height: %d position x: 0 position y: 0\n",
+                    wx, wy);
+            fclose(pf);
+        }
+    }
 
     ami_closewaveout(AMI_WAVE_OUT);
     ami_closesynthout(AMI_SYNTH_OUT);
