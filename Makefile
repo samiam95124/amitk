@@ -1351,6 +1351,18 @@ checkers: $(GLIBSD) graph_games/checkers.c
 defenders: $(GLIBSD) graph_games/defenders.c
 	$(CC) $(CFLAGS) graph_games/defenders.c $(GLIBS) -o bin/defenders
 
+#
+# Conquest game (Risk-style territory conquest)
+#
+conquest: $(GLIBSD) graph_games/conquest.c
+	$(CC) $(CFLAGS) graph_games/conquest.c $(GLIBS) -o bin/conquest
+
+#
+# Backgammon game
+#
+backgammon: $(GLIBSD) graph_games/backgammon.c
+	$(CC) $(CFLAGS) graph_games/backgammon.c $(GLIBS) -o bin/backgammon
+
 ################################################################################
 #
 # Clean target
