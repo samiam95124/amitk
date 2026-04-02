@@ -1556,7 +1556,6 @@ void ai_move(void)
         int result = do_move(best_src, best_dv, turn, best_from_bar);
         if (result == 1) play_sound(HIT_NOTE, HIT_DUR);
         else if (result == 2) play_sound(BEAROFF_NOTE, BEAROFF_DUR);
-        else play_sound(MOVE_NOTE, MOVE_DUR);
     }
 
     /* Check if more moves remain */
@@ -1628,7 +1627,6 @@ void handle_click(void)
                 if (dests[i].dest == pt) {
                     int result = do_move(-1, dests[i].dv, turn, TRUE);
                     if (result == 1) play_sound(HIT_NOTE, HIT_DUR);
-                    else play_sound(MOVE_NOTE, MOVE_DUR);
                     selected_point = -1;
 
                     if (off[turn] >= NUM_CHECKERS) {
@@ -1683,7 +1681,6 @@ void handle_click(void)
                                          turn, FALSE);
                     if (result == 1) play_sound(HIT_NOTE, HIT_DUR);
                     else if (result == 2) play_sound(BEAROFF_NOTE, BEAROFF_DUR);
-                    else play_sound(MOVE_NOTE, MOVE_DUR);
                     selected_point = -1;
 
                     if (off[turn] >= NUM_CHECKERS) {
