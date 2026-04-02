@@ -84,7 +84,7 @@ Game constants
 #define GS_GAMEOVER  2   /* game finished */
 
 /* Max move sequences for AI evaluation */
-#define MAX_COMBOS   2000
+#define MAX_COMBOS   5000
 
 /*******************************************************************************
 
@@ -1178,52 +1178,136 @@ int is_computer_turn(void)
 }
 
 /* Board evaluation from P1's perspective (higher = better for P1) */
-int evaluate(void)
+/* Count how many opponent checkers can hit a blot at point pt */
+int blot_exposure(int pt, int opponent)
 {
-    int i, score = 0;
-    int p1_home = 0, p2_home = 0;
-
-    /* Borne off checkers are great */
-    score += off[P1] * 500;
-    score -= off[P2] * 500;
-
-    /* Bar is very bad */
-    score -= bar[P1] * 400;
-    score += bar[P2] * 400;
+    int hits = 0, i, dist;
 
     for (i = 0; i < 24; i++) {
-        if (board[i] > 0) {
-            /* P1 checker: lower index = closer to bearing off = better */
-            score += (24 - i) * 5;  /* advancement bonus */
-            if (board[i] >= 2)
-                score += 30;  /* making a point is good */
-            if (board[i] == 1)
-                score -= 20;  /* blot is risky */
-            /* Home board points are extra valuable */
-            if (i < 6) {
-                score += 15;
-                p1_home += board[i];
+        if (opponent == P1 && board[i] <= 0) continue;
+        if (opponent == P2 && board[i] >= 0) continue;
+        if (opponent == P1) dist = i - pt;
+        else dist = pt - i;
+        if (dist > 0 && dist <= 12) hits++; /* within direct/combo range */
+        if (dist > 0 && dist <= 6) hits++;  /* within direct shot range */
+    }
+    /* bar checkers can also hit */
+    if (bar[opponent] > 0) {
+        if (opponent == P1 && pt >= 18 && pt <= 23) hits += 2;
+        if (opponent == P2 && pt >= 0 && pt <= 5) hits += 2;
+    }
+    return hits;
+}
+
+/* Evaluate for a specific player (positive = good for that player) */
+int eval_player(int player)
+{
+    int i, sc = 0;
+    int opp = 1 - player;
+    int home_pts = 0;     /* number of home board points held */
+    int prime_len = 0;    /* longest consecutive run of held points */
+    int cur_prime = 0;
+    int anchor_count = 0; /* points held in opponent's home board */
+    int total_pip = 0;
+    int blots = 0;
+
+    /* borne off is the ultimate goal */
+    sc += off[player] * 600;
+
+    /* bar is devastating */
+    sc -= bar[player] * 500;
+
+    /* opponent on bar is great for us */
+    sc += bar[opp] * 300;
+
+    for (i = 0; i < 24; i++) {
+        int cnt, dist;
+
+        if (player == P1) {
+            cnt = board[i] > 0 ? board[i] : 0;
+            dist = i; /* pip distance for P1 (lower = closer to home) */
+        } else {
+            cnt = board[i] < 0 ? -board[i] : 0;
+            dist = 23 - i;
+        }
+
+        if (cnt == 0) {
+            cur_prime = 0;
+            continue;
+        }
+
+        /* pip count */
+        total_pip += cnt * (dist + 1);
+
+        /* advancement: reward checkers closer to home */
+        sc += cnt * (24 - dist) * 3;
+
+        if (cnt >= 2) {
+            /* holding a point */
+            sc += 40;
+            cur_prime++;
+            if (cur_prime > prime_len) prime_len = cur_prime;
+
+            /* home board points are very valuable */
+            if (dist < 6) {
+                home_pts++;
+                sc += 50;
+                /* inner home points (1-3) are especially valuable */
+                if (dist < 3) sc += 25;
             }
-        } else if (board[i] < 0) {
-            int cnt = -board[i];
-            /* P2: higher index = closer to bearing off */
-            score -= i * 5;
-            if (cnt >= 2)
-                score -= 30;
-            if (cnt == 1)
-                score += 20;
-            if (i >= 18) {
-                score -= 15;
-                p2_home += cnt;
+
+            /* anchors in opponent's home are strategic */
+            if (dist >= 18) {
+                anchor_count++;
+                sc += 35;
             }
+
+            /* stacking more than 5 on one point is wasteful */
+            if (cnt > 5) sc -= (cnt - 5) * 15;
+            /* 3 is ideal for blocking */
+            if (cnt == 3) sc += 10;
+        } else {
+            /* blot - penalize based on exposure to being hit */
+            int exposure = blot_exposure(i, opp);
+            sc -= 25 + exposure * 15;
+            blots++;
+
+            /* blots in opponent's home board are extra dangerous */
+            if (dist >= 18) sc -= 40;
+            /* blots near our home are less risky */
+            if (dist < 6) sc += 15;
         }
     }
 
-    /* Bonus for having checkers ready to bear off */
-    if (all_in_home(P1)) score += 200;
-    if (all_in_home(P2)) score -= 200;
+    /* prime bonus: consecutive blocked points are very strong */
+    if (prime_len >= 3) sc += prime_len * 40;
+    if (prime_len >= 5) sc += 150;  /* 5-prime is very strong */
+    if (prime_len >= 6) sc += 300;  /* 6-prime is nearly unpassable */
 
-    return score;
+    /* home board coverage bonus */
+    if (home_pts >= 3) sc += 60;
+    if (home_pts >= 5) sc += 120;
+    if (home_pts >= 6) sc += 200; /* closed home board */
+
+    /* bearing off readiness */
+    if (all_in_home(player)) {
+        sc += 250;
+        /* when bearing off, low pip count is key */
+        sc -= total_pip * 2;
+    } else {
+        /* general pip count matters but less */
+        sc -= total_pip;
+    }
+
+    /* avoid too many blots */
+    if (blots >= 3) sc -= blots * 30;
+
+    return sc;
+}
+
+int evaluate(void)
+{
+    return eval_player(P1) - eval_player(P2);
 }
 
 /* Save/restore state for AI */
@@ -1733,6 +1817,7 @@ int main(void)
     ami_title(stdout, "Backgammon");
     ami_curvis(stdout, FALSE);
     ami_auto(stdout, FALSE);
+    ami_autohold(FALSE); /* override automatic hold */
     ami_buffer(stdout, FALSE);
     ami_font(stdout, AMI_FONT_SIGN);
     ami_bold(stdout, TRUE);
