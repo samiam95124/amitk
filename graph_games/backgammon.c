@@ -68,6 +68,7 @@ Game constants
 #define MENU_PVC_W   104
 #define MENU_PVC_B   105
 #define MENU_UNDO    106
+#define MENU_DOUBLE  107
 
 /* Game modes */
 #define MODE_PVP     0
@@ -127,6 +128,11 @@ int selected_point;   /* currently selected source point, -1 = none,
 int mousex, mousey;
 int sound_enabled;
 
+/* doubling cube */
+int cube_value;       /* current cube value: 1, 2, 4, 8, 16, 32, 64 */
+int cube_owner;       /* -1 = center (either can double), P1 or P2 = owner */
+int score[2];         /* cumulative match score */
+
 /* animation state */
 #define ANIM_FRAMES 15
 int animating;         /* TRUE during move animation */
@@ -184,6 +190,8 @@ void init_board(void)
     dice[0] = 0; dice[1] = 0;
     ndice = 0;
     undo_top = 0;
+    cube_value = 1;
+    cube_owner = -1; /* center */
     for (i = 0; i < 4; i++) used[i] = FALSE;
 }
 
@@ -970,7 +978,7 @@ void draw_highlight_dests(void)
         if (dests[i].dest == -1) {
             int tx = brd_x + point_w * 12 + bar_w;
             ami_fcolorg(stdout, CLR(255), CLR(255), CLR(0));
-            ami_linewidth(stdout, 3);
+            ami_linewidth(stdout, 5);
             ami_rect(stdout, tx + 2, brd_y + 2,
                      tx + bear_w - 2, brd_y + brd_h - 2);
             ami_linewidth(stdout, 1);
@@ -978,7 +986,7 @@ void draw_highlight_dests(void)
             cx = point_cx(dests[i].dest);
             cy = checker_cy(dests[i].dest, 0);
             ami_fcolorg(stdout, CLR(255), CLR(255), CLR(0));
-            ami_linewidth(stdout, 3);
+            ami_linewidth(stdout, 5);
             ami_ellipse(stdout, cx - checker_r, cy - checker_r,
                         cx + checker_r, cy + checker_r);
             ami_linewidth(stdout, 1);
@@ -1046,7 +1054,7 @@ void draw_highlight_dests(void)
                 if (mid_dest == -1) {
                     int tx = brd_x + point_w * 12 + bar_w;
                     ami_fcolorg(stdout, CLR(0), CLR(220), CLR(255));
-                    ami_linewidth(stdout, 3);
+                    ami_linewidth(stdout, 5);
                     ami_rect(stdout, tx + 4, brd_y + 4,
                              tx + bear_w - 4, brd_y + brd_h - 4);
                     ami_linewidth(stdout, 1);
@@ -1054,7 +1062,7 @@ void draw_highlight_dests(void)
                     cx = point_cx(mid_dest);
                     cy = checker_cy(mid_dest, 0);
                     ami_fcolorg(stdout, CLR(0), CLR(220), CLR(255));
-                    ami_linewidth(stdout, 2);
+                    ami_linewidth(stdout, 5);
                     ami_ellipse(stdout, cx - checker_r - 2, cy - checker_r - 2,
                                 cx + checker_r + 2, cy + checker_r + 2);
                     ami_linewidth(stdout, 1);
@@ -1219,7 +1227,32 @@ void draw_status(void)
     ami_fcolorg(stdout, CLR(255), CLR(255), CLR(200));
 
     if (gamestate == GS_GAMEOVER) {
-        sprintf(msg, "%s wins!", turn == P1 ? "White" : "Black");
+        /* check for gammon/backgammon multiplier */
+        int loser = 1 - turn;
+        int mult = 1;
+        if (off[loser] == 0) {
+            mult = 2; /* gammon */
+            if (bar[loser] > 0) mult = 3; /* backgammon */
+            else {
+                /* check if loser has checkers in winner's home */
+                int k2;
+                for (k2 = 0; k2 < 24; k2++) {
+                    if (loser == P1 && board[k2] > 0 && k2 >= 18) { mult = 3; break; }
+                    if (loser == P2 && board[k2] < 0 && k2 <= 5) { mult = 3; break; }
+                }
+            }
+        }
+        int pts = cube_value * mult;
+        score[turn] += pts;
+        if (mult == 3)
+            sprintf(msg, "%s wins BACKGAMMON! (+%d pts)",
+                    turn == P1 ? "White" : "Black", pts);
+        else if (mult == 2)
+            sprintf(msg, "%s wins GAMMON! (+%d pts)",
+                    turn == P1 ? "White" : "Black", pts);
+        else
+            sprintf(msg, "%s wins! (+%d pts)",
+                    turn == P1 ? "White" : "Black", pts);
     } else if (gamestate == GS_ROLL) {
         if (is_computer_turn())
             sprintf(msg, "%s (computer) rolling...",
@@ -1243,6 +1276,57 @@ void draw_status(void)
     }
     ami_cursorg(stdout, scr_w / 2 - ami_strsiz(stdout, msg) / 2, sy);
     printf("%s", msg);
+
+    /* Score and doubling cube */
+    {
+        int sy2 = sy + fsz + 4;
+        int csz = fsz;
+        int ccx, ccy;
+        char cbuf[16];
+
+        /* draw scores */
+        ami_fcolorg(stdout, CLR(240), CLR(235), CLR(220));
+        sprintf(buf, "Score: %d", score[P1]);
+        ami_cursorg(stdout, brd_x, sy2);
+        printf("%s", buf);
+
+        ami_fcolorg(stdout, CLR(160), CLR(150), CLR(140));
+        sprintf(buf, "Score: %d", score[P2]);
+        ami_cursorg(stdout, brd_x + brd_w - ami_strsiz(stdout, buf), sy2);
+        printf("%s", buf);
+
+        /* draw doubling cube */
+        sprintf(cbuf, "%d", cube_value);
+        ccx = scr_w / 2;
+        ccy = sy2;
+
+        /* cube background */
+        ami_fcolorg(stdout, CLR(220), CLR(220), CLR(200));
+        ami_frect(stdout, ccx - csz, ccy - csz / 4,
+                  ccx + csz, ccy + csz);
+        ami_fcolorg(stdout, CLR(60), CLR(60), CLR(60));
+        ami_rect(stdout, ccx - csz, ccy - csz / 4,
+                 ccx + csz, ccy + csz);
+
+        /* cube value */
+        ami_fcolorg(stdout, CLR(30), CLR(30), CLR(30));
+        ami_fontsiz(stdout, csz * 3 / 4);
+        ami_cursorg(stdout, ccx - ami_strsiz(stdout, cbuf) / 2,
+                    ccy + csz / 8);
+        printf("%s", cbuf);
+        ami_fontsiz(stdout, fsz); /* restore */
+
+        /* owner indicator */
+        if (cube_owner == P1) {
+            ami_fcolorg(stdout, CLR(240), CLR(235), CLR(220));
+            ami_cursorg(stdout, ccx - csz - ami_strsiz(stdout, "W") - 4, ccy);
+            printf("W");
+        } else if (cube_owner == P2) {
+            ami_fcolorg(stdout, CLR(100), CLR(90), CLR(80));
+            ami_cursorg(stdout, ccx + csz + 4, ccy);
+            printf("B");
+        }
+    }
 }
 
 void draw_all(void)
@@ -1710,6 +1794,93 @@ void ai_move(void)
 
 /*******************************************************************************
 
+Try to execute a combo move (using two dice) from src to final_dest.
+Returns TRUE if successful.
+
+*******************************************************************************/
+
+int try_combo_move(int src, int final_dest, int from_bar)
+{
+    int vals[4], nv, i, j;
+    int player = turn;
+
+    nv = get_available_dice(vals);
+    if (nv < 2) return FALSE;
+
+    for (i = 0; i < nv; i++) {
+        int mid;
+
+        if (from_bar) {
+            if (!can_enter(player, vals[i])) continue;
+            if (player == P1) mid = 24 - vals[i];
+            else mid = vals[i] - 1;
+        } else {
+            if (!can_move_from(src, vals[i], player)) continue;
+            mid = move_dest(src, vals[i], player);
+        }
+        if (mid < 0) continue;
+
+        /* check intermediate is landable */
+        if (board[mid] != 0 &&
+            ((player == P1 && board[mid] < -1) ||
+             (player == P2 && board[mid] > 1)))
+            continue;
+
+        for (j = 0; j < nv; j++) {
+            int mid_dest;
+
+            if (j == i && ndice < 4) continue;
+            if (j == i && ndice >= 4) {
+                int k, avail = 0;
+                for (k = 0; k < ndice; k++)
+                    if (!used[k]) avail++;
+                if (avail < 2) continue;
+            }
+
+            /* simulate intermediate */
+            int save_src = from_bar ? 0 : board[src];
+            int save_mid = board[mid];
+            int save_bar = bar[player];
+            if (from_bar) {
+                bar[player]--;
+            } else {
+                if (player == P1) board[src]--;
+                else board[src]++;
+            }
+            /* handle hit at mid */
+            if ((player == P1 && board[mid] == -1) ||
+                (player == P2 && board[mid] == 1)) {
+                board[mid] = 0;
+            }
+            if (player == P1) board[mid]++;
+            else board[mid]--;
+
+            int can = can_move_from(mid, vals[j], player);
+            mid_dest = can ? move_dest(mid, vals[j], player) : -2;
+
+            /* restore */
+            if (from_bar) {
+                bar[player] = save_bar;
+            } else {
+                board[src] = save_src;
+            }
+            board[mid] = save_mid;
+
+            if (mid_dest != final_dest) continue;
+
+            /* found the combo - execute both moves */
+            do_move(from_bar ? -1 : src, vals[i], player, from_bar);
+            int result = do_move(mid, vals[j], player, FALSE);
+            if (result == 1) play_sound(HIT_NOTE, HIT_DUR);
+            else if (result == 2) play_sound(BEAROFF_NOTE, BEAROFF_DUR);
+            return TRUE;
+        }
+    }
+    return FALSE;
+}
+
+/*******************************************************************************
+
 Handle player click
 
 *******************************************************************************/
@@ -1773,6 +1944,18 @@ void handle_click(void)
                     return;
                 }
             }
+            /* try combo from bar */
+            if (try_combo_move(-1, pt, TRUE)) {
+                selected_point = -1;
+                if (off[turn] >= NUM_CHECKERS) {
+                    gamestate = GS_GAMEOVER;
+                    play_sound(WIN_NOTE, WIN_DUR);
+                    return;
+                }
+                if (dice_remaining() == 0 || !has_any_move(turn))
+                    end_turn();
+                return;
+            }
         }
         /* auto-select bar if turn player has bar checkers */
         selected_point = 24;
@@ -1826,6 +2009,35 @@ void handle_click(void)
                         end_turn();
                     return;
                 }
+            }
+        }
+
+        /* Not a single-die dest - try combo move */
+        if (pt >= 0 && pt <= 23) {
+            if (try_combo_move(selected_point, pt, FALSE)) {
+                selected_point = -1;
+                if (off[turn] >= NUM_CHECKERS) {
+                    gamestate = GS_GAMEOVER;
+                    play_sound(WIN_NOTE, WIN_DUR);
+                    return;
+                }
+                if (dice_remaining() == 0 || !has_any_move(turn))
+                    end_turn();
+                return;
+            }
+        }
+        /* try combo bear off */
+        if (pt == 25) {
+            if (try_combo_move(selected_point, -1, FALSE)) {
+                selected_point = -1;
+                if (off[turn] >= NUM_CHECKERS) {
+                    gamestate = GS_GAMEOVER;
+                    play_sound(WIN_NOTE, WIN_DUR);
+                    return;
+                }
+                if (dice_remaining() == 0 || !has_any_move(turn))
+                    end_turn();
+                return;
             }
         }
 
@@ -1906,7 +2118,9 @@ void setup_menu(void)
     appendmenu(&game_items,
         newmenuitem(FALSE, FALSE, FALSE, MENU_NEW, "New Game"));
     appendmenu(&game_items,
-        newmenuitem(FALSE, FALSE, TRUE, MENU_UNDO, "Undo Move"));
+        newmenuitem(FALSE, FALSE, FALSE, MENU_UNDO, "Undo Move"));
+    appendmenu(&game_items,
+        newmenuitem(FALSE, FALSE, TRUE, MENU_DOUBLE, "Double"));
     appendmenu(&game_items,
         newmenuitem(FALSE, FALSE, FALSE, MENU_EXIT, "Exit"));
     game_menu->branch = game_items;
@@ -1966,6 +2180,8 @@ int main(void)
     sound_enabled = TRUE;
 
     gamemode = MODE_PVC_W;
+    score[P1] = 0;
+    score[P2] = 0;
     setup_menu();
     init_board();
     calc_metrics();
@@ -2063,6 +2279,31 @@ int main(void)
                         undo_pop();
                         gamestate = GS_MOVE;
                         draw_all();
+                    }
+                    break;
+                case MENU_DOUBLE:
+                    /* player offers to double - only before rolling */
+                    if (gamestate == GS_ROLL && !is_computer_turn() &&
+                        (cube_owner == -1 || cube_owner == turn)) {
+                        int opp = 1 - turn;
+                        if (is_computer_turn() == FALSE) {
+                            /* opponent is human or computer */
+                            if (gamemode != MODE_PVP) {
+                                /* AI always accepts doubles up to 8,
+                                   declines above if losing */
+                                if (cube_value >= 8) {
+                                    /* AI declines */
+                                    score[turn] += cube_value;
+                                    init_board();
+                                    draw_all();
+                                    break;
+                                }
+                            }
+                            /* accept the double */
+                            cube_value *= 2;
+                            cube_owner = opp;
+                            draw_all();
+                        }
                     }
                     break;
                 case MENU_EXIT:
