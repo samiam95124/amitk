@@ -128,6 +128,12 @@ int selected_point;   /* currently selected source point, -1 = none,
 int mousex, mousey;
 int sound_enabled;
 
+/* timed status message overlay */
+char overlay_msg[200];
+int overlay_active;
+#define TIMER_MSG 4
+#define MSG_DURATION 20000  /* 2 seconds */
+
 /* doubling cube */
 int cube_value;       /* current cube value: 1, 2, 4, 8, 16, 32, 64 */
 int cube_owner;       /* -1 = center (either can double), P1 or P2 = owner */
@@ -383,6 +389,14 @@ int has_any_move(int player)
 Execute a move
 
 *******************************************************************************/
+
+void show_message(const char *msg)
+{
+    strncpy(overlay_msg, msg, sizeof(overlay_msg) - 1);
+    overlay_msg[sizeof(overlay_msg) - 1] = 0;
+    overlay_active = TRUE;
+    ami_timer(stdout, TIMER_MSG, MSG_DURATION, FALSE);
+}
 
 void play_sound(int note, int dur)
 {
@@ -961,113 +975,177 @@ void draw_checkers(void)
     }
 }
 
+/* Get the landing stack position for a checker arriving at dest.
+   Accounts for existing checkers and potential hits. */
+int landing_pos(int dest, int player)
+{
+    int cnt;
+
+    if (dest < 0 || dest >= 24) return 0;
+    cnt = board[dest];
+    if (player == P1) {
+        if (cnt < 0) return 0; /* hit: replaces the blot */
+        return cnt;
+    } else {
+        if (cnt > 0) return 0;
+        return -cnt;
+    }
+}
+
+/* Draw a highlight circle at a destination point */
+void draw_dest_circle(int dest, int stack_pos, int cr, int cg, int cb, int lw)
+{
+    int cx, cy;
+
+    if (dest == -1) {
+        /* bear off tray */
+        int tx = brd_x + point_w * 12 + bar_w;
+        ami_fcolorg(stdout, CLR(cr), CLR(cg), CLR(cb));
+        ami_linewidth(stdout, lw);
+        ami_rect(stdout, tx + 2, brd_y + 2,
+                 tx + bear_w - 2, brd_y + brd_h - 2);
+        ami_linewidth(stdout, 1);
+    } else {
+        cx = point_cx(dest);
+        cy = checker_cy(dest, stack_pos);
+        ami_fcolorg(stdout, CLR(cr), CLR(cg), CLR(cb));
+        ami_linewidth(stdout, lw);
+        ami_ellipse(stdout, cx - checker_r, cy - checker_r,
+                    cx + checker_r, cy + checker_r);
+        ami_linewidth(stdout, 1);
+    }
+}
+
+/* Recursively find combo destinations reachable by using multiple dice.
+   depth = number of dice used so far (1 = single, 2+ = combo).
+   cur_pt = current simulated position.
+   dice_used = bitmask of which dice slots are used in this path.
+   seen[depth] tracks which destinations already shown at each depth. */
+void find_combo_dests(int src, int cur_pt, int depth, int max_depth,
+                      int dice_used, int single_seen[30],
+                      int combo_seen[4][30])
+{
+    int vals[4], nv, i;
+
+    nv = get_available_dice(vals);
+
+    for (i = 0; i < nv; i++) {
+        int bit = 1 << i;
+        int mid_dest;
+
+        /* for non-doubles, each die used once */
+        if (ndice < 4) {
+            if (dice_used & bit) continue;
+        } else {
+            /* doubles: count how many we've used vs available */
+            int used_count = 0, avail = 0, k;
+            for (k = 0; k < ndice; k++) {
+                if (!used[k]) avail++;
+            }
+            /* count bits set in dice_used */
+            for (k = 0; k < 4; k++)
+                if (dice_used & (1 << k)) used_count++;
+            if (used_count >= avail) continue;
+            /* for doubles, don't revisit same combo path */
+            if (dice_used & bit) {
+                /* find next unused bit */
+                int found = FALSE;
+                int k2;
+                for (k2 = i + 1; k2 < 4; k2++) {
+                    if (!(dice_used & (1 << k2))) {
+                        bit = 1 << k2;
+                        found = TRUE;
+                        break;
+                    }
+                }
+                if (!found) continue;
+            }
+        }
+
+        if (!can_move_from(cur_pt, vals[i], turn)) continue;
+
+        /* simulate move */
+        int save_cur = board[cur_pt];
+        if (turn == P1) board[cur_pt]--;
+        else board[cur_pt]++;
+
+        mid_dest = move_dest(cur_pt, vals[i], turn);
+
+        if (mid_dest >= 0 && mid_dest < 24) {
+            /* check if blocked */
+            if ((turn == P1 && board[mid_dest] < -1) ||
+                (turn == P2 && board[mid_dest] > 1)) {
+                board[cur_pt] = save_cur;
+                continue;
+            }
+
+            int save_mid = board[mid_dest];
+            /* simulate landing */
+            if ((turn == P1 && board[mid_dest] == -1) ||
+                (turn == P2 && board[mid_dest] == 1))
+                board[mid_dest] = 0; /* hit */
+            if (turn == P1) board[mid_dest]++;
+            else board[mid_dest]--;
+
+            int idx = mid_dest + 1;
+            if (depth >= 1 && !single_seen[idx] && !combo_seen[depth][idx]) {
+                combo_seen[depth][idx] = TRUE;
+                int sp = landing_pos(mid_dest, turn);
+                draw_dest_circle(mid_dest, sp, 0, 220, 255, 5);
+            }
+
+            /* recurse for deeper combos */
+            if (depth + 1 < max_depth) {
+                find_combo_dests(src, mid_dest, depth + 1, max_depth,
+                                 dice_used | bit, single_seen, combo_seen);
+            }
+
+            board[mid_dest] = save_mid;
+        } else if (mid_dest == -1 && depth >= 1) {
+            /* bear off combo */
+            if (!combo_seen[depth][-1 + 1]) {
+                combo_seen[depth][-1 + 1] = TRUE;
+                draw_dest_circle(-1, 0, 0, 220, 255, 5);
+            }
+        }
+
+        board[cur_pt] = save_cur;
+    }
+}
+
 void draw_highlight_dests(void)
 {
     destinfo dests[MAX_DESTS];
-    int nd, i, cx, cy;
+    int nd, i;
     int from_bar;
-    int vals[4], nv;
-    int combo_seen[30]; /* track combo destinations */
+    int single_seen[30];
+    int combo_seen[4][30];
+    int avail;
 
     if (selected_point < 0) return;
     from_bar = (selected_point == 24);
     nd = get_valid_dests(from_bar ? -1 : selected_point, from_bar, dests);
 
+    memset(single_seen, 0, sizeof(single_seen));
+    memset(combo_seen, 0, sizeof(combo_seen));
+
     /* Draw single-die destinations in yellow */
     for (i = 0; i < nd; i++) {
-        if (dests[i].dest == -1) {
-            int tx = brd_x + point_w * 12 + bar_w;
-            ami_fcolorg(stdout, CLR(255), CLR(255), CLR(0));
-            ami_linewidth(stdout, 5);
-            ami_rect(stdout, tx + 2, brd_y + 2,
-                     tx + bear_w - 2, brd_y + brd_h - 2);
-            ami_linewidth(stdout, 1);
-        } else {
-            cx = point_cx(dests[i].dest);
-            cy = checker_cy(dests[i].dest, 0);
-            ami_fcolorg(stdout, CLR(255), CLR(255), CLR(0));
-            ami_linewidth(stdout, 5);
-            ami_ellipse(stdout, cx - checker_r, cy - checker_r,
-                        cx + checker_r, cy + checker_r);
-            ami_linewidth(stdout, 1);
-        }
+        int sp = (dests[i].dest >= 0) ? landing_pos(dests[i].dest, turn) : 0;
+        draw_dest_circle(dests[i].dest, sp, 255, 255, 0, 5);
+        if (dests[i].dest >= -1)
+            single_seen[dests[i].dest + 1] = TRUE;
     }
 
-    /* Draw combo destinations (both dice) in cyan, if not already a single dest */
-    memset(combo_seen, 0, sizeof(combo_seen));
-    nv = get_available_dice(vals);
-
-    if (nv >= 2 && !from_bar) {
-        int src = selected_point;
-        int j;
-
-        for (i = 0; i < nv; i++) {
-            int mid, mid_dest;
-
-            if (!can_move_from(src, vals[i], turn)) continue;
-            mid = move_dest(src, vals[i], turn);
-            if (mid < 0) continue; /* can't combo through bear off */
-
-            /* check if the intermediate point is landable */
-            if (board[mid] != 0 &&
-                ((turn == P1 && board[mid] < -1) ||
-                 (turn == P2 && board[mid] > 1)))
-                continue; /* blocked at intermediate */
-
-            /* try second die from intermediate */
-            for (j = 0; j < nv; j++) {
-                if (j == i && ndice < 4) continue; /* can't reuse same die unless doubles */
-                if (j == i && ndice >= 4) {
-                    /* doubles: check if a second copy is available */
-                    int k, avail = 0;
-                    for (k = 0; k < ndice; k++)
-                        if (!used[k]) avail++;
-                    if (avail < 2) continue;
-                }
-
-                /* simulate the intermediate state */
-                int save_src = board[src];
-                int save_mid = board[mid];
-                if (turn == P1) { board[src]--; board[mid]++; }
-                else { board[src]++; board[mid]--; }
-
-                int can = can_move_from(mid, vals[j], turn);
-                mid_dest = can ? move_dest(mid, vals[j], turn) : -2;
-
-                /* restore */
-                board[src] = save_src;
-                board[mid] = save_mid;
-
-                if (!can || mid_dest == -2) continue;
-
-                /* skip if this is already shown as a single-die destination */
-                int already_single = FALSE;
-                int k2;
-                for (k2 = 0; k2 < nd; k2++)
-                    if (dests[k2].dest == mid_dest) { already_single = TRUE; break; }
-                if (already_single) continue;
-
-                int idx = mid_dest + 1;
-                if (combo_seen[idx]) continue;
-                combo_seen[idx] = TRUE;
-
-                if (mid_dest == -1) {
-                    int tx = brd_x + point_w * 12 + bar_w;
-                    ami_fcolorg(stdout, CLR(0), CLR(220), CLR(255));
-                    ami_linewidth(stdout, 5);
-                    ami_rect(stdout, tx + 4, brd_y + 4,
-                             tx + bear_w - 4, brd_y + brd_h - 4);
-                    ami_linewidth(stdout, 1);
-                } else {
-                    cx = point_cx(mid_dest);
-                    cy = checker_cy(mid_dest, 0);
-                    ami_fcolorg(stdout, CLR(0), CLR(220), CLR(255));
-                    ami_linewidth(stdout, 5);
-                    ami_ellipse(stdout, cx - checker_r - 2, cy - checker_r - 2,
-                                cx + checker_r + 2, cy + checker_r + 2);
-                    ami_linewidth(stdout, 1);
-                }
-            }
+    /* Draw combo destinations in cyan */
+    if (!from_bar) {
+        /* count available dice */
+        avail = 0;
+        for (i = 0; i < ndice; i++)
+            if (!used[i]) avail++;
+        if (avail >= 2) {
+            find_combo_dests(selected_point, selected_point, 1,
+                             avail, 0, single_seen, combo_seen);
         }
     }
 }
@@ -1180,7 +1258,6 @@ void draw_point_labels(void)
 
     fsz = point_w / 3;
     if (fsz < 8) fsz = 8;
-    if (fsz > 16) fsz = 16;
     ami_fontsiz(stdout, fsz);
     ami_fcolorg(stdout, CLR(180), CLR(170), CLR(150));
 
@@ -1347,6 +1424,29 @@ void draw_all(void)
     draw_dice_display();
     draw_point_labels();
     draw_status();
+
+    /* draw overlay message if active */
+    if (overlay_active) {
+        int fsz = scr_h / 20;
+        int mw, mh, mx, my;
+        if (fsz < 14) fsz = 14;
+        ami_fontsiz(stdout, fsz);
+        mw = ami_strsiz(stdout, overlay_msg) + fsz * 2;
+        mh = fsz * 3;
+        mx = scr_w / 2 - mw / 2;
+        my = scr_h / 2 - mh / 2;
+
+        /* dark background box */
+        ami_fcolorg(stdout, CLR(20), CLR(20), CLR(40));
+        ami_frect(stdout, mx, my, mx + mw, my + mh);
+        ami_fcolorg(stdout, CLR(200), CLR(180), CLR(80));
+        ami_rect(stdout, mx, my, mx + mw, my + mh);
+
+        /* text */
+        ami_fcolorg(stdout, CLR(255), CLR(255), CLR(200));
+        ami_cursorg(stdout, mx + fsz, my + fsz);
+        printf("%s", overlay_msg);
+    }
 }
 
 /*******************************************************************************
@@ -2219,6 +2319,11 @@ int main(void)
             }
         }
 
+        else if (er.etype == ami_ettim && er.timnum == TIMER_MSG) {
+            overlay_active = FALSE;
+            draw_all();
+        }
+
         else if (er.etype == ami_ettim && er.timnum == TIMER_AI) {
             ai_pending = FALSE;
 
@@ -2283,26 +2388,55 @@ int main(void)
                     break;
                 case MENU_DOUBLE:
                     /* player offers to double - only before rolling */
-                    if (gamestate == GS_ROLL && !is_computer_turn() &&
-                        (cube_owner == -1 || cube_owner == turn)) {
+                    if (gamestate != GS_ROLL) {
+                        show_message("You can only double before rolling.");
+                        draw_all();
+                    } else if (is_computer_turn()) {
+                        /* not your turn */
+                    } else if (cube_owner != -1 && cube_owner != turn) {
+                        show_message(
+                                  "Only the player who was last doubled can redouble.");
+                        draw_all();
+                    } else {
                         int opp = 1 - turn;
-                        if (is_computer_turn() == FALSE) {
-                            /* opponent is human or computer */
-                            if (gamemode != MODE_PVP) {
-                                /* AI always accepts doubles up to 8,
-                                   declines above if losing */
-                                if (cube_value >= 8) {
-                                    /* AI declines */
-                                    score[turn] += cube_value;
-                                    init_board();
-                                    draw_all();
-                                    break;
-                                }
-                            }
-                            /* accept the double */
+                        char msg[120];
+                        if (gamemode == MODE_PVP) {
+                            /* PvP: show offer to opponent */
+                            sprintf(msg, "%s doubles to %d!\nDoes %s accept?",
+                                    turn == P1 ? "White" : "Black",
+                                    cube_value * 2,
+                                    opp == P1 ? "White" : "Black");
+                            show_message(msg);
+                            /* In PvP we auto-accept for now (no decline UI) */
                             cube_value *= 2;
                             cube_owner = opp;
                             draw_all();
+                        } else {
+                            /* vs computer: AI decides */
+                            int ai_accepts;
+                            /* AI uses simple heuristic: accept if pip count
+                               difference is not too large */
+                            int my_pip = pip_count(opp);
+                            int their_pip = pip_count(turn);
+                            ai_accepts = (cube_value < 16) &&
+                                         (my_pip <= their_pip * 3 / 2);
+                            if (ai_accepts) {
+                                cube_value *= 2;
+                                cube_owner = opp;
+                                sprintf(msg, "Computer accepts the double.\nCube is now at %d.",
+                                        cube_value);
+                                show_message(msg);
+                                draw_all();
+                            } else {
+                                sprintf(msg, "Computer declines the double.\n%s wins %d point%s!",
+                                        turn == P1 ? "White" : "Black",
+                                        cube_value,
+                                        cube_value > 1 ? "s" : "");
+                                score[turn] += cube_value;
+                                show_message(msg);
+                                init_board();
+                                draw_all();
+                            }
                         }
                     }
                     break;
@@ -2333,11 +2467,7 @@ int main(void)
                     }
                     break;
                 case MENU_ABOUT:
-                    ami_alert("About Backgammon",
-                              "Backgammon for Amitk\n"
-                              "Human vs human or vs computer\n"
-                              "Click to roll dice, then select moves\n"
-                              "Copyright (C) 2026 S. A. Franco");
+                    show_message("Backgammon for Amitk - (C) 2026 S. A. Franco");
                     draw_all();
                     break;
             }
