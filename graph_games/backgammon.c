@@ -67,6 +67,7 @@ Game constants
 #define MENU_PVP     103
 #define MENU_PVC_W   104
 #define MENU_PVC_B   105
+#define MENU_UNDO    106
 
 /* Game modes */
 #define MODE_PVP     0
@@ -85,6 +86,21 @@ Game constants
 
 /* Max move sequences for AI evaluation */
 #define MAX_COMBOS   5000
+
+/* Undo history */
+#define MAX_UNDO 20
+typedef struct {
+    int board[NUM_POINTS];
+    int bar[2];
+    int off[2];
+    int dice[2];
+    int used[4];
+    int ndice;
+    int turn;
+    int selected_point;
+} undo_state;
+undo_state undo_stack[MAX_UNDO];
+int undo_top;  /* index of next free slot */
 
 /*******************************************************************************
 
@@ -127,6 +143,8 @@ int anim_hit_player;   /* which player gets hit */
 int is_computer_turn(void);
 void draw_all(void);
 void animate_move(int src, int dest, int player, int from_bar, int bear_off);
+void undo_push(void);
+int undo_pop(void);
 
 /*******************************************************************************
 
@@ -165,6 +183,7 @@ void init_board(void)
     selected_point = -1;
     dice[0] = 0; dice[1] = 0;
     ndice = 0;
+    undo_top = 0;
     for (i = 0; i < 4; i++) used[i] = FALSE;
 }
 
@@ -422,6 +441,9 @@ int do_move(int src, int dv, int player, int from_bar)
 {
     int dest, bear_off;
     int src_pt;
+
+    /* save state for undo */
+    undo_push();
 
     /* figure out destination for animation */
     if (from_bar) {
@@ -936,14 +958,16 @@ void draw_highlight_dests(void)
     destinfo dests[MAX_DESTS];
     int nd, i, cx, cy;
     int from_bar;
+    int vals[4], nv;
+    int combo_seen[30]; /* track combo destinations */
 
     if (selected_point < 0) return;
     from_bar = (selected_point == 24);
     nd = get_valid_dests(from_bar ? -1 : selected_point, from_bar, dests);
 
+    /* Draw single-die destinations in yellow */
     for (i = 0; i < nd; i++) {
         if (dests[i].dest == -1) {
-            /* bear off tray highlight */
             int tx = brd_x + point_w * 12 + bar_w;
             ami_fcolorg(stdout, CLR(255), CLR(255), CLR(0));
             ami_linewidth(stdout, 3);
@@ -953,12 +977,89 @@ void draw_highlight_dests(void)
         } else {
             cx = point_cx(dests[i].dest);
             cy = checker_cy(dests[i].dest, 0);
-            /* Draw a yellow circle outline at destination */
             ami_fcolorg(stdout, CLR(255), CLR(255), CLR(0));
             ami_linewidth(stdout, 3);
             ami_ellipse(stdout, cx - checker_r, cy - checker_r,
                         cx + checker_r, cy + checker_r);
             ami_linewidth(stdout, 1);
+        }
+    }
+
+    /* Draw combo destinations (both dice) in cyan, if not already a single dest */
+    memset(combo_seen, 0, sizeof(combo_seen));
+    nv = get_available_dice(vals);
+
+    if (nv >= 2 && !from_bar) {
+        int src = selected_point;
+        int j;
+
+        for (i = 0; i < nv; i++) {
+            int mid, mid_dest;
+
+            if (!can_move_from(src, vals[i], turn)) continue;
+            mid = move_dest(src, vals[i], turn);
+            if (mid < 0) continue; /* can't combo through bear off */
+
+            /* check if the intermediate point is landable */
+            if (board[mid] != 0 &&
+                ((turn == P1 && board[mid] < -1) ||
+                 (turn == P2 && board[mid] > 1)))
+                continue; /* blocked at intermediate */
+
+            /* try second die from intermediate */
+            for (j = 0; j < nv; j++) {
+                if (j == i && ndice < 4) continue; /* can't reuse same die unless doubles */
+                if (j == i && ndice >= 4) {
+                    /* doubles: check if a second copy is available */
+                    int k, avail = 0;
+                    for (k = 0; k < ndice; k++)
+                        if (!used[k]) avail++;
+                    if (avail < 2) continue;
+                }
+
+                /* simulate the intermediate state */
+                int save_src = board[src];
+                int save_mid = board[mid];
+                if (turn == P1) { board[src]--; board[mid]++; }
+                else { board[src]++; board[mid]--; }
+
+                int can = can_move_from(mid, vals[j], turn);
+                mid_dest = can ? move_dest(mid, vals[j], turn) : -2;
+
+                /* restore */
+                board[src] = save_src;
+                board[mid] = save_mid;
+
+                if (!can || mid_dest == -2) continue;
+
+                /* skip if this is already shown as a single-die destination */
+                int already_single = FALSE;
+                int k2;
+                for (k2 = 0; k2 < nd; k2++)
+                    if (dests[k2].dest == mid_dest) { already_single = TRUE; break; }
+                if (already_single) continue;
+
+                int idx = mid_dest + 1;
+                if (combo_seen[idx]) continue;
+                combo_seen[idx] = TRUE;
+
+                if (mid_dest == -1) {
+                    int tx = brd_x + point_w * 12 + bar_w;
+                    ami_fcolorg(stdout, CLR(0), CLR(220), CLR(255));
+                    ami_linewidth(stdout, 3);
+                    ami_rect(stdout, tx + 4, brd_y + 4,
+                             tx + bear_w - 4, brd_y + brd_h - 4);
+                    ami_linewidth(stdout, 1);
+                } else {
+                    cx = point_cx(mid_dest);
+                    cy = checker_cy(mid_dest, 0);
+                    ami_fcolorg(stdout, CLR(0), CLR(220), CLR(255));
+                    ami_linewidth(stdout, 2);
+                    ami_ellipse(stdout, cx - checker_r - 2, cy - checker_r - 2,
+                                cx + checker_r + 2, cy + checker_r + 2);
+                    ami_linewidth(stdout, 1);
+                }
+            }
         }
     }
 }
@@ -1333,6 +1434,39 @@ void restore_ai(aistate *s)
     memcpy(bar, s->bar, sizeof(bar));
     memcpy(off, s->off, sizeof(off));
     memcpy(used, s->used, sizeof(used));
+}
+
+/* Push current state onto undo stack */
+void undo_push(void)
+{
+    if (undo_top >= MAX_UNDO) return;
+    undo_state *s = &undo_stack[undo_top];
+    memcpy(s->board, board, sizeof(board));
+    memcpy(s->bar, bar, sizeof(bar));
+    memcpy(s->off, off, sizeof(off));
+    memcpy(s->dice, dice, sizeof(dice));
+    memcpy(s->used, used, sizeof(used));
+    s->ndice = ndice;
+    s->turn = turn;
+    s->selected_point = selected_point;
+    undo_top++;
+}
+
+/* Pop and restore state from undo stack */
+int undo_pop(void)
+{
+    if (undo_top <= 0) return FALSE;
+    undo_top--;
+    undo_state *s = &undo_stack[undo_top];
+    memcpy(board, s->board, sizeof(board));
+    memcpy(bar, s->bar, sizeof(bar));
+    memcpy(off, s->off, sizeof(off));
+    memcpy(dice, s->dice, sizeof(dice));
+    memcpy(used, s->used, sizeof(used));
+    ndice = s->ndice;
+    turn = s->turn;
+    selected_point = s->selected_point;
+    return TRUE;
 }
 
 /* Recursively find best sequence of moves for current dice.
@@ -1770,7 +1904,9 @@ void setup_menu(void)
     appendmenu(&menu, game_menu);
     game_items = NULL;
     appendmenu(&game_items,
-        newmenuitem(FALSE, FALSE, TRUE, MENU_NEW, "New Game"));
+        newmenuitem(FALSE, FALSE, FALSE, MENU_NEW, "New Game"));
+    appendmenu(&game_items,
+        newmenuitem(FALSE, FALSE, TRUE, MENU_UNDO, "Undo Move"));
     appendmenu(&game_items,
         newmenuitem(FALSE, FALSE, FALSE, MENU_EXIT, "Exit"));
     game_menu->branch = game_items;
@@ -1919,6 +2055,14 @@ int main(void)
                     if (is_computer_turn()) {
                         ami_timer(stdout, TIMER_AI, 300, FALSE);
                         ai_pending = TRUE;
+                    }
+                    break;
+                case MENU_UNDO:
+                    if (undo_top > 0 && gamestate == GS_MOVE &&
+                        !is_computer_turn() && !animating) {
+                        undo_pop();
+                        gamestate = GS_MOVE;
+                        draw_all();
                     }
                     break;
                 case MENU_EXIT:
