@@ -129,6 +129,14 @@ int player_x;                      /* player center x */
 int player_y;                      /* player top y */
 int mouse_x;                       /* current mouse x */
 
+/* input device control - last device to change takes over */
+#define CTL_MOUSE    0
+#define CTL_KEYBOARD 1
+#define CTL_JOYSTICK 2
+#define JOY_THRESHOLD (INT_MAX / 20) /* joystick must move this much to take over */
+int active_ctl;                    /* which device is controlling */
+int last_joyx;                     /* last joystick x for change detection */
+
 bullet_t pbullets[MAX_PBULLETS];   /* player bullets */
 bullet_t abullets[MAX_ABULLETS];   /* alien bullets */
 
@@ -306,6 +314,8 @@ void init_game(void)
     wave = 1;
     game_over = FALSE;
     game_started = TRUE;
+    active_ctl = CTL_MOUSE;
+    last_joyx = 0;
     player_x = scr_w / 2;
     player_y = scr_h - scr_h / 10;
 
@@ -1031,6 +1041,7 @@ int main(void)
     ami_font(stdout, AMI_FONT_SIGN);
     ami_bold(stdout, TRUE);
     ami_binvis(stdout);
+    ami_bcolorg(stdout, 0, 0, 0);
     ami_frametimer(stdout, TRUE);
     flip = FALSE;
 
@@ -1053,10 +1064,17 @@ int main(void)
 
     do {
         ami_event(stdin, &er);
-if (er.etype == ami_ettim) fprintf(stderr, "tim:%d", er.timnum);
 
         if (er.etype == ami_etresize) {
-            /* don't resize buffer - let framework handle it */
+            ami_sizbufg(stdout, er.rszxg, er.rszyg);
+            calc_metrics();
+            player_y = scr_h - scr_h / 10;
+            if (player_x > scr_w - player_w / 2)
+                player_x = scr_w - player_w / 2;
+            init_shields();
+            draw_all();
+            ami_select(stdout, !flip+1, flip+1);
+            flip = !flip;
         }
 
         else if (er.etype == ami_etredraw) {
@@ -1064,8 +1082,9 @@ if (er.etype == ami_ettim) fprintf(stderr, "tim:%d", er.timnum);
         }
 
         else if (er.etype == ami_etmoumovg) {
+            if (mouse_x != er.moupxg) active_ctl = CTL_MOUSE;
             mouse_x = er.moupxg;
-            if (game_started && !game_over) {
+            if (active_ctl == CTL_MOUSE && game_started && !game_over) {
                 player_x = mouse_x;
                 if (player_x < player_w / 2) player_x = player_w / 2;
                 if (player_x > scr_w - player_w / 2)
@@ -1079,13 +1098,15 @@ if (er.etype == ami_ettim) fprintf(stderr, "tim:%d", er.timnum);
             }
         }
 
-        else if (er.etype == ami_etenter) {
+        else if (er.etype == ami_etenter ||
+                 (er.etype == ami_etchar && er.echar == ' ')) {
             if (game_started && !game_over) {
                 player_fire();
             }
         }
 
         else if (er.etype == ami_etleft) {
+            active_ctl = CTL_KEYBOARD;
             if (game_started && !game_over) {
                 move_step = scr_w / 50;
                 if (move_step < 5) move_step = 5;
@@ -1095,12 +1116,34 @@ if (er.etype == ami_ettim) fprintf(stderr, "tim:%d", er.timnum);
         }
 
         else if (er.etype == ami_etright) {
+            active_ctl = CTL_KEYBOARD;
             if (game_started && !game_over) {
                 move_step = scr_w / 50;
                 if (move_step < 5) move_step = 5;
                 player_x += move_step;
                 if (player_x > scr_w - player_w / 2)
                     player_x = scr_w - player_w / 2;
+            }
+        }
+
+        else if (er.etype == ami_etjoymov) {
+            /* only take over if joystick moved significantly */
+            int jdelta = er.joypx - last_joyx;
+            if (jdelta < 0) jdelta = -jdelta;
+            if (jdelta > JOY_THRESHOLD) active_ctl = CTL_JOYSTICK;
+            last_joyx = er.joypx;
+            if (active_ctl == CTL_JOYSTICK && game_started && !game_over) {
+                int jchr = INT_MAX / ((scr_w - 2) / 2);
+                player_x = scr_w / 2 + er.joypx / jchr;
+                if (player_x < player_w / 2) player_x = player_w / 2;
+                if (player_x > scr_w - player_w / 2)
+                    player_x = scr_w - player_w / 2;
+            }
+        }
+
+        else if (er.etype == ami_etjoyba && er.ajoybn == 1) {
+            if (game_started && !game_over) {
+                player_fire();
             }
         }
 
