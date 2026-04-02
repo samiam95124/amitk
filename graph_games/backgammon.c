@@ -365,6 +365,7 @@ void play_sound(int note, int dur)
 }
 
 #define WAVE_SLIDE 1
+#define WAVE_DICE  2
 
 void play_slide_sound(void)
 {
@@ -1590,7 +1591,7 @@ void handle_click(void)
     if (gamestate == GS_ROLL) {
         /* Roll dice */
         roll_dice();
-        play_sound(DICE_NOTE, DICE_DUR);
+        if (sound_enabled) ami_playwave(AMI_WAVE_OUT, 0, WAVE_DICE);
         gamestate = GS_MOVE;
         selected_point = -1;
 
@@ -1827,6 +1828,7 @@ int main(void)
     ami_instchange(AMI_SYNTH_OUT, 0, 1, AMI_INST_WOODBLOCK);
     ami_starttimeout();
     ami_loadwave(WAVE_SLIDE, "graph_games/slide.wav");
+    ami_loadwave(WAVE_DICE, "graph_games/dice.wav");
     ami_openwaveout(AMI_WAVE_OUT);
     sound_enabled = TRUE;
 
@@ -1882,7 +1884,7 @@ int main(void)
             } else if (gamestate == GS_ROLL && is_computer_turn()) {
                 /* Computer rolls */
                 roll_dice();
-                play_sound(DICE_NOTE, DICE_DUR);
+                if (sound_enabled) ami_playwave(AMI_WAVE_OUT, 0, WAVE_DICE);
                 gamestate = GS_MOVE;
                 draw_all();
 
