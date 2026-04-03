@@ -3133,8 +3133,9 @@ static glyphcache* ft_cache_glyph(FT_Face face, int pixel_size, char c)
     if (ge->valid && ge->face == face && ge->pixel_size == pixel_size &&
         ge->glyph_index == (int)gi) return ge;
 
-    /* cache miss - render the glyph */
-    if (FT_Load_Char(face, (unsigned char)c, FT_LOAD_RENDER)) return NULL;
+    /* cache miss - render the glyph as 8-bit grayscale */
+    if (FT_Load_Char(face, (unsigned char)c, FT_LOAD_RENDER | FT_LOAD_TARGET_NORMAL))
+        return NULL;
 
     slot = face->glyph;
     w = slot->bitmap.width;
@@ -3164,21 +3165,26 @@ static glyphcache* ft_cache_glyph(FT_Face face, int pixel_size, char c)
     buf = slot->bitmap.buffer;
     pitch = slot->bitmap.pitch;
 
-    /* create 1-bit data from FreeType 8-bit alpha bitmap */
+    /* create 1-bit data from FreeType 8-bit alpha bitmap.
+       Let XCreateImage set native byte/bit order, then use XPutPixel
+       to avoid bit order issues. */
     bw = (w + 7) / 8; /* bytes per row */
     data = (char*)calloc(bw * h, 1);
-    for (j = 0; j < h; j++)
-        for (i = 0; i < w; i++)
-            if (buf[j * pitch + i] > 127)
-                data[j * bw + i / 8] |= 128 >> (i % 8);
 
     ximg = XCreateImage(padisplay, DefaultVisual(padisplay, pascreen),
                         1, XYBitmap, 0, data, w, h, 8, bw);
-    ximg->byte_order = MSBFirst;
-    ximg->bitmap_bit_order = MSBFirst;
+    for (j = 0; j < h; j++)
+        for (i = 0; i < w; i++)
+            XPutPixel(ximg, i, j, (buf[j * pitch + i] > 127) ? 1 : 0);
+
 
     pix = XCreatePixmap(padisplay, DefaultRootWindow(padisplay), w, h, 1);
-    gc1 = XCreateGC(padisplay, pix, 0, NULL);
+    {
+        XGCValues gcv;
+        gcv.foreground = 1;
+        gcv.background = 0;
+        gc1 = XCreateGC(padisplay, pix, GCForeground | GCBackground, &gcv);
+    }
     XPutImage(padisplay, pix, gc1, ximg, 0, 0, 0, 0, w, h);
     XFreeGC(padisplay, gc1);
 
