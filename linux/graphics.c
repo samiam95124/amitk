@@ -105,12 +105,26 @@
 #include <config.h>
 #include <graphics.h>
 #include "system_event.h" /* system event (mouse, joystick) handler */
-#include "rotated.h"      /* character rotation drawing package */
+/* FreeType/fontconfig for client-side font rendering */
+#include <ft2build.h>
+#include FT_FREETYPE_H
+#include <fontconfig/fontconfig.h>
 
 /* external definitions */
 #if !defined(__MACH__) && !defined(__FreeBSD__) /* Mac OS X */
 extern char *program_invocation_short_name;
 #endif
+
+/* forward declarations for FreeType helper functions */
+static void ft_draw_char(Drawable d, GC gc, FT_Face face, int pixel_size,
+                         int x, int y, char c);
+static void ft_draw_string(Drawable d, GC gc, FT_Face face, int pixel_size,
+                           int x, int y, char* s, int len);
+static int  ft_text_width(FT_Face face, const char* s, int len);
+static void ft_draw_char_rotated(Drawable d, GC gc, FT_Face face,
+                                 int pixel_size, float angle_rad,
+                                 int x, int y, char c);
+static void ft_cache_clear(void);
 
 /*
  * Debug print system
@@ -344,8 +358,10 @@ typedef enum {
 
 typedef struct xcaplst {
 
-    struct xcaplst* next; /* next entry */
-    int             caps; /* XWindow font capabilities set */
+    struct xcaplst* next;  /* next entry */
+    int             caps;  /* font capabilities set */
+    char*           path;  /* font file path for this variant */
+    int             index; /* face index in font collection file */
 
 } xcaplst;
 
@@ -562,7 +578,7 @@ typedef struct winrec {
     Window       xwhan;             /* subclient window */
     xrect        xmwr;              /* master window rectangle */
     xrect        xwr;               /* subclient window rectangle */
-    XFontStruct* xfont;             /* current font */
+    FT_Face      ftface;            /* current FreeType font face */
     Atom         delmsg;            /* windows manager delete window message */
     int          pfw;               /* parent/frame width (extra) */
     int          pfh;               /* parent frame height (extra) */
@@ -1118,8 +1134,9 @@ static int        xltwin[MAXFIL*2+1]; /* window equivalence table, includes
 static metptr     xltmnu[MAXFIL*2+1]; /* menu entry equivalence table */
 static int        filwin[MAXFIL]; /* file to window equivalence table */
 static int        esck;           /* previous key was escape */
-static fontptr    fntlst;         /* list of XWindow fonts */
+static fontptr    fntlst;         /* list of fonts */
 static int        fntcnt;         /* number of fonts */
+static FT_Library ftlibrary;     /* FreeType library instance */
 static picptr     frepic;         /* free picture entries */
 static int        numjoy;         /* number of joysticks found */
 static joyptr     joytab[MAXJOY]; /* joystick control table */
@@ -1216,33 +1233,53 @@ static int errdlg(
     Window            w;
     GC                cxt;
     XEvent            e;
-    XFontStruct*      font;
+    FT_Face           dlg_face;
+    int               dlg_size;
     int               mw, wd;
     char              cb[] = "Close";
     int               ww, wh;
     int               cw;
     int               bx1, by1, bx2, by2;
     XWindowAttributes xwa;
+    FcPattern*        pat;
+    FcPattern*        match;
+    FcResult          result;
+    FcChar8*          fcfile;
 
-    XWLOCK();
-    font = XLoadQueryFont(padisplay,
-        "-unregistered-latin modern sans-bold-o-normal--0-0-200-200-p-0-iso8859-1");
+    dlg_size = 14; /* dialog font pixel size */
 
-    if (!font) /* try another font */
-        font = XLoadQueryFont(padisplay,
-        "-bitstream-bitstream vera sans-bold-o-normal--0-0-200-200-p-0-iso8859-1");
-    XWUNLOCK();
+    /* find a sans-serif font via fontconfig */
+    pat = FcNameParse((FcChar8*)"sans:style=Bold Oblique");
+    FcConfigSubstitute(NULL, pat, FcMatchPattern);
+    FcDefaultSubstitute(pat);
+    match = FcFontMatch(NULL, pat, &result);
+    FcPatternDestroy(pat);
 
-    /* if we can't find a font, exit to stderr handler */
-    if (!font) return (1); /* indicate display error */
+    if (!match) return (1); /* indicate display error */
 
-    XWLOCK();
+    if (FcPatternGetString(match, FC_FILE, 0, &fcfile) != FcResultMatch) {
+
+        FcPatternDestroy(match);
+        return (1);
+
+    }
+
+    if (FT_New_Face(ftlibrary, (char*)fcfile, 0, &dlg_face)) {
+
+        FcPatternDestroy(match);
+        return (1);
+
+    }
+    FcPatternDestroy(match);
+    FT_Set_Pixel_Sizes(dlg_face, 0, dlg_size);
+
     /* minimum width for dialog system bar */
-    mw = XTextWidth(font, t, strlen(t))+200; /* minimum width for dialog system bar */
+    mw = ft_text_width(dlg_face, t, strlen(t))+200;
     /* minimum width for dialog contents */
-    wd = NEGCIRCLESPC+NEGCIRCLE+NEGCIRCLESPC+XTextWidth(font, s, strlen(s));
+    wd = NEGCIRCLESPC+NEGCIRCLE+NEGCIRCLESPC+ft_text_width(dlg_face, s, strlen(s));
     if (wd > mw) mw = wd; /* set minimum overall */
 
+    XWLOCK();
     /* find screen placement */
     XGetWindowAttributes(padisplay, RootWindow(padisplay, pascreen), &xwa);
 
@@ -1258,13 +1295,12 @@ static int errdlg(
     /* centering works well unless you have dual screens */
     XMoveWindow(padisplay, w, xwa.width/2-ww/2, 0/*xwa.height/2-wh/2*/);
     cxt = XCreateGC(padisplay, w, 0, NULL);
-    XSetFont(padisplay, cxt, font->fid);
 
     XStoreName(padisplay, w, t);
     XSetIconName(padisplay, w, t);
     XWUNLOCK();
 
-    cw = XTextWidth(font, cb, strlen(cb))+50;
+    cw = ft_text_width(dlg_face, cb, strlen(cb))+50;
     /* set button rectangle */
     bx1 = ww-cw-20;
     by1 = 125;
@@ -1278,6 +1314,7 @@ static int errdlg(
         XWUNLOCK();
         if (e.type == Expose && e.xany.window == w) {
 
+            XWLOCK();
             /* set background color to grey */
             XSetForeground(padisplay, cxt, 0xe0e0e0);
             XFillRectangle(padisplay, w, cxt, e.xexpose.x, e.xexpose.y,
@@ -1292,14 +1329,17 @@ static int errdlg(
             /* set text color */
             XSetForeground(padisplay, cxt, 0x000000);
             /* center text on circle to the right */
-            XDrawString(padisplay, w, cxt, NEGCIRCLESPC+NEGCIRCLE+NEGCIRCLESPC,
-                        NEGCIRCLESPC+NEGCIRCLE/2, s, strlen(s));
+            ft_draw_string(w, cxt, dlg_face, dlg_size,
+                           NEGCIRCLESPC+NEGCIRCLE+NEGCIRCLESPC,
+                           NEGCIRCLESPC+NEGCIRCLE/2, s, strlen(s));
             /* place close button */
             XSetForeground(padisplay, cxt, 0xffffff);
             XFillRectangle(padisplay, w, cxt, ww-cw-20, 125, cw, 40);
             XSetForeground(padisplay, cxt, 0x000000);
             XDrawRectangle(padisplay, w, cxt, ww-cw-20, 125, cw, 40);
-            XDrawString(padisplay, w, cxt, ww-cw-20+15, 155, cb, strlen(cb));
+            ft_draw_string(w, cxt, dlg_face, dlg_size,
+                           ww-cw-20+15, 155, cb, strlen(cb));
+            XWUNLOCK();
 
         } else if (e.type == ButtonPress) {
 
@@ -1314,6 +1354,7 @@ static int errdlg(
     XWLOCK();
     XDestroyWindow(padisplay, w);
     XWUNLOCK();
+    FT_Done_Face(dlg_face);
 
     return (0); /* exit no error */
 
@@ -2322,6 +2363,50 @@ static fontptr fndfnt(char* fn, int fix)
 
 /*******************************************************************************
 
+Find font by family substring
+
+Searches the font list for a font whose name contains the given substring
+(case-insensitive). Used for flexible standard font selection with fontconfig
+names.
+
+*******************************************************************************/
+
+static fontptr fndfntsub(const char* sub, int fix)
+
+{
+
+    fontptr p;
+    const char *s, *n;
+    int sl, nl;
+
+    sl = strlen(sub);
+    p = fntlst;
+    while (p) {
+
+        if (p->fix == fix) {
+
+            /* case-insensitive substring search in font name */
+            nl = strlen(p->fn);
+            for (n = p->fn; nl >= sl; n++, nl--) {
+
+                for (s = sub; *s; s++)
+                    if (tolower((unsigned char)*s) !=
+                        tolower((unsigned char)n[s - sub])) break;
+                if (!*s) return p; /* found match */
+
+            }
+
+        }
+        p = p->next;
+
+    }
+
+    return NULL;
+
+}
+
+/*******************************************************************************
+
 Search for font by name
 
 Finds a font in the list of fonts by name.
@@ -2463,61 +2548,46 @@ void stdfont(void)
     /* select first 4 fonts for standard fonts */
     nfl = NULL; /* clear target list */
 
-    /* search 1: terminal font */
-    fp = fndfnt("bitstream: courier 10 pitch: iso10646-1", TRUE);
-    if (fp) { /* found, enter as 1 */
+    /* search 1: terminal (fixed pitch) font */
+    fp = fndfntsub("courier 10 pitch", TRUE);
+    if (!fp) fp = fndfntsub("courier new", TRUE);
+    if (!fp) fp = fndfntsub("dejavu sans mono", TRUE);
+    if (!fp) fp = fndfntsub("liberation mono", TRUE);
+    if (!fp) fp = fndfntsub("noto sans mono", TRUE);
+    if (!fp) {
 
-        delfnt(fp); /* remove from source list */
-        fp->next = nfl; /* insert to target list */
-        nfl = fp;
-
-    } else {
-
-        fp = fndfnt("bitstream: courier 10 pitch: iso8859-1", TRUE);
-        if (!fp) error(estdfnt); /* no font found */
-        delfnt(fp); /* remove from source list */
-        fp->next = nfl; /* insert to target list */
-        nfl = fp;
+        /* last resort: find any fixed pitch font */
+        fontptr p = fntlst;
+        while (p && !fp) { if (p->fix) fp = p; else p = p->next; }
 
     }
+    if (!fp) error(estdfnt);
+    delfnt(fp);
+    fp->next = nfl;
+    nfl = fp;
 
     /* search 2: book (serif) font */
-    fp = fndfnt("bitstream: bitstream charter: iso10646-1", FALSE);
-    if (fp) { /* found, enter as 2 */
+    fp = fndfntsub("bitstream charter", FALSE);
+    if (!fp) fp = fndfntsub("dejavu serif", FALSE);
+    if (!fp) fp = fndfntsub("liberation serif", FALSE);
+    if (!fp) fp = fndfntsub("noto serif", FALSE);
+    if (!fp) fp = fndfntsub("serif", FALSE);
+    if (!fp) error(estdfnt);
+    delfnt(fp);
+    fp->next = nfl;
+    nfl = fp;
 
-        delfnt(fp); /* remove from source list */
-        fp->next = nfl; /* insert to target list */
-        nfl = fp;
-
-    } else {
-
-        fp = fndfnt("bitstream: bitstream charter: iso8859-1", FALSE);
-        if (!fp) error(estdfnt); /* no font found */
-        delfnt(fp); /* remove from source list */
-        fp->next = nfl; /* insert to target list */
-        nfl = fp;
-
-    }
-
-    /* search 3: sign (san serif) font */
-    fp = fndfnt("unregistered: latin modern sans: iso8859-1", FALSE);
-    if (fp) { /* found, enter as 3 */
-
-        delfnt(fp); /* remove from source list */
-        fp->next = nfl; /* insert to target list */
-        nfl = fp;
-        sp = fp; /* save sign font */
-
-    } else {
-
-        fp = fndfnt("bitstream: bitstream vera sans: iso8859-1", FALSE);
-        if (!fp) error(estdfnt); /* no font found */
-        delfnt(fp); /* remove from source list */
-        fp->next = nfl; /* insert to target list */
-        nfl = fp;
-        sp = fp; /* save sign font */
-
-    }
+    /* search 3: sign (sans serif) font */
+    fp = fndfntsub("dejavu sans:", FALSE);
+    if (!fp) fp = fndfntsub("liberation sans", FALSE);
+    if (!fp) fp = fndfntsub("noto sans:", FALSE);
+    if (!fp) fp = fndfntsub("ubuntu:", FALSE);
+    if (!fp) fp = fndfntsub("sans", FALSE);
+    if (!fp) error(estdfnt);
+    delfnt(fp);
+    fp->next = nfl;
+    nfl = fp;
+    sp = fp; /* save sign font */
 
     /* search 4: technical font, make copy of sign */
     fp = (fontptr)imalloc(sizeof(fontrec));
@@ -2558,199 +2628,163 @@ void stdfont(void)
 
 Load fonts list
 
-Loads the XWindow font list. We only load scalable fonts, since PA has no
-ability to adapt to fonts that don't scale. The font names are stripped to
-their essential information, IE, the PA font names are not simply a copy of the
-XWindow font naming system. We keep the fields needed to differentiate the
-fonts. There is enough information in the font names (by defintion) to select
-the active font by filling in the missing fields with wildcards or specific
-sizing or attribute information.
-
-Looking at the XWindow font name description, these are the dispositions of the
-fields:
-
--foundry-family-weight-slant-width-pixels-points-hres-vres-spacing-width-cset-#
-
-Foundry     Kept as part of the name.
-Family      Kept as part of the name.
-Weight      Selected as attribute.
-Slant       Selected as attribute.
-Width       Selected as attribute.
-Pixels      Selected in scaling.
-Points      Selected in scaling.
-Hres        Selected in scaling.
-Vres        Selected in scaling.
-Spacing     Selected as attribute.
-Width       Unused.
-Cset        Kept as part of the name.
-#           Kept as part of the name.
-
-See the XWindow font name description for more.
+Loads the font list using fontconfig. We only load scalable fonts, since PA has
+no ability to adapt to fonts that don't scale. The font names are constructed as
+"foundry: family: iso10646-1" for compatibility with the internal naming system.
 
 *******************************************************************************/
-
-/* get field by number */
-string fldnum(string fp, int fn)
-
-{
-
-    int i;
-
-    fp++; /* index 1st field */
-    fn--;
-    while (fn) {
-
-        while (*fp && *fp != '-') fp++; /* skip to next '-' */
-        fp++; /* skip over '-' */
-        fn--; /* count */
-
-    }
-
-    return (fp); /* return with the string */
-
-}
 
 void getfonts(void)
 
 {
 
-    string*      fl;       /* font list */
-    int          fc;       /* font count */
-    string*      fp;       /* font pointer */
+    FcPattern*   pat;      /* fontconfig search pattern */
+    FcObjectSet* os;       /* requested properties */
+    FcFontSet*   fs;       /* result font set */
     int          ifc;      /* internal font count */
     char         buf[250]; /* buffer for string name */
     int          i;
-    string       sp, dp;
+    char*        dp;
     fontptr      flp;
-    fontptr      nfl;
     xcaplst*     xcl;
-    XFontStruct* font;
+    FcChar8*     fcfamily;
+    FcChar8*     fcfoundry;
+    FcChar8*     fcfile;
+    int          fcweight, fcslant, fcwidth, fcspacing, fcindex;
+    FcBool       fcscalable;
 
-    /* load the fonts list */
-    XWLOCK();
-    fl = XListFonts(padisplay, "-*-*-*-*-*--0-0-0-0-?-0-*", INT_MAX, &fc);
-    XWUNLOCK();
+    /* query fontconfig for all scalable fonts */
+    pat = FcPatternCreate();
+    FcPatternAddBool(pat, FC_SCALABLE, FcTrue);
+    os = FcObjectSetBuild(FC_FAMILY, FC_FOUNDRY, FC_STYLE, FC_WEIGHT,
+                          FC_SLANT, FC_WIDTH, FC_SPACING, FC_FILE, FC_INDEX,
+                          NULL);
+    fs = FcFontList(NULL, pat, os);
+    FcObjectSetDestroy(os);
+    FcPatternDestroy(pat);
 
-#if 0
-    /* print the raw XWindow font list */
-    fp = fl;
-    for (i = 1; i <= fc; i++) {
-
-        dbg_printf(dlinfo, "XWindow Font %d: %s\n", i, *fp);
-        fp++;
-
-    }
-#endif
-
-    fp = fl; /* index top of list */
     fntlst = NULL; /* clear destination list */
     ifc = 0; /* clear internal font counter */
-    for (i = 1; i <= fc; i++) { /* process all fonts */
 
-        /* probe errors in font */
-        XWLOCK();
-        xerrbyp = TRUE; /* bypass xerror */
-        font = XLoadQueryFont(padisplay, *fp);
-        xerrbyp = FALSE; /* reset bypass */
-        XWUNLOCK();
-        /* reject character spaced fonts. I haven't seen reasonable metrics for
-           those */
-        sp = fldnum(*fp, 11); /* index spacing field */
-        if (strncmp(sp, "c", 1) && font) { /* not character space, no errors */
+    for (i = 0; i < fs->nfont; i++) {
 
-            dp = buf; /* index result buffer */
-            /* get foundry */
-            sp = fldnum(*fp, 1);
-            while (*sp && *sp != '-') *dp++ = *sp++; /* transfer character */
-            *dp++ = ':';
-            *dp++ = ' ';
-            /* get font family */
-            sp = fldnum(*fp, 2);
-            while (*sp && *sp != '-') *dp++ = *sp++; /* transfer character */
-            *dp++ = ':';
-            *dp++ = ' ';
-            /* get character set (2 parts) */
-            sp = fldnum(*fp, 13);
-            while (*sp && *sp != '-') *dp++ = *sp++; /* transfer character */
-            *dp++ = '-';
-            sp = fldnum(*fp, 14);
-            while (*sp && *sp != '-') *dp++ = *sp++; /* transfer character */
-            *dp++ = 0; /* terminate string */
+        FcPattern* font = fs->fonts[i];
 
-            /* Search for duplicates. Since we removed the attributes, many
-               entries will be duplicated. */
-            flp = schfnt(buf);
+        /* get font properties */
+        if (FcPatternGetString(font, FC_FAMILY, 0, &fcfamily) != FcResultMatch)
+            continue;
+        if (FcPatternGetString(font, FC_FILE, 0, &fcfile) != FcResultMatch)
+            continue;
 
-            if (!flp) { /* entry is unique */
+        /* get foundry, default to empty */
+        if (FcPatternGetString(font, FC_FOUNDRY, 0, &fcfoundry) != FcResultMatch)
+            fcfoundry = (FcChar8*)"unknown";
 
-                /* create destination entry */
-                flp = (fontptr)imalloc(sizeof(fontrec));
-                fontcnt++;
-                fonttot += sizeof(fontrec);
-                flp->fn = (string)imalloc(strlen(buf)+1); /* get name string */
-                strcpy(flp->fn, buf); /* copy name into place */
-                flp->caps = 0; /* clear capabilities */
-                flp->caplst = NULL; /* clear capabilities list */
-                /* push to destination */
-                flp->next = fntlst;
-                fntlst = flp;
-                ifc++; /* count internal fonts */
+        /* get face index for collection files */
+        if (FcPatternGetInteger(font, FC_INDEX, 0, &fcindex) != FcResultMatch)
+            fcindex = 0;
 
-            }
+        /* construct display name: "foundry: family: iso10646-1" */
+        dp = buf;
+        {
+            const char* s;
+            s = (const char*)fcfoundry;
+            while (*s) { *dp = tolower(*s); dp++; s++; }
+        }
+        *dp++ = ':'; *dp++ = ' ';
+        {
+            const char* s;
+            s = (const char*)fcfamily;
+            while (*s) { *dp = tolower(*s); dp++; s++; }
+        }
+        *dp++ = ':'; *dp++ = ' ';
+        {
+            const char* cs = "iso10646-1";
+            while (*cs) *dp++ = *cs++;
+        }
+        *dp = 0;
 
-            xcl = (xcaplst*)imalloc(sizeof(xcaplst));
-            xcl->caps = 0; /* clear capabilities */
-            xcl->next = flp->caplst; /* push to font cap list */
-            flp->caplst = xcl;
+        /* search for duplicates */
+        flp = schfnt(buf);
 
-            /* transfer font capabilties to flags */
+        if (!flp) { /* entry is unique */
 
-            /* weight */
-            sp = fldnum(*fp, 3);
-            if (!strncmp(sp, "normal", 6)) xcl->caps |= BIT(xcnormal);
-            if (!strncmp(sp, "medium", 6)) xcl->caps |= BIT(xcmedium);
-            if (!strncmp(sp, "bold", 4)) xcl->caps |= BIT(xcbold);
-            if (!strncmp(sp, "demi bold", 9)) xcl->caps |= BIT(xcdemibold);
-            if (!strncmp(sp, "dark", 4)) xcl->caps |= BIT(xcdark);
-            if (!strncmp(sp, "light", 5)) xcl->caps |= BIT(xclight);
-            if (!strncmp(sp, "black", 5)) xcl->caps |= BIT(xcblack);
-
-            /* slants */
-            sp = fldnum(*fp, 4);
-            if (!strncmp(sp, "r", 1)) xcl->caps |= BIT(xcroman);
-            if (!strncmp(sp, "i", 1)) xcl->caps |= BIT(xcital);
-            if (!strncmp(sp, "o", 1)) xcl->caps |= BIT(xcoblique);
-            if (!strncmp(sp, "ri", 2)) xcl->caps |= BIT(xcrital);
-            if (!strncmp(sp, "ro", 2)) xcl->caps |= BIT(xcroblique);
-
-            /* widths */
-            sp = fldnum(*fp, 5);
-            if (!strncmp(sp, "normal", 6)) xcl->caps |= BIT(xcnormalw);
-            if (!strncmp(sp, "narrow", 6)) xcl->caps |= BIT(xcnarrow);
-            if (!strncmp(sp, "condensed", 9)) xcl->caps |= BIT(xccondensed);
-            if (!strncmp(sp, "semicondensed", 13))
-                xcl->caps |= BIT(xcsemicondensed);
-            if (!strncmp(sp, "expanded", 8)) xcl->caps |= BIT(xcexpanded);
-
-            /* spacing */
-            sp = fldnum(*fp, 11); /* index spacing field */
-            if (!strncmp(sp, "p", 1)) xcl->caps |= BIT(xcproportional);
-            if (!strncmp(sp, "m", 1)) xcl->caps |= BIT(xcmonospace);
-            if (!strncmp(sp, "c", 1)) xcl->caps |= BIT(xcchar);
-
-            /* form set of all capabilities */
-            flp->caps |= xcl->caps;
-
-            /* set our font flags based on that */
-            flp->fix = flp->caps & BIT(xcmonospace) || flp->caps & BIT(xcchar);
+            flp = (fontptr)imalloc(sizeof(fontrec));
+            fontcnt++;
+            fonttot += sizeof(fontrec);
+            flp->fn = (string)imalloc(strlen(buf)+1);
+            strcpy(flp->fn, buf);
+            flp->caps = 0;
+            flp->caplst = NULL;
+            flp->next = fntlst;
+            fntlst = flp;
+            ifc++;
 
         }
-        fp++; /* next source font entry */
+
+        /* create capability entry for this variant */
+        xcl = (xcaplst*)imalloc(sizeof(xcaplst));
+        xcl->caps = 0;
+        xcl->next = flp->caplst;
+        flp->caplst = xcl;
+
+        /* store font file path and index */
+        xcl->path = (string)imalloc(strlen((char*)fcfile)+1);
+        strcpy(xcl->path, (char*)fcfile);
+        xcl->index = fcindex;
+
+        /* map fontconfig weight to capabilities */
+        if (FcPatternGetInteger(font, FC_WEIGHT, 0, &fcweight) == FcResultMatch) {
+
+            if (fcweight <= FC_WEIGHT_LIGHT) xcl->caps |= BIT(xclight);
+            else if (fcweight <= FC_WEIGHT_REGULAR) xcl->caps |= BIT(xcnormal);
+            else if (fcweight <= FC_WEIGHT_MEDIUM) xcl->caps |= BIT(xcmedium);
+            else if (fcweight <= FC_WEIGHT_DEMIBOLD) xcl->caps |= BIT(xcdemibold);
+            else if (fcweight <= FC_WEIGHT_BOLD) xcl->caps |= BIT(xcbold);
+            else if (fcweight <= FC_WEIGHT_BLACK) xcl->caps |= BIT(xcblack);
+            else xcl->caps |= BIT(xcbold);
+
+        } else xcl->caps |= BIT(xcnormal);
+
+        /* map fontconfig slant to capabilities */
+        if (FcPatternGetInteger(font, FC_SLANT, 0, &fcslant) == FcResultMatch) {
+
+            if (fcslant == FC_SLANT_ROMAN) xcl->caps |= BIT(xcroman);
+            else if (fcslant == FC_SLANT_ITALIC) xcl->caps |= BIT(xcital);
+            else if (fcslant == FC_SLANT_OBLIQUE) xcl->caps |= BIT(xcoblique);
+
+        } else xcl->caps |= BIT(xcroman);
+
+        /* map fontconfig width to capabilities */
+        if (FcPatternGetInteger(font, FC_WIDTH, 0, &fcwidth) == FcResultMatch) {
+
+            if (fcwidth <= FC_WIDTH_CONDENSED) xcl->caps |= BIT(xccondensed);
+            else if (fcwidth <= FC_WIDTH_SEMICONDENSED)
+                xcl->caps |= BIT(xcsemicondensed);
+            else if (fcwidth <= FC_WIDTH_NORMAL) xcl->caps |= BIT(xcnormalw);
+            else xcl->caps |= BIT(xcexpanded);
+
+        } else xcl->caps |= BIT(xcnormalw);
+
+        /* map fontconfig spacing to capabilities */
+        if (FcPatternGetInteger(font, FC_SPACING, 0, &fcspacing) == FcResultMatch) {
+
+            if (fcspacing == FC_PROPORTIONAL) xcl->caps |= BIT(xcproportional);
+            else if (fcspacing == FC_MONO || fcspacing == FC_DUAL)
+                xcl->caps |= BIT(xcmonospace);
+            else if (fcspacing == FC_CHARCELL) xcl->caps |= BIT(xcchar);
+
+        } else xcl->caps |= BIT(xcproportional);
+
+        /* form set of all capabilities */
+        flp->caps |= xcl->caps;
+
+        /* set font flags based on spacing */
+        flp->fix = (flp->caps & BIT(xcmonospace)) || (flp->caps & BIT(xcchar));
 
     }
-    XWLOCK();
-    XFreeFontNames(fl); /* release the font list */
-    XWUNLOCK();
+
+    FcFontSetDestroy(fs);
 
     fntcnt = ifc; /* set internal font count */
 
@@ -2768,102 +2802,7 @@ void getfonts(void)
 
 /*******************************************************************************
 
-Create XWindow XLFD font select string
-
-Creates a font select string in XWindow XLFD format from the given XWindow
-capabilities, and a given pixel height.
-
-*******************************************************************************/
-
-void selxlfd(winptr win, int caps, string buf, int ht)
-
-{
-
-    char* bp;       /* buffer pointer */
-    char* np;       /* font name pointer */
-    fontptr fp;     /* pointer to new font */
-
-    fp = win->gcfont; /* get new font to select */
-    /* (re)construct XWindow font name */
-    bp = buf; /* index buffer */
-    np = fp->fn; /* index name */
-    *bp++ = '-'; /* start format */
-
-    /* foundry */
-    while (*np && *np != ':') *bp++ = *np++;
-    np += 2;
-    *bp++ = '-';
-
-    /* family name */
-    while (*np && *np != ':') *bp++ = *np++;
-    np += 2;
-    *bp++ = '-';
-
-    /* weight */
-    if (caps & BIT(xcnormal)) { strcpy(bp, "normal"); bp += 6; }
-    else if (caps & BIT(xcmedium)) { strcpy(bp, "medium"); bp += 6; }
-    else if (caps & BIT(xcbold)) { strcpy(bp, "bold"); bp += 4; }
-    else if (caps & BIT(xcdemibold)) { strcpy(bp, "demi bold"); bp += 9; }
-    else if (caps & BIT(xcdark)) { strcpy(bp, "dark"); bp += 4; }
-    else if (caps & BIT(xclight)) { strcpy(bp, "light"); bp += 5; }
-    else if (caps & BIT(xcblack)) { strcpy(bp, "black"); bp += 5; }
-    *bp++ = '-';
-
-    /* slant */
-    if (caps & BIT(xcroman)) { strcpy(bp, "r"); bp += 1; }
-    if (caps & BIT(xcital)) { strcpy(bp, "i"); bp += 1; }
-    else if (caps & BIT(xcoblique)) { strcpy(bp, "o"); bp += 1; }
-    else if (caps & BIT(xcrital)) { strcpy(bp, "ri"); bp += 2; }
-    else if (caps & BIT(xcroblique)) { strcpy(bp, "ro"); bp += 2; }
-    *bp++ = '-';
-
-    /* widths */
-    if (caps & BIT(xcnormalw)) { strcpy(bp, "normal"); bp += 6; }
-    else if (caps & BIT(xcnarrow)) { strcpy(bp, "narrow"); bp += 6; }
-    else if (caps & BIT(xccondensed)) { strcpy(bp, "condensed"); bp += 9; }
-    else if (caps & BIT(xcsemicondensed)) { strcpy(bp, "semicondensed"); bp += 13; }
-    else if (caps & BIT(xcexpanded)) { strcpy(bp, "expanded"); bp += 8; }
-    *bp++ = '-';
-
-    /* additional style (empty) */
-    *bp++ = '-';
-
-    /* pixel size */
-    bp += sprintf(bp, "%d", ht);
-    *bp++ = '-';
-
-    /* point size */
-    *bp++ = '*';
-    *bp++ = '-';
-
-    /* resolution X */
-    *bp++ = '*';
-    *bp++ = '-';
-
-    /* resolution Y */
-    *bp++ = '*';
-    *bp++ = '-';
-
-    /* spacing  */
-    if (caps & BIT(xcproportional)) { strcpy(bp, "p"); bp += 1; }
-    else if (caps & BIT(xcmonospace)) { strcpy(bp, "m"); bp += 1; }
-    else if (caps & BIT(xcchar)) { strcpy(bp, "c"); bp += 1; }
-    *bp++ = '-';
-
-    /* average width */
-    *bp++ = '*';
-    *bp++ = '-';
-
-    /* registry and encoding */
-    while (*np) *bp++ = *np++;
-
-    *bp = 0; /* terminate */
-
-}
-
-/*******************************************************************************
-
-Find requested XWindows font capabilities
+Find requested font capabilities
 
 Finds the set of XWindows capabilities that are requested in the set of PA
 attributes.
@@ -3045,78 +2984,65 @@ void setfnt(winptr win)
 
 {
 
-    char    buf[250]; /* construction buffer for X font names */
-    char*   bp;       /* buffer pointer */
-    char*   np;       /* font name pointer */
-    fontptr fp;       /* pointer to new font */
-    int     aht;      /* found height of font */
-    int     ht;       /* requested height of font */
-    int     caps;     /* XWindows capabilities set */
+    fontptr  fp;   /* pointer to current font */
+    int      caps; /* matched capabilities set */
+    xcaplst* cl;   /* capability list pointer */
+    xcaplst* best; /* best matching entry */
 
-    /* release any existing font */
-    if (win->xfont) {
+    /* release any existing FreeType face */
+    if (win->ftface) {
 
-        XWLOCK();
-        XFreeFont(padisplay, win->xfont);
-        XWUNLOCK();
+        FT_Done_Face(win->ftface);
+        win->ftface = NULL;
 
     }
 
-    /* Find matching XWindow capabilities set */
+    /* find matching capabilities set */
     caps = fndxcapp(win->gcfont, win->gattr);
 
-    /* XWindows does not select the pixel height by the true bounding box of the
-       font, defined by "a box that contains all pixels drawn by any character
-       in the font", so we must search to find the actual size. */
-    ht = win->gfhigh; /* set starting request size */
-    do { /* try font sizes */
+    /* find the xcaplst entry that matches the capabilities */
+    best = NULL;
+    cl = win->gcfont->caplst;
+    while (cl) {
 
-        selxlfd(win, caps, buf, ht); /* form XLFD selection string */
-//dbg_printf(dlinfo, "try font size: %d font string: %s\n", ht, buf);
-        XWLOCK();
-        win->xfont = XLoadQueryFont(padisplay, buf);
-        XWUNLOCK();
-        if (!win->xfont) error(esystem); /* should have found it */
-        aht = win->xfont->ascent+win->xfont->descent; /* find resulting height */
-        ht--;
-        /* if we are going to try again, free up the trial font */
-        if (aht > win->gfhigh) XFreeFont(padisplay, win->xfont);
-
-    } while (aht > win->gfhigh);
-
-//dbg_printf(dlinfo, "XLFD font select string: %s\n", buf);
-    if (prtftm) {
-
-        dbg_printf(dlinfo, "Font ascent:  %d\n", win->xfont->ascent);
-        dbg_printf(dlinfo, "Font descent: %d\n", win->xfont->descent);
-
-        dbg_printf(dlinfo, "Font min_bounds: lbearing: %d\n", win->xfont->min_bounds.lbearing);
-        dbg_printf(dlinfo, "Font min_bounds: rbearing: %d\n", win->xfont->min_bounds.rbearing);
-        dbg_printf(dlinfo, "Font min_bounds: width:    %d\n", win->xfont->min_bounds.width);
-        dbg_printf(dlinfo, "Font min_bounds: ascent:   %d\n", win->xfont->min_bounds.ascent);
-        dbg_printf(dlinfo, "Font min_bounds: descent:  %d\n", win->xfont->min_bounds.descent);
-
-        dbg_printf(dlinfo, "Font max_bounds: lbearing: %d\n", win->xfont->max_bounds.lbearing);
-        dbg_printf(dlinfo, "Font max_bounds: rbearing: %d\n", win->xfont->max_bounds.rbearing);
-        dbg_printf(dlinfo, "Font max_bounds: width:    %d\n", win->xfont->max_bounds.width);
-        dbg_printf(dlinfo, "Font max_bounds: ascent:   %d\n", win->xfont->max_bounds.ascent);
-        dbg_printf(dlinfo, "Font max_bounds: descent:  %d\n", win->xfont->max_bounds.descent);
+        if ((cl->caps & caps) == caps) { best = cl; break; }
+        cl = cl->next;
 
     }
+    /* if no exact match, take first entry with a valid path */
+    if (!best) {
 
-    /* find spacing in current font */
-    win->charspace = win->xfont->max_bounds.width;
-    /* because the search solution above could find a font smaller than the given
-       bounding box, we use the requested vs. actual font height */
+        cl = win->gcfont->caplst;
+        while (cl) {
+
+            if (cl->path) { best = cl; break; }
+            cl = cl->next;
+
+        }
+
+    }
+    if (!best || !best->path) error(esystem);
+
+    /* load the font face */
+    if (FT_New_Face(ftlibrary, best->path, best->index, &win->ftface))
+        error(esystem);
+
+    /* set pixel size */
+    FT_Set_Pixel_Sizes(win->ftface, 0, win->gfhigh);
+
+    /* extract metrics */
+    win->charspace = (int)(win->ftface->size->metrics.max_advance >> 6);
     win->linespace = win->gfhigh;
-    win->chrspcx = 0; /* reset leading and spacing */
+    win->chrspcx = 0;
     win->chrspcy = 0;
-
-    /* find base offset */
-    win->baseoff = win->xfont->ascent;
+    win->baseoff = (int)(win->ftface->size->metrics.ascender >> 6);
 
     if (prtftm) {
 
+        dbg_printf(dlinfo, "FreeType font: %s\n", best->path);
+        dbg_printf(dlinfo, "Font ascender:  %d\n", win->baseoff);
+        dbg_printf(dlinfo, "Font descender: %d\n",
+                   (int)(win->ftface->size->metrics.descender >> 6));
         dbg_printf(dlinfo, "Width of character cell:  %d\n", win->charspace);
         dbg_printf(dlinfo, "Height of character cell: %d\n", win->linespace);
         dbg_printf(dlinfo, "Base offset:              %d\n", win->baseoff);
@@ -3138,12 +3064,337 @@ int xwidth(winptr win, char c)
 
 {
 
-    /* only use the simple calculation */
-    if (!win->xfont->per_char) error(esystem);
-    if (win->xfont->min_byte1) error(esystem);
-    if (win->xfont->min_char_or_byte2 != 0) error(esystem);
+    if (FT_Load_Char(win->ftface, (unsigned char)c, FT_LOAD_DEFAULT))
+        return 0;
+    return (int)(win->ftface->glyph->advance.x >> 6);
 
-    return (win->xfont->per_char[c].width);
+}
+
+/*******************************************************************************
+
+Glyph cache for FreeType rendered glyphs
+
+Caches 1-bit depth Pixmaps of rendered glyphs to avoid recreating them on
+every draw call.
+
+*******************************************************************************/
+
+#define GLYPH_CACHE_SIZE 512
+
+typedef struct {
+
+    FT_Face  face;        /* font face this glyph belongs to */
+    int      pixel_size;  /* pixel size used for rendering */
+    int      glyph_index; /* glyph index in font */
+    Pixmap   stipple;     /* 1-bit depth pixmap */
+    int      width;       /* bitmap width */
+    int      height;      /* bitmap height */
+    int      bitmap_left; /* left bearing */
+    int      bitmap_top;  /* top bearing */
+    int      advance;     /* horizontal advance */
+    int      valid;       /* entry is valid */
+
+} glyphcache;
+
+static glyphcache gcache[GLYPH_CACHE_SIZE];
+
+/*******************************************************************************
+
+Find or create cached glyph
+
+Looks up the glyph in the cache. If not found, renders it with FreeType and
+creates a 1-bit Pixmap for stipple-based rendering.
+
+*******************************************************************************/
+
+static glyphcache* ft_cache_glyph(FT_Face face, int pixel_size, char c)
+
+{
+
+    unsigned int gi;
+    unsigned int hash;
+    glyphcache* ge;
+    FT_GlyphSlot slot;
+    int w, h, pitch;
+    unsigned char* buf;
+    char* data;
+    int bw;
+    int i, j;
+    XImage* ximg;
+    Pixmap pix;
+    GC gc1;
+
+    gi = FT_Get_Char_Index(face, (unsigned char)c);
+    hash = (gi * 31 + pixel_size * 17) % GLYPH_CACHE_SIZE;
+
+    ge = &gcache[hash];
+
+    /* check for cache hit */
+    if (ge->valid && ge->face == face && ge->pixel_size == pixel_size &&
+        ge->glyph_index == (int)gi) return ge;
+
+    /* cache miss - render the glyph */
+    if (FT_Load_Char(face, (unsigned char)c, FT_LOAD_RENDER)) return NULL;
+
+    slot = face->glyph;
+    w = slot->bitmap.width;
+    h = slot->bitmap.rows;
+
+    /* evict old entry if present */
+    if (ge->valid && ge->stipple)
+        XFreePixmap(padisplay, ge->stipple);
+
+    ge->face = face;
+    ge->pixel_size = pixel_size;
+    ge->glyph_index = gi;
+    ge->bitmap_left = slot->bitmap_left;
+    ge->bitmap_top = slot->bitmap_top;
+    ge->advance = (int)(slot->advance.x >> 6);
+    ge->width = w;
+    ge->height = h;
+    ge->valid = 1;
+
+    if (w == 0 || h == 0) {
+
+        ge->stipple = 0;
+        return ge;
+
+    }
+
+    buf = slot->bitmap.buffer;
+    pitch = slot->bitmap.pitch;
+
+    /* create 1-bit data from FreeType 8-bit alpha bitmap */
+    bw = (w + 7) / 8; /* bytes per row */
+    data = (char*)calloc(bw * h, 1);
+    for (j = 0; j < h; j++)
+        for (i = 0; i < w; i++)
+            if (buf[j * pitch + i] > 127)
+                data[j * bw + i / 8] |= 128 >> (i % 8);
+
+    ximg = XCreateImage(padisplay, DefaultVisual(padisplay, pascreen),
+                        1, XYBitmap, 0, data, w, h, 8, bw);
+    ximg->byte_order = MSBFirst;
+    ximg->bitmap_bit_order = MSBFirst;
+
+    pix = XCreatePixmap(padisplay, DefaultRootWindow(padisplay), w, h, 1);
+    gc1 = XCreateGC(padisplay, pix, 0, NULL);
+    XPutImage(padisplay, pix, gc1, ximg, 0, 0, 0, 0, w, h);
+    XFreeGC(padisplay, gc1);
+
+    XDestroyImage(ximg); /* frees data */
+    ge->stipple = pix;
+
+    return ge;
+
+}
+
+/*******************************************************************************
+
+Draw single character using FreeType
+
+Renders a character glyph onto an X11 Drawable using a cached 1-bit stipple
+Pixmap. This respects the GC function mode (normal, XOR, AND, OR).
+
+*******************************************************************************/
+
+static void ft_draw_char(Drawable d, GC gc, FT_Face face, int pixel_size,
+                         int x, int y, char c)
+
+{
+
+    glyphcache* ge;
+
+    ge = ft_cache_glyph(face, pixel_size, c);
+    if (!ge || !ge->stipple) return;
+
+    XSetStipple(padisplay, gc, ge->stipple);
+    XSetFillStyle(padisplay, gc, FillStippled);
+    XSetTSOrigin(padisplay, gc, x + ge->bitmap_left, y - ge->bitmap_top);
+    XFillRectangle(padisplay, d, gc, x + ge->bitmap_left, y - ge->bitmap_top,
+                   ge->width, ge->height);
+    XSetFillStyle(padisplay, gc, FillSolid);
+
+}
+
+/*******************************************************************************
+
+Draw string using FreeType
+
+Renders a string onto an X11 Drawable using cached glyph stipples.
+
+*******************************************************************************/
+
+static void ft_draw_string(Drawable d, GC gc, FT_Face face, int pixel_size,
+                           int x, int y, char* s, int len)
+
+{
+
+    int i;
+
+    for (i = 0; i < len; i++) {
+
+        ft_draw_char(d, gc, face, pixel_size, x, y, s[i]);
+        if (FT_Load_Char(face, (unsigned char)s[i], FT_LOAD_DEFAULT) == 0)
+            x += (int)(face->glyph->advance.x >> 6);
+
+    }
+
+}
+
+/*******************************************************************************
+
+Calculate text width using FreeType
+
+Returns the total pixel width of a string rendered with the given face.
+
+*******************************************************************************/
+
+static int ft_text_width(FT_Face face, const char* s, int len)
+
+{
+
+    int w;
+    int i;
+
+    w = 0;
+    for (i = 0; i < len; i++) {
+
+        if (FT_Load_Char(face, (unsigned char)s[i], FT_LOAD_DEFAULT) == 0)
+            w += (int)(face->glyph->advance.x >> 6);
+
+    }
+
+    return w;
+
+}
+
+/*******************************************************************************
+
+Draw rotated character using FreeType
+
+Renders a character at an arbitrary angle onto an X11 Drawable. The glyph
+bitmap is rendered at 0 degrees then rotated client-side using the same
+pixel rotation algorithm from rotated.c.
+
+*******************************************************************************/
+
+static void ft_draw_char_rotated(Drawable d, GC gc, FT_Face face,
+                                 int pixel_size, float angle_rad,
+                                 int x, int y, char c)
+
+{
+
+    FT_GlyphSlot slot;
+    int w, h, pitch;
+    unsigned char* buf;
+    int ow, oh;        /* output dimensions */
+    float sin_a, cos_a;
+    int i, j, si, sj;
+    int bw;
+    char* data;
+    XImage* ximg;
+    Pixmap pix;
+    GC gc1;
+    float cx, cy;      /* center of input */
+    float ocx, ocy;    /* center of output */
+
+    if (FT_Load_Char(face, (unsigned char)c, FT_LOAD_RENDER)) return;
+
+    slot = face->glyph;
+    w = slot->bitmap.width;
+    h = slot->bitmap.rows;
+    if (w == 0 || h == 0) return;
+
+    buf = slot->bitmap.buffer;
+    pitch = slot->bitmap.pitch;
+
+    sin_a = sin(angle_rad);
+    cos_a = cos(angle_rad);
+
+    /* compute output bounding box */
+    ow = (int)(fabs(w * cos_a) + fabs(h * sin_a) + 2);
+    oh = (int)(fabs(w * sin_a) + fabs(h * cos_a) + 2);
+    if (ow == 0 || oh == 0) return;
+
+    cx = w / 2.0f;
+    cy = h / 2.0f;
+    ocx = ow / 2.0f;
+    ocy = oh / 2.0f;
+
+    /* create 1-bit rotated bitmap */
+    bw = (ow + 7) / 8;
+    data = (char*)calloc(bw * oh, 1);
+
+    for (j = 0; j < oh; j++) {
+        for (i = 0; i < ow; i++) {
+
+            /* reverse-map from output to input */
+            float dx = i - ocx;
+            float dy = j - ocy;
+            si = (int)(dx * cos_a + dy * sin_a + cx);
+            sj = (int)(-dx * sin_a + dy * cos_a + cy);
+            if (si >= 0 && si < w && sj >= 0 && sj < h) {
+
+                if (buf[sj * pitch + si] > 127)
+                    data[j * bw + i / 8] |= 128 >> (i % 8);
+
+            }
+
+        }
+    }
+
+    ximg = XCreateImage(padisplay, DefaultVisual(padisplay, pascreen),
+                        1, XYBitmap, 0, data, ow, oh, 8, bw);
+    ximg->byte_order = MSBFirst;
+    ximg->bitmap_bit_order = MSBFirst;
+
+    pix = XCreatePixmap(padisplay, DefaultRootWindow(padisplay), ow, oh, 1);
+    gc1 = XCreateGC(padisplay, pix, 0, NULL);
+    XPutImage(padisplay, pix, gc1, ximg, 0, 0, 0, 0, ow, oh);
+    XFreeGC(padisplay, gc1);
+
+    /* paint the rotated glyph via stipple */
+    {
+        int gx, gy;
+        /* adjust position for rotation center offset */
+        gx = x + slot->bitmap_left - (int)(ocx - cx * cos_a - cy * sin_a);
+        gy = y - slot->bitmap_top - (int)(ocy + cx * sin_a - cy * cos_a);
+        XSetStipple(padisplay, gc, pix);
+        XSetFillStyle(padisplay, gc, FillStippled);
+        XSetTSOrigin(padisplay, gc, gx, gy);
+        XFillRectangle(padisplay, d, gc, gx, gy, ow, oh);
+        XSetFillStyle(padisplay, gc, FillSolid);
+    }
+
+    XFreePixmap(padisplay, pix);
+    XDestroyImage(ximg); /* frees data */
+
+}
+
+/*******************************************************************************
+
+Invalidate glyph cache
+
+Clears all cached glyph pixmaps. Called when font system is shutting down.
+
+*******************************************************************************/
+
+static void ft_cache_clear(void)
+
+{
+
+    int i;
+
+    XWLOCK();
+    for (i = 0; i < GLYPH_CACHE_SIZE; i++) {
+
+        if (gcache[i].valid && gcache[i].stipple)
+            XFreePixmap(padisplay, gcache[i].stipple);
+        gcache[i].valid = 0;
+
+    }
+    XWUNLOCK();
 
 }
 
@@ -4311,7 +4562,6 @@ static void iniscn(winptr win, scnptr sc)
     /* create graphics context for screen */
     XWLOCK();
     sc->xcxt = XCreateGC(padisplay, win->xwhan, 0, NULL);
-    XSetFont(padisplay, sc->xcxt, win->xfont->fid);
     XWUNLOCK();
 
     /* set colors && attributes */
@@ -4531,7 +4781,7 @@ static void opnwin(int fn, int pfn, int wid, int subclient)
     win->mischry = win->gfhigh*MISCHRY; /* set size y */
     win->misoffx = win->gfhigh*MISOFFX; /* set offset x */
     win->misoffy = win->gfhigh*MISOFFY; /* set offset x */
-    win->xfont = NULL; /* clear current font */
+    win->ftface = NULL; /* clear current font face */
     setfnt(win); /* select font */
 
     /* set standard/reference font sizes */
@@ -5898,8 +6148,8 @@ static void drwchr90(winptr win, scnptr sc, int cs, int ce, Drawable d, char c)
 
             if (ce) /* character exists */
                 /* draw character */
-                XDrawString(padisplay, d, sc->xcxt, sc->curxg-1,
-                            sc->curyg-1+win->baseoff, &c, 1);
+                ft_draw_char(d, sc->xcxt, win->ftface, win->gfhigh,
+                             sc->curxg-1, sc->curyg-1+win->baseoff, c);
             else /* does not exist, draw missing character box */
                 XDrawRectangle(padisplay, d, sc->xcxt,
                                sc->curxg-1+win->misoffx,
@@ -5923,8 +6173,8 @@ static void drwchr90(winptr win, scnptr sc, int cs, int ce, Drawable d, char c)
         XSetFunction(padisplay, sc->xcxt, mod2fnc[sc->fmod]);
         if (ce) /* character exists */
             /* draw character */
-            XDrawString(padisplay, d, sc->xcxt,
-                        sc->curxg-1, sc->curyg-1+win->baseoff, &c, 1);
+            ft_draw_char(d, sc->xcxt, win->ftface, win->gfhigh,
+                         sc->curxg-1, sc->curyg-1+win->baseoff, c);
         else /* does not exist, draw missing character box */
             XDrawRectangle(padisplay, d, sc->xcxt,
                            sc->curxg-1+win->misoffx,
@@ -6116,8 +6366,8 @@ static void drwchr(winptr win, scnptr sc, int cs, int ce, Drawable d, char c)
 
             if (ce) /* character exists */
                 /* draw character */
-                XRotDrawString(padisplay, win->xfont, ROTANGLE(sc->angle), d,
-                               sc->xcxt, xb, yb, cb);
+                ft_draw_char_rotated(d, sc->xcxt, win->ftface, win->gfhigh,
+                                     RADIAN(sc->angle), xb, yb, c);
             else /* does not exist, draw missing character box */
                 drwrecta(d, sc, sc->angle,
                          sc->curxg-1+win->misoffx, sc->curyg-1+win->misoffy,
@@ -6139,8 +6389,8 @@ static void drwchr(winptr win, scnptr sc, int cs, int ce, Drawable d, char c)
         XSetFunction(padisplay, sc->xcxt, mod2fnc[sc->fmod]);
         if (ce) /* character exists */
             /* draw character */
-            XRotDrawString(padisplay, win->xfont, ROTANGLE(sc->angle), d, sc->xcxt,
-                           xb, yb, cb);
+            ft_draw_char_rotated(d, sc->xcxt, win->ftface, win->gfhigh,
+                                 RADIAN(sc->angle), xb, yb, c);
         else /* does not exist, draw missing character box */
             drwrecta(d, sc, sc->angle,
                      sc->curxg-1+win->misoffx, sc->curyg-1+win->misoffy,
@@ -7357,10 +7607,6 @@ static void italic_ivf(FILE* f, int e)
     /* this is a font changing event */
     curoff(win); /* remove cursor with old font characteristics */
     setfnt(win); /* select the font */
-    /* select to context */
-    XWLOCK();
-    XSetFont(padisplay, sc->xcxt, win->xfont->fid);
-    XWUNLOCK();
     curon(win); /* replace cursor with new font characteristics */
 
 }
@@ -7402,10 +7648,6 @@ static void bold_ivf(FILE* f, int e)
     /* this is a font changing event */
     curoff(win); /* remove cursor with old font characteristics */
     setfnt(win); /* select the font */
-    /* select to context */
-    XWLOCK();
-    XSetFont(padisplay, sc->xcxt, win->xfont->fid);
-    XWUNLOCK();
     curon(win); /* replace cursor with new font characteristics */
 
 }
@@ -7940,8 +8182,8 @@ static void drwstr90(winptr win, scnptr sc, int tw, Drawable d, char* s, int l)
            destructive, and would require a combining buffer to perform */
         if (sc->bmod == mdxor)
             /* restore surface under text */
-            XDrawString(padisplay, d, sc->xcxt, sc->curxg-1,
-                        sc->curyg-1+win->baseoff, s, l);
+            ft_draw_string(d, sc->xcxt, win->ftface, win->gfhigh,
+                           sc->curxg-1, sc->curyg-1+win->baseoff, s, l);
         /* restore colors */
         if (BIT(sarev) & sc->attr)
             XSetForeground(padisplay, sc->xcxt, sc->bcrgb);
@@ -7957,8 +8199,8 @@ static void drwstr90(winptr win, scnptr sc, int tw, Drawable d, char* s, int l)
         /* set foreground function */
         XSetFunction(padisplay, sc->xcxt, mod2fnc[sc->fmod]);
         /* draw character */
-        XDrawString(padisplay, d, sc->xcxt,
-                    sc->curxg-1, sc->curyg-1+win->baseoff, s, l);
+        ft_draw_string(d, sc->xcxt, win->ftface, win->gfhigh,
+                       sc->curxg-1, sc->curyg-1+win->baseoff, s, l);
         /* check draw underline */
         if (sc->attr & BIT(saundl)){
 
@@ -8038,7 +8280,7 @@ static void wrtstrn_ivf(FILE* f, char* s, int l)
     if (!win->visible) winvis(win); /* make sure we are displayed */
     if (sc->angle == INT_MAX/4) { /* text is normal (90 degrees) */
 
-        tw = XTextWidth(win->xfont, s, l); /* find text width in pixels */
+        tw = ft_text_width(win->ftface, s, l); /* find text width in pixels */
         if (win->bufmod) { /* buffer is active */
 
             /* draw string */
@@ -9520,10 +9762,6 @@ static void font_ivf(FILE* f, int fc)
     win->screens[win->curupd-1]->cfont = fp; /* place new font */
     win->gcfont = fp;
     setfnt(win); /* select the font */
-    /* select to context */
-    XWLOCK();
-    XSetFont(padisplay, sc->xcxt, win->xfont->fid);
-    XWUNLOCK();
     curon(win); /* replace cursor with new font characteristics */
 
 }
@@ -9595,10 +9833,6 @@ static void fontsiz_ivf(FILE* f, int s)
     win->misoffx = win->gfhigh*MISOFFX; /* set offset x */
     win->misoffy = win->gfhigh*MISOFFY; /* set offset x */
     setfnt(win); /* select the font */
-    /* select to context */
-    XWLOCK();
-    XSetFont(padisplay, sc->xcxt, win->xfont->fid);
-    XWUNLOCK();
     curon(win); /* replace cursor with new font characteristics */
 
 }
@@ -9720,9 +9954,7 @@ static int strsiz_ivf(FILE* f, const char* s)
     int    rv;
 
     win = txt2win(f); /* get window pointer from text file */
-    XWLOCK();
-    rv = XTextWidth(win->xfont, s, strlen(s)); /* return value */
-    XWUNLOCK();
+    rv = ft_text_width(win->ftface, s, strlen(s)); /* return value */
 
     return (rv);
 
@@ -9750,9 +9982,7 @@ static int chrpos_ivf(FILE* f, const char* s, int p)
 
     if (p < 0 || p > strlen(s)) error(estrinx); /* out of range */
     win = txt2win(f); /* get window pointer from text file */
-    XWLOCK();
-    rv = XTextWidth(win->xfont, s, p); /* return value */
-    XWUNLOCK();
+    rv = ft_text_width(win->ftface, s, p); /* return value */
 
     return (rv);
 
@@ -10006,10 +10236,6 @@ static void condensed_ivf(FILE* f, int e)
     /* this is a font changing event */
     curoff(win); /* remove cursor with old font characteristics */
     setfnt(win); /* select the font */
-    /* select to context */
-    XWLOCK();
-    XSetFont(padisplay, sc->xcxt, win->xfont->fid);
-    XWUNLOCK();
     curon(win); /* replace cursor with new font characteristics */
 
 }
@@ -10055,10 +10281,6 @@ static void extended_ivf(FILE* f, int e)
     /* this is a font changing event */
     curoff(win); /* remove cursor with old font characteristics */
     setfnt(win); /* select the font */
-    /* select to context */
-    XWLOCK();
-    XSetFont(padisplay, sc->xcxt, win->xfont->fid);
-    XWUNLOCK();
     curon(win); /* replace cursor with new font characteristics */
 
 }
@@ -10104,10 +10326,6 @@ static void xlight_ivf(FILE* f, int e)
     /* this is a font changing event */
     curoff(win); /* remove cursor with old font characteristics */
     setfnt(win); /* select the font */
-    /* select to context */
-    XWLOCK();
-    XSetFont(padisplay, sc->xcxt, win->xfont->fid);
-    XWUNLOCK();
     curon(win); /* replace cursor with new font characteristics */
 
 }
@@ -10153,10 +10371,6 @@ static void light_ivf(FILE* f, int e)
     /* this is a font changing event */
     curoff(win); /* remove cursor with old font characteristics */
     setfnt(win); /* select the font */
-    /* select to context */
-    XWLOCK();
-    XSetFont(padisplay, sc->xcxt, win->xfont->fid);
-    XWUNLOCK();
     curon(win); /* replace cursor with new font characteristics */
 
 }
@@ -10202,10 +10416,6 @@ static void xbold_ivf(FILE* f, int e)
     /* this is a font changing event */
     curoff(win); /* remove cursor with old font characteristics */
     setfnt(win); /* select the font */
-    /* select to context */
-    XWLOCK();
-    XSetFont(padisplay, sc->xcxt, win->xfont->fid);
-    XWUNLOCK();
     curon(win); /* replace cursor with new font characteristics */
 
 }
@@ -10251,10 +10461,6 @@ static void hollow_ivf(FILE* f, int e)
     /* this is a font changing event */
     curoff(win); /* remove cursor with old font characteristics */
     setfnt(win); /* select the font */
-    /* select to context */
-    XWLOCK();
-    XSetFont(padisplay, sc->xcxt, win->xfont->fid);
-    XWUNLOCK();
     curon(win); /* replace cursor with new font characteristics */
 
 }
@@ -10300,10 +10506,6 @@ static void raised_ivf(FILE* f, int e)
     /* this is a font changing event */
     curoff(win); /* remove cursor with old font characteristics */
     setfnt(win); /* select the font */
-    /* select to context */
-    XWLOCK();
-    XSetFont(padisplay, sc->xcxt, win->xfont->fid);
-    XWUNLOCK();
     curon(win); /* replace cursor with new font characteristics */
 
 }
@@ -15050,7 +15252,16 @@ static void ami_init_graphics(int argc, char *argv[])
     pascreen = DefaultScreen(padisplay);
     XWUNLOCK();
 
-    /* load the XWindow font set */
+    /* initialize FreeType and fontconfig */
+    if (FT_Init_FreeType(&ftlibrary)) {
+
+        fprintf(stderr, "Cannot initialize FreeType\n");
+        exit(1);
+
+    }
+    FcInit();
+
+    /* load the font set */
     getfonts();
 
     /* find frame characteristics */
@@ -15192,6 +15403,11 @@ static void ami_deinit_graphics()
         XWUNLOCK();
 
     }
+
+    /* shutdown FreeType and fontconfig */
+    ft_cache_clear();
+    FT_Done_FreeType(ftlibrary);
+    FcFini();
 
     /* close joysticks */
     for (ji = 0; ji < MAXJOY; ji++) if (joytab[ji]) close(joytab[ji]->fid);
