@@ -67,6 +67,8 @@ Game constants
 #define MENU_PVP     103
 #define MENU_PVC_W   104
 #define MENU_PVC_B   105
+#define MENU_UNDO    106
+#define MENU_DOUBLE  107
 
 /* Game modes */
 #define MODE_PVP     0
@@ -84,7 +86,22 @@ Game constants
 #define GS_GAMEOVER  2   /* game finished */
 
 /* Max move sequences for AI evaluation */
-#define MAX_COMBOS   2000
+#define MAX_COMBOS   5000
+
+/* Undo history */
+#define MAX_UNDO 20
+typedef struct {
+    int board[NUM_POINTS];
+    int bar[2];
+    int off[2];
+    int dice[2];
+    int used[4];
+    int ndice;
+    int turn;
+    int selected_point;
+} undo_state;
+undo_state undo_stack[MAX_UNDO];
+int undo_top;  /* index of next free slot */
 
 /*******************************************************************************
 
@@ -111,6 +128,17 @@ int selected_point;   /* currently selected source point, -1 = none,
 int mousex, mousey;
 int sound_enabled;
 
+/* timed status message overlay */
+char overlay_msg[200];
+int overlay_active;
+#define TIMER_MSG 4
+#define MSG_DURATION 20000  /* 2 seconds */
+
+/* doubling cube */
+int cube_value;       /* current cube value: 1, 2, 4, 8, 16, 32, 64 */
+int cube_owner;       /* -1 = center (either can double), P1 or P2 = owner */
+int score[2];         /* cumulative match score */
+
 /* animation state */
 #define ANIM_FRAMES 15
 int animating;         /* TRUE during move animation */
@@ -127,6 +155,8 @@ int anim_hit_player;   /* which player gets hit */
 int is_computer_turn(void);
 void draw_all(void);
 void animate_move(int src, int dest, int player, int from_bar, int bear_off);
+void undo_push(void);
+int undo_pop(void);
 
 /*******************************************************************************
 
@@ -165,6 +195,9 @@ void init_board(void)
     selected_point = -1;
     dice[0] = 0; dice[1] = 0;
     ndice = 0;
+    undo_top = 0;
+    cube_value = 1;
+    cube_owner = -1; /* center */
     for (i = 0; i < 4; i++) used[i] = FALSE;
 }
 
@@ -357,6 +390,14 @@ Execute a move
 
 *******************************************************************************/
 
+void show_message(const char *msg)
+{
+    strncpy(overlay_msg, msg, sizeof(overlay_msg) - 1);
+    overlay_msg[sizeof(overlay_msg) - 1] = 0;
+    overlay_active = TRUE;
+    ami_timer(stdout, TIMER_MSG, MSG_DURATION, FALSE);
+}
+
 void play_sound(int note, int dur)
 {
     if (!sound_enabled) return;
@@ -365,6 +406,7 @@ void play_sound(int note, int dur)
 }
 
 #define WAVE_SLIDE 1
+#define WAVE_DICE  2
 
 void play_slide_sound(void)
 {
@@ -421,6 +463,9 @@ int do_move(int src, int dv, int player, int from_bar)
 {
     int dest, bear_off;
     int src_pt;
+
+    /* save state for undo */
+    undo_push();
 
     /* figure out destination for animation */
     if (from_bar) {
@@ -930,34 +975,177 @@ void draw_checkers(void)
     }
 }
 
+/* Get the landing stack position for a checker arriving at dest.
+   Accounts for existing checkers and potential hits. */
+int landing_pos(int dest, int player)
+{
+    int cnt;
+
+    if (dest < 0 || dest >= 24) return 0;
+    cnt = board[dest];
+    if (player == P1) {
+        if (cnt < 0) return 0; /* hit: replaces the blot */
+        return cnt;
+    } else {
+        if (cnt > 0) return 0;
+        return -cnt;
+    }
+}
+
+/* Draw a highlight circle at a destination point */
+void draw_dest_circle(int dest, int stack_pos, int cr, int cg, int cb, int lw)
+{
+    int cx, cy;
+
+    if (dest == -1) {
+        /* bear off tray */
+        int tx = brd_x + point_w * 12 + bar_w;
+        ami_fcolorg(stdout, CLR(cr), CLR(cg), CLR(cb));
+        ami_linewidth(stdout, lw);
+        ami_rect(stdout, tx + 2, brd_y + 2,
+                 tx + bear_w - 2, brd_y + brd_h - 2);
+        ami_linewidth(stdout, 1);
+    } else {
+        cx = point_cx(dest);
+        cy = checker_cy(dest, stack_pos);
+        ami_fcolorg(stdout, CLR(cr), CLR(cg), CLR(cb));
+        ami_linewidth(stdout, lw);
+        ami_ellipse(stdout, cx - checker_r, cy - checker_r,
+                    cx + checker_r, cy + checker_r);
+        ami_linewidth(stdout, 1);
+    }
+}
+
+/* Recursively find combo destinations reachable by using multiple dice.
+   depth = number of dice used so far (1 = single, 2+ = combo).
+   cur_pt = current simulated position.
+   dice_used = bitmask of which dice slots are used in this path.
+   seen[depth] tracks which destinations already shown at each depth. */
+void find_combo_dests(int src, int cur_pt, int depth, int max_depth,
+                      int dice_used, int single_seen[30],
+                      int combo_seen[4][30])
+{
+    int vals[4], nv, i;
+
+    nv = get_available_dice(vals);
+
+    for (i = 0; i < nv; i++) {
+        int bit = 1 << i;
+        int mid_dest;
+
+        /* for non-doubles, each die used once */
+        if (ndice < 4) {
+            if (dice_used & bit) continue;
+        } else {
+            /* doubles: count how many we've used vs available */
+            int used_count = 0, avail = 0, k;
+            for (k = 0; k < ndice; k++) {
+                if (!used[k]) avail++;
+            }
+            /* count bits set in dice_used */
+            for (k = 0; k < 4; k++)
+                if (dice_used & (1 << k)) used_count++;
+            if (used_count >= avail) continue;
+            /* for doubles, don't revisit same combo path */
+            if (dice_used & bit) {
+                /* find next unused bit */
+                int found = FALSE;
+                int k2;
+                for (k2 = i + 1; k2 < 4; k2++) {
+                    if (!(dice_used & (1 << k2))) {
+                        bit = 1 << k2;
+                        found = TRUE;
+                        break;
+                    }
+                }
+                if (!found) continue;
+            }
+        }
+
+        if (!can_move_from(cur_pt, vals[i], turn)) continue;
+
+        /* simulate move */
+        int save_cur = board[cur_pt];
+        if (turn == P1) board[cur_pt]--;
+        else board[cur_pt]++;
+
+        mid_dest = move_dest(cur_pt, vals[i], turn);
+
+        if (mid_dest >= 0 && mid_dest < 24) {
+            /* check if blocked */
+            if ((turn == P1 && board[mid_dest] < -1) ||
+                (turn == P2 && board[mid_dest] > 1)) {
+                board[cur_pt] = save_cur;
+                continue;
+            }
+
+            int save_mid = board[mid_dest];
+            /* simulate landing */
+            if ((turn == P1 && board[mid_dest] == -1) ||
+                (turn == P2 && board[mid_dest] == 1))
+                board[mid_dest] = 0; /* hit */
+            if (turn == P1) board[mid_dest]++;
+            else board[mid_dest]--;
+
+            int idx = mid_dest + 1;
+            if (depth >= 1 && !single_seen[idx] && !combo_seen[depth][idx]) {
+                combo_seen[depth][idx] = TRUE;
+                int sp = landing_pos(mid_dest, turn);
+                draw_dest_circle(mid_dest, sp, 0, 220, 255, 5);
+            }
+
+            /* recurse for deeper combos */
+            if (depth + 1 < max_depth) {
+                find_combo_dests(src, mid_dest, depth + 1, max_depth,
+                                 dice_used | bit, single_seen, combo_seen);
+            }
+
+            board[mid_dest] = save_mid;
+        } else if (mid_dest == -1 && depth >= 1) {
+            /* bear off combo */
+            if (!combo_seen[depth][-1 + 1]) {
+                combo_seen[depth][-1 + 1] = TRUE;
+                draw_dest_circle(-1, 0, 0, 220, 255, 5);
+            }
+        }
+
+        board[cur_pt] = save_cur;
+    }
+}
+
 void draw_highlight_dests(void)
 {
     destinfo dests[MAX_DESTS];
-    int nd, i, cx, cy;
+    int nd, i;
     int from_bar;
+    int single_seen[30];
+    int combo_seen[4][30];
+    int avail;
 
     if (selected_point < 0) return;
     from_bar = (selected_point == 24);
     nd = get_valid_dests(from_bar ? -1 : selected_point, from_bar, dests);
 
+    memset(single_seen, 0, sizeof(single_seen));
+    memset(combo_seen, 0, sizeof(combo_seen));
+
+    /* Draw single-die destinations in yellow */
     for (i = 0; i < nd; i++) {
-        if (dests[i].dest == -1) {
-            /* bear off tray highlight */
-            int tx = brd_x + point_w * 12 + bar_w;
-            ami_fcolorg(stdout, CLR(255), CLR(255), CLR(0));
-            ami_linewidth(stdout, 3);
-            ami_rect(stdout, tx + 2, brd_y + 2,
-                     tx + bear_w - 2, brd_y + brd_h - 2);
-            ami_linewidth(stdout, 1);
-        } else {
-            cx = point_cx(dests[i].dest);
-            cy = checker_cy(dests[i].dest, 0);
-            /* Draw a yellow circle outline at destination */
-            ami_fcolorg(stdout, CLR(255), CLR(255), CLR(0));
-            ami_linewidth(stdout, 3);
-            ami_ellipse(stdout, cx - checker_r, cy - checker_r,
-                        cx + checker_r, cy + checker_r);
-            ami_linewidth(stdout, 1);
+        int sp = (dests[i].dest >= 0) ? landing_pos(dests[i].dest, turn) : 0;
+        draw_dest_circle(dests[i].dest, sp, 255, 255, 0, 5);
+        if (dests[i].dest >= -1)
+            single_seen[dests[i].dest + 1] = TRUE;
+    }
+
+    /* Draw combo destinations in cyan */
+    if (!from_bar) {
+        /* count available dice */
+        avail = 0;
+        for (i = 0; i < ndice; i++)
+            if (!used[i]) avail++;
+        if (avail >= 2) {
+            find_combo_dests(selected_point, selected_point, 1,
+                             avail, 0, single_seen, combo_seen);
         }
     }
 }
@@ -1070,7 +1258,6 @@ void draw_point_labels(void)
 
     fsz = point_w / 3;
     if (fsz < 8) fsz = 8;
-    if (fsz > 16) fsz = 16;
     ami_fontsiz(stdout, fsz);
     ami_fcolorg(stdout, CLR(180), CLR(170), CLR(150));
 
@@ -1117,7 +1304,32 @@ void draw_status(void)
     ami_fcolorg(stdout, CLR(255), CLR(255), CLR(200));
 
     if (gamestate == GS_GAMEOVER) {
-        sprintf(msg, "%s wins!", turn == P1 ? "White" : "Black");
+        /* check for gammon/backgammon multiplier */
+        int loser = 1 - turn;
+        int mult = 1;
+        if (off[loser] == 0) {
+            mult = 2; /* gammon */
+            if (bar[loser] > 0) mult = 3; /* backgammon */
+            else {
+                /* check if loser has checkers in winner's home */
+                int k2;
+                for (k2 = 0; k2 < 24; k2++) {
+                    if (loser == P1 && board[k2] > 0 && k2 >= 18) { mult = 3; break; }
+                    if (loser == P2 && board[k2] < 0 && k2 <= 5) { mult = 3; break; }
+                }
+            }
+        }
+        int pts = cube_value * mult;
+        score[turn] += pts;
+        if (mult == 3)
+            sprintf(msg, "%s wins BACKGAMMON! (+%d pts)",
+                    turn == P1 ? "White" : "Black", pts);
+        else if (mult == 2)
+            sprintf(msg, "%s wins GAMMON! (+%d pts)",
+                    turn == P1 ? "White" : "Black", pts);
+        else
+            sprintf(msg, "%s wins! (+%d pts)",
+                    turn == P1 ? "White" : "Black", pts);
     } else if (gamestate == GS_ROLL) {
         if (is_computer_turn())
             sprintf(msg, "%s (computer) rolling...",
@@ -1141,6 +1353,57 @@ void draw_status(void)
     }
     ami_cursorg(stdout, scr_w / 2 - ami_strsiz(stdout, msg) / 2, sy);
     printf("%s", msg);
+
+    /* Score and doubling cube */
+    {
+        int sy2 = sy + fsz + 4;
+        int csz = fsz;
+        int ccx, ccy;
+        char cbuf[16];
+
+        /* draw scores */
+        ami_fcolorg(stdout, CLR(240), CLR(235), CLR(220));
+        sprintf(buf, "Score: %d", score[P1]);
+        ami_cursorg(stdout, brd_x, sy2);
+        printf("%s", buf);
+
+        ami_fcolorg(stdout, CLR(160), CLR(150), CLR(140));
+        sprintf(buf, "Score: %d", score[P2]);
+        ami_cursorg(stdout, brd_x + brd_w - ami_strsiz(stdout, buf), sy2);
+        printf("%s", buf);
+
+        /* draw doubling cube */
+        sprintf(cbuf, "%d", cube_value);
+        ccx = scr_w / 2;
+        ccy = sy2;
+
+        /* cube background */
+        ami_fcolorg(stdout, CLR(220), CLR(220), CLR(200));
+        ami_frect(stdout, ccx - csz, ccy - csz / 4,
+                  ccx + csz, ccy + csz);
+        ami_fcolorg(stdout, CLR(60), CLR(60), CLR(60));
+        ami_rect(stdout, ccx - csz, ccy - csz / 4,
+                 ccx + csz, ccy + csz);
+
+        /* cube value */
+        ami_fcolorg(stdout, CLR(30), CLR(30), CLR(30));
+        ami_fontsiz(stdout, csz * 3 / 4);
+        ami_cursorg(stdout, ccx - ami_strsiz(stdout, cbuf) / 2,
+                    ccy + csz / 8);
+        printf("%s", cbuf);
+        ami_fontsiz(stdout, fsz); /* restore */
+
+        /* owner indicator */
+        if (cube_owner == P1) {
+            ami_fcolorg(stdout, CLR(240), CLR(235), CLR(220));
+            ami_cursorg(stdout, ccx - csz - ami_strsiz(stdout, "W") - 4, ccy);
+            printf("W");
+        } else if (cube_owner == P2) {
+            ami_fcolorg(stdout, CLR(100), CLR(90), CLR(80));
+            ami_cursorg(stdout, ccx + csz + 4, ccy);
+            printf("B");
+        }
+    }
 }
 
 void draw_all(void)
@@ -1161,6 +1424,29 @@ void draw_all(void)
     draw_dice_display();
     draw_point_labels();
     draw_status();
+
+    /* draw overlay message if active */
+    if (overlay_active) {
+        int fsz = scr_h / 20;
+        int mw, mh, mx, my;
+        if (fsz < 14) fsz = 14;
+        ami_fontsiz(stdout, fsz);
+        mw = ami_strsiz(stdout, overlay_msg) + fsz * 2;
+        mh = fsz * 3;
+        mx = scr_w / 2 - mw / 2;
+        my = scr_h / 2 - mh / 2;
+
+        /* dark background box */
+        ami_fcolorg(stdout, CLR(20), CLR(20), CLR(40));
+        ami_frect(stdout, mx, my, mx + mw, my + mh);
+        ami_fcolorg(stdout, CLR(200), CLR(180), CLR(80));
+        ami_rect(stdout, mx, my, mx + mw, my + mh);
+
+        /* text */
+        ami_fcolorg(stdout, CLR(255), CLR(255), CLR(200));
+        ami_cursorg(stdout, mx + fsz, my + fsz);
+        printf("%s", overlay_msg);
+    }
 }
 
 /*******************************************************************************
@@ -1178,52 +1464,136 @@ int is_computer_turn(void)
 }
 
 /* Board evaluation from P1's perspective (higher = better for P1) */
-int evaluate(void)
+/* Count how many opponent checkers can hit a blot at point pt */
+int blot_exposure(int pt, int opponent)
 {
-    int i, score = 0;
-    int p1_home = 0, p2_home = 0;
-
-    /* Borne off checkers are great */
-    score += off[P1] * 500;
-    score -= off[P2] * 500;
-
-    /* Bar is very bad */
-    score -= bar[P1] * 400;
-    score += bar[P2] * 400;
+    int hits = 0, i, dist;
 
     for (i = 0; i < 24; i++) {
-        if (board[i] > 0) {
-            /* P1 checker: lower index = closer to bearing off = better */
-            score += (24 - i) * 5;  /* advancement bonus */
-            if (board[i] >= 2)
-                score += 30;  /* making a point is good */
-            if (board[i] == 1)
-                score -= 20;  /* blot is risky */
-            /* Home board points are extra valuable */
-            if (i < 6) {
-                score += 15;
-                p1_home += board[i];
+        if (opponent == P1 && board[i] <= 0) continue;
+        if (opponent == P2 && board[i] >= 0) continue;
+        if (opponent == P1) dist = i - pt;
+        else dist = pt - i;
+        if (dist > 0 && dist <= 12) hits++; /* within direct/combo range */
+        if (dist > 0 && dist <= 6) hits++;  /* within direct shot range */
+    }
+    /* bar checkers can also hit */
+    if (bar[opponent] > 0) {
+        if (opponent == P1 && pt >= 18 && pt <= 23) hits += 2;
+        if (opponent == P2 && pt >= 0 && pt <= 5) hits += 2;
+    }
+    return hits;
+}
+
+/* Evaluate for a specific player (positive = good for that player) */
+int eval_player(int player)
+{
+    int i, sc = 0;
+    int opp = 1 - player;
+    int home_pts = 0;     /* number of home board points held */
+    int prime_len = 0;    /* longest consecutive run of held points */
+    int cur_prime = 0;
+    int anchor_count = 0; /* points held in opponent's home board */
+    int total_pip = 0;
+    int blots = 0;
+
+    /* borne off is the ultimate goal */
+    sc += off[player] * 600;
+
+    /* bar is devastating */
+    sc -= bar[player] * 500;
+
+    /* opponent on bar is great for us */
+    sc += bar[opp] * 300;
+
+    for (i = 0; i < 24; i++) {
+        int cnt, dist;
+
+        if (player == P1) {
+            cnt = board[i] > 0 ? board[i] : 0;
+            dist = i; /* pip distance for P1 (lower = closer to home) */
+        } else {
+            cnt = board[i] < 0 ? -board[i] : 0;
+            dist = 23 - i;
+        }
+
+        if (cnt == 0) {
+            cur_prime = 0;
+            continue;
+        }
+
+        /* pip count */
+        total_pip += cnt * (dist + 1);
+
+        /* advancement: reward checkers closer to home */
+        sc += cnt * (24 - dist) * 3;
+
+        if (cnt >= 2) {
+            /* holding a point */
+            sc += 40;
+            cur_prime++;
+            if (cur_prime > prime_len) prime_len = cur_prime;
+
+            /* home board points are very valuable */
+            if (dist < 6) {
+                home_pts++;
+                sc += 50;
+                /* inner home points (1-3) are especially valuable */
+                if (dist < 3) sc += 25;
             }
-        } else if (board[i] < 0) {
-            int cnt = -board[i];
-            /* P2: higher index = closer to bearing off */
-            score -= i * 5;
-            if (cnt >= 2)
-                score -= 30;
-            if (cnt == 1)
-                score += 20;
-            if (i >= 18) {
-                score -= 15;
-                p2_home += cnt;
+
+            /* anchors in opponent's home are strategic */
+            if (dist >= 18) {
+                anchor_count++;
+                sc += 35;
             }
+
+            /* stacking more than 5 on one point is wasteful */
+            if (cnt > 5) sc -= (cnt - 5) * 15;
+            /* 3 is ideal for blocking */
+            if (cnt == 3) sc += 10;
+        } else {
+            /* blot - penalize based on exposure to being hit */
+            int exposure = blot_exposure(i, opp);
+            sc -= 25 + exposure * 15;
+            blots++;
+
+            /* blots in opponent's home board are extra dangerous */
+            if (dist >= 18) sc -= 40;
+            /* blots near our home are less risky */
+            if (dist < 6) sc += 15;
         }
     }
 
-    /* Bonus for having checkers ready to bear off */
-    if (all_in_home(P1)) score += 200;
-    if (all_in_home(P2)) score -= 200;
+    /* prime bonus: consecutive blocked points are very strong */
+    if (prime_len >= 3) sc += prime_len * 40;
+    if (prime_len >= 5) sc += 150;  /* 5-prime is very strong */
+    if (prime_len >= 6) sc += 300;  /* 6-prime is nearly unpassable */
 
-    return score;
+    /* home board coverage bonus */
+    if (home_pts >= 3) sc += 60;
+    if (home_pts >= 5) sc += 120;
+    if (home_pts >= 6) sc += 200; /* closed home board */
+
+    /* bearing off readiness */
+    if (all_in_home(player)) {
+        sc += 250;
+        /* when bearing off, low pip count is key */
+        sc -= total_pip * 2;
+    } else {
+        /* general pip count matters but less */
+        sc -= total_pip;
+    }
+
+    /* avoid too many blots */
+    if (blots >= 3) sc -= blots * 30;
+
+    return sc;
+}
+
+int evaluate(void)
+{
+    return eval_player(P1) - eval_player(P2);
 }
 
 /* Save/restore state for AI */
@@ -1248,6 +1618,39 @@ void restore_ai(aistate *s)
     memcpy(bar, s->bar, sizeof(bar));
     memcpy(off, s->off, sizeof(off));
     memcpy(used, s->used, sizeof(used));
+}
+
+/* Push current state onto undo stack */
+void undo_push(void)
+{
+    if (undo_top >= MAX_UNDO) return;
+    undo_state *s = &undo_stack[undo_top];
+    memcpy(s->board, board, sizeof(board));
+    memcpy(s->bar, bar, sizeof(bar));
+    memcpy(s->off, off, sizeof(off));
+    memcpy(s->dice, dice, sizeof(dice));
+    memcpy(s->used, used, sizeof(used));
+    s->ndice = ndice;
+    s->turn = turn;
+    s->selected_point = selected_point;
+    undo_top++;
+}
+
+/* Pop and restore state from undo stack */
+int undo_pop(void)
+{
+    if (undo_top <= 0) return FALSE;
+    undo_top--;
+    undo_state *s = &undo_stack[undo_top];
+    memcpy(board, s->board, sizeof(board));
+    memcpy(bar, s->bar, sizeof(bar));
+    memcpy(off, s->off, sizeof(off));
+    memcpy(dice, s->dice, sizeof(dice));
+    memcpy(used, s->used, sizeof(used));
+    ndice = s->ndice;
+    turn = s->turn;
+    selected_point = s->selected_point;
+    return TRUE;
 }
 
 /* Recursively find best sequence of moves for current dice.
@@ -1471,7 +1874,6 @@ void ai_move(void)
         int result = do_move(best_src, best_dv, turn, best_from_bar);
         if (result == 1) play_sound(HIT_NOTE, HIT_DUR);
         else if (result == 2) play_sound(BEAROFF_NOTE, BEAROFF_DUR);
-        else play_sound(MOVE_NOTE, MOVE_DUR);
     }
 
     /* Check if more moves remain */
@@ -1492,6 +1894,93 @@ void ai_move(void)
 
 /*******************************************************************************
 
+Try to execute a combo move (using two dice) from src to final_dest.
+Returns TRUE if successful.
+
+*******************************************************************************/
+
+int try_combo_move(int src, int final_dest, int from_bar)
+{
+    int vals[4], nv, i, j;
+    int player = turn;
+
+    nv = get_available_dice(vals);
+    if (nv < 2) return FALSE;
+
+    for (i = 0; i < nv; i++) {
+        int mid;
+
+        if (from_bar) {
+            if (!can_enter(player, vals[i])) continue;
+            if (player == P1) mid = 24 - vals[i];
+            else mid = vals[i] - 1;
+        } else {
+            if (!can_move_from(src, vals[i], player)) continue;
+            mid = move_dest(src, vals[i], player);
+        }
+        if (mid < 0) continue;
+
+        /* check intermediate is landable */
+        if (board[mid] != 0 &&
+            ((player == P1 && board[mid] < -1) ||
+             (player == P2 && board[mid] > 1)))
+            continue;
+
+        for (j = 0; j < nv; j++) {
+            int mid_dest;
+
+            if (j == i && ndice < 4) continue;
+            if (j == i && ndice >= 4) {
+                int k, avail = 0;
+                for (k = 0; k < ndice; k++)
+                    if (!used[k]) avail++;
+                if (avail < 2) continue;
+            }
+
+            /* simulate intermediate */
+            int save_src = from_bar ? 0 : board[src];
+            int save_mid = board[mid];
+            int save_bar = bar[player];
+            if (from_bar) {
+                bar[player]--;
+            } else {
+                if (player == P1) board[src]--;
+                else board[src]++;
+            }
+            /* handle hit at mid */
+            if ((player == P1 && board[mid] == -1) ||
+                (player == P2 && board[mid] == 1)) {
+                board[mid] = 0;
+            }
+            if (player == P1) board[mid]++;
+            else board[mid]--;
+
+            int can = can_move_from(mid, vals[j], player);
+            mid_dest = can ? move_dest(mid, vals[j], player) : -2;
+
+            /* restore */
+            if (from_bar) {
+                bar[player] = save_bar;
+            } else {
+                board[src] = save_src;
+            }
+            board[mid] = save_mid;
+
+            if (mid_dest != final_dest) continue;
+
+            /* found the combo - execute both moves */
+            do_move(from_bar ? -1 : src, vals[i], player, from_bar);
+            int result = do_move(mid, vals[j], player, FALSE);
+            if (result == 1) play_sound(HIT_NOTE, HIT_DUR);
+            else if (result == 2) play_sound(BEAROFF_NOTE, BEAROFF_DUR);
+            return TRUE;
+        }
+    }
+    return FALSE;
+}
+
+/*******************************************************************************
+
 Handle player click
 
 *******************************************************************************/
@@ -1506,7 +1995,7 @@ void handle_click(void)
     if (gamestate == GS_ROLL) {
         /* Roll dice */
         roll_dice();
-        play_sound(DICE_NOTE, DICE_DUR);
+        if (sound_enabled) ami_playwave(AMI_WAVE_OUT, 0, WAVE_DICE);
         gamestate = GS_MOVE;
         selected_point = -1;
 
@@ -1543,7 +2032,6 @@ void handle_click(void)
                 if (dests[i].dest == pt) {
                     int result = do_move(-1, dests[i].dv, turn, TRUE);
                     if (result == 1) play_sound(HIT_NOTE, HIT_DUR);
-                    else play_sound(MOVE_NOTE, MOVE_DUR);
                     selected_point = -1;
 
                     if (off[turn] >= NUM_CHECKERS) {
@@ -1555,6 +2043,18 @@ void handle_click(void)
                         end_turn();
                     return;
                 }
+            }
+            /* try combo from bar */
+            if (try_combo_move(-1, pt, TRUE)) {
+                selected_point = -1;
+                if (off[turn] >= NUM_CHECKERS) {
+                    gamestate = GS_GAMEOVER;
+                    play_sound(WIN_NOTE, WIN_DUR);
+                    return;
+                }
+                if (dice_remaining() == 0 || !has_any_move(turn))
+                    end_turn();
+                return;
             }
         }
         /* auto-select bar if turn player has bar checkers */
@@ -1598,7 +2098,6 @@ void handle_click(void)
                                          turn, FALSE);
                     if (result == 1) play_sound(HIT_NOTE, HIT_DUR);
                     else if (result == 2) play_sound(BEAROFF_NOTE, BEAROFF_DUR);
-                    else play_sound(MOVE_NOTE, MOVE_DUR);
                     selected_point = -1;
 
                     if (off[turn] >= NUM_CHECKERS) {
@@ -1610,6 +2109,35 @@ void handle_click(void)
                         end_turn();
                     return;
                 }
+            }
+        }
+
+        /* Not a single-die dest - try combo move */
+        if (pt >= 0 && pt <= 23) {
+            if (try_combo_move(selected_point, pt, FALSE)) {
+                selected_point = -1;
+                if (off[turn] >= NUM_CHECKERS) {
+                    gamestate = GS_GAMEOVER;
+                    play_sound(WIN_NOTE, WIN_DUR);
+                    return;
+                }
+                if (dice_remaining() == 0 || !has_any_move(turn))
+                    end_turn();
+                return;
+            }
+        }
+        /* try combo bear off */
+        if (pt == 25) {
+            if (try_combo_move(selected_point, -1, FALSE)) {
+                selected_point = -1;
+                if (off[turn] >= NUM_CHECKERS) {
+                    gamestate = GS_GAMEOVER;
+                    play_sound(WIN_NOTE, WIN_DUR);
+                    return;
+                }
+                if (dice_remaining() == 0 || !has_any_move(turn))
+                    end_turn();
+                return;
             }
         }
 
@@ -1688,7 +2216,11 @@ void setup_menu(void)
     appendmenu(&menu, game_menu);
     game_items = NULL;
     appendmenu(&game_items,
-        newmenuitem(FALSE, FALSE, TRUE, MENU_NEW, "New Game"));
+        newmenuitem(FALSE, FALSE, FALSE, MENU_NEW, "New Game"));
+    appendmenu(&game_items,
+        newmenuitem(FALSE, FALSE, FALSE, MENU_UNDO, "Undo Move"));
+    appendmenu(&game_items,
+        newmenuitem(FALSE, FALSE, TRUE, MENU_DOUBLE, "Double"));
     appendmenu(&game_items,
         newmenuitem(FALSE, FALSE, FALSE, MENU_EXIT, "Exit"));
     game_menu->branch = game_items;
@@ -1733,19 +2265,46 @@ int main(void)
     ami_title(stdout, "Backgammon");
     ami_curvis(stdout, FALSE);
     ami_auto(stdout, FALSE);
+    ami_autohold(FALSE); /* override automatic hold */
     ami_buffer(stdout, FALSE);
     ami_font(stdout, AMI_FONT_SIGN);
     ami_bold(stdout, TRUE);
     ami_binvis(stdout);
 
+    /* restore saved window size/position if available */
+    {
+        FILE *pf;
+        pf = fopen("backgammon.pos", "r");
+        if (pf) {
+            int pw, ph, ppx, ppy;
+            char line[256];
+
+            /* skip header line */
+            if (fgets(line, sizeof(line), pf) &&
+                fgets(line, sizeof(line), pf) && /* blank line */
+                fgets(line, sizeof(line), pf)) {
+                if (sscanf(line, "width: %d height: %d position x: %d position y: %d",
+                           &pw, &ph, &ppx, &ppy) >= 2) {
+                    if (pw > 100 && ph > 100) {
+                        ami_setsizg(stdout, pw, ph);
+                    }
+                }
+            }
+            fclose(pf);
+        }
+    }
+
     ami_opensynthout(AMI_SYNTH_OUT);
     ami_instchange(AMI_SYNTH_OUT, 0, 1, AMI_INST_WOODBLOCK);
     ami_starttimeout();
     ami_loadwave(WAVE_SLIDE, "graph_games/slide.wav");
+    ami_loadwave(WAVE_DICE, "graph_games/dice.wav");
     ami_openwaveout(AMI_WAVE_OUT);
     sound_enabled = TRUE;
 
     gamemode = MODE_PVC_W;
+    score[P1] = 0;
+    score[P2] = 0;
     setup_menu();
     init_board();
     calc_metrics();
@@ -1783,6 +2342,11 @@ int main(void)
             }
         }
 
+        else if (er.etype == ami_ettim && er.timnum == TIMER_MSG) {
+            overlay_active = FALSE;
+            draw_all();
+        }
+
         else if (er.etype == ami_ettim && er.timnum == TIMER_AI) {
             ai_pending = FALSE;
 
@@ -1797,7 +2361,7 @@ int main(void)
             } else if (gamestate == GS_ROLL && is_computer_turn()) {
                 /* Computer rolls */
                 roll_dice();
-                play_sound(DICE_NOTE, DICE_DUR);
+                if (sound_enabled) ami_playwave(AMI_WAVE_OUT, 0, WAVE_DICE);
                 gamestate = GS_MOVE;
                 draw_all();
 
@@ -1837,6 +2401,68 @@ int main(void)
                         ai_pending = TRUE;
                     }
                     break;
+                case MENU_UNDO:
+                    if (undo_top > 0 && gamestate == GS_MOVE &&
+                        !is_computer_turn() && !animating) {
+                        undo_pop();
+                        gamestate = GS_MOVE;
+                        draw_all();
+                    }
+                    break;
+                case MENU_DOUBLE:
+                    /* player offers to double - only before rolling */
+                    if (gamestate != GS_ROLL) {
+                        ami_alert("Double", "You can only double before rolling.");
+                        draw_all();
+                    } else if (is_computer_turn()) {
+                        /* not your turn */
+                    } else if (cube_owner != -1 && cube_owner != turn) {
+                        ami_alert("Double",
+                                  "Only the player who was last doubled can redouble.");
+                        draw_all();
+                    } else {
+                        int opp = 1 - turn;
+                        char msg[120];
+                        if (gamemode == MODE_PVP) {
+                            /* PvP: show offer to opponent */
+                            sprintf(msg, "%s doubles to %d!\nDoes %s accept?",
+                                    turn == P1 ? "White" : "Black",
+                                    cube_value * 2,
+                                    opp == P1 ? "White" : "Black");
+                            ami_alert("Double", msg);
+                            /* In PvP we auto-accept for now (no decline UI) */
+                            cube_value *= 2;
+                            cube_owner = opp;
+                            draw_all();
+                        } else {
+                            /* vs computer: AI decides */
+                            int ai_accepts;
+                            /* AI uses simple heuristic: accept if pip count
+                               difference is not too large */
+                            int my_pip = pip_count(opp);
+                            int their_pip = pip_count(turn);
+                            ai_accepts = (cube_value < 16) &&
+                                         (my_pip <= their_pip * 3 / 2);
+                            if (ai_accepts) {
+                                cube_value *= 2;
+                                cube_owner = opp;
+                                sprintf(msg, "Computer accepts the double.\nCube is now at %d.",
+                                        cube_value);
+                                ami_alert("Double", msg);
+                                draw_all();
+                            } else {
+                                sprintf(msg, "Computer declines the double.\n%s wins %d point%s!",
+                                        turn == P1 ? "White" : "Black",
+                                        cube_value,
+                                        cube_value > 1 ? "s" : "");
+                                score[turn] += cube_value;
+                                ami_alert("Double", msg);
+                                init_board();
+                                draw_all();
+                            }
+                        }
+                    }
+                    break;
                 case MENU_EXIT:
                     er.etype = ami_etterm;
                     break;
@@ -1864,17 +2490,28 @@ int main(void)
                     }
                     break;
                 case MENU_ABOUT:
-                    ami_alert("About Backgammon",
-                              "Backgammon for Amitk\n"
-                              "Human vs human or vs computer\n"
-                              "Click to roll dice, then select moves\n"
-                              "Copyright (C) 2026 S. A. Franco");
+                    ami_alert("About Backgammon", "Backgammon for Amitk\nHuman vs human or vs computer\nClick to roll, then select moves\nCopyright (C) 2026 S. A. Franco");
                     draw_all();
                     break;
             }
         }
 
     } while (er.etype != ami_etterm);
+
+    /* save window position/size */
+    {
+        FILE *pf;
+        int wx, wy;
+
+        ami_getsizg(stdout, &wx, &wy);
+        pf = fopen("backgammon.pos", "w");
+        if (pf) {
+            fprintf(pf, "Backgammon position\n\n");
+            fprintf(pf, "width: %d height: %d position x: 0 position y: 0\n",
+                    wx, wy);
+            fclose(pf);
+        }
+    }
 
     ami_closewaveout(AMI_WAVE_OUT);
     ami_closesynthout(AMI_SYNTH_OUT);
