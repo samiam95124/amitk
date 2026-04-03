@@ -2412,12 +2412,12 @@ int main(void)
                 case MENU_DOUBLE:
                     /* player offers to double - only before rolling */
                     if (gamestate != GS_ROLL) {
-                        show_message("You can only double before rolling.");
+                        ami_alert("Double", "You can only double before rolling.");
                         draw_all();
                     } else if (is_computer_turn()) {
                         /* not your turn */
                     } else if (cube_owner != -1 && cube_owner != turn) {
-                        show_message(
+                        ami_alert("Double",
                                   "Only the player who was last doubled can redouble.");
                         draw_all();
                     } else {
@@ -2429,7 +2429,7 @@ int main(void)
                                     turn == P1 ? "White" : "Black",
                                     cube_value * 2,
                                     opp == P1 ? "White" : "Black");
-                            show_message(msg);
+                            ami_alert("Double", msg);
                             /* In PvP we auto-accept for now (no decline UI) */
                             cube_value *= 2;
                             cube_owner = opp;
@@ -2448,7 +2448,7 @@ int main(void)
                                 cube_owner = opp;
                                 sprintf(msg, "Computer accepts the double.\nCube is now at %d.",
                                         cube_value);
-                                show_message(msg);
+                                ami_alert("Double", msg);
                                 draw_all();
                             } else {
                                 sprintf(msg, "Computer declines the double.\n%s wins %d point%s!",
@@ -2456,7 +2456,7 @@ int main(void)
                                         cube_value,
                                         cube_value > 1 ? "s" : "");
                                 score[turn] += cube_value;
-                                show_message(msg);
+                                ami_alert("Double", msg);
                                 init_board();
                                 draw_all();
                             }
@@ -2490,7 +2490,7 @@ int main(void)
                     }
                     break;
                 case MENU_ABOUT:
-                    show_message("Backgammon for Amitk - (C) 2026 S. A. Franco");
+                    ami_alert("About Backgammon", "Backgammon for Amitk\nHuman vs human or vs computer\nClick to roll, then select moves\nCopyright (C) 2026 S. A. Franco");
                     draw_all();
                     break;
             }
