@@ -125,6 +125,7 @@ static void ft_draw_char_rotated(Drawable d, GC gc, FT_Face face,
                                  int pixel_size, float angle_rad,
                                  int x, int y, char c);
 static void ft_cache_clear(void);
+static void ft_invalidate_face(FT_Face face);
 
 /*
  * Debug print system
@@ -2992,6 +2993,8 @@ void setfnt(winptr win)
     /* release any existing FreeType face */
     if (win->ftface) {
 
+        fflush(stderr);
+        ft_invalidate_face(win->ftface);
         FT_Done_Face(win->ftface);
         win->ftface = NULL;
 
@@ -3097,6 +3100,28 @@ typedef struct {
 } glyphcache;
 
 static glyphcache gcache[GLYPH_CACHE_SIZE];
+
+/* Invalidate all cache entries that reference a given face */
+static void ft_invalidate_face(FT_Face face)
+
+{
+
+    int i;
+
+    for (i = 0; i < GLYPH_CACHE_SIZE; i++) {
+
+        if (gcache[i].valid && gcache[i].face == face) {
+
+            if (gcache[i].stipple)
+                XFreePixmap(padisplay, gcache[i].stipple);
+            gcache[i].valid = 0;
+            gcache[i].stipple = 0;
+
+        }
+
+    }
+
+}
 
 /*******************************************************************************
 
@@ -4407,8 +4432,9 @@ static void restore(winptr win) /* window to restore */
             XWUNLOCK();
 
         }
-        /* copy buffer to screen */
+        /* copy buffer to screen - ensure no clip mask interferes */
         XWLOCK();
+        XSetClipMask(padisplay, sc->xcxt, None);
         XCopyArea(padisplay, sc->xbuf, win->xwhan, sc->xcxt, 0, 0,
                   sc->maxxg, sc->maxyg, 0, 0);
         XWUNLOCK();
@@ -6143,6 +6169,7 @@ static void drwchr90(winptr win, scnptr sc, int cs, int ce, Drawable d, char c)
         XWLOCK();
         /* set background function */
         XSetFunction(padisplay, sc->xcxt, mod2fnc[sc->bmod]);
+        XSetFillStyle(padisplay, sc->xcxt, FillSolid); /* ensure solid fill */
         /* set background to foreground to draw character background */
         if (BIT(sarev) & sc->attr) XSetForeground(padisplay, sc->xcxt, sc->fcrgb);
         else XSetForeground(padisplay, sc->xcxt, sc->bcrgb);
@@ -8179,6 +8206,7 @@ static void drwstr90(winptr win, scnptr sc, int tw, Drawable d, char* s, int l)
         XWLOCK();
         /* set background function */
         XSetFunction(padisplay, sc->xcxt, mod2fnc[sc->bmod]);
+        XSetFillStyle(padisplay, sc->xcxt, FillSolid); /* ensure solid fill */
         /* set background to foreground to draw character background */
         if (BIT(sarev) & sc->attr) XSetForeground(padisplay, sc->xcxt, sc->fcrgb);
         else XSetForeground(padisplay, sc->xcxt, sc->bcrgb);
