@@ -4446,6 +4446,27 @@ handle. If "no window delay" flag is set, presents the window immediately.
 
 *******************************************************************************/
 
+/*******************************************************************************
+
+Flush pending Xlib draw requests on the internal display connection.
+
+External tools (e.g. the screen_capture module) that connect to the same X
+server on their own connection cannot see draws that have been issued by
+Petit-Ami but are still buffered inside its Xlib output queue. Calling
+this function forces those requests to the server synchronously so a
+subsequent XGetImage on any connection observes the up-to-date window.
+
+*******************************************************************************/
+
+void pa_xflush(void)
+{
+    if (padisplay) {
+        XWLOCK();
+        XSync(padisplay, False);
+        XWUNLOCK();
+    }
+}
+
 static Window createwindow(Window parent, int x, int y, int w, int h)
 
 {

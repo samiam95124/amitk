@@ -170,6 +170,9 @@
 #include <services.h>
 #include <graphics.h>
 
+/* externals */
+extern void screen_capture(void);
+
 /*
  * Debug print system
  *
@@ -320,6 +323,9 @@ static void waitnext(void)
 {
 
     ami_evtrec er; /* event record */
+
+    /* capture test screens */
+    screen_capture();
 
     do { ami_event(stdin, &er); }
     while (er.etype != ami_etenter && er.etype != ami_etterm);
