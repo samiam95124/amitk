@@ -288,9 +288,13 @@ else
     #
     # Linux
     #
+    ifneq ($(STDIO_SOURCE),stdio)
 	# Link path is through bin to get glibc.
 	#
     CFLAGS+=-Wl,--rpath=bin
+    endif
+    # FreeType/fontconfig for font rendering
+    CFLAGS+=$(shell pkg-config --cflags freetype2 fontconfig)
     
 endif
 
@@ -537,7 +541,8 @@ else
 	CLIBS += linux/sound.o linux/fluidsynthplug.o linux/dumpsynthplug.o \
 	         -lasound -lfluidsynth -lm -lpthread -lssl -lcrypto
 	GLIBS += linux/sound.o linux/fluidsynthplug.o linux/dumpsynthplug.o \
-	         -lasound -lfluidsynth -lm -lpthread -lssl -lcrypto -lX11
+	         -lasound -lfluidsynth -lm -lpthread -lssl -lcrypto -lX11 \
+	         -lfreetype -lfontconfig
 	PLIBSD += linux/sound.o linux/fluidsynthplug.o linux/dumpsynthplug.o
     CLIBSD += linux/sound.o linux/fluidsynthplug.o linux/dumpsynthplug.o
 	GLIBSD += linux/sound.o linux/fluidsynthplug.o linux/dumpsynthplug.o
@@ -657,6 +662,9 @@ linux/system_event.o: linux/system_event.c linux/system_event.h Makefile
 	
 linux/rotated.o: linux/rotated.c linux/rotated.h Makefile
 	$(CC) $(CFLAGS) -c linux/rotated.c -o linux/rotated.o
+
+linux/screen_capture.o: linux/screen_capture.c Makefile
+	$(CC) $(CFLAGS) -c linux/screen_capture.c -o linux/screen_capture.o
 	
 #
 # Windows library components
@@ -902,7 +910,7 @@ lib/petit_ami_graph.so: $(LINUXSTDIO) linux/services.o linux/network.o \
 	portable/gnome_widgets.o utils/config.o utils/option.o cpp/terminal.o
 	$(CC) -shared $(LINUXSTDIO) linux/services.o linux/network.o \
 		linux/graphics.o linux/rotated.o linux/system_event.o \
-		portable/gnome_widgets.o utils/config.o utils/option.o cpp/terminal.o \
+		utils/config.o utils/option.o cpp/terminal.o \
         -o lib/petit_ami_graph.so
 	
 lib/petit_ami_graph.a: $(LINUXSTDIO) linux/services.o linux/sound.o \
@@ -1072,8 +1080,8 @@ terminal_testg: $(GLIBSD) tests/terminal_test.c
 #
 # Test graph model compliant output
 #
-graphics_test: $(GLIBSD) tests/graphics_test.c
-	$(CC) $(CFLAGS) tests/graphics_test.c $(GLIBS) -o bin/graphics_test 
+graphics_test: $(GLIBSD) tests/graphics_test.c linux/screen_capture.o
+	$(CC) $(CFLAGS) tests/graphics_test.c linux/screen_capture.o $(GLIBS) -o bin/graphics_test
 	
 #
 # Test windows management model compliant output
