@@ -566,7 +566,7 @@ ifeq ($(OSTYPE),Windows_NT)
 all: dumpmidi play playg keyboard keyboardg playmidi playmidig playwave \
      playwaveg printdev printdevg connectmidi connectmidig connectwave \
      connectwaveg random randomg genwave genwaveg terminal_test terminal_testg \
-     graphics_test management_test widget_test \
+     graphics_test testviewer management_test widget_test \
      sound_test sound_testg services_test event eventg term termg snake snakeg mine mineg \
      wator watorg pong pongg breakout editor editorg getpage getpageg getmail \
      getmailg fakemail gettys gettysg msgclient msgclientg msgserver msgserverg \
@@ -582,7 +582,7 @@ else ifeq ($(OSTYPE),Darwin)
 all: dumpmidi play playg keyboard keyboardg playmidi playmidig playwave \
      playwaveg printdev printdevg connectmidi connectmidig connectwave \
      connectwaveg random randomg genwave genwaveg terminal_test terminal_testg \
-     graphics_test management_test widget_test \
+     graphics_test testviewer management_test widget_test \
      sound_test sound_testg services_test event eventg term termg snake snakeg mine mineg \
      wator watorg pong pongg breakout editor editorg getpage getpageg getmail \
      getmailg fakemail gettys gettysg msgclient msgclientg msgserver msgserverg \
@@ -598,7 +598,7 @@ else ifeq ($(OSTYPE),FreeBSD)
 all: dumpmidi play playg keyboard keyboardg playmidi playmidig playwave \
      playwaveg printdev printdevg connectmidi connectmidig connectwave \
      connectwaveg random randomg genwave genwaveg terminal_test terminal_testg \
-     graphics_test management_test widget_test \
+     graphics_test testviewer management_test widget_test \
      sound_test sound_testg services_test event eventg term termg snake snakeg mine mineg \
      wator watorg pong pongg breakout editor editorg getpage getpageg getmail \
      getmailg fakemail gettys gettysg msgclient msgclientg msgserver msgserverg \
@@ -614,7 +614,7 @@ else
 all: dumpmidi play playg keyboard keyboardg playmidi playmidig playwave \
      playwaveg printdev printdevg connectmidi connectmidig connectwave \
      connectwaveg random randomg genwave genwaveg terminal_test terminal_testg \
-     graphics_test management_test widget_test \
+     graphics_test testviewer management_test widget_test \
      sound_test sound_testg services_test event eventg term termg snake snakeg mine mineg \
      wator watorg pong pongg breakout editor editorg getpage getpageg getmail \
      getmailg fakemail gettys gettysg msgclient msgclientg msgserver msgserverg \
@@ -1082,7 +1082,14 @@ terminal_testg: $(GLIBSD) tests/terminal_test.c
 #
 graphics_test: $(GLIBSD) tests/graphics_test.c linux/screen_capture.o
 	$(CC) $(CFLAGS) tests/graphics_test.c linux/screen_capture.o $(GLIBS) -o bin/graphics_test
-	
+
+#
+# BMP-stream frame viewer: walks the test_images file produced by
+# screen_capture, one frame per keypress (left/right arrows).
+#
+testviewer: $(GLIBSD) tests/testviewer.c
+	$(CC) $(CFLAGS) tests/testviewer.c $(GLIBS) -o bin/testviewer
+
 #
 # Test windows management model compliant output
 #

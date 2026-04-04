@@ -4,26 +4,26 @@
 *                                                                              *
 * Test foundation for Petit-Ami graphics. Exposes screen_capture(), which      *
 * grabs the pixel contents of the running Petit-Ami X window and appends it    *
-* as a frame to a multi-page, uncompressed TIFF file called "test_images".     *
+* as a 24-bit uncompressed BMP to a file called "test_images". Multiple BMPs   *
+* are concatenated back-to-back in the same file; each is self-contained       *
+* (its own BITMAPFILEHEADER) so readers can walk them sequentially.            *
 *                                                                              *
 * The file is opened by a module constructor and closed by a destructor, so    *
 * the caller only needs to call screen_capture() at each interesting moment    *
 * (e.g. just before waitnext() in a test program).                             *
 *                                                                              *
 * Bit-for-bit comparability:                                                   *
-*   - Uncompressed RGB strips, no palette, no compression, no randomness.      *
+*   - Uncompressed 24-bit BGR, no palette, no compression, no randomness.      *
 *   - For a deterministic test run, `cmp` on two test_images files is a        *
-*     pass/fail signal. `tiffcmp -l` gives per-frame diagnostics.              *
+*     pass/fail signal.                                                        *
 *                                                                              *
 * Window discovery:                                                            *
 *   - Opens its own X connection via XOpenDisplay(NULL).                       *
 *   - Walks EWMH _NET_CLIENT_LIST, matches window by _NET_WM_PID == getpid().  *
-*   - Falls back to WM_CLIENT_MACHINE match + first mapped managed window.     *
+*   - Falls back to the largest mapped top-level window.                       *
 *                                                                              *
-* Viewers:                                                                     *
-*   gimp test_images         # each frame as a layer, arrow keys step          *
-*   tiffinfo test_images     # frame count and per-frame metadata              *
-*   tiffsplit test_images f_ # split into per-frame TIFFs                      *
+* Viewer:                                                                      *
+*   bin/testviewer    # walks through the concatenated BMPs with arrow keys    *
 *                                                                              *
 *******************************************************************************/
 
@@ -38,37 +38,13 @@
 
 #define CAPTURE_FILENAME "test_images"
 
-/*
- * TIFF tag numbers we emit (classic TIFF 6.0, little-endian).
- */
-#define TIFF_TAG_IMAGEWIDTH            256
-#define TIFF_TAG_IMAGELENGTH           257
-#define TIFF_TAG_BITSPERSAMPLE         258
-#define TIFF_TAG_COMPRESSION           259
-#define TIFF_TAG_PHOTOMETRIC           262
-#define TIFF_TAG_STRIPOFFSETS          273
-#define TIFF_TAG_SAMPLESPERPIXEL       277
-#define TIFF_TAG_ROWSPERSTRIP          278
-#define TIFF_TAG_STRIPBYTECOUNTS       279
-#define TIFF_TAG_XRESOLUTION           282
-#define TIFF_TAG_YRESOLUTION           283
-#define TIFF_TAG_RESOLUTIONUNIT        296
-
-#define TIFF_TYPE_SHORT     3
-#define TIFF_TYPE_LONG      4
-#define TIFF_TYPE_RATIONAL  5
-
-/* number of tags we write per IFD */
-#define TIFF_NUM_TAGS       12
-
 /* ---------- module state ---------- */
 
 static FILE     *cap_file     = NULL;
 static Display  *cap_display  = NULL;
 static Window    cap_window   = 0;      /* discovered lazily on first capture */
-static uint32_t  cap_next_ifd_patch = 0; /* file offset of prev "next IFD" slot */
-static uint32_t  cap_frame_count     = 0;
-static int       cap_disabled        = 0; /* set if setup failed */
+static uint32_t  cap_frame_count = 0;
+static int       cap_disabled = 0;
 
 /* ---------- little-endian writers ---------- */
 
@@ -87,22 +63,7 @@ static void w_u32(FILE *f, uint32_t v) {
     fwrite(b, 1, 4, f);
 }
 
-/* write one 12-byte IFD entry */
-static void w_tag(FILE *f, uint16_t tag, uint16_t type, uint32_t count,
-                  uint32_t value) {
-    w_u16(f, tag);
-    w_u16(f, type);
-    w_u32(f, count);
-    w_u32(f, value);
-}
-
-/* patch a 4-byte little-endian value at a given file offset */
-static void patch_u32(FILE *f, long offset, uint32_t v) {
-    long cur = ftell(f);
-    fseek(f, offset, SEEK_SET);
-    w_u32(f, v);
-    fseek(f, cur, SEEK_SET);
-}
+static void w_s32(FILE *f, int32_t v) { w_u32(f, (uint32_t)v); }
 
 /* ---------- X window discovery ---------- */
 
@@ -137,14 +98,13 @@ static int window_pid_matches(Display *d, Window w, pid_t our_pid) {
  * Locate the Petit-Ami window on this display. Strategy:
  *   1. Walk _NET_CLIENT_LIST, return first window with _NET_WM_PID == getpid().
  *   2. If nothing matches, walk root's direct children and return the largest
- *      mapped InputOutput window (test case: only one pa window exists).
+ *      mapped InputOutput window.
  * Returns 0 if nothing found.
  */
 static Window find_pa_window(Display *d) {
     Window root = DefaultRootWindow(d);
     pid_t  our_pid = getpid();
 
-    /* --- try _NET_CLIENT_LIST --- */
     Atom client_list = XInternAtom(d, "_NET_CLIENT_LIST", True);
     if (client_list != None) {
         Atom actual_type;
@@ -167,7 +127,7 @@ static Window find_pa_window(Display *d) {
         }
     }
 
-    /* --- fallback: scan root children for a large mapped IO window --- */
+    /* fallback: scan root children for a large mapped IO window */
     Window root_ret, parent_ret;
     Window *children = NULL;
     unsigned int nchildren = 0;
@@ -190,94 +150,32 @@ static Window find_pa_window(Display *d) {
     return 0;
 }
 
-/* ---------- TIFF writing ---------- */
+/* ---------- XImage -> 24-bit BGR (BMP-native) ---------- */
 
 /*
- * Write the TIFF file header (8 bytes). The first IFD offset is left as a
- * placeholder and back-patched when the first frame is written.
- * Returns the file offset of the "first IFD" slot for later patching.
- */
-static long write_tiff_header(FILE *f) {
-    fputc('I', f); fputc('I', f);   /* little-endian */
-    w_u16(f, 42);                   /* magic */
-    long patch_off = ftell(f);
-    w_u32(f, 0);                    /* first IFD offset - back-patched */
-    return patch_off;
-}
-
-/*
- * Append one frame as an IFD+strip to the currently-open TIFF file.
- * img must be a 24-bit packed RGB buffer of exactly width*height*3 bytes.
- * Updates cap_next_ifd_patch to point at this IFD's "next IFD" slot.
- */
-static void write_tiff_frame(FILE *f, const uint8_t *img,
-                             uint32_t width, uint32_t height) {
-    uint32_t strip_bytes = width * height * 3u;
-
-    /* 1. pixel strip */
-    uint32_t strip_off = (uint32_t)ftell(f);
-    fwrite(img, 1, strip_bytes, f);
-
-    /* 2. BitsPerSample array (3 shorts = 6 bytes, too big for inline value) */
-    uint32_t bps_off = (uint32_t)ftell(f);
-    w_u16(f, 8); w_u16(f, 8); w_u16(f, 8);
-
-    /* 3. two RATIONAL values for X/Y resolution (72/1) */
-    uint32_t xres_off = (uint32_t)ftell(f);
-    w_u32(f, 72); w_u32(f, 1);
-    uint32_t yres_off = (uint32_t)ftell(f);
-    w_u32(f, 72); w_u32(f, 1);
-
-    /* 4. IFD: 2-byte count, 12 bytes per tag, 4-byte next-IFD pointer.
-     *    IFD must start on a word boundary. */
-    long cur = ftell(f);
-    if (cur & 1) { fputc(0, f); cur++; }
-    uint32_t ifd_off = (uint32_t)cur;
-
-    /* patch previous frame's (or header's) "next IFD" slot to point here */
-    patch_u32(f, (long)cap_next_ifd_patch, ifd_off);
-
-    w_u16(f, TIFF_NUM_TAGS);
-    /* tags MUST be written in ascending tag-number order */
-    w_tag(f, TIFF_TAG_IMAGEWIDTH,       TIFF_TYPE_LONG,     1, width);
-    w_tag(f, TIFF_TAG_IMAGELENGTH,      TIFF_TYPE_LONG,     1, height);
-    w_tag(f, TIFF_TAG_BITSPERSAMPLE,    TIFF_TYPE_SHORT,    3, bps_off);
-    w_tag(f, TIFF_TAG_COMPRESSION,      TIFF_TYPE_SHORT,    1, 1);      /* none */
-    w_tag(f, TIFF_TAG_PHOTOMETRIC,      TIFF_TYPE_SHORT,    1, 2);      /* RGB */
-    w_tag(f, TIFF_TAG_STRIPOFFSETS,     TIFF_TYPE_LONG,     1, strip_off);
-    w_tag(f, TIFF_TAG_SAMPLESPERPIXEL,  TIFF_TYPE_SHORT,    1, 3);
-    w_tag(f, TIFF_TAG_ROWSPERSTRIP,     TIFF_TYPE_LONG,     1, height);
-    w_tag(f, TIFF_TAG_STRIPBYTECOUNTS,  TIFF_TYPE_LONG,     1, strip_bytes);
-    w_tag(f, TIFF_TAG_XRESOLUTION,      TIFF_TYPE_RATIONAL, 1, xres_off);
-    w_tag(f, TIFF_TAG_YRESOLUTION,      TIFF_TYPE_RATIONAL, 1, yres_off);
-    w_tag(f, TIFF_TAG_RESOLUTIONUNIT,   TIFF_TYPE_SHORT,    1, 2);      /* inch */
-
-    /* remember where the next-IFD slot lives, write 0 for now */
-    cap_next_ifd_patch = (uint32_t)ftell(f);
-    w_u32(f, 0);
-}
-
-/* ---------- XImage -> packed RGB conversion ---------- */
-
-/*
- * Convert an XImage (TrueColor, 24/32-bit) into packed 24-bit RGB.
- * Returns a malloc'd buffer of width*height*3 bytes, or NULL on failure.
+ * Convert an XImage (TrueColor) into a packed, bottom-up BGR buffer with
+ * rows padded to a 4-byte boundary (the BMP wire format). Returns a malloc'd
+ * buffer of (row_stride * height) bytes on success, NULL on failure. Fills
+ * *row_stride_out with the padded row size.
  *
- * We use XGetPixel+masks to extract channels portably — this handles any
- * byte order, bit order, or bits-per-pixel the X server gives us.
+ * Uses XGetPixel + channel masks for portability across byte/bit orders and
+ * bits-per-pixel. Channel scaling is deterministic so repeated captures of
+ * the same content produce bit-identical output.
  */
-static uint8_t *ximage_to_rgb(XImage *img) {
+static uint8_t *ximage_to_bmp_pixels(XImage *img, uint32_t *row_stride_out) {
     if (!img) return NULL;
     int w = img->width;
     int h = img->height;
-    uint8_t *out = (uint8_t *)malloc((size_t)w * (size_t)h * 3u);
+    uint32_t row_stride = (uint32_t)((w * 3 + 3) & ~3);
+    *row_stride_out = row_stride;
+
+    uint8_t *out = (uint8_t *)calloc((size_t)row_stride * (size_t)h, 1);
     if (!out) return NULL;
 
     unsigned long rmask = img->red_mask;
     unsigned long gmask = img->green_mask;
     unsigned long bmask = img->blue_mask;
 
-    /* compute right-shift + scale factor for each channel */
     int rshift = 0, gshift = 0, bshift = 0;
     int rbits = 0, gbits = 0, bbits = 0;
     { unsigned long m;
@@ -289,38 +187,76 @@ static uint8_t *ximage_to_rgb(XImage *img) {
       for (; m & 1; m >>= 1) bbits++;
     }
 
-    uint8_t *o = out;
     for (int y = 0; y < h; y++) {
+        /* BMP is bottom-up: output row (h-1-y) for source row y */
+        uint8_t *o = out + (size_t)(h - 1 - y) * row_stride;
         for (int x = 0; x < w; x++) {
             unsigned long px = XGetPixel(img, x, y);
             unsigned long r = (px & rmask) >> rshift;
             unsigned long g = (px & gmask) >> gshift;
             unsigned long b = (px & bmask) >> bshift;
-            /* scale each channel up to 8 bits (deterministic) */
             if (rbits < 8) r <<= (8 - rbits);
             else if (rbits > 8) r >>= (rbits - 8);
             if (gbits < 8) g <<= (8 - gbits);
             else if (gbits > 8) g >>= (gbits - 8);
             if (bbits < 8) b <<= (8 - bbits);
             else if (bbits > 8) b >>= (bbits - 8);
-            *o++ = (uint8_t)r;
-            *o++ = (uint8_t)g;
+            /* BMP byte order: B, G, R */
             *o++ = (uint8_t)b;
+            *o++ = (uint8_t)g;
+            *o++ = (uint8_t)r;
         }
+        /* padding bytes left as zero by calloc */
     }
     return out;
+}
+
+/* ---------- BMP writing ---------- */
+
+#define BMP_FILEHDR_SIZE  14
+#define BMP_INFOHDR_SIZE  40
+#define BMP_HDR_TOTAL     (BMP_FILEHDR_SIZE + BMP_INFOHDR_SIZE)
+
+/*
+ * Write one complete 24-bit uncompressed BMP (headers + pixel data) to f.
+ */
+static void write_bmp(FILE *f, const uint8_t *pixels, uint32_t row_stride,
+                      int32_t width, int32_t height) {
+    uint32_t image_bytes = row_stride * (uint32_t)height;
+    uint32_t file_size   = BMP_HDR_TOTAL + image_bytes;
+
+    /* BITMAPFILEHEADER */
+    fputc('B', f); fputc('M', f);
+    w_u32(f, file_size);
+    w_u16(f, 0);
+    w_u16(f, 0);
+    w_u32(f, BMP_HDR_TOTAL);            /* bfOffBits */
+
+    /* BITMAPINFOHEADER */
+    w_u32(f, BMP_INFOHDR_SIZE);
+    w_s32(f, width);
+    w_s32(f, height);                   /* positive = bottom-up */
+    w_u16(f, 1);                        /* planes */
+    w_u16(f, 24);                       /* bits per pixel */
+    w_u32(f, 0);                        /* BI_RGB, no compression */
+    w_u32(f, image_bytes);
+    w_s32(f, 2835);                     /* 72 DPI */
+    w_s32(f, 2835);
+    w_u32(f, 0);
+    w_u32(f, 0);
+
+    fwrite(pixels, 1, image_bytes, f);
 }
 
 /* ---------- public entry point ---------- */
 
 /*
- * Grab the current Petit-Ami window contents and append as a TIFF frame.
- * Safe to call repeatedly; silently does nothing if setup has failed.
+ * Grab the current Petit-Ami window contents and append as a BMP frame.
+ * Safe to call repeatedly; silently does nothing if setup failed.
  */
 void screen_capture(void) {
     if (cap_disabled || !cap_file || !cap_display) return;
 
-    /* lazy window discovery: pa window may not exist at constructor time */
     if (cap_window == 0) {
         cap_window = find_pa_window(cap_display);
         if (cap_window == 0) {
@@ -329,7 +265,11 @@ void screen_capture(void) {
         }
     }
 
-    /* make sure pa's drawing is flushed to the server before we read */
+    /* Flush Petit-Ami's Xlib output buffer FIRST (its display is a separate
+       connection from ours, so our XSync can't do it). Then XSync ours to
+       make sure the grab doesn't race the server. */
+    extern void pa_xflush(void);
+    pa_xflush();
     XSync(cap_display, False);
 
     XWindowAttributes a;
@@ -346,17 +286,18 @@ void screen_capture(void) {
         return;
     }
 
-    uint8_t *rgb = ximage_to_rgb(img);
-    if (!rgb) {
+    uint32_t row_stride = 0;
+    uint8_t *pixels = ximage_to_bmp_pixels(img, &row_stride);
+    if (!pixels) {
         XDestroyImage(img);
         fprintf(stderr, "screen_capture: out of memory\n");
         return;
     }
 
-    write_tiff_frame(cap_file, rgb, (uint32_t)a.width, (uint32_t)a.height);
+    write_bmp(cap_file, pixels, row_stride, a.width, a.height);
     cap_frame_count++;
 
-    free(rgb);
+    free(pixels);
     XDestroyImage(img);
 }
 
@@ -370,6 +311,10 @@ static void screen_capture_init(void) {
         cap_disabled = 1;
         return;
     }
+    /* Ensure a fresh file: Petit-Ami's fopen("wb") does not pass O_TRUNC,
+       so stale bytes from a prior (possibly larger) run would remain past
+       the new content and break BMP-stream walkers. */
+    remove(CAPTURE_FILENAME);
     cap_file = fopen(CAPTURE_FILENAME, "wb");
     if (!cap_file) {
         perror("screen_capture: fopen " CAPTURE_FILENAME);
@@ -378,20 +323,15 @@ static void screen_capture_init(void) {
         cap_disabled = 1;
         return;
     }
-    cap_next_ifd_patch = (uint32_t)write_tiff_header(cap_file);
 }
 
 __attribute__((destructor))
 static void screen_capture_fini(void) {
     if (cap_file) {
-        /* terminate the IFD chain: the current "next IFD" slot should be 0.
-         * write_tiff_frame already leaves it as 0, so no action needed unless
-         * zero frames were written. */
         fflush(cap_file);
         fclose(cap_file);
         cap_file = NULL;
         if (cap_frame_count == 0) {
-            /* no frames written: delete the stub file so cmp isn't confused */
             remove(CAPTURE_FILENAME);
         } else {
             fprintf(stderr, "screen_capture: wrote %u frames to %s\n",
