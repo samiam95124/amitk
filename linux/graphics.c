@@ -4458,6 +4458,15 @@ static Window createwindow(Window parent, int x, int y, int w, int h)
     wh = XCreateWindow(padisplay, parent, 0, 0, w, h, 0, CopyFromParent,
                       InputOutput, CopyFromParent, 0, NULL);
 
+    /* advertise our PID so external tools (e.g. screen_capture) can find
+       our windows reliably via EWMH _NET_WM_PID */
+    {
+        Atom pid_atom = XInternAtom(padisplay, "_NET_WM_PID", False);
+        unsigned long pid_val = (unsigned long)getpid();
+        XChangeProperty(padisplay, wh, pid_atom, XA_CARDINAL, 32,
+                        PropModeReplace, (unsigned char *)&pid_val, 1);
+    }
+
     /* select what events we want */
     XSelectInput(padisplay, wh, ExposureMask|KeyPressMask|
                  KeyReleaseMask|PointerMotionMask|ButtonPressMask|
