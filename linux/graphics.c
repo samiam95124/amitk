@@ -3236,18 +3236,6 @@ static void ft_draw_char(Drawable d, GC gc, FT_Face face, int pixel_size,
 
     glyphcache* ge;
 
-    /* diagnostic: draw character bounding box and return */
-#if 0
-    {
-        int adv;
-        if (FT_Load_Char(face, (unsigned char)c, FT_LOAD_DEFAULT) == 0) {
-            adv = (int)(face->glyph->advance.x >> 6);
-            XDrawRectangle(padisplay, d, gc, x, y - pixel_size, adv, pixel_size);
-        }
-        return;
-    }
-#endif
-
     ge = ft_cache_glyph(face, pixel_size, c);
     if (!ge || !ge->stipple) return;
 
@@ -3275,7 +3263,6 @@ static void ft_draw_string(Drawable d, GC gc, FT_Face face, int pixel_size,
 
     int i;
 
-fprintf(stderr, "ft_draw_char\n");
     for (i = 0; i < len; i++) {
 
         ft_draw_char(d, gc, face, pixel_size, x, y, s[i]);
