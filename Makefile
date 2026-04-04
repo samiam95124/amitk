@@ -288,9 +288,13 @@ else
     #
     # Linux
     #
+    ifneq ($(STDIO_SOURCE),stdio)
 	# Link path is through bin to get glibc.
 	#
     CFLAGS+=-Wl,--rpath=bin
+    endif
+    # FreeType/fontconfig for font rendering
+    CFLAGS+=$(shell pkg-config --cflags freetype2 fontconfig)
     
 endif
 
@@ -537,7 +541,8 @@ else
 	CLIBS += linux/sound.o linux/fluidsynthplug.o linux/dumpsynthplug.o \
 	         -lasound -lfluidsynth -lm -lpthread -lssl -lcrypto
 	GLIBS += linux/sound.o linux/fluidsynthplug.o linux/dumpsynthplug.o \
-	         -lasound -lfluidsynth -lm -lpthread -lssl -lcrypto -lX11
+	         -lasound -lfluidsynth -lm -lpthread -lssl -lcrypto -lX11 \
+	         -lfreetype -lfontconfig
 	PLIBSD += linux/sound.o linux/fluidsynthplug.o linux/dumpsynthplug.o
     CLIBSD += linux/sound.o linux/fluidsynthplug.o linux/dumpsynthplug.o
 	GLIBSD += linux/sound.o linux/fluidsynthplug.o linux/dumpsynthplug.o
