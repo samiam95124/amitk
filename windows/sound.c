@@ -2774,7 +2774,7 @@ static DWORD WINAPI waveplaythread(LPVOID lpParameter)
 
 {
 
-    int w = (int)lpParameter; /* get wave number */
+    int w = (int)(INT_PTR)lpParameter; /* get wave number */
 
     /* play sound without error checking, wait complete */
     PlaySound(wavenam[w-1], 0, SND_FILENAME | SND_NODEFAULT | SND_SYNC);
@@ -2799,7 +2799,7 @@ void ami_playwave(int p, int t, int w)
     /* execute immediate if 0 or sequencer running and time past */
     if (t == 0 || (t <= elap && seqrun)) {
 
-        CreateThread(NULL, 0, waveplaythread, (void*)w, 0, NULL);
+        CreateThread(NULL, 0, waveplaythread, (void*)(INT_PTR)w, 0, NULL);
         wavcnt++; /* count active wave starts */
 
     } else { /* sequence */

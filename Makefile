@@ -689,6 +689,9 @@ windows/terminal.o: windows/terminal.c include/terminal.h Makefile
 windows/graphics.o: windows/graphics.c include/graphics.h Makefile
 	$(CC) $(CFLAGS) -c windows/graphics.c -o windows/graphics.o
 
+windows/screen_capture.o: stub/screen_capture.c Makefile
+	$(CC) $(CFLAGS) -c stub/screen_capture.c -o windows/screen_capture.o
+
 #
 # Mac OS X library components
 #
@@ -718,6 +721,9 @@ macosx/graphics.o: linux/graphics.c include/graphics.h Makefile
 	
 macosx/system_event.o: macosx/system_event.c linux/system_event.h Makefile
 	$(CC) $(CFLAGS) -fPIC -c macosx/system_event.c -o macosx/system_event.o
+
+macosx/screen_capture.o: stub/screen_capture.c Makefile
+	$(CC) $(CFLAGS) -c stub/screen_capture.c -o macosx/screen_capture.o
 	
 #
 # BSD library components
@@ -751,6 +757,9 @@ bsd/rotated.o: linux/rotated.c linux/rotated.h Makefile
 	
 bsd/system_event.o: macosx/system_event.c linux/system_event.h Makefile
 	$(CC) $(CFLAGS) -c macosx/system_event.c -o bsd/system_event.o
+
+bsd/screen_capture.o: stub/screen_capture.c Makefile
+	$(CC) $(CFLAGS) -c stub/screen_capture.c -o bsd/screen_capture.o
 
 #
 # Components in common to all systems
@@ -1080,8 +1089,18 @@ terminal_testg: $(GLIBSD) tests/terminal_test.c
 #
 # Test graph model compliant output
 #
-graphics_test: $(GLIBSD) tests/graphics_test.c linux/screen_capture.o
-	$(CC) $(CFLAGS) tests/graphics_test.c linux/screen_capture.o $(GLIBS) -o bin/graphics_test
+ifeq ($(OSTYPE),Windows_NT)
+SCREEN_CAPTURE_OBJ = windows/screen_capture.o
+else ifeq ($(OSTYPE),Darwin)
+SCREEN_CAPTURE_OBJ = macosx/screen_capture.o
+else ifeq ($(OSTYPE),FreeBSD)
+SCREEN_CAPTURE_OBJ = bsd/screen_capture.o
+else
+SCREEN_CAPTURE_OBJ = linux/screen_capture.o
+endif
+
+graphics_test: $(GLIBSD) tests/graphics_test.c $(SCREEN_CAPTURE_OBJ)
+	$(CC) $(CFLAGS) tests/graphics_test.c $(SCREEN_CAPTURE_OBJ) $(GLIBS) -o bin/graphics_test
 
 #
 # BMP-stream frame viewer: walks the test_images file produced by

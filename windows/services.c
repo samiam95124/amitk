@@ -105,7 +105,7 @@ static enum { /* debug levels */
 extern char *program_invocation_name;
 
 /* contains the entire environment strings array */
-extern char **environ;
+//extern char **environ;
 
 #define HOURSEC         3600   /* number of seconds in an hour */
 #define DAYSEC          (HOURSEC * 24)   /* number of seconds in a day */
@@ -3092,7 +3092,7 @@ Releases a concurrency lock by logical id.
 
 *******************************************************************************/
 
-int ami_deinitsig(int sn)
+void ami_deinitsig(int sn)
 
 {
 

@@ -191,60 +191,59 @@ static pclose_t  ofpclose;
 static punlink_t ofpunlink;
 static plseek_t  ofplseek;
 
-HANDLE inphdl;           /* "input" file handle */
-int     nummbt;          /* number of mouse buttons */
-int     mb1;             /* mouse assert status button 1 */
-int     mb2;             /* mouse assert status button 2 */
-int     mb3;             /* mouse assert status button 3 */
-int     mb4;             /* mouse assert status button 4 */
-int     mpx, mpy;        /* mouse current position */
-int     nmb1;            /* new mouse assert status button 1 */
-int     nmb2;            /* new mouse assert status button 2 */
-int     nmb3;            /* new mouse assert status button 3 */
-int     nmb4;            /* new mouse assert status button 4 */
-int     nmpx, nmpy;      /* new mouse current position */
-char    inpbuf[MAXLIN];  /* input line buffer */
-int     inpptr;          /* input line index */
-scnptr  screens[MAXCON]; /* screen contexts array */
-int     curdsp;          /* index for current display screen */
-int     curupd;          /* index for current update screen */
-struct {
+static HANDLE inphdl;           /* "input" file handle */
+static int     nummbt;          /* number of mouse buttons */
+static int     mb1;             /* mouse assert status button 1 */
+static int     mb2;             /* mouse assert status button 2 */
+static int     mb3;             /* mouse assert status button 3 */
+static int     mb4;             /* mouse assert status button 4 */
+static int     mpx, mpy;        /* mouse current position */
+static int     nmb1;            /* new mouse assert status button 1 */
+static int     nmb2;            /* new mouse assert status button 2 */
+static int     nmb3;            /* new mouse assert status button 3 */
+static int     nmb4;            /* new mouse assert status button 4 */
+static int     nmpx, nmpy;      /* new mouse current position */
+static char    inpbuf[MAXLIN];  /* input line buffer */
+static int     inpptr;          /* input line index */
+static scnptr  screens[MAXCON]; /* screen contexts array */
+static int     curdsp;          /* index for current display screen */
+static int     curupd;          /* index for current update screen */
+static struct {
 
     int han; /* handle for timer */
     int rep; /* timer repeat flag */
 
 } timers[10];
 
-
-CONSOLE_SCREEN_BUFFER_INFO bi; /* screen buffer info structure */
-CONSOLE_CURSOR_INFO        ci; /* console cursor info structure */
-int      ti;          /* index for repeat array */
-DWORD    mode;        /* console mode */
-int      b;           /* int return */
-int      i;           /* tab index */
-HWND     winhan;      /* main window id */
-DWORD    threadid;    /* dummy thread id (unused) */
-int      threadstart; /* thread starts */
-int      joy1xs;      /* last joystick position 1x */
-int      joy1ys;      /* last joystick position 1y */
-int      joy1zs;      /* last joystick position 1z */
-int      joy2xs;      /* last joystick position 2x */
-int      joy2ys;      /* last joystick position 2y */
-int      joy2zs;      /* last joystick position 2z */
-int      numjoy;      /* number of joysticks found */
+static CONSOLE_SCREEN_BUFFER_INFO bi; /* screen buffer info structure */
+static CONSOLE_CURSOR_INFO        ci; /* console cursor info structure */
+static int      ti;          /* index for repeat array */
+static DWORD    mode;        /* console mode */
+static int      b;           /* int return */
+static int      i;           /* tab index */
+static HWND     winhan;      /* main window id */
+static DWORD    threadid;    /* dummy thread id (unused) */
+static int      threadstart; /* thread starts */
+static int      joy1xs;      /* last joystick position 1x */
+static int      joy1ys;      /* last joystick position 1y */
+static int      joy1zs;      /* last joystick position 1z */
+static int      joy2xs;      /* last joystick position 2x */
+static int      joy2ys;      /* last joystick position 2y */
+static int      joy2zs;      /* last joystick position 2z */
+static int      numjoy;      /* number of joysticks found */
 /* global sets. these are the global set parameters that apply to any new
    created screen buffer */
-int      gmaxx;       /* maximum x size */
-int      gmaxy;       /* maximum y size */
-scnatt   gattr;       /* current attribute */
-int      gautof;      /* state of auto */
-ami_color gforec;      /* forground color */
-ami_color gbackc;      /* background color */
-int      gcurv;       /* state of cursor visible */
-int      cix;         /* index for display screens */
-int      frmrun;      /* framing timer is running */
-int      frmhan;      /* framing timer handle */
-DWORD    cmodes;      /* previous console mode settings */
+static int      gmaxx;       /* maximum x size */
+static int      gmaxy;       /* maximum y size */
+static scnatt   gattr;       /* current attribute */
+static int      gautof;      /* state of auto */
+static ami_color gforec;      /* forground color */
+static ami_color gbackc;      /* background color */
+static int      gcurv;       /* state of cursor visible */
+static int      cix;         /* index for display screens */
+static int      frmrun;      /* framing timer is running */
+static int      frmhan;      /* framing timer handle */
+static DWORD    cmodes;      /* previous console mode settings */
 static ami_pevthan evthan[ami_etframe+1]; /* array of event handler routines */
 static ami_pevthan evtshan; /* single master event handler routine */
 
@@ -484,6 +483,39 @@ static void fndcolor(int a)
 
     screens[curupd-1]->forec = numcol(a); /* set foreground color */
     screens[curupd-1]->backc = numcol(a/16); /* set background color */
+
+}
+
+/******************************************************************************
+
+Translate rgb to primary color code
+
+Translates an rgb color to a primary color code. It does this by finding the
+nearest primary color to the given RGB color.
+
+******************************************************************************/
+
+static ami_color colrgbnum(int r, int g, int b)
+
+{
+
+    ami_color c;
+
+    switch ((r > INT_MAX/2) << 2 | (g > INT_MAX/2) << 1 | (b > INT_MAX/2)) {
+
+        /* rgb */
+        /* 000 */ case 0: c = ami_black;   break;
+        /* 001 */ case 1: c = ami_blue;    break;
+        /* 010 */ case 2: c = ami_green;   break;
+        /* 011 */ case 3: c = ami_cyan;    break;
+        /* 100 */ case 4: c = ami_red;     break;
+        /* 101 */ case 5: c = ami_magenta; break;
+        /* 110 */ case 6: c = ami_yellow;  break;
+        /* 111 */ case 7: c = ami_white;   break;
+
+    }
+
+    return (c); /* exit with translated color */
 
 }
 
@@ -1250,6 +1282,22 @@ void ami_fcolor(FILE* f, ami_color c)
 
 }
 
+/** ****************************************************************************
+
+Set foreground color rgb
+
+Sets the foreground color from individual r, g, b values.
+
+*******************************************************************************/
+
+void ami_fcolorc(FILE* f, int r, int g, int b)
+
+{
+
+    ami_fcolor(f, colrgbnum(r, g, b));
+
+}
+
 /*******************************************************************************
 
 Set background color
@@ -1265,6 +1313,22 @@ void ami_bcolor(FILE* f, ami_color c)
     screens[curupd-1]->backc = c; /* set color status */
     gbackc = c; /* set global as well */
     setcolor(screens[curupd-1]); /* activate */
+
+}
+
+/** ****************************************************************************
+
+Set background color
+
+Sets the background color from individual r, g, b values.
+
+*******************************************************************************/
+
+void ami_bcolorc(FILE* f, int r, int g, int b)
+
+{
+
+    ami_bcolor(f, colrgbnum(r, g, b));
 
 }
 
