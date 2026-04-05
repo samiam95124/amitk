@@ -910,7 +910,7 @@ lib/petit_ami_graph.so: $(LINUXSTDIO) linux/services.o linux/network.o \
 	portable/gnome_widgets.o utils/config.o utils/option.o cpp/terminal.o
 	$(CC) -shared $(LINUXSTDIO) linux/services.o linux/network.o \
 		linux/graphics.o linux/rotated.o linux/system_event.o \
-		utils/config.o utils/option.o cpp/terminal.o \
+		portable/gnome_widgets.o utils/config.o utils/option.o cpp/terminal.o \
         -o lib/petit_ami_graph.so
 	
 lib/petit_ami_graph.a: $(LINUXSTDIO) linux/services.o linux/sound.o \

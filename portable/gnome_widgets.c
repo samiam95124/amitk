@@ -61,6 +61,7 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 #include <localdefs.h>
 #include <config.h>
 #include <graphics.h>
+#include <services.h>
 
 /*
  * Debug print system
@@ -6584,6 +6585,397 @@ If the operation is cancelled, then a null string will be returned.
 
 *******************************************************************************/
 
+/*
+ * Widget IDs for file open/save dialogs.
+ */
+#define QFL_ID_CANCEL   1
+#define QFL_ID_OK       2
+#define QFL_ID_PATH     3
+#define QFL_ID_LIST     4
+#define QFL_ID_NAME     5
+
+/*
+ * Build a listbox string list for directory `dir`. Directories get a trailing
+ * "/" to distinguish them visually, and ".." is always first.
+ * Returns a list suitable to pass to widget(...wtlistbox...).
+ * Caller must pass the returned list to free_qfl_list() when done.
+ */
+static ami_strptr build_qfl_list(const char* dir) {
+
+    ami_filrec *files = NULL;
+    ami_strptr  head = NULL;
+    ami_strptr  tail = NULL;
+    char        pat[4096];
+    int         dl;
+
+    /* always include ".." for navigation */
+    head = malloc(sizeof(ami_strrec));
+    head->next = NULL;
+    head->str  = strdup("../");
+    tail = head;
+
+    /* ami_list() treats its argument as dir + wildcard-filename. To list
+       everything in `dir` we must append "/*". */
+    dl = (int)strlen(dir);
+    if (dl >= (int)sizeof(pat) - 3) dl = sizeof(pat) - 3;
+    memcpy(pat, dir, dl); pat[dl] = 0;
+    if (dl == 0 || pat[dl-1] != '/') strcat(pat, "/");
+    strcat(pat, "*");
+    ami_list(pat, &files);
+    for (ami_filrec *fp = files; fp; fp = fp->next) {
+        int is_dir;
+        size_t nl;
+        ami_strptr e;
+        if (!fp->name) continue;
+        if (fp->name[0] == '.' && fp->name[1] == 0) continue; /* skip "." */
+        if (fp->name[0] == '.' && fp->name[1] == '.' && fp->name[2] == 0)
+            continue; /* already added */
+        is_dir = !!(fp->attr & (1L << ami_atdir));
+        nl = strlen(fp->name);
+        e = malloc(sizeof(ami_strrec));
+        e->next = NULL;
+        e->str  = malloc(nl + 2);
+        strcpy(e->str, fp->name);
+        if (is_dir) strcat(e->str, "/");
+        tail->next = e;
+        tail = e;
+    }
+
+    /* NOTE: ami_list's returned records are owned by services; we do not
+       attempt to free them here to avoid assuming an allocator contract. */
+
+    return head;
+
+}
+
+static void free_qfl_list(ami_strptr sp) {
+    while (sp) {
+        ami_strptr n = sp->next;
+        if (sp->str) free(sp->str);
+        free(sp);
+        sp = n;
+    }
+}
+
+/*
+ * Join a directory and a filename into dst of size dstsz. If dir already ends
+ * with '/', no extra separator is added.
+ */
+static void join_path(char* dst, int dstsz, const char* dir, const char* fn) {
+    int dl = (int)strlen(dir);
+    int need_sep = (dl > 0 && dir[dl-1] != '/');
+    if (dstsz <= 0) return;
+    if (!need_sep) {
+        snprintf_or_copy: ;
+        if (dl >= dstsz) dl = dstsz - 1;
+        memcpy(dst, dir, dl);
+        dst[dl] = 0;
+        strncat(dst, fn, (size_t)(dstsz - 1 - dl));
+    } else {
+        int fl;
+        if (dl >= dstsz) dl = dstsz - 1;
+        memcpy(dst, dir, dl);
+        dst[dl] = 0;
+        if (dl + 1 < dstsz) { dst[dl] = '/'; dst[dl+1] = 0; dl++; }
+        fl = dstsz - 1 - dl;
+        if (fl > 0) strncat(dst, fn, (size_t)fl);
+    }
+}
+
+/*
+ * Normalize a directory path, resolving a trailing "..".
+ * Input: dir ends (ideally) with '/'. Output: dst gets the normalized path.
+ * Very simple: if dir ends in "../" (or ".."), strip the last component.
+ */
+static void normalize_dir(char* dst, int dstsz, const char* dir) {
+    int dl = (int)strlen(dir);
+    int i;
+    if (dstsz <= 0) return;
+    /* copy in */
+    if (dl >= dstsz) dl = dstsz - 1;
+    memcpy(dst, dir, dl);
+    dst[dl] = 0;
+    /* remove trailing slash if any */
+    while (dl > 1 && dst[dl-1] == '/') { dst[--dl] = 0; }
+    /* check for trailing "/.." */
+    if (dl >= 3 && dst[dl-1] == '.' && dst[dl-2] == '.' &&
+        (dl == 2 || dst[dl-3] == '/')) {
+        /* strip the ".." */
+        dl -= 2; dst[dl] = 0;
+        /* strip trailing slash */
+        while (dl > 1 && dst[dl-1] == '/') { dst[--dl] = 0; }
+        /* strip parent component */
+        i = dl - 1;
+        while (i >= 0 && dst[i] != '/') i--;
+        if (i < 0) {
+            /* nothing left, use "." */
+            dst[0] = '.'; dst[1] = 0;
+        } else if (i == 0) {
+            dst[1] = 0; /* keep root "/" */
+        } else {
+            dst[i] = 0;
+        }
+    }
+    /* ensure non-empty */
+    if (dst[0] == 0) { dst[0] = '.'; dst[1] = 0; }
+}
+
+/*
+ * Common implementation for iqueryopen / iquerysave. `title` chooses the
+ * label shown in the title bar ("Open" vs "Save As").
+ */
+static void qfl_dialog(char* s, int sl, const char* title) {
+
+    FILE*      in = NULL;
+    FILE*      out;
+    int        wid;
+    ami_evtrec er;
+    wigptr     wp;
+    int        chrsz;
+    int        titbot;
+    int        mpx, mpy, lmpx, lmpy;
+    int        pressed;
+    int        sx, sy, x, y, wpx, wpy, dx, dy;
+    int        cancelled;
+    char       curdir[4096];
+    char       curfile[512];
+    ami_strptr listsp;
+    char       tmpbuf[4096];
+    int        i;
+
+    ccolor cancel_cbc = {
+        themetable[th_cancelbackfocus], themetable[th_cancelbackfocus],
+        themetable[th_canceloutline],   themetable[th_canceloutline],
+        themetable[th_canceltextfocus], themetable[th_canceltextfocus]
+    };
+    ccolor select_cbc = {
+        themetable[th_selectbackfocus],    themetable[th_selectbackfocus],
+        themetable[th_selectoutline],      themetable[th_selectoutlinefocus],
+        themetable[th_selecttextfocus],    themetable[th_selecttextfocus]
+    };
+
+    /* split input s into directory + filename */
+    curdir[0] = 0; curfile[0] = 0;
+    if (s && s[0]) {
+        /* find last slash */
+        int slash = -1;
+        int l = (int)strlen(s);
+        for (i = l - 1; i >= 0; i--) if (s[i] == '/') { slash = i; break; }
+        if (slash < 0) {
+            strncpy(curfile, s, sizeof(curfile)-1); curfile[sizeof(curfile)-1]=0;
+        } else {
+            int dl = slash;
+            if (dl == 0) { curdir[0] = '/'; curdir[1] = 0; }
+            else { if (dl >= (int)sizeof(curdir)) dl = sizeof(curdir)-1;
+                   memcpy(curdir, s, dl); curdir[dl] = 0; }
+            strncpy(curfile, s+slash+1, sizeof(curfile)-1);
+            curfile[sizeof(curfile)-1] = 0;
+        }
+    }
+    if (curdir[0] == 0) { curdir[0] = '.'; curdir[1] = 0; }
+
+    wid = ami_getwinid();
+    ami_openwin(&in, &out, NULL, wid);
+    ami_buffer(out, FALSE);
+    ami_auto(out, FALSE);
+    ami_curvis(out, FALSE);
+    ami_font(out, AMI_FONT_SIGN);
+    ami_binvis(out);
+    ami_frame(out, FALSE);
+
+    chrsz = ami_chrsizy(out);
+    titbot = chrsz*1.6;
+
+    ami_setsizg(out, chrsz*50, titbot+chrsz*22);
+
+    ami_scnceng(out, &sx, &sy);
+    ami_getsizg(out, &x, &y);
+    wpx = sx-x/2; wpy = sy-y/2;
+    ami_setposg(out, wpx, wpy);
+
+    /* path edit box: current directory */
+    wp = getwig();
+    widget(out, chrsz*6, titbot+chrsz*0.6,
+                chrsz*49, titbot+chrsz*2.0, "", QFL_ID_PATH, wteditbox, &wp);
+    ami_putwidgettext(out, QFL_ID_PATH, curdir);
+
+    /* file list box. Set wp->strlst BEFORE widget() so that any draws
+       during construction see a populated list. The widget will free the
+       list automatically when it is killed (via putwig/frestrlst). */
+    listsp = build_qfl_list(curdir);
+    wp = getwig();
+    wp->strlst = listsp;
+    widget(out, chrsz, titbot+chrsz*2.5,
+                chrsz*49, titbot+chrsz*18.0, "", QFL_ID_LIST, wtlistbox, &wp);
+
+    /* filename edit box */
+    wp = getwig();
+    widget(out, chrsz*6, titbot+chrsz*18.8,
+                chrsz*35, titbot+chrsz*20.2, "", QFL_ID_NAME, wteditbox, &wp);
+    if (curfile[0]) ami_putwidgettext(out, QFL_ID_NAME, curfile);
+
+    /* OK button */
+    wp = getwig();
+    wp->cbc = &select_cbc;
+    widget(out, chrsz*37, titbot+chrsz*18.7,
+                chrsz*43, titbot+chrsz*20.3, "OK",
+                QFL_ID_OK, wtcbutton, &wp);
+
+    /* Cancel button */
+    wp = getwig();
+    wp->cbc = &cancel_cbc;
+    widget(out, chrsz*44, titbot+chrsz*18.7,
+                chrsz*49, titbot+chrsz*20.3, "Cancel",
+                QFL_ID_CANCEL, wtcbutton, &wp);
+
+    pressed = FALSE;
+    mpx = 0; mpy = 0; lmpx = 0; lmpy = 0;
+    cancelled = FALSE;
+
+    do {
+
+        ami_event(in, &er);
+        switch (er.etype) {
+
+            case ami_etredraw:
+                ami_fcolor(out, ami_backcolor);
+                ami_frect(out, 1, 1, ami_maxxg(out), ami_maxyg(out));
+                fcolort(out, th_title);
+                ami_frect(out, 1, 1, ami_maxxg(out), titbot);
+                ami_fcolor(out, ami_white);
+                ami_bold(out, TRUE);
+                ami_cursorg(out, chrsz, titbot*0.5 - chrsz*0.5);
+                fputs(title, out);
+                ami_bold(out, FALSE);
+                ami_fcolor(out, ami_black);
+                ami_cursorg(out, chrsz, titbot+chrsz*0.9);
+                fputs("Path:", out);
+                ami_cursorg(out, chrsz, titbot+chrsz*19.1);
+                fputs("Name:", out);
+                break;
+
+            case ami_etlstbox:
+                if (er.lstbid == QFL_ID_LIST) {
+                    /* find the selected string */
+                    ami_strptr sp = listsp;
+                    int n = er.lstbsl;
+                    for (i = 1; i < n && sp; i++) sp = sp->next;
+                    if (sp && sp->str) {
+                        int l = (int)strlen(sp->str);
+                        int is_dir = (l > 0 && sp->str[l-1] == '/');
+                        if (is_dir) {
+                            /* navigate into this directory */
+                            char trimmed[512];
+                            int tl = l - 1;
+                            if (tl >= (int)sizeof(trimmed))
+                                tl = sizeof(trimmed)-1;
+                            memcpy(trimmed, sp->str, tl);
+                            trimmed[tl] = 0;
+                            join_path(tmpbuf, sizeof(tmpbuf), curdir, trimmed);
+                            normalize_dir(curdir, sizeof(curdir), tmpbuf);
+                            /* rebuild listbox. ami_killwidget frees the
+                               previous strlst via putwig, so we must not
+                               touch the old listsp pointer. */
+                            ami_killwidget(out, QFL_ID_LIST);
+                            listsp = build_qfl_list(curdir);
+                            wp = getwig();
+                            wp->strlst = listsp; /* set before widget() */
+                            widget(out, chrsz, titbot+chrsz*2.5,
+                                        chrsz*49, titbot+chrsz*18.0,
+                                        "", QFL_ID_LIST, wtlistbox, &wp);
+                            /* update path edit */
+                            ami_putwidgettext(out, QFL_ID_PATH, curdir);
+                        } else {
+                            /* file selected: copy to name edit box */
+                            ami_putwidgettext(out, QFL_ID_NAME, sp->str);
+                        }
+                    }
+                }
+                break;
+
+            case ami_etedtbox:
+                if (er.edtbid == QFL_ID_PATH) {
+                    /* user pressed enter in path: reload */
+                    ami_getwidgettext(out, QFL_ID_PATH, curdir, sizeof(curdir));
+                    if (curdir[0] == 0) { curdir[0]='.'; curdir[1]=0; }
+                    ami_killwidget(out, QFL_ID_LIST);
+                    listsp = build_qfl_list(curdir);
+                    wp = getwig();
+                    wp->strlst = listsp;
+                    widget(out, chrsz, titbot+chrsz*2.5,
+                                chrsz*49, titbot+chrsz*18.0,
+                                "", QFL_ID_LIST, wtlistbox, &wp);
+                } else if (er.edtbid == QFL_ID_NAME) {
+                    er.etype = ami_etterm; /* enter in name = OK */
+                }
+                break;
+
+            case ami_etbutton:
+                if (er.butid == QFL_ID_CANCEL) {
+                    cancelled = TRUE; er.etype = ami_etterm;
+                } else if (er.butid == QFL_ID_OK) {
+                    er.etype = ami_etterm;
+                }
+                break;
+
+            case ami_etenter:
+                er.etype = ami_etterm;
+                break;
+
+            case ami_etmoumovg:
+                lmpx = mpx; lmpy = mpy;
+                mpx = er.moupxg; mpy = er.moupyg;
+                if (pressed && mpx && mpy && lmpx && lmpy &&
+                    (lmpx != mpx || lmpy != mpy)) {
+                    dx = mpx-lmpx; dy = mpy-lmpy;
+                    x = wpx+dx; y = wpy+dy;
+                    if (x > 0 && y > 0) {
+                        wpx = x; wpy = y;
+                        ami_setposg(out, wpx, wpy);
+                        lmpx -= dx; lmpy -= dy;
+                        mpx  -= dx; mpy  -= dy;
+                    }
+                }
+                break;
+
+            case ami_etmouba:
+                if (er.amoubn == 1 && mpy <= titbot) pressed = TRUE;
+                break;
+
+            case ami_etmoubd:
+                if (er.dmoubn == 1) pressed = FALSE;
+                break;
+
+            default: ;
+
+        }
+
+    } while (er.etype != ami_etterm);
+
+    if (cancelled) {
+        if (s && sl > 0) s[0] = 0;
+    } else if (s && sl > 0) {
+        /* read both edit boxes fresh */
+        ami_getwidgettext(out, QFL_ID_PATH, curdir,  sizeof(curdir));
+        ami_getwidgettext(out, QFL_ID_NAME, curfile, sizeof(curfile));
+        if (curfile[0] == 0) {
+            s[0] = 0;                              /* no filename given */
+        } else if (curfile[0] == '/') {
+            strncpy(s, curfile, sl-1); s[sl-1] = 0;/* absolute path */
+        } else if (curdir[0] == 0 ||
+                   (curdir[0] == '.' && curdir[1] == 0)) {
+            strncpy(s, curfile, sl-1); s[sl-1] = 0;/* CWD relative */
+        } else {
+            join_path(s, sl, curdir, curfile);     /* dir + name */
+        }
+    }
+
+    /* fclose tears down all child widgets; their string lists are freed
+       inside putwig via frestrlst. Do NOT touch listsp here. */
+    fclose(out);
+
+}
+
 static void iqueryopen(
     /** Input/output for filename string */ char* s,
     /** Length of filename string buffer */ int sl
@@ -6591,9 +6983,7 @@ static void iqueryopen(
 
 {
 
-    wigptr wp; /* widget entry pointer */
-
-    //widget(f, x1, y1, x2, y2, s, id, wtqueryopen, &wp);
+    qfl_dialog(s, sl, "Open");
 
 }
 
@@ -6620,9 +7010,7 @@ static void iquerysave(
 
 {
 
-    wigptr wp; /* widget entry pointer */
-
-    //widget(f, x1, y1, x2, y2, s, id, wtquerysave, &wp);
+    qfl_dialog(s, sl, "Save As");
 
 }
 
@@ -6651,6 +7039,16 @@ table this issue until later.
 
 *******************************************************************************/
 
+/*
+ * Widget IDs used within the Find dialog.
+ */
+#define QFN_ID_CANCEL   1
+#define QFN_ID_FIND     2
+#define QFN_ID_EDIT     3
+#define QFN_ID_CASE     4
+#define QFN_ID_UP       5
+#define QFN_ID_RE       6
+
 static void iqueryfind(
     /** Input/output for search string */   char* s,
     /** Length of search string buffer */ int sl,
@@ -6659,9 +7057,202 @@ static void iqueryfind(
 
 {
 
-    wigptr wp; /* widget entry pointer */
+    FILE*      in = NULL; /* window to create */
+    FILE*      out;
+    int        wid;       /* window number */
+    ami_evtrec er;        /* event record */
+    char*      title = "Find";
+    wigptr     wp;
+    int        chrsz;     /* character height in pixels */
+    int        titbot;    /* bottom of title bar */
+    int        mpx, mpy;  /* mouse position */
+    int        lmpx, lmpy;
+    int        pressed;
+    int        sx, sy, x, y, wpx, wpy, dx, dy;
+    int        case_on, up_on, re_on; /* checkbox states */
+    int        cancelled;
 
-    //widget(f, x1, y1, x2, y2, s, id, wtqueryfind, &wp);
+    /* colors for Cancel button */
+    ccolor cancel_cbc = {
+        themetable[th_cancelbackfocus], themetable[th_cancelbackfocus],
+        themetable[th_canceloutline],   themetable[th_canceloutline],
+        themetable[th_canceltextfocus], themetable[th_canceltextfocus]
+    };
+    /* colors for Find Next button */
+    ccolor select_cbc = {
+        themetable[th_selectbackfocus],    themetable[th_selectbackfocus],
+        themetable[th_selectoutline],      themetable[th_selectoutlinefocus],
+        themetable[th_selecttextfocus],    themetable[th_selecttextfocus]
+    };
+
+    /* create the dialog window */
+    wid = ami_getwinid();
+    ami_openwin(&in, &out, NULL, wid);
+    ami_buffer(out, FALSE);
+    ami_auto(out, FALSE);
+    ami_curvis(out, FALSE);
+    ami_font(out, AMI_FONT_SIGN);
+    ami_binvis(out);
+    ami_frame(out, FALSE);
+
+    chrsz = ami_chrsizy(out);
+    titbot = chrsz*1.6;
+
+    /* set size */
+    ami_setsizg(out, chrsz*34, titbot+chrsz*9);
+
+    /* center on screen */
+    ami_scnceng(out, &sx, &sy);
+    ami_getsizg(out, &x, &y);
+    wpx = sx-x/2; wpy = sy-y/2;
+    ami_setposg(out, wpx, wpy);
+
+    /* edit box for search text */
+    wp = getwig();
+    widget(out, chrsz*7, titbot+chrsz*0.6,
+                chrsz*23, titbot+chrsz*2.0, "", QFN_ID_EDIT, wteditbox, &wp);
+    if (s && s[0]) ami_putwidgettext(out, QFN_ID_EDIT, s);
+
+    /* Find Next button */
+    wp = getwig();
+    wp->cbc = &select_cbc;
+    widget(out, chrsz*24, titbot+chrsz*0.5,
+                chrsz*33, titbot+chrsz*2.0, "Find Next",
+                QFN_ID_FIND, wtcbutton, &wp);
+
+    /* Cancel button */
+    wp = getwig();
+    wp->cbc = &cancel_cbc;
+    widget(out, chrsz*24, titbot+chrsz*2.5,
+                chrsz*33, titbot+chrsz*4.0, "Cancel",
+                QFN_ID_CANCEL, wtcbutton, &wp);
+
+    /* Match case checkbox */
+    wp = getwig();
+    widget(out, chrsz, titbot+chrsz*3.0,
+                chrsz*12, titbot+chrsz*4.0, "Match case",
+                QFN_ID_CASE, wtcheckbox, &wp);
+    case_on = !!(*opt & (1 << ami_qfncase));
+    if (case_on) ami_selectwidget(out, QFN_ID_CASE, TRUE);
+
+    /* Search up checkbox */
+    wp = getwig();
+    widget(out, chrsz, titbot+chrsz*4.2,
+                chrsz*12, titbot+chrsz*5.2, "Search up",
+                QFN_ID_UP, wtcheckbox, &wp);
+    up_on = !!(*opt & (1 << ami_qfnup));
+    if (up_on) ami_selectwidget(out, QFN_ID_UP, TRUE);
+
+    /* Regular expression checkbox */
+    wp = getwig();
+    widget(out, chrsz, titbot+chrsz*5.4,
+                chrsz*17, titbot+chrsz*6.4, "Regular expression",
+                QFN_ID_RE, wtcheckbox, &wp);
+    re_on = !!(*opt & (1 << ami_qfnre));
+    if (re_on) ami_selectwidget(out, QFN_ID_RE, TRUE);
+
+    pressed = FALSE;
+    mpx = 0; mpy = 0; lmpx = 0; lmpy = 0;
+    cancelled = FALSE;
+
+    /* event loop */
+    do {
+
+        ami_event(in, &er);
+        switch (er.etype) {
+
+            case ami_etredraw:
+                /* background */
+                ami_fcolor(out, ami_backcolor);
+                ami_frect(out, 1, 1, ami_maxxg(out), ami_maxyg(out));
+                /* title bar */
+                fcolort(out, th_title);
+                ami_frect(out, 1, 1, ami_maxxg(out), titbot);
+                ami_fcolor(out, ami_white);
+                ami_bold(out, TRUE);
+                ami_cursorg(out, chrsz, titbot*0.5 - chrsz*0.5);
+                fputs(title, out);
+                ami_bold(out, FALSE);
+                /* "Find what:" label */
+                ami_fcolor(out, ami_black);
+                ami_cursorg(out, chrsz, titbot+chrsz*0.9);
+                fputs("Find what:", out);
+                break;
+
+            case ami_etchkbox:
+                /* toggle local state on checkbox click */
+                if (er.ckbxid == QFN_ID_CASE) {
+                    case_on = !case_on;
+                    ami_selectwidget(out, QFN_ID_CASE, case_on);
+                } else if (er.ckbxid == QFN_ID_UP) {
+                    up_on = !up_on;
+                    ami_selectwidget(out, QFN_ID_UP, up_on);
+                } else if (er.ckbxid == QFN_ID_RE) {
+                    re_on = !re_on;
+                    ami_selectwidget(out, QFN_ID_RE, re_on);
+                }
+                break;
+
+            case ami_etbutton:
+                if (er.butid == QFN_ID_CANCEL) {
+                    cancelled = TRUE;
+                    er.etype = ami_etterm;
+                } else if (er.butid == QFN_ID_FIND) {
+                    er.etype = ami_etterm;
+                }
+                break;
+
+            case ami_etedtbox:
+                if (er.edtbid == QFN_ID_EDIT) er.etype = ami_etterm;
+                break;
+
+            case ami_etenter:
+                er.etype = ami_etterm;
+                break;
+
+            case ami_etmoumovg:
+                lmpx = mpx; lmpy = mpy;
+                mpx = er.moupxg; mpy = er.moupyg;
+                if (pressed && mpx && mpy && lmpx && lmpy &&
+                    (lmpx != mpx || lmpy != mpy)) {
+                    dx = mpx-lmpx; dy = mpy-lmpy;
+                    x = wpx+dx; y = wpy+dy;
+                    if (x > 0 && y > 0) {
+                        wpx = x; wpy = y;
+                        ami_setposg(out, wpx, wpy);
+                        lmpx -= dx; lmpy -= dy;
+                        mpx  -= dx; mpy  -= dy;
+                    }
+                }
+                break;
+
+            case ami_etmouba:
+                if (er.amoubn == 1 && mpy <= titbot) pressed = TRUE;
+                break;
+
+            case ami_etmoubd:
+                if (er.dmoubn == 1) pressed = FALSE;
+                break;
+
+            default: ;
+
+        }
+
+    } while (er.etype != ami_etterm);
+
+    /* flow-through result */
+    if (cancelled) {
+        if (s && sl > 0) s[0] = 0;
+    } else {
+        if (s && sl > 0) ami_getwidgettext(out, QFN_ID_EDIT, s, sl);
+        /* update option flags */
+        *opt = 0;
+        if (case_on) *opt |= (1 << ami_qfncase);
+        if (up_on)   *opt |= (1 << ami_qfnup);
+        if (re_on)   *opt |= (1 << ami_qfnre);
+    }
+
+    fclose(out);
 
 }
 
@@ -6682,19 +7273,237 @@ Bug: See comment, queryfind.
 
 *******************************************************************************/
 
+/*
+ * Widget IDs used within the Find/Replace dialog.
+ */
+#define QFR_ID_CANCEL   1
+#define QFR_ID_FIND     2
+#define QFR_ID_REPLACE  3
+#define QFR_ID_REPALL   4
+#define QFR_ID_EDITS    5
+#define QFR_ID_EDITR    6
+#define QFR_ID_CASE     7
+#define QFR_ID_UP       8
+#define QFR_ID_RE       9
+
 static void iqueryfindrep(
     /** Input/output for search string */  char* s,
     /** Length of search string buffer */  int sl,
     /** Input/output for replace string */ char* r,
     /** Length of replace string buffer */ int rl,
-    /** Set of find/replace options */     ami_qfnopts* opt
+    /** Set of find/replace options */     ami_qfropts* opt
 )
 
 {
 
-    wigptr wp; /* widget entry pointer */
+    FILE*      in = NULL;
+    FILE*      out;
+    int        wid;
+    ami_evtrec er;
+    char*      title = "Replace";
+    wigptr     wp;
+    int        chrsz;
+    int        titbot;
+    int        mpx, mpy, lmpx, lmpy;
+    int        pressed;
+    int        sx, sy, x, y, wpx, wpy, dx, dy;
+    int        case_on, up_on, re_on;
+    int        cancelled, did_find, did_replall;
 
-    //widget(f, x1, y1, x2, y2, s, id, wtqueryfindrep, &wp);
+    ccolor cancel_cbc = {
+        themetable[th_cancelbackfocus], themetable[th_cancelbackfocus],
+        themetable[th_canceloutline],   themetable[th_canceloutline],
+        themetable[th_canceltextfocus], themetable[th_canceltextfocus]
+    };
+    ccolor select_cbc = {
+        themetable[th_selectbackfocus],    themetable[th_selectbackfocus],
+        themetable[th_selectoutline],      themetable[th_selectoutlinefocus],
+        themetable[th_selecttextfocus],    themetable[th_selecttextfocus]
+    };
+
+    wid = ami_getwinid();
+    ami_openwin(&in, &out, NULL, wid);
+    ami_buffer(out, FALSE);
+    ami_auto(out, FALSE);
+    ami_curvis(out, FALSE);
+    ami_font(out, AMI_FONT_SIGN);
+    ami_binvis(out);
+    ami_frame(out, FALSE);
+
+    chrsz = ami_chrsizy(out);
+    titbot = chrsz*1.6;
+
+    ami_setsizg(out, chrsz*36, titbot+chrsz*11);
+
+    ami_scnceng(out, &sx, &sy);
+    ami_getsizg(out, &x, &y);
+    wpx = sx-x/2; wpy = sy-y/2;
+    ami_setposg(out, wpx, wpy);
+
+    /* search edit box */
+    wp = getwig();
+    widget(out, chrsz*9, titbot+chrsz*0.6,
+                chrsz*24, titbot+chrsz*2.0, "", QFR_ID_EDITS, wteditbox, &wp);
+    if (s && s[0]) ami_putwidgettext(out, QFR_ID_EDITS, s);
+
+    /* replace edit box */
+    wp = getwig();
+    widget(out, chrsz*9, titbot+chrsz*2.3,
+                chrsz*24, titbot+chrsz*3.7, "", QFR_ID_EDITR, wteditbox, &wp);
+    if (r && r[0]) ami_putwidgettext(out, QFR_ID_EDITR, r);
+
+    /* Find Next button */
+    wp = getwig();
+    wp->cbc = &select_cbc;
+    widget(out, chrsz*25, titbot+chrsz*0.5,
+                chrsz*35, titbot+chrsz*1.8, "Find Next",
+                QFR_ID_FIND, wtcbutton, &wp);
+
+    /* Replace button */
+    wp = getwig();
+    wp->cbc = &select_cbc;
+    widget(out, chrsz*25, titbot+chrsz*2.0,
+                chrsz*35, titbot+chrsz*3.3, "Replace",
+                QFR_ID_REPLACE, wtcbutton, &wp);
+
+    /* Replace All button */
+    wp = getwig();
+    wp->cbc = &select_cbc;
+    widget(out, chrsz*25, titbot+chrsz*3.5,
+                chrsz*35, titbot+chrsz*4.8, "Replace All",
+                QFR_ID_REPALL, wtcbutton, &wp);
+
+    /* Cancel button */
+    wp = getwig();
+    wp->cbc = &cancel_cbc;
+    widget(out, chrsz*25, titbot+chrsz*5.0,
+                chrsz*35, titbot+chrsz*6.3, "Cancel",
+                QFR_ID_CANCEL, wtcbutton, &wp);
+
+    /* Match case checkbox */
+    wp = getwig();
+    widget(out, chrsz, titbot+chrsz*5.0,
+                chrsz*12, titbot+chrsz*6.0, "Match case",
+                QFR_ID_CASE, wtcheckbox, &wp);
+    case_on = !!(*opt & (1 << ami_qfrcase));
+    if (case_on) ami_selectwidget(out, QFR_ID_CASE, TRUE);
+
+    /* Search up checkbox */
+    wp = getwig();
+    widget(out, chrsz, titbot+chrsz*6.2,
+                chrsz*12, titbot+chrsz*7.2, "Search up",
+                QFR_ID_UP, wtcheckbox, &wp);
+    up_on = !!(*opt & (1 << ami_qfrup));
+    if (up_on) ami_selectwidget(out, QFR_ID_UP, TRUE);
+
+    /* Regular expression checkbox */
+    wp = getwig();
+    widget(out, chrsz, titbot+chrsz*7.4,
+                chrsz*17, titbot+chrsz*8.4, "Regular expression",
+                QFR_ID_RE, wtcheckbox, &wp);
+    re_on = !!(*opt & (1 << ami_qfrre));
+    if (re_on) ami_selectwidget(out, QFR_ID_RE, TRUE);
+
+    pressed = FALSE;
+    mpx = 0; mpy = 0; lmpx = 0; lmpy = 0;
+    cancelled = FALSE; did_find = FALSE; did_replall = FALSE;
+
+    do {
+
+        ami_event(in, &er);
+        switch (er.etype) {
+
+            case ami_etredraw:
+                ami_fcolor(out, ami_backcolor);
+                ami_frect(out, 1, 1, ami_maxxg(out), ami_maxyg(out));
+                fcolort(out, th_title);
+                ami_frect(out, 1, 1, ami_maxxg(out), titbot);
+                ami_fcolor(out, ami_white);
+                ami_bold(out, TRUE);
+                ami_cursorg(out, chrsz, titbot*0.5 - chrsz*0.5);
+                fputs(title, out);
+                ami_bold(out, FALSE);
+                ami_fcolor(out, ami_black);
+                ami_cursorg(out, chrsz, titbot+chrsz*0.9);
+                fputs("Find what:", out);
+                ami_cursorg(out, chrsz, titbot+chrsz*2.6);
+                fputs("Replace with:", out);
+                break;
+
+            case ami_etchkbox:
+                if (er.ckbxid == QFR_ID_CASE) {
+                    case_on = !case_on;
+                    ami_selectwidget(out, QFR_ID_CASE, case_on);
+                } else if (er.ckbxid == QFR_ID_UP) {
+                    up_on = !up_on;
+                    ami_selectwidget(out, QFR_ID_UP, up_on);
+                } else if (er.ckbxid == QFR_ID_RE) {
+                    re_on = !re_on;
+                    ami_selectwidget(out, QFR_ID_RE, re_on);
+                }
+                break;
+
+            case ami_etbutton:
+                if (er.butid == QFR_ID_CANCEL) {
+                    cancelled = TRUE; er.etype = ami_etterm;
+                } else if (er.butid == QFR_ID_FIND) {
+                    did_find = TRUE; er.etype = ami_etterm;
+                } else if (er.butid == QFR_ID_REPLACE) {
+                    er.etype = ami_etterm;
+                } else if (er.butid == QFR_ID_REPALL) {
+                    did_replall = TRUE; er.etype = ami_etterm;
+                }
+                break;
+
+            case ami_etenter:
+                er.etype = ami_etterm;
+                break;
+
+            case ami_etmoumovg:
+                lmpx = mpx; lmpy = mpy;
+                mpx = er.moupxg; mpy = er.moupyg;
+                if (pressed && mpx && mpy && lmpx && lmpy &&
+                    (lmpx != mpx || lmpy != mpy)) {
+                    dx = mpx-lmpx; dy = mpy-lmpy;
+                    x = wpx+dx; y = wpy+dy;
+                    if (x > 0 && y > 0) {
+                        wpx = x; wpy = y;
+                        ami_setposg(out, wpx, wpy);
+                        lmpx -= dx; lmpy -= dy;
+                        mpx  -= dx; mpy  -= dy;
+                    }
+                }
+                break;
+
+            case ami_etmouba:
+                if (er.amoubn == 1 && mpy <= titbot) pressed = TRUE;
+                break;
+
+            case ami_etmoubd:
+                if (er.dmoubn == 1) pressed = FALSE;
+                break;
+
+            default: ;
+
+        }
+
+    } while (er.etype != ami_etterm);
+
+    if (cancelled) {
+        if (s && sl > 0) s[0] = 0;
+        if (r && rl > 0) r[0] = 0;
+    } else {
+        if (s && sl > 0) ami_getwidgettext(out, QFR_ID_EDITS, s, sl);
+        if (r && rl > 0) ami_getwidgettext(out, QFR_ID_EDITR, r, rl);
+        *opt = 0;
+        if (case_on)     *opt |= (1 << ami_qfrcase);
+        if (up_on)       *opt |= (1 << ami_qfrup);
+        if (re_on)       *opt |= (1 << ami_qfrre);
+        if (did_find)    *opt |= (1 << ami_qfrfind);
+        if (did_replall) *opt |= (1 << ami_qfrallfil);
+    }
+
+    fclose(out);
 
 }
 
@@ -6728,9 +7537,324 @@ static void iqueryfont(
 
 {
 
-    wigptr wp; /* widget entry pointer */
+    FILE*       in = NULL;
+    FILE*       out;
+    int         wid;
+    ami_evtrec  er;
+    char*       title = "Font";
+    wigptr      wp;
+    int         chrsz;
+    int         titbot;
+    int         mpx, mpy, lmpx, lmpy;
+    int         pressed;
+    int         sx, sy, x, y, wpx, wpy, dx, dy;
+    int         cancelled;
+    int         strike_on, under_on, bold_on, italic_on;
+    int         nfonts, i;
+    ami_strptr  fontlist = NULL;
+    ami_strptr  fontlist_tail = NULL;
+    char        namebuf[256];
+    int         cur_size;
+    int         cur_font;
+    ami_qfteffects eff_in;
 
-    //widget(f, x1, y1, x2, y2, "", id, wtqueryfont, &wp);
+    ccolor cancel_cbc = {
+        themetable[th_cancelbackfocus], themetable[th_cancelbackfocus],
+        themetable[th_canceloutline],   themetable[th_canceloutline],
+        themetable[th_canceltextfocus], themetable[th_canceltextfocus]
+    };
+    ccolor select_cbc = {
+        themetable[th_selectbackfocus],    themetable[th_selectbackfocus],
+        themetable[th_selectoutline],      themetable[th_selectoutlinefocus],
+        themetable[th_selecttextfocus],    themetable[th_selecttextfocus]
+    };
+
+    eff_in = effect ? *effect : 0;
+    cur_font = fc ? *fc : 1; if (cur_font < 1) cur_font = 1;
+    cur_size = s ? *s : 12;  if (cur_size < 1) cur_size = 12;
+    strike_on = !!(eff_in & (1 << ami_qftestrikeout));
+    under_on  = !!(eff_in & (1 << ami_qfteunderline));
+    bold_on   = !!(eff_in & (1 << ami_qftebold));
+    italic_on = !!(eff_in & (1 << ami_qfteitalic));
+
+    wid = ami_getwinid();
+    ami_openwin(&in, &out, NULL, wid);
+    ami_buffer(out, FALSE);
+    ami_auto(out, FALSE);
+    ami_curvis(out, FALSE);
+    ami_font(out, AMI_FONT_SIGN);
+    ami_binvis(out);
+    ami_frame(out, FALSE);
+
+    chrsz = ami_chrsizy(out);
+    titbot = chrsz*1.6;
+
+    ami_setsizg(out, chrsz*42, titbot+chrsz*19);
+
+    ami_scnceng(out, &sx, &sy);
+    ami_getsizg(out, &x, &y);
+    wpx = sx-x/2; wpy = sy-y/2;
+    ami_setposg(out, wpx, wpy);
+
+    /* build font list */
+    nfonts = ami_fonts(out);
+    if (nfonts < 1) nfonts = 0;
+    for (i = 1; i <= nfonts; i++) {
+        ami_strptr e;
+        ami_fontnam(out, i, namebuf, sizeof(namebuf));
+        e = malloc(sizeof(ami_strrec));
+        e->next = NULL;
+        e->str  = strdup(namebuf);
+        if (!fontlist) fontlist = e; else fontlist_tail->next = e;
+        fontlist_tail = e;
+    }
+    if (!fontlist) {
+        /* degenerate: add a placeholder */
+        fontlist = malloc(sizeof(ami_strrec));
+        fontlist->next = NULL;
+        fontlist->str  = strdup("(no fonts)");
+    }
+
+    /* font list box */
+    wp = getwig();
+    widget(out, chrsz, titbot+chrsz*1.2,
+                chrsz*20, titbot+chrsz*8.0, "", 3, wtlistbox, &wp);
+    wp->strlst = fontlist;
+
+    /* size edit box (numeric entry) */
+    wp = getwig();
+    widget(out, chrsz*22, titbot+chrsz*1.2,
+                chrsz*30, titbot+chrsz*2.6, "", 4, wteditbox, &wp);
+    {
+        char sbuf[16];
+        int n = cur_size, k = 0, j;
+        char tmp[16];
+        if (n < 0) { sbuf[k++] = '-'; n = -n; }
+        do { tmp[k++] = '0' + (n % 10); n /= 10; } while (n > 0);
+        for (j = 0; j < k; j++) sbuf[j] = tmp[k-1-j];
+        sbuf[k] = 0;
+        ami_putwidgettext(out, 4, sbuf);
+    }
+
+    /* Strikeout checkbox */
+    wp = getwig();
+    widget(out, chrsz*22, titbot+chrsz*3.8,
+                chrsz*35, titbot+chrsz*4.8, "Strikeout", 5, wtcheckbox, &wp);
+    if (strike_on) ami_selectwidget(out, 5, TRUE);
+
+    /* Underline checkbox */
+    wp = getwig();
+    widget(out, chrsz*22, titbot+chrsz*5.0,
+                chrsz*35, titbot+chrsz*6.0, "Underline", 6, wtcheckbox, &wp);
+    if (under_on) ami_selectwidget(out, 6, TRUE);
+
+    /* Bold checkbox */
+    wp = getwig();
+    widget(out, chrsz*22, titbot+chrsz*6.2,
+                chrsz*35, titbot+chrsz*7.2, "Bold", 7, wtcheckbox, &wp);
+    if (bold_on) ami_selectwidget(out, 7, TRUE);
+
+    /* Italic checkbox */
+    wp = getwig();
+    widget(out, chrsz*22, titbot+chrsz*7.4,
+                chrsz*35, titbot+chrsz*8.4, "Italic", 8, wtcheckbox, &wp);
+    if (italic_on) ami_selectwidget(out, 8, TRUE);
+
+    /* OK button */
+    wp = getwig();
+    wp->cbc = &select_cbc;
+    widget(out, chrsz*32, titbot+chrsz*1.1,
+                chrsz*41, titbot+chrsz*2.5, "OK", 2, wtcbutton, &wp);
+
+    /* Cancel button */
+    wp = getwig();
+    wp->cbc = &cancel_cbc;
+    widget(out, chrsz*32, titbot+chrsz*2.8,
+                chrsz*41, titbot+chrsz*4.2, "Cancel", 1, wtcbutton, &wp);
+
+    pressed = FALSE;
+    mpx = 0; mpy = 0; lmpx = 0; lmpy = 0;
+    cancelled = FALSE;
+
+    do {
+
+        ami_event(in, &er);
+        switch (er.etype) {
+
+            case ami_etredraw:
+                ami_fcolor(out, ami_backcolor);
+                ami_frect(out, 1, 1, ami_maxxg(out), ami_maxyg(out));
+                fcolort(out, th_title);
+                ami_frect(out, 1, 1, ami_maxxg(out), titbot);
+                ami_fcolor(out, ami_white);
+                ami_bold(out, TRUE);
+                ami_cursorg(out, chrsz, titbot*0.5 - chrsz*0.5);
+                fputs(title, out);
+                ami_bold(out, FALSE);
+                ami_fcolor(out, ami_black);
+                ami_cursorg(out, chrsz, titbot+chrsz*0.2);
+                fputs("Font:", out);
+                ami_cursorg(out, chrsz*22, titbot+chrsz*0.2);
+                fputs("Size:", out);
+                ami_cursorg(out, chrsz, titbot+chrsz*9.0);
+                fputs("Sample:", out);
+                /* sample box */
+                ami_fcolor(out, ami_white);
+                ami_frect(out, chrsz, titbot+chrsz*10.0,
+                              chrsz*41, titbot+chrsz*14.0);
+                ami_fcolor(out, ami_black);
+                ami_rect (out, chrsz, titbot+chrsz*10.0,
+                              chrsz*41, titbot+chrsz*14.0);
+                /* render sample string with current font/style */
+                {
+                    int save_font = cur_font;
+                    ami_font(out, cur_font);
+                    ami_fontsiz(out, cur_size);
+                    if (bold_on)   ami_bold(out, TRUE);
+                    if (italic_on) ami_italic(out, TRUE);
+                    if (under_on)  ami_underline(out, TRUE);
+                    if (strike_on) ami_strikeout(out, TRUE);
+                    ami_cursorg(out, chrsz*1.5, titbot+chrsz*10.8);
+                    fputs("AaBbYyZz 0123", out);
+                    /* restore defaults */
+                    ami_bold(out, FALSE);
+                    ami_italic(out, FALSE);
+                    ami_underline(out, FALSE);
+                    ami_strikeout(out, FALSE);
+                    ami_font(out, AMI_FONT_SIGN);
+                    ami_fontsiz(out, chrsz);
+                    (void)save_font;
+                }
+                break;
+
+            case ami_etlstbox:
+                if (er.lstbid == 3) {
+                    cur_font = er.lstbsl;
+                    if (cur_font < 1) cur_font = 1;
+                    /* force repaint of sample area */
+                    /* queue a redraw event on our dialog window */
+                    er.etype = ami_etredraw;
+                    ami_sendevent(out, &er);
+                    break;
+                }
+                break;
+
+            case ami_etedtbox:
+                if (er.edtbid == 4) {
+                    /* user pressed enter in size box: parse number */
+                    char sbuf[32];
+                    int n, neg, j;
+                    ami_getwidgettext(out, 4, sbuf, sizeof(sbuf));
+                    n = 0; neg = 0; j = 0;
+                    if (sbuf[0] == '-') { neg = 1; j = 1; }
+                    while (sbuf[j] >= '0' && sbuf[j] <= '9') {
+                        n = n*10 + (sbuf[j] - '0'); j++;
+                    }
+                    if (neg) n = -n;
+                    if (n < 1)   n = 1;
+                    if (n > 288) n = 288;
+                    cur_size = n;
+                    er.etype = ami_etredraw;
+                    ami_sendevent(out, &er);
+                    break;
+                }
+                break;
+
+            case ami_etchkbox:
+                if (er.ckbxid == 5) {
+                    strike_on = !strike_on;
+                    ami_selectwidget(out, 5, strike_on);
+                } else if (er.ckbxid == 6) {
+                    under_on = !under_on;
+                    ami_selectwidget(out, 6, under_on);
+                } else if (er.ckbxid == 7) {
+                    bold_on = !bold_on;
+                    ami_selectwidget(out, 7, bold_on);
+                } else if (er.ckbxid == 8) {
+                    italic_on = !italic_on;
+                    ami_selectwidget(out, 8, italic_on);
+                }
+                er.etype = ami_etredraw;
+                continue;
+
+            case ami_etbutton:
+                if (er.butid == 1) {
+                    cancelled = TRUE; er.etype = ami_etterm;
+                } else if (er.butid == 2) {
+                    er.etype = ami_etterm;
+                }
+                break;
+
+            case ami_etenter:
+                er.etype = ami_etterm;
+                break;
+
+            case ami_etmoumovg:
+                lmpx = mpx; lmpy = mpy;
+                mpx = er.moupxg; mpy = er.moupyg;
+                if (pressed && mpx && mpy && lmpx && lmpy &&
+                    (lmpx != mpx || lmpy != mpy)) {
+                    dx = mpx-lmpx; dy = mpy-lmpy;
+                    x = wpx+dx; y = wpy+dy;
+                    if (x > 0 && y > 0) {
+                        wpx = x; wpy = y;
+                        ami_setposg(out, wpx, wpy);
+                        lmpx -= dx; lmpy -= dy;
+                        mpx  -= dx; mpy  -= dy;
+                    }
+                }
+                break;
+
+            case ami_etmouba:
+                if (er.amoubn == 1 && mpy <= titbot) pressed = TRUE;
+                break;
+
+            case ami_etmoubd:
+                if (er.dmoubn == 1) pressed = FALSE;
+                break;
+
+            default: ;
+
+        }
+
+    } while (er.etype != ami_etterm);
+
+    if (!cancelled) {
+        /* re-read the size from the edit box (user may not have pressed enter) */
+        {
+            char sbuf[32];
+            int n, neg, j;
+            ami_getwidgettext(out, 4, sbuf, sizeof(sbuf));
+            n = 0; neg = 0; j = 0;
+            if (sbuf[0] == '-') { neg = 1; j = 1; }
+            while (sbuf[j] >= '0' && sbuf[j] <= '9') {
+                n = n*10 + (sbuf[j] - '0'); j++;
+            }
+            if (neg) n = -n;
+            if (n >= 1 && n <= 288) cur_size = n;
+        }
+        if (fc) *fc = cur_font;
+        if (s)  *s  = cur_size;
+        if (effect) {
+            /* preserve other bits, toggle the ones we own */
+            ami_qfteffects out_eff = eff_in;
+            out_eff &= ~((1 << ami_qftestrikeout) | (1 << ami_qfteunderline)
+                       | (1 << ami_qftebold)      | (1 << ami_qfteitalic));
+            if (strike_on) out_eff |= (1 << ami_qftestrikeout);
+            if (under_on)  out_eff |= (1 << ami_qfteunderline);
+            if (bold_on)   out_eff |= (1 << ami_qftebold);
+            if (italic_on) out_eff |= (1 << ami_qfteitalic);
+            *effect = out_eff;
+        }
+        /* foreground/background colors are flow-through: left unchanged */
+        (void)fr; (void)fg; (void)fb; (void)br; (void)bg; (void)bb;
+    }
+    (void)f;
+
+    /* fontlist is owned by the font listbox widget (wp->strlst); fclose
+       will tear it down via putwig/frestrlst. Do NOT free it here. */
+
+    fclose(out);
 
 }
 
