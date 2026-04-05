@@ -12638,8 +12638,10 @@ static void iopenwin(FILE** infile, FILE** outfile, FILE* parent, int wid,
     if (!*outfile) error(enoopn); /* can't open */
     setvbuf(*outfile, NULL, _IONBF, 0); /* turn off buffering */
 
-    /* check either input is unused, or is already an input side of a window */
-    if (opnfil[ifn]) /* entry exists */
+    /* check either input is unused, or is already an input side of a window.
+       A filrec for a closed window remains in opnfil[] with inw=FALSE and
+       win=NULL; we must treat that "cleared" state as unused, same as NULL. */
+    if (opnfil[ifn] && (opnfil[ifn]->inw || opnfil[ifn]->win))
         if (!opnfil[ifn]->inw || opnfil[ifn]->win) error(einmode); /* wrong mode */
     /* check output file is in use for input or output from window */
     if (opnfil[ofn]) /* entry exists */
