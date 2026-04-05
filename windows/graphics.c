@@ -116,7 +116,7 @@ static enum { /* debug levels */
 
 /* enter debugger on fail */
 #define ENTDBG 1
-//#define WAITCANCEL /* wait for user cancel on uncommanded exit */
+#define WAITCANCEL /* wait for user cancel on uncommanded exit */
 
 /*
  * Configurable parameters
@@ -4455,6 +4455,14 @@ void ami_fcolorg(FILE* f, int r, int g, int b)
 
 }
 
+void ami_fcolorc(FILE* f, int r, int g, int b)
+
+{
+
+    ami_fcolorg(f, r, g, b);
+
+}
+
 /*******************************************************************************
 
 Set background color
@@ -4578,6 +4586,14 @@ void ami_bcolorg(FILE* f, int r, int g, int b)
     win = txt2win(f); /* get window from file */
     ibcolorg(win, r, g, b); /* execute */
     unlockmain(); /* end exclusive access */
+
+}
+
+void ami_bcolorc(FILE* f, int r, int g, int b)
+
+{
+
+    ami_bcolorg(f, r, g, b);
 
 }
 
@@ -13163,9 +13179,9 @@ static void inumselboxg(winptr win, int x1, int y1, int x2, int y2, int l, int u
     wp->han2 = ip->udbuddy; /* place buddy handle */
     putitm(ip); /* release im */
     /* place our subclass handler for the edit control */
-    wp->wprc = (WNDPROC)GetWindowLongPtr(wp->han2, GWL_WNDPROC);
+    wp->wprc = (WNDPROC)GetWindowLongPtr(wp->han2, GWLP_WNDPROC);
     if (!wp->wprc) winerr(); /* process windows error */
-    r = SetWindowLong(wp->han2, GWL_WNDPROC, (LONG)wndprocnum);
+    r = SetWindowLongPtr(wp->han2, GWLP_WNDPROC, (LONG_PTR)wndprocnum);
     if (!r) winerr(); /* process windows error */
 
 }
@@ -13339,9 +13355,9 @@ static void ieditboxg(winptr win, int x1, int y1, int x2, int y2, int id)
     if (!win->visible) winvis(win); /* make sure we are displayed */
     widget(win, x1, y1, x2, y2, "", id, wteditbox, 0, &wp);
     /* get the windows internal procedure for subclassing */
-    wp->wprc = (WNDPROC)GetWindowLongPtr(wp->han, GWL_WNDPROC);
+    wp->wprc = (WNDPROC)GetWindowLongPtr(wp->han, GWLP_WNDPROC);
     if (!wp->wprc) winerr(); /* process windows error */
-    r = SetWindowLong(wp->han, GWL_WNDPROC, (LONG)wndprocedit);
+    r = SetWindowLongPtr(wp->han, GWLP_WNDPROC, (LONG_PTR)wndprocedit);
     if (!r) winerr(); /* process windows error */
 
 }
@@ -13998,9 +14014,9 @@ static void idropeditboxg(winptr win, int x1, int y1, int x2, int y2, ami_strptr
     if (!win->visible) winvis(win); /* make sure we are displayed */
     widget(win, x1, y1, x2, y2, "", id, wtdropeditbox, 0, &wp);
     /* get the windows internal procedure for subclassing */
-    wp->wprc = (WNDPROC)GetWindowLongPtr(wp->han, GWL_WNDPROC);
+    wp->wprc = (WNDPROC)GetWindowLongPtr(wp->han, GWLP_WNDPROC);
     if (!wp->wprc) winerr(); /* process windows error */
-    r = SetWindowLong(wp->han, GWL_WNDPROC, (LONG)wndprocedit);
+    r = SetWindowLongPtr(wp->han, GWLP_WNDPROC, (LONG_PTR)wndprocedit);
     if (!r) winerr(); /* process windows error */
     sp1 = sp; /* index top of string list */
     while (sp1) { /* add strings to list */
@@ -15204,7 +15220,7 @@ static LRESULT CALLBACK wndproc(HWND hwnd, UINT imsg, WPARAM wparam,
                                       WS_CHILDWINDOW | WS_VISIBLE | WS_BORDER |
                                       ES_NUMBER | ES_LEFT,
                                       ip->udx, ip->udy, ip->udcx, ip->udcy,
-                                      ip->udpar, (HMENU)ip->udid, ip->udinst, NULL);
+                                      ip->udpar, (HMENU)(INT_PTR)ip->udid, ip->udinst, NULL);
                 ip->udhan = CreateWindowEx(WS_EX_LEFT | WS_EX_LTRREADING,
                     UPDOWN_CLASS,
                     NULL,
@@ -15213,7 +15229,7 @@ static LRESULT CALLBACK wndproc(HWND hwnd, UINT imsg, WPARAM wparam,
                     UDS_ARROWKEYS | UDS_HOTTRACK,
                     0, 0, 0, 0,
                     /*ip->udx, ip->udy, ip->udcx-udw-1, ip->udcy,*/
-                    ip->udpar, (HMENU)ip->udid, ip->udinst, NULL);
+                    ip->udpar, (HMENU)(INT_PTR)ip->udid, ip->udinst, NULL);
                 /* signal complete */
                 iputmsg(0, UM_IM, wparam, 0);
                 break;
@@ -15222,7 +15238,7 @@ static LRESULT CALLBACK wndproc(HWND hwnd, UINT imsg, WPARAM wparam,
                 /* start widget window */
                 ip->wigwin = CreateWindow(ip->wigcls, ip->wigtxt, ip->wigflg,
                                           ip->wigx, ip->wigy, ip->wigw,
-                                          ip->wigh, ip->wigpar, (HMENU)ip->wigid,
+                                          ip->wigh, ip->wigpar, (HMENU)(INT_PTR)ip->wigid,
                                           ip->wigmod, NULL);
                 /* signal we started widget */
                 iputmsg(0, UM_IM, wparam, 0);
@@ -16027,11 +16043,9 @@ static void ami_init_graph()
 
     /* find x an y max if they exist */
     vp = ami_schlst("maxxd", term_root);
-    if (vp) maxxd = strtol(vp->value, &errstr, 10);
-    if (*errstr) error(ecfgval);
+    if (vp) { maxxd = strtol(vp->value, &errstr, 10); if (*errstr) error(ecfgval); }
     vp = ami_schlst("maxyd", term_root);
-    if (vp) maxyd = strtol(vp->value, &errstr, 10);
-    if (*errstr) error(ecfgval);
+    if (vp) { maxyd = strtol(vp->value, &errstr, 10); if (*errstr) error(ecfgval); }
     vp = ami_schlst("joystick", term_root);
     if (vp) joyenb = strtol(vp->value, &errstr, 10);
     vp = ami_schlst("mouse", term_root);
@@ -16044,8 +16058,7 @@ static void ami_init_graph()
     if (graph_root) {
 
         vp = ami_schlst("dialogerr", graph_root->sublist);
-        if (vp) dialogerr = strtol(vp->value, &errstr, 10);
-        if (*errstr) error(ecfgval);
+        if (vp) { dialogerr = strtol(vp->value, &errstr, 10); if (*errstr) error(ecfgval); }
 
         /* find windows subsection */
         win_root = ami_schlst("windows", graph_root->sublist);
@@ -16056,8 +16069,7 @@ static void ami_init_graph()
             if (diag_root) {
 
                 vp = ami_schlst("dump_messages", diag_root->sublist);
-                if (vp) dmpmsg = strtol(vp->value, &errstr, 10);
-                if (*errstr) error(ecfgval);
+                if (vp) { dmpmsg = strtol(vp->value, &errstr, 10); if (*errstr) error(ecfgval); }
 
             }
 

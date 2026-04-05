@@ -18,7 +18,12 @@
 
 typedef char* string;  /* general string type */
 typedef unsigned char byte; /* byte */
+#if __STDC_VERSION__ >= 202311L
+#include <stdbool.h>
+typedef bool boolean;
+#else
 typedef enum { false, true } boolean; /* boolean */
+#endif
 
 static void error(string s)
 
