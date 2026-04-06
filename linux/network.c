@@ -72,10 +72,19 @@
 #include <arpa/inet.h>
 #include <stdio.h>
 #include <netdb.h>
+#ifdef USE_LIBRESSL
+/* System LibreSSL (macOS default) */
 #include <openssl/ssl.h>
 #include <openssl/err.h>
 #include <openssl/rand.h>
 #include <openssl/x509v3.h>
+#else
+/* OpenSSL */
+#include <openssl/ssl.h>
+#include <openssl/err.h>
+#include <openssl/rand.h>
+#include <openssl/x509v3.h>
+#endif
 #include <unistd.h>
 #include <ctype.h>
 #include <pthread.h>
@@ -1340,7 +1349,11 @@ int ami_waitmsg(/* port number to wait on */ int port,
         SSL_set_bio(opnfil[fn]->ssl, opnfil[fn]->bio, opnfil[fn]->bio);
         SSL_set_options(opnfil[fn]->ssl, SSL_OP_COOKIE_EXCHANGE);
 
+#ifdef USE_OPENSSL
         while (DTLSv1_listen(opnfil[fn]->ssl, (BIO_ADDR *) &caddr) <= 0);
+#else
+        while (DTLSv1_listen(opnfil[fn]->ssl, (void *) &caddr) <= 0);
+#endif
 
         fn2 = socket(AF_INET6, SOCK_DGRAM, 0);
         if (fn2 < 0) linuxerror();

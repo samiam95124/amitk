@@ -15439,16 +15439,19 @@ static void ami_deinit_graphics()
 
             /* process automatic exit sequence */
             if (!win->visible) winvis(win); /* make sure we are displayed */
-#if !defined(__MACH__) && !defined(__FreeBSD__) /* Mac OS X */
             /* construct final name for window */
+#if defined(__MACH__) || defined(__FreeBSD__)
+            trmnam = imalloc(strlen(fini)+strlen(getprogname())+1);
+            strcpy(trmnam, fini);
+            strcat(trmnam, getprogname());
+#else
             trmnam = imalloc(strlen(fini)+
                              strlen(program_invocation_short_name)+1);
             strcpy(trmnam, fini); /* place first part */
-            /* place program name */
             strcat(trmnam, program_invocation_short_name);
+#endif
             /* set window title */
             XStoreName(padisplay, win->xmwhan, trmnam);
-#endif
             /* wait for a formal end */
             while (!fend) ami_event(stdin, &er);
             ifree(trmnam); /* free up termination name */

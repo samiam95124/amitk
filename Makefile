@@ -242,7 +242,18 @@ else ifeq ($(OSTYPE),Darwin)
 
 	CC=clang
 	CPP=clang++
-	CFLAGS=-g3 -Iinclude
+	# Use Homebrew OpenSSL by default on macOS; override with USE_LIBRESSL=1 to use Homebrew LibreSSL
+	ifdef USE_LIBRESSL
+	    SSL_PREFIX=$(shell /opt/homebrew/bin/brew --prefix libressl)
+	    SSL_CFLAGS=-I$(SSL_PREFIX)/include -DUSE_LIBRESSL
+	    SSL_LIBS=$(SSL_PREFIX)/lib/libssl.dylib $(SSL_PREFIX)/lib/libcrypto.dylib
+	else
+	    SSL_PREFIX=$(shell /opt/homebrew/bin/brew --prefix openssl@3)
+	    SSL_CFLAGS=-I$(SSL_PREFIX)/include -DUSE_OPENSSL
+	    SSL_LIBS=$(SSL_PREFIX)/lib/libssl.dylib $(SSL_PREFIX)/lib/libcrypto.dylib
+	endif
+	FT_PREFIX=$(shell /opt/homebrew/bin/brew --prefix freetype)
+	CFLAGS=-g3 -Iinclude $(SSL_CFLAGS) -I$(FT_PREFIX)/include/freetype2 -I/opt/X11/include
 
 else ifeq ($(OSTYPE),FreeBSD)
 
@@ -476,9 +487,9 @@ CLIBSCPP = $(CLIBS) cpp/terminal.o
 #
 ifeq ($(LINK_TYPE),static)
     ifeq ($(OSTYPE),Darwin)
-    	GLIBS += lib/petit_ami_graph.a
+    	GLIBS += -Wl,-force_load,lib/petit_ami_graph.a
     else ifeq ($(OSTYPE),FreeBSD)
-    	GLIBS += lib/petit_ami_graph.a
+    	GLIBS += -Wl,-force_load,lib/petit_ami_graph.a
     else
     	GLIBS += -Wl,--whole-archive lib/petit_ami_graph.a -Wl,--no-whole-archive
     endif
@@ -511,13 +522,11 @@ else ifeq ($(OSTYPE),Darwin)
     #
     # Mac OS X
     #
-    PLIBS += /usr/local/Cellar/openssl@3/3.0.0_1/lib/libssl.dylib \
-             /usr/local/Cellar/openssl@3/3.0.0_1/lib/libcrypto.dylib
-    CLIBS += /usr/local/Cellar/openssl@3/3.0.0_1/lib/libssl.dylib \
-             /usr/local/Cellar/openssl@3/3.0.0_1/lib/libcrypto.dylib
-    GLIBS += /opt/X11/lib/libX11.6.dylib \
-             /usr/local/Cellar/openssl@3/3.0.0_1/lib/libssl.dylib \
-             /usr/local/Cellar/openssl@3/3.0.0_1/lib/libcrypto.dylib
+    PLIBS += $(SSL_LIBS)
+    CLIBS += $(SSL_LIBS)
+    GLIBS += /opt/X11/lib/libX11.6.dylib $(SSL_LIBS) \
+             $(shell /opt/homebrew/bin/brew --prefix freetype)/lib/libfreetype.dylib \
+             $(shell /opt/homebrew/bin/brew --prefix fontconfig)/lib/libfontconfig.dylib
 
 else ifeq ($(OSTYPE),FreeBSD)
 
@@ -709,8 +718,7 @@ macosx/sound.o: stub/sound.c include/sound.h Makefile
 	$(CC) $(CFLAGS) -c stub/sound.c -o macosx/sound.o
 	
 macosx/network.o: linux/network.c include/network.h Makefile
-	$(CC) $(CFLAGS) -I/usr/local/Cellar/openssl@3/3.0.0_1/include \
-		-c linux/network.c -o macosx/network.o
+	$(CC) $(CFLAGS) -c linux/network.c -o macosx/network.o
 	
 macosx/terminal.o: linux/terminal.c include/terminal.h Makefile
 	$(CC) $(CFLAGS) -c linux/terminal.c -o macosx/terminal.o
@@ -742,7 +750,7 @@ bsd/sound.o: stub/sound.c include/sound.h Makefile
 	$(CC) $(CFLAGS) -c stub/sound.c -o bsd/sound.o
 	
 bsd/network.o: stub/network.c include/network.h Makefile
-	$(CC) $(CFLAGS) -I/usr/local/Cellar/openssl@3/3.0.0_1/include \
+	$(CC) $(CFLAGS) -I/usr/local/include \
 		-c stub/network.c -o bsd/network.o
 	
 bsd/terminal.o: linux/terminal.c include/terminal.h Makefile
