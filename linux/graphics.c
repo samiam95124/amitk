@@ -2555,6 +2555,9 @@ void stdfont(void)
     if (!fp) fp = fndfntsub("dejavu sans mono", TRUE);
     if (!fp) fp = fndfntsub("liberation mono", TRUE);
     if (!fp) fp = fndfntsub("noto sans mono", TRUE);
+    if (!fp) fp = fndfntsub("menlo", TRUE);       /* macOS */
+    if (!fp) fp = fndfntsub("monaco", TRUE);      /* macOS */
+    if (!fp) fp = fndfntsub("andale mono", TRUE); /* macOS */
     if (!fp) {
 
         /* last resort: find any fixed pitch font */
@@ -2572,6 +2575,8 @@ void stdfont(void)
     if (!fp) fp = fndfntsub("dejavu serif", FALSE);
     if (!fp) fp = fndfntsub("liberation serif", FALSE);
     if (!fp) fp = fndfntsub("noto serif", FALSE);
+    if (!fp) fp = fndfntsub("georgia", FALSE);  /* macOS */
+    if (!fp) fp = fndfntsub("palatino", FALSE); /* macOS */
     if (!fp) fp = fndfntsub("serif", FALSE);
     if (!fp) error(estdfnt);
     delfnt(fp);
@@ -2583,6 +2588,10 @@ void stdfont(void)
     if (!fp) fp = fndfntsub("liberation sans", FALSE);
     if (!fp) fp = fndfntsub("noto sans:", FALSE);
     if (!fp) fp = fndfntsub("ubuntu:", FALSE);
+    if (!fp) fp = fndfntsub("helvetica neue", FALSE); /* macOS */
+    if (!fp) fp = fndfntsub("helvetica:", FALSE);     /* macOS */
+    if (!fp) fp = fndfntsub("arial:", FALSE);         /* macOS */
+    if (!fp) fp = fndfntsub("verdana", FALSE);        /* macOS */
     if (!fp) fp = fndfntsub("sans", FALSE);
     if (!fp) error(estdfnt);
     delfnt(fp);
@@ -4905,11 +4914,13 @@ static void opnwin(int fn, int pfn, int wid, int subclient)
     win->cwoy = frmoffy[frmcfgall];
 
     /* set window title from program name */
-#if !defined(__MACH__) && !defined(__FreeBSD__) /* Mac OS X */
     XWLOCK();
+#if defined(__MACH__) || defined(__FreeBSD__)
+    XStoreName(padisplay, win->xmwhan, getprogname());
+#else
     XStoreName(padisplay, win->xmwhan, program_invocation_short_name);
-    XWUNLOCK();
 #endif
+    XWUNLOCK();
 
     iniscn(win, win->screens[0]); /* initalize screen buffer */
     restore(win); /* update to screen */

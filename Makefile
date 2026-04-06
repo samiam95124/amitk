@@ -524,9 +524,11 @@ else ifeq ($(OSTYPE),Darwin)
     #
     PLIBS += $(SSL_LIBS)
     CLIBS += $(SSL_LIBS)
-    GLIBS += /opt/X11/lib/libX11.6.dylib $(SSL_LIBS) \
-             $(shell /opt/homebrew/bin/brew --prefix freetype)/lib/libfreetype.dylib \
-             $(shell /opt/homebrew/bin/brew --prefix fontconfig)/lib/libfontconfig.dylib
+    GLIBS += $(SSL_LIBS) \
+             -framework Cocoa \
+             -framework CoreGraphics \
+             -framework CoreText \
+             -framework CoreFoundation
 
 else ifeq ($(OSTYPE),FreeBSD)
 
@@ -723,9 +725,12 @@ macosx/network.o: linux/network.c include/network.h Makefile
 macosx/terminal.o: linux/terminal.c include/terminal.h Makefile
 	$(CC) $(CFLAGS) -c linux/terminal.c -o macosx/terminal.o
 	
-macosx/graphics.o: linux/graphics.c include/graphics.h Makefile
-	$(CC) $(CFLAGS) -I/opt/X11/include -c linux/graphics.c \
-	-o macosx/graphics.o
+macosx/graphics_cocoa.o: macosx/graphics_cocoa.m macosx/pa_cocoa.h Makefile
+	$(CC) $(CFLAGS) -fobjc-arc -c macosx/graphics_cocoa.m \
+	-o macosx/graphics_cocoa.o
+
+macosx/graphics.o: macosx/graphics.c macosx/pa_cocoa.h include/graphics.h Makefile
+	$(CC) $(CFLAGS) -c macosx/graphics.c -o macosx/graphics.o
 	
 macosx/system_event.o: macosx/system_event.c linux/system_event.h Makefile
 	$(CC) $(CFLAGS) -fPIC -c macosx/system_event.c -o macosx/system_event.o
@@ -849,11 +854,11 @@ lib/petit_ami_term.a: macosx/services.o macosx/sound.o macosx/network.o \
 	    utils/config.o utils/option.o macosx/stdio.o
 	
 lib/petit_ami_graph.a: macosx/services.o macosx/sound.o macosx/network.o \
-    macosx/system_event.o macosx/graphics.o portable/gnome_widgets.o \
+    macosx/system_event.o macosx/graphics.o macosx/graphics_cocoa.o \
     utils/config.o utils/option.o macosx/stdio.o
 	ar rcs lib/petit_ami_graph.a macosx/services.o macosx/sound.o \
 	    macosx/network.o macosx/system_event.o macosx/graphics.o \
-	    portable/gnome_widgets.o utils/config.o utils/option.o macosx/stdio.o
+	    macosx/graphics_cocoa.o utils/config.o utils/option.o macosx/stdio.o
 
 else ifeq ($(OSTYPE),FreeBSD)
 
