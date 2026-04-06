@@ -294,11 +294,18 @@ static CGFloat measure_string(fontptr fp, const char* s, int len)
                                                kCFStringEncodingUTF8, false);
     CGFloat w = 0;
     if (cfs) {
-        CFAttributedStringRef as = CFAttributedStringCreate(NULL, cfs, NULL);
+        CFStringRef keys[1]   = { kCTFontAttributeName };
+        CFTypeRef   values[1] = { fp->ctfont };
+        CFDictionaryRef attrs = CFDictionaryCreate(NULL,
+                                   (const void**)keys, (const void**)values,
+                                   1, &kCFTypeDictionaryKeyCallBacks,
+                                   &kCFTypeDictionaryValueCallBacks);
+        CFAttributedStringRef as = CFAttributedStringCreate(NULL, cfs, attrs);
         CTLineRef line = CTLineCreateWithAttributedString(as);
         w = (CGFloat)CTLineGetTypographicBounds(line, NULL, NULL, NULL);
         CFRelease(line);
         CFRelease(as);
+        CFRelease(attrs);
         CFRelease(cfs);
     }
     return w;
@@ -332,11 +339,19 @@ static void draw_string(CGContextRef ctx, fontptr fp, scnptr sc,
     CGFloat ascent, descent;
     CTLineGetTypographicBounds(line, &ascent, &descent, NULL);
 
-    /* position: CG text origin is baseline; PA gives top of cell */
-    /* Flip text matrix so glyphs appear right-side up after the view's Y-flip */
-    CGContextSetTextMatrix(ctx, CGAffineTransformMakeScale(1.0, -1.0));
-    CGContextSetTextPosition(ctx, PX(x), PY(y) + ascent);
+    /* The bitmap context has a top-left-down coordinate system (flipped).
+     * CoreText draws with a bottom-left-up system. We temporarily unflip
+     * the context around the line's origin so the glyphs come out right. */
+    CGFloat tx = PX(x);
+    CGFloat ty = PY(y) + ascent; /* baseline position in flipped coords */
+    CGContextSaveGState(ctx);
+    /* translate to the baseline point, flip Y, then draw at origin */
+    CGContextTranslateCTM(ctx, tx, ty);
+    CGContextScaleCTM(ctx, 1.0, -1.0);
+    CGContextSetTextMatrix(ctx, CGAffineTransformIdentity);
+    CGContextSetTextPosition(ctx, 0, 0);
     CTLineDraw(line, ctx);
+    CGContextRestoreGState(ctx);
 
     CFRelease(line);
     CFRelease(as);
@@ -381,12 +396,13 @@ static void win_init(winptr win, int wid, int parwid, int w, int h)
         win->linespace  = (int)(CTFontGetAscent(f) + CTFontGetDescent(f)
                                 + CTFontGetLeading(f) + 0.5);
         {
-            CGGlyph  spGlyph;
-            UniChar  spChar = ' ';
-            CTFontGetGlyphsForCharacters(f, &spChar, &spGlyph, 1);
+            /* use advance of 'M' as max_advance approximation */
+            CGGlyph  glyph;
+            UniChar  ch = 'M';
+            CTFontGetGlyphsForCharacters(f, &ch, &glyph, 1);
             CGSize   adv;
             CTFontGetAdvancesForGlyphs(f, kCTFontOrientationDefault,
-                                       &spGlyph, &adv, 1);
+                                       &glyph, &adv, 1);
             win->charspace = (int)(adv.width + 0.5);
         }
         if (win->charspace <= 0) win->charspace = win->linespace / 2;
@@ -433,6 +449,11 @@ static void pa_graphics_init(void)
     memset(opnfil, 0, sizeof(opnfil));
 
     fautohold = TRUE; /* hold window open on exit until keypress */
+
+    /* turn off I/O buffering */
+    setvbuf(stdin, NULL, _IONBF, 0);
+    setvbuf(stdout, NULL, _IONBF, 0);
+    setvbuf(stderr, NULL, _IONBF, 0);
 
     /* hook libc/stdio.c write/read vectors */
     ovr_write(iwrite, &ofpwrite);
@@ -571,25 +592,40 @@ static void scroll_up(winptr win)
 }
 
 /* Draw one character cell at the current text cursor position.
- * Fills the background cell first, then draws the glyph. */
-static void draw_char_at(winptr win, char c)
+ * Fills the background cell first, then draws the glyph.
+ * Uses curxg/curyg (pixel coords) so arbitrary cursor placement works.
+ * Returns the actual pixel width of the character drawn. */
+static int draw_char_at(winptr win, char c)
 {
     CGContextRef ctx = pa_cocoa_get_context(win->han);
-    if (!ctx) return;
+    if (!ctx) return win->charspace;
     scnptr  sc  = curscn(win);
     fontptr fp  = sc->font ? sc->font : fntlst;
 
-    int px = (sc->curx - 1) * win->charspace; /* pixel x, 0-based */
-    int py = (sc->cury - 1) * win->linespace; /* pixel y, 0-based */
+    /* measure actual character width */
+    int cw;
+    if (fp && !fp->fixed) {
+        cw = (int)(measure_string(fp, &c, 1) + 0.5);
+        if (cw <= 0) cw = win->charspace;
+    } else {
+        cw = win->charspace;
+    }
+
+    int px = sc->curxg - 1; /* 1-based to 0-based */
+    int py = sc->curyg - 1;
 
     /* fill cell background */
-    CGContextSetRGBFillColor(ctx, sc->bc.r, sc->bc.g, sc->bc.b, 1.0);
-    CGContextFillRect(ctx, CGRectMake(px, py, win->charspace, win->linespace));
+    if (sc->bmod == mdnorm) {
+        CGContextSetRGBFillColor(ctx, sc->bc.r, sc->bc.g, sc->bc.b, 1.0);
+        CGContextFillRect(ctx, CGRectMake(px, py, cw, win->linespace));
+    }
 
     /* draw glyph */
     char s[2] = { c, 0 };
     CGContextSetRGBFillColor(ctx, sc->fc.r, sc->fc.g, sc->fc.b, 1.0);
     draw_string(ctx, fp, sc, px + 1, py + 1, s, 1);
+
+    return cw;
 }
 
 /* Place one character into a window, handling control characters. */
@@ -615,6 +651,13 @@ static void plcchr(winptr win, char c)
             sc->curx--;
             sc->curxg = (sc->curx - 1) * win->charspace + 1;
         }
+    } else if (c == '\f') {
+        /* form feed: clear screen and home cursor */
+        clear_window(win);
+        sc->curx  = 1;
+        sc->cury  = 1;
+        sc->curxg = 1;
+        sc->curyg = 1;
     } else if (c == '\t') {
         /* advance to next 8-column tab stop */
         int next = ((sc->curx - 1) / 8 + 1) * 8 + 1;
@@ -622,12 +665,11 @@ static void plcchr(winptr win, char c)
         sc->curx  = next;
         sc->curxg = (sc->curx - 1) * win->charspace + 1;
     } else if ((unsigned char)c >= 0x20) {
-        /* printable character */
-        draw_char_at(win, c);
-        /* advance cursor */
+        /* printable character — draw and advance by actual glyph width */
+        int cs = draw_char_at(win, c);
         sc->curx++;
-        sc->curxg = (sc->curx - 1) * win->charspace + 1;
-        if (sc->curx > win->maxx) {
+        sc->curxg += cs;
+        if (sc->curxg > win->maxxg) {
             /* wrap to next line */
             sc->curx  = 1;
             sc->curxg = 1;
@@ -1008,6 +1050,8 @@ void ami_cursorg(FILE* f, int x, int y)
     scnptr sc  = curscn(win);
     sc->curxg  = x;
     sc->curyg  = y;
+    sc->curx   = (x - 1) / win->charspace + 1;
+    sc->cury   = (y - 1) / win->linespace + 1;
 }
 
 void ami_line(FILE* f, int x1, int y1, int x2, int y2)
@@ -1255,6 +1299,29 @@ int ami_chrsizy(FILE* f)
 
 int ami_fonts(FILE* f) { return fntcnt; }
 
+/* Update charspace/linespace/maxx/maxy from the current font */
+static void update_metrics(winptr win)
+{
+    scnptr sc = curscn(win);
+    fontptr fp = sc->font ? sc->font : fntlst;
+    if (!fp || !fp->ctfont) return;
+    CTFontRef cf = fp->ctfont;
+    win->linespace = (int)(CTFontGetAscent(cf) + CTFontGetDescent(cf)
+                           + CTFontGetLeading(cf) + 0.5);
+    CGGlyph  glyph;
+    UniChar  ch = 'M';
+    CTFontGetGlyphsForCharacters(cf, &ch, &glyph, 1);
+    CGSize   adv;
+    CTFontGetAdvancesForGlyphs(cf, kCTFontOrientationDefault,
+                               &glyph, &adv, 1);
+    win->charspace = (int)(adv.width + 0.5);
+    if (win->charspace <= 0) win->charspace = win->linespace / 2;
+    win->maxx = win->maxxg / win->charspace;
+    win->maxy = win->maxyg / win->linespace;
+    if (win->maxx < 1) win->maxx = 1;
+    if (win->maxy < 1) win->maxy = 1;
+}
+
 void ami_font(FILE* f, int fc)
 {
     winptr win = f2win(f); if (!win) return;
@@ -1264,6 +1331,7 @@ void ami_font(FILE* f, int fc)
     if (fp) {
         curscn(win)->font = fp;
         win->cfont        = fp;
+        update_metrics(win);
     }
 }
 
@@ -1289,6 +1357,7 @@ void ami_fontsiz(FILE* f, int s)
         sc->font->ctfont = make_ctfont(sc->font->name, win->fontsz,
                                        sc->bold, sc->italic);
         sc->font->size   = win->fontsz;
+        update_metrics(win);
     }
 }
 
