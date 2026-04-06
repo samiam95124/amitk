@@ -6615,7 +6615,7 @@ static ami_strptr build_qfl_list(const char* dir) {
     tail = head;
 
     /* ami_list() treats its argument as dir + wildcard-filename. To list
-       everything in `dir` we must append "/*". */
+       everything in `dir` we must append "/ *" (no space). */
     dl = (int)strlen(dir);
     if (dl >= (int)sizeof(pat) - 3) dl = sizeof(pat) - 3;
     memcpy(pat, dir, dl); pat[dl] = 0;
