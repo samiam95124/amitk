@@ -487,9 +487,9 @@ int pa_cocoa_dequeue(pa_rawevent* evt)
 void pa_cocoa_wait(pa_rawevent* evt)
 {
     while (evt_empty()) {
-        /* short timeout so signal-injected events get picked up promptly */
+        /* short timeout so timer events and signal-injected events get picked up */
         NSEvent* event = [NSApp nextEventMatchingMask:NSEventMaskAny
-                                           untilDate:[NSDate dateWithTimeIntervalSinceNow:0.1]
+                                           untilDate:[NSDate dateWithTimeIntervalSinceNow:0.001]
                                               inMode:NSDefaultRunLoopMode
                                              dequeue:YES];
         if (event) {
@@ -504,12 +504,13 @@ void pa_cocoa_wait(pa_rawevent* evt)
  * Timers
  *----------------------------------------------------------------------------*/
 
-void pa_cocoa_set_timer(pa_winhan win, int id, long ms, int repeat)
+void pa_cocoa_set_timer(pa_winhan win, int id, long us100, int repeat)
 {
     PAWindow* pw  = (__bridge PAWindow*)win;
     if (id < 0 || id >= 10) return;
     if (pw->timers[id]) { [pw->timers[id] invalidate]; pw->timers[id] = nil; }
-    NSTimeInterval interval = ms / 1000.0;
+    /* PA timer units are 100 microseconds (0.0001s) */
+    NSTimeInterval interval = us100 * 0.0001;
     NSNumber* tid  = [NSNumber numberWithInt:id];
     pw->timers[id] = [NSTimer scheduledTimerWithTimeInterval:interval
                                                       target:pw

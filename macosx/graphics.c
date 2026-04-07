@@ -43,8 +43,8 @@ extern void ovr_read(pread_t  nfp, pread_t*  ofp);
 #define MAXPIC      50      /* maximum loadable pictures */
 #define MAXTIM      10      /* maximum timers per window */
 #define MAXCON      10      /* maximum screen contexts per window */
-#define DEF_W       800     /* default window width  in pixels */
-#define DEF_H       600     /* default window height in pixels */
+#define MAXXD       80      /* default terminal width in chars */
+#define MAXYD       25      /* default terminal height in chars */
 #define DEF_FONT_H  16      /* default font height in points */
 
 /* PA angles: INT_MAX = 360 degrees */
@@ -82,6 +82,7 @@ typedef struct scncon {
     fontptr     font;          /* current font */
     int         bold, italic, underline, strikeout;
     int         attr;          /* attribute bitmask (reverse etc.) */
+    int         autof;         /* auto scroll/wrap mode */
 } scncon, *scnptr;
 
 /* Per-window record */
@@ -135,6 +136,8 @@ static int      fend;                   /* program ending flag */
 static int      fautohold;             /* global auto hold */
 static pwrite_t ofpwrite;              /* saved write vector */
 static pread_t  ofpread;               /* saved read vector */
+static int      maxxd;                 /* default window width in pixels */
+static int      maxyd;                 /* default window height in pixels */
 
 /* forward declarations */
 static void    clear_window(winptr win);
@@ -393,8 +396,7 @@ static void win_init(winptr win, int wid, int parwid, int w, int h)
     /* character cell size from font metrics */
     CTFontRef f = fntlst ? fntlst->ctfont : NULL;
     if (f) {
-        win->linespace  = (int)(CTFontGetAscent(f) + CTFontGetDescent(f)
-                                + CTFontGetLeading(f) + 0.5);
+        win->linespace  = (int)(win->fontsz + 0.5);
         {
             /* use advance of 'M' as max_advance approximation */
             CGGlyph  glyph;
@@ -429,6 +431,7 @@ static void win_init(winptr win, int wid, int parwid, int w, int h)
         sc->bmod    = mdnorm;
         sc->lwidth  = 1.0;
         sc->font    = fntlst;
+        sc->autof   = TRUE;
     }
 }
 
@@ -459,8 +462,22 @@ static void pa_graphics_init(void)
     ovr_write(iwrite, &ofpwrite);
     ovr_read(iread,  &ofpread);
 
+    /* compute default window pixel size from TERM font character grid */
+    {
+        fontptr fp = fntlst;
+        CGGlyph glyph; UniChar ch = 'M'; CGSize adv;
+        CTFontGetGlyphsForCharacters(fp->ctfont, &ch, &glyph, 1);
+        CTFontGetAdvancesForGlyphs(fp->ctfont, kCTFontOrientationDefault,
+                                   &glyph, &adv, 1);
+        int cs = (int)(adv.width + 0.5);
+        int ls = (int)(fp->size + 0.5);
+        if (cs <= 0) cs = ls / 2;
+        maxxd = MAXXD * cs;
+        maxyd = MAXYD * ls;
+    }
+
     /* open default window for stdout (fd=1) */
-    pa_winhan han = pa_cocoa_create_window(100, 100, DEF_W, DEF_H,
+    pa_winhan han = pa_cocoa_create_window(100, 100, maxxd, maxyd,
 #if defined(__MACH__) || defined(__FreeBSD__)
                                            getprogname()
 #else
@@ -469,7 +486,7 @@ static void pa_graphics_init(void)
                                            );
     if (han) {
         winptr win = &wintbl[1];
-        win_init(win, 1, 0, DEF_W, DEF_H);
+        win_init(win, 1, 0, maxxd, maxyd);
         win->han   = han;
         opnfil[1]  = 1; /* mark slot in use */
         clear_window(win);
@@ -638,7 +655,8 @@ static void plcchr(winptr win, char c)
         sc->curx  = 1;
         sc->curxg = 1;
         if (sc->cury >= win->maxy) {
-            scroll_up(win);
+            if (sc->autof) scroll_up(win);
+            /* else: cursor stays, no scroll */
         } else {
             sc->cury++;
             sc->curyg = (sc->cury - 1) * win->linespace + 1;
@@ -669,8 +687,8 @@ static void plcchr(winptr win, char c)
         int cs = draw_char_at(win, c);
         sc->curx++;
         sc->curxg += cs;
-        if (sc->curxg > win->maxxg) {
-            /* wrap to next line */
+        if (sc->curx > win->maxx && sc->autof) {
+            /* auto wrap to next line */
             sc->curx  = 1;
             sc->curxg = 1;
             if (sc->cury >= win->maxy) {
@@ -938,7 +956,11 @@ void ami_bcolor(FILE* f, ami_color c)
     curscn(win)->bc = ami2rgba(c);
 }
 
-void ami_auto(FILE* f, int e)       { /* stub */ }
+void ami_auto(FILE* f, int e)
+{
+    winptr win = f2win(f); if (!win) return;
+    curscn(win)->autof = e;
+}
 
 void ami_curvis(FILE* f, int e)
 {
@@ -1023,13 +1045,13 @@ void ami_sendevent(FILE* f, ami_evtrec* er) { /* stub */ }
 int ami_maxxg(FILE* f)
 {
     winptr win = f2win(f);
-    return win ? win->maxxg : DEF_W;
+    return win ? win->maxxg : maxxd;
 }
 
 int ami_maxyg(FILE* f)
 {
     winptr win = f2win(f);
-    return win ? win->maxyg : DEF_H;
+    return win ? win->maxyg : maxyd;
 }
 
 int ami_curxg(FILE* f)
@@ -1158,6 +1180,12 @@ void ami_fellipse(FILE* f, int x1, int y1, int x2, int y2)
     pa_cocoa_flush(win->han);
 }
 
+/* Convert PA angle to CG angle.
+ * PA: 0 = top center, clockwise, INT_MAX = 360°.
+ * CG (flipped Y-down context): 0 = right (3 o'clock), clockwise.
+ * So CG = PA_radians - π/2. */
+#define PA2CG(a) (ANG2RAD(a) - M_PI_2)
+
 void ami_arc(FILE* f, int x1, int y1, int x2, int y2, int sa, int ea)
 {
     winptr win = f2win(f); if (!win) return;
@@ -1167,9 +1195,8 @@ void ami_arc(FILE* f, int x1, int y1, int x2, int y2, int sa, int ea)
     CGFloat cy = (PY(y1) + PY(y2)) / 2.0;
     CGFloat rx = (x2 - x1) / 2.0;
     CGFloat ry = (y2 - y1) / 2.0;
-    /* PA angles: 0=right, counter-clockwise; CG: 0=right, clockwise in flipped */
-    CGFloat start = -ANG2RAD(sa);
-    CGFloat end   = -ANG2RAD(ea);
+    CGFloat start = PA2CG(sa);
+    CGFloat end   = PA2CG(ea);
     CGContextSaveGState(ctx);
     CGContextTranslateCTM(ctx, cx, cy);
     CGContextScaleCTM(ctx, rx, ry);
@@ -1191,8 +1218,8 @@ void ami_farc(FILE* f, int x1, int y1, int x2, int y2, int sa, int ea)
     CGFloat cy = (PY(y1) + PY(y2)) / 2.0;
     CGFloat rx = (x2 - x1) / 2.0;
     CGFloat ry = (y2 - y1) / 2.0;
-    CGFloat start = -ANG2RAD(sa);
-    CGFloat end   = -ANG2RAD(ea);
+    CGFloat start = PA2CG(sa);
+    CGFloat end   = PA2CG(ea);
     CGContextSaveGState(ctx);
     CGContextTranslateCTM(ctx, cx, cy);
     CGContextScaleCTM(ctx, rx, ry);
@@ -1216,8 +1243,8 @@ void ami_fchord(FILE* f, int x1, int y1, int x2, int y2, int sa, int ea)
     CGFloat cy = (PY(y1) + PY(y2)) / 2.0;
     CGFloat rx = (x2 - x1) / 2.0;
     CGFloat ry = (y2 - y1) / 2.0;
-    CGFloat start = -ANG2RAD(sa);
-    CGFloat end   = -ANG2RAD(ea);
+    CGFloat start = PA2CG(sa);
+    CGFloat end   = PA2CG(ea);
     CGContextSaveGState(ctx);
     CGContextTranslateCTM(ctx, cx, cy);
     CGContextScaleCTM(ctx, rx, ry);
@@ -1306,8 +1333,9 @@ static void update_metrics(winptr win)
     fontptr fp = sc->font ? sc->font : fntlst;
     if (!fp || !fp->ctfont) return;
     CTFontRef cf = fp->ctfont;
-    win->linespace = (int)(CTFontGetAscent(cf) + CTFontGetDescent(cf)
-                           + CTFontGetLeading(cf) + 0.5);
+    /* linespace = requested font height (fontsz), matching Linux behavior
+     * where linespace = gfhigh. This ensures chrsizy/fontsiz round-trip. */
+    win->linespace = (int)(win->fontsz + 0.5);
     CGGlyph  glyph;
     UniChar  ch = 'M';
     CTFontGetGlyphsForCharacters(cf, &ch, &glyph, 1);
@@ -1331,6 +1359,13 @@ void ami_font(FILE* f, int fc)
     if (fp) {
         curscn(win)->font = fp;
         win->cfont        = fp;
+        /* rebuild at current window font size */
+        if (fp->name && fp->size != win->fontsz) {
+            if (fp->ctfont) CFRelease(fp->ctfont);
+            fp->ctfont = make_ctfont(fp->name, win->fontsz,
+                                     curscn(win)->bold, curscn(win)->italic);
+            fp->size = win->fontsz;
+        }
         update_metrics(win);
     }
 }
@@ -1466,11 +1501,11 @@ void ami_openwin(FILE** infile, FILE** outfile, FILE* parent, int wid)
     }
 
     /* create the Cocoa window */
-    pa_winhan han = pa_cocoa_create_window(100, 100, DEF_W, DEF_H, "");
+    pa_winhan han = pa_cocoa_create_window(100, 100, maxxd, maxyd, "");
     if (!han) { fclose(inf); fclose(outf); return; }
 
     winptr win = &wintbl[ofn];
-    win_init(win, wid, parent ? fileno(parent) : 0, DEF_W, DEF_H);
+    win_init(win, wid, parent ? fileno(parent) : 0, maxxd, maxyd);
     win->han     = han;
     win->infile  = inf;
     win->outfile = outf;
@@ -1501,7 +1536,7 @@ void ami_getsizg(FILE* f, int* x, int* y)
 {
     winptr win = f2win(f);
     if (win) { *x = win->maxxg; *y = win->maxyg; }
-    else     { *x = DEF_W;      *y = DEF_H; }
+    else     { *x = maxxd;    *y = maxyd; }
 }
 
 void ami_setsiz(FILE* f, int x, int y)
@@ -1610,6 +1645,13 @@ void ami_focus(FILE* f)
 {
     winptr win = f2win(f); if (!win) return;
     pa_cocoa_focus(win->han);
+}
+
+/* Return the window handle for stdout (used by screen_capture) */
+pa_winhan pa_stdout_winhan(void)
+{
+    if (opnfil[1] && wintbl[1].han) return wintbl[1].han;
+    return NULL;
 }
 
 /*******************************************************************************
