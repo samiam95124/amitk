@@ -15477,9 +15477,14 @@ static void ami_deinit_graphics()
 
     }
 
-    /* shutdown FreeType and fontconfig */
+    /* shutdown FreeType and fontconfig.
+       Note: we clear the glyph cache (freeing X pixmaps) but do NOT call
+       FT_Done_FreeType(). Individual FT_Done_Face() calls have already
+       been made during window close, and FT_Done_FreeType() would try to
+       free them again (double-free → segfault). The process is exiting,
+       so the OS reclaims all heap memory regardless. */
     ft_cache_clear();
-    FT_Done_FreeType(ftlibrary);
+    /* FT_Done_FreeType(ftlibrary); — skipped, see above */
     FcFini();
 
     /* close joysticks */
