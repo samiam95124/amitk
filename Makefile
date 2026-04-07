@@ -701,8 +701,8 @@ windows/terminal.o: windows/terminal.c include/terminal.h Makefile
 windows/graphics.o: windows/graphics.c include/graphics.h Makefile
 	$(CC) $(CFLAGS) -c windows/graphics.c -o windows/graphics.o
 
-windows/screen_capture.o: stub/screen_capture.c Makefile
-	$(CC) $(CFLAGS) -c stub/screen_capture.c -o windows/screen_capture.o
+windows/screen_capture.o: windows/screen_capture.c Makefile
+	$(CC) $(CFLAGS) -c windows/screen_capture.c -o windows/screen_capture.o
 
 #
 # Mac OS X library components
@@ -1114,13 +1114,16 @@ SCREEN_CAPTURE_OBJ = linux/screen_capture.o
 endif
 
 graphics_test: $(GLIBSD) tests/graphics_test.c $(SCREEN_CAPTURE_OBJ)
-	$(CC) $(CFLAGS) tests/graphics_test.c $(SCREEN_CAPTURE_OBJ) $(GLIBS) -lpng -o bin/graphics_test
+	$(CC) $(CFLAGS) tests/graphics_test.c $(SCREEN_CAPTURE_OBJ) $(GLIBS) -lpng -lz -o bin/graphics_test
 
 #
 # BMP-stream frame viewer: walks the test_images file produced by
 # screen_capture, one frame per keypress (left/right arrows).
 #
-ifeq ($(OSTYPE),Darwin)
+ifeq ($(OSTYPE),Windows_NT)
+testviewer: windows/testviewer.c Makefile
+	$(CC) -g3 windows/testviewer.c -lpng -lz -lgdi32 -o bin/testviewer
+else ifeq ($(OSTYPE),Darwin)
 testviewer: macosx/testviewer.c Makefile
 	$(CC) -g3 -x objective-c -fobjc-arc macosx/testviewer.c \
 	    -framework Cocoa -framework CoreGraphics -framework ImageIO \
