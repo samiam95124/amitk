@@ -580,7 +580,7 @@ all: dumpmidi play playg keyboard keyboardg playmidi playmidig playwave \
      connectwaveg random randomg genwave genwaveg terminal_test terminal_testg \
      graphics_test testviewer management_test widget_test \
      sound_test sound_testg services_test event eventg term termg snake snakeg mine mineg \
-     wator watorg pong pongg breakout editor editorg getpage getpageg getmail \
+     wator watorg pong pongg breakout backgammon checkers chess defenders editor editorg getpage getpageg getmail \
      getmailg fakemail gettys gettysg msgclient msgclientg msgserver msgserverg \
      prtcertnet prtcertnetg prtcertmsg prtcertmsgg \
      prtconfig prtconfigg pixel ball1 ball2 ball3 ball4 ball5 ball6 line1 line2 \
@@ -596,7 +596,7 @@ all: dumpmidi play playg keyboard keyboardg playmidi playmidig playwave \
      connectwaveg random randomg genwave genwaveg terminal_test terminal_testg \
      graphics_test testviewer management_test widget_test \
      sound_test sound_testg services_test event eventg term termg snake snakeg mine mineg \
-     wator watorg pong pongg breakout editor editorg getpage getpageg getmail \
+     wator watorg pong pongg breakout backgammon checkers chess defenders editor editorg getpage getpageg getmail \
      getmailg fakemail gettys gettysg msgclient msgclientg msgserver msgserverg \
      prtcertnet prtcertnetg prtcertmsg prtcertmsgg listcertnet listcertnetg \
      prtconfig prtconfigg pixel ball1 ball2 ball3 ball4 ball5 ball6 line1 \
@@ -612,7 +612,7 @@ all: dumpmidi play playg keyboard keyboardg playmidi playmidig playwave \
      connectwaveg random randomg genwave genwaveg terminal_test terminal_testg \
      graphics_test testviewer management_test widget_test \
      sound_test sound_testg services_test event eventg term termg snake snakeg mine mineg \
-     wator watorg pong pongg breakout editor editorg getpage getpageg getmail \
+     wator watorg pong pongg breakout backgammon checkers chess defenders editor editorg getpage getpageg getmail \
      getmailg fakemail gettys gettysg msgclient msgclientg msgserver msgserverg \
      prtcertnet prtcertnetg prtcertmsg prtcertmsgg listcertnet listcertnetg \
      prtconfig prtconfigg pixel ball1 ball2 ball3 ball4 ball5 ball6 line1 \
@@ -628,7 +628,7 @@ all: dumpmidi play playg keyboard keyboardg playmidi playmidig playwave \
      connectwaveg random randomg genwave genwaveg terminal_test terminal_testg \
      graphics_test testviewer management_test widget_test \
      sound_test sound_testg services_test event eventg term termg snake snakeg mine mineg \
-     wator watorg pong pongg breakout editor editorg getpage getpageg getmail \
+     wator watorg pong pongg breakout backgammon checkers chess defenders editor editorg getpage getpageg getmail \
      getmailg fakemail gettys gettysg msgclient msgclientg msgserver msgserverg \
      prtcertnet prtcertnetg prtcertmsg prtcertmsgg listcertnet listcertnetg \
      prtconfig prtconfigg pixel ball1 ball2 ball3 ball4 ball5 ball6 line1 \
