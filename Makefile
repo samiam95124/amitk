@@ -528,7 +528,8 @@ else ifeq ($(OSTYPE),Darwin)
              -framework Cocoa \
              -framework CoreGraphics \
              -framework CoreText \
-             -framework CoreFoundation
+             -framework CoreFoundation \
+             -framework ImageIO
 
 else ifeq ($(OSTYPE),FreeBSD)
 
@@ -735,8 +736,8 @@ macosx/graphics.o: macosx/graphics.c macosx/pa_cocoa.h include/graphics.h Makefi
 macosx/system_event.o: macosx/system_event.c linux/system_event.h Makefile
 	$(CC) $(CFLAGS) -fPIC -c macosx/system_event.c -o macosx/system_event.o
 
-macosx/screen_capture.o: stub/screen_capture.c Makefile
-	$(CC) $(CFLAGS) -c stub/screen_capture.c -o macosx/screen_capture.o
+macosx/screen_capture.o: macosx/screen_capture.c macosx/pa_cocoa.h Makefile
+	$(CC) $(CFLAGS) -c macosx/screen_capture.c -o macosx/screen_capture.o
 	
 #
 # BSD library components
@@ -1119,8 +1120,15 @@ graphics_test: $(GLIBSD) tests/graphics_test.c $(SCREEN_CAPTURE_OBJ)
 # BMP-stream frame viewer: walks the test_images file produced by
 # screen_capture, one frame per keypress (left/right arrows).
 #
+ifeq ($(OSTYPE),Darwin)
+testviewer: macosx/testviewer.c Makefile
+	$(CC) -g3 -x objective-c -fobjc-arc macosx/testviewer.c \
+	    -framework Cocoa -framework CoreGraphics -framework ImageIO \
+	    -o bin/testviewer
+else
 testviewer: $(GLIBSD) tests/testviewer.c
 	$(CC) $(CFLAGS) tests/testviewer.c $(GLIBS) -o bin/testviewer
+endif
 
 #
 # Test windows management model compliant output
