@@ -2,28 +2,27 @@
 *                                                                              *
 *                           SCREEN CAPTURE MODULE                              *
 *                                                                              *
-* Test foundation for Petit-Ami graphics. Exposes screen_capture(), which      *
-* grabs the pixel contents of the running Petit-Ami X window and appends it    *
-* as a 24-bit uncompressed BMP to a file called "test_images". Multiple BMPs   *
-* are concatenated back-to-back in the same file; each is self-contained       *
-* (its own BITMAPFILEHEADER) so readers can walk them sequentially.            *
+* Linux/X11 version. Grabs the pixel contents of the running Petit-Ami X      *
+* window and appends it as a PNG to a file called "test_images". Multiple      *
+* PNGs are concatenated back-to-back in the same file; each is self-           *
+* delimiting (PNG signature at the start, IEND chunk at the end) so readers   *
+* can walk them sequentially.                                                  *
 *                                                                              *
-* The file is opened by a module constructor and closed by a destructor, so    *
-* the caller only needs to call screen_capture() at each interesting moment    *
+* The file is opened by a module constructor and closed by a destructor.       *
+* The caller only needs to call screen_capture() at each interesting moment    *
 * (e.g. just before waitnext() in a test program).                             *
 *                                                                              *
-* Bit-for-bit comparability:                                                   *
-*   - Uncompressed 24-bit BGR, no palette, no compression, no randomness.      *
-*   - For a deterministic test run, `cmp` on two test_images files is a        *
-*     pass/fail signal.                                                        *
+* Output format matches macosx/screen_capture.c (concatenated PNGs) so        *
+* test_images files are portable across platforms for cross-platform           *
+* regression comparison.                                                       *
 *                                                                              *
 * Window discovery:                                                            *
 *   - Opens its own X connection via XOpenDisplay(NULL).                       *
-*   - Walks EWMH _NET_CLIENT_LIST, matches window by _NET_WM_PID == getpid().  *
+*   - Walks EWMH _NET_CLIENT_LIST, matches window by _NET_WM_PID == getpid(). *
 *   - Falls back to the largest mapped top-level window.                       *
 *                                                                              *
 * Viewer:                                                                      *
-*   bin/testviewer    # walks through the concatenated BMPs with arrow keys    *
+*   bin/testviewer    # walks through the concatenated PNGs with arrow keys    *
 *                                                                              *
 *******************************************************************************/
 
@@ -32,6 +31,7 @@
 #include <string.h>
 #include <stdint.h>
 #include <unistd.h>
+#include <png.h>
 #include <X11/Xlib.h>
 #include <X11/Xutil.h>
 #include <X11/Xatom.h>
@@ -45,25 +45,6 @@ static Display  *cap_display  = NULL;
 static Window    cap_window   = 0;      /* discovered lazily on first capture */
 static uint32_t  cap_frame_count = 0;
 static int       cap_disabled = 0;
-
-/* ---------- little-endian writers ---------- */
-
-static void w_u16(FILE *f, uint16_t v) {
-    uint8_t b[2] = { (uint8_t)(v & 0xff), (uint8_t)((v >> 8) & 0xff) };
-    fwrite(b, 1, 2, f);
-}
-
-static void w_u32(FILE *f, uint32_t v) {
-    uint8_t b[4] = {
-        (uint8_t)(v & 0xff),
-        (uint8_t)((v >> 8) & 0xff),
-        (uint8_t)((v >> 16) & 0xff),
-        (uint8_t)((v >> 24) & 0xff)
-    };
-    fwrite(b, 1, 4, f);
-}
-
-static void w_s32(FILE *f, int32_t v) { w_u32(f, (uint32_t)v); }
 
 /* ---------- X window discovery ---------- */
 
@@ -150,26 +131,19 @@ static Window find_pa_window(Display *d) {
     return 0;
 }
 
-/* ---------- XImage -> 24-bit BGR (BMP-native) ---------- */
+/* ---------- XImage -> top-down RGB ---------- */
 
 /*
- * Convert an XImage (TrueColor) into a packed, bottom-up BGR buffer with
- * rows padded to a 4-byte boundary (the BMP wire format). Returns a malloc'd
- * buffer of (row_stride * height) bytes on success, NULL on failure. Fills
- * *row_stride_out with the padded row size.
- *
- * Uses XGetPixel + channel masks for portability across byte/bit orders and
- * bits-per-pixel. Channel scaling is deterministic so repeated captures of
- * the same content produce bit-identical output.
+ * Convert an XImage (TrueColor) into packed top-down RGB rows (3 bytes per
+ * pixel, no padding). Returns a malloc'd buffer of width*height*3 bytes on
+ * success, NULL on failure.
  */
-static uint8_t *ximage_to_bmp_pixels(XImage *img, uint32_t *row_stride_out) {
+static uint8_t *ximage_to_rgb(XImage *img) {
     if (!img) return NULL;
     int w = img->width;
     int h = img->height;
-    uint32_t row_stride = (uint32_t)((w * 3 + 3) & ~3);
-    *row_stride_out = row_stride;
 
-    uint8_t *out = (uint8_t *)calloc((size_t)row_stride * (size_t)h, 1);
+    uint8_t *out = (uint8_t *)malloc((size_t)w * (size_t)h * 3u);
     if (!out) return NULL;
 
     unsigned long rmask = img->red_mask;
@@ -187,9 +161,8 @@ static uint8_t *ximage_to_bmp_pixels(XImage *img, uint32_t *row_stride_out) {
       for (; m & 1; m >>= 1) bbits++;
     }
 
+    uint8_t *o = out;
     for (int y = 0; y < h; y++) {
-        /* BMP is bottom-up: output row (h-1-y) for source row y */
-        uint8_t *o = out + (size_t)(h - 1 - y) * row_stride;
         for (int x = 0; x < w; x++) {
             unsigned long px = XGetPixel(img, x, y);
             unsigned long r = (px & rmask) >> rshift;
@@ -201,59 +174,52 @@ static uint8_t *ximage_to_bmp_pixels(XImage *img, uint32_t *row_stride_out) {
             else if (gbits > 8) g >>= (gbits - 8);
             if (bbits < 8) b <<= (8 - bbits);
             else if (bbits > 8) b >>= (bbits - 8);
-            /* BMP byte order: B, G, R */
-            *o++ = (uint8_t)b;
-            *o++ = (uint8_t)g;
             *o++ = (uint8_t)r;
+            *o++ = (uint8_t)g;
+            *o++ = (uint8_t)b;
         }
-        /* padding bytes left as zero by calloc */
     }
     return out;
 }
 
-/* ---------- BMP writing ---------- */
+/* ---------- PNG writing ---------- */
 
-#define BMP_FILEHDR_SIZE  14
-#define BMP_INFOHDR_SIZE  40
-#define BMP_HDR_TOTAL     (BMP_FILEHDR_SIZE + BMP_INFOHDR_SIZE)
+static void png_write_to_file(png_structp png, png_bytep data, png_size_t len) {
+    FILE *f = (FILE *)png_get_io_ptr(png);
+    fwrite(data, 1, len, f);
+}
 
-/*
- * Write one complete 24-bit uncompressed BMP (headers + pixel data) to f.
- */
-static void write_bmp(FILE *f, const uint8_t *pixels, uint32_t row_stride,
-                      int32_t width, int32_t height) {
-    uint32_t image_bytes = row_stride * (uint32_t)height;
-    uint32_t file_size   = BMP_HDR_TOTAL + image_bytes;
+static void png_flush_file(png_structp png) {
+    FILE *f = (FILE *)png_get_io_ptr(png);
+    fflush(f);
+}
 
-    /* BITMAPFILEHEADER */
-    fputc('B', f); fputc('M', f);
-    w_u32(f, file_size);
-    w_u16(f, 0);
-    w_u16(f, 0);
-    w_u32(f, BMP_HDR_TOTAL);            /* bfOffBits */
+static void write_png_frame(FILE *f, uint8_t *rgb_rows, int width, int height) {
+    png_structp png = png_create_write_struct(PNG_LIBPNG_VER_STRING,
+                                              NULL, NULL, NULL);
+    if (!png) return;
+    png_infop info = png_create_info_struct(png);
+    if (!info) { png_destroy_write_struct(&png, NULL); return; }
+    if (setjmp(png_jmpbuf(png))) {
+        png_destroy_write_struct(&png, &info);
+        return;
+    }
+    png_set_write_fn(png, f, png_write_to_file, png_flush_file);
+    png_set_IHDR(png, info, width, height, 8,
+                 PNG_COLOR_TYPE_RGB, PNG_INTERLACE_NONE,
+                 PNG_COMPRESSION_TYPE_DEFAULT, PNG_FILTER_TYPE_DEFAULT);
+    png_write_info(png, info);
 
-    /* BITMAPINFOHEADER */
-    w_u32(f, BMP_INFOHDR_SIZE);
-    w_s32(f, width);
-    w_s32(f, height);                   /* positive = bottom-up */
-    w_u16(f, 1);                        /* planes */
-    w_u16(f, 24);                       /* bits per pixel */
-    w_u32(f, 0);                        /* BI_RGB, no compression */
-    w_u32(f, image_bytes);
-    w_s32(f, 2835);                     /* 72 DPI */
-    w_s32(f, 2835);
-    w_u32(f, 0);
-    w_u32(f, 0);
+    for (int y = 0; y < height; y++)
+        png_write_row(png, rgb_rows + y * width * 3);
 
-    fwrite(pixels, 1, image_bytes, f);
+    png_write_end(png, NULL);
+    png_destroy_write_struct(&png, &info);
+    fflush(f);
 }
 
 /* ---------- public entry point ---------- */
 
-/*
- * Grab the current Petit-Ami window contents and append as a BMP frame.
- * Safe to call repeatedly; silently does nothing if setup failed.
- */
 void screen_capture(void) {
     if (cap_disabled || !cap_file || !cap_display) return;
 
@@ -286,18 +252,17 @@ void screen_capture(void) {
         return;
     }
 
-    uint32_t row_stride = 0;
-    uint8_t *pixels = ximage_to_bmp_pixels(img, &row_stride);
-    if (!pixels) {
+    uint8_t *rgb = ximage_to_rgb(img);
+    if (!rgb) {
         XDestroyImage(img);
         fprintf(stderr, "screen_capture: out of memory\n");
         return;
     }
 
-    write_bmp(cap_file, pixels, row_stride, a.width, a.height);
+    write_png_frame(cap_file, rgb, a.width, a.height);
     cap_frame_count++;
 
-    free(pixels);
+    free(rgb);
     XDestroyImage(img);
 }
 
@@ -311,9 +276,6 @@ static void screen_capture_init(void) {
         cap_disabled = 1;
         return;
     }
-    /* Ensure a fresh file: Petit-Ami's fopen("wb") does not pass O_TRUNC,
-       so stale bytes from a prior (possibly larger) run would remain past
-       the new content and break BMP-stream walkers. */
     remove(CAPTURE_FILENAME);
     cap_file = fopen(CAPTURE_FILENAME, "wb");
     if (!cap_file) {

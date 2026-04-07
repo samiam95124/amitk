@@ -1114,7 +1114,7 @@ SCREEN_CAPTURE_OBJ = linux/screen_capture.o
 endif
 
 graphics_test: $(GLIBSD) tests/graphics_test.c $(SCREEN_CAPTURE_OBJ)
-	$(CC) $(CFLAGS) tests/graphics_test.c $(SCREEN_CAPTURE_OBJ) $(GLIBS) -o bin/graphics_test
+	$(CC) $(CFLAGS) tests/graphics_test.c $(SCREEN_CAPTURE_OBJ) $(GLIBS) -lpng -o bin/graphics_test
 
 #
 # BMP-stream frame viewer: walks the test_images file produced by
@@ -1126,8 +1126,8 @@ testviewer: macosx/testviewer.c Makefile
 	    -framework Cocoa -framework CoreGraphics -framework ImageIO \
 	    -o bin/testviewer
 else
-testviewer: $(GLIBSD) tests/testviewer.c
-	$(CC) $(CFLAGS) tests/testviewer.c $(GLIBS) -o bin/testviewer
+testviewer: linux/testviewer.c Makefile
+	$(CC) -g3 linux/testviewer.c -lX11 -lpng -o bin/testviewer
 endif
 
 #
