@@ -16,6 +16,9 @@
 * (concatenated PNGs) so test_images files are portable across platforms for   *
 * cross-platform regression comparison.                                        *
 *                                                                              *
+* Uses Win32 file APIs (CreateFile/WriteFile) exclusively to avoid the         *
+* custom libc/stdio.c intercepting and applying CRLF translation.             *
+*                                                                              *
 * Window discovery:                                                            *
 *   - Enumerates top-level windows looking for one owned by our process.       *
 *   - Picks the largest visible window belonging to GetCurrentProcessId().     *
@@ -25,7 +28,6 @@
 *                                                                              *
 *******************************************************************************/
 
-#include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 #include <stdint.h>
@@ -36,17 +38,13 @@
 
 /* ---------- module state ---------- */
 
-static FILE     *cap_file        = NULL;
+static HANDLE    cap_file        = INVALID_HANDLE_VALUE;
 static HWND      cap_window      = NULL;   /* discovered lazily on first capture */
 static uint32_t  cap_frame_count = 0;
 static int       cap_disabled    = 0;
 
 /* ---------- window discovery ---------- */
 
-/*
- * Callback state for EnumWindows: find the largest visible window
- * belonging to our process.
- */
 typedef struct {
 
     DWORD pid;          /* our process id */
@@ -61,8 +59,8 @@ static BOOL CALLBACK find_window_cb(HWND hwnd, LPARAM lparam)
     DWORD wpid;
 
     GetWindowThreadProcessId(hwnd, &wpid);
-    if (wpid != ctx->pid) return TRUE;          /* not ours, keep looking */
-    if (!IsWindowVisible(hwnd)) return TRUE;     /* not visible */
+    if (wpid != ctx->pid) return TRUE;
+    if (!IsWindowVisible(hwnd)) return TRUE;
 
     RECT rc;
     if (!GetClientRect(hwnd, &rc)) return TRUE;
@@ -71,7 +69,7 @@ static BOOL CALLBACK find_window_cb(HWND hwnd, LPARAM lparam)
         ctx->best_area = area;
         ctx->best = hwnd;
     }
-    return TRUE; /* continue enumeration */
+    return TRUE;
 }
 
 static HWND find_pa_window(void)
@@ -87,10 +85,6 @@ static HWND find_pa_window(void)
 
 /* ---------- GDI capture -> top-down RGB ---------- */
 
-/*
- * Capture the client area of hwnd into a malloc'd top-down RGB buffer
- * (3 bytes per pixel, no padding). Sets *w and *h. Returns NULL on failure.
- */
 static uint8_t *capture_window_rgb(HWND hwnd, int *w, int *h)
 {
     RECT rc;
@@ -107,10 +101,8 @@ static uint8_t *capture_window_rgb(HWND hwnd, int *w, int *h)
     HBITMAP hbm = CreateCompatibleBitmap(hdcWin, *w, *h);
     HGDIOBJ old = SelectObject(hdcMem, hbm);
 
-    /* BitBlt the client area */
     BitBlt(hdcMem, 0, 0, *w, *h, hdcWin, 0, 0, SRCCOPY);
 
-    /* extract pixels as top-down 24-bit BGR via GetDIBits */
     BITMAPINFO bmi;
     memset(&bmi, 0, sizeof(bmi));
     bmi.bmiHeader.biSize        = sizeof(BITMAPINFOHEADER);
@@ -120,7 +112,6 @@ static uint8_t *capture_window_rgb(HWND hwnd, int *w, int *h)
     bmi.bmiHeader.biBitCount    = 24;
     bmi.bmiHeader.biCompression = BI_RGB;
 
-    /* rows are padded to 4-byte boundaries in DIB format */
     int row_stride = ((*w * 3) + 3) & ~3;
     uint8_t *dib = (uint8_t *)malloc(row_stride * (*h));
     if (!dib) {
@@ -138,7 +129,6 @@ static uint8_t *capture_window_rgb(HWND hwnd, int *w, int *h)
     DeleteDC(hdcMem);
     ReleaseDC(hwnd, hdcWin);
 
-    /* convert BGR (padded) to packed RGB (no padding) */
     uint8_t *rgb = (uint8_t *)malloc((size_t)(*w) * (*h) * 3);
     if (!rgb) { free(dib); return NULL; }
 
@@ -158,21 +148,22 @@ static uint8_t *capture_window_rgb(HWND hwnd, int *w, int *h)
     return rgb;
 }
 
-/* ---------- PNG writing ---------- */
+/* ---------- PNG writing via Win32 file handle ---------- */
 
-static void png_write_to_file(png_structp png, png_bytep data, png_size_t len)
+static void png_write_to_handle(png_structp png, png_bytep data, png_size_t len)
 {
-    FILE *f = (FILE *)png_get_io_ptr(png);
-    fwrite(data, 1, len, f);
+    HANDLE h = (HANDLE)png_get_io_ptr(png);
+    DWORD written;
+    WriteFile(h, data, (DWORD)len, &written, NULL);
 }
 
-static void png_flush_file(png_structp png)
+static void png_flush_handle(png_structp png)
 {
-    FILE *f = (FILE *)png_get_io_ptr(png);
-    fflush(f);
+    HANDLE h = (HANDLE)png_get_io_ptr(png);
+    FlushFileBuffers(h);
 }
 
-static void write_png_frame(FILE *f, uint8_t *rgb_rows, int width, int height)
+static void write_png_frame(HANDLE h, uint8_t *rgb_rows, int width, int height)
 {
     png_structp png = png_create_write_struct(PNG_LIBPNG_VER_STRING,
                                               NULL, NULL, NULL);
@@ -183,7 +174,7 @@ static void write_png_frame(FILE *f, uint8_t *rgb_rows, int width, int height)
         png_destroy_write_struct(&png, &info);
         return;
     }
-    png_set_write_fn(png, f, png_write_to_file, png_flush_file);
+    png_set_write_fn(png, (void *)h, png_write_to_handle, png_flush_handle);
     png_set_IHDR(png, info, width, height, 8,
                  PNG_COLOR_TYPE_RGB, PNG_INTERLACE_NONE,
                  PNG_COMPRESSION_TYPE_DEFAULT, PNG_FILTER_TYPE_DEFAULT);
@@ -194,29 +185,23 @@ static void write_png_frame(FILE *f, uint8_t *rgb_rows, int width, int height)
 
     png_write_end(png, NULL);
     png_destroy_write_struct(&png, &info);
-    fflush(f);
+    FlushFileBuffers(h);
 }
 
 /* ---------- public entry point ---------- */
 
 void screen_capture(void)
 {
-    if (cap_disabled || !cap_file) return;
+    if (cap_disabled || cap_file == INVALID_HANDLE_VALUE) return;
 
     if (cap_window == NULL) {
         cap_window = find_pa_window();
-        if (cap_window == NULL) {
-            fprintf(stderr, "screen_capture: no Petit-Ami window found\n");
-            return;
-        }
+        if (cap_window == NULL) return;
     }
 
     int w, h;
     uint8_t *rgb = capture_window_rgb(cap_window, &w, &h);
-    if (!rgb) {
-        fprintf(stderr, "screen_capture: capture failed\n");
-        return;
-    }
+    if (!rgb) return;
 
     write_png_frame(cap_file, rgb, w, h);
     cap_frame_count++;
@@ -229,9 +214,10 @@ void screen_capture(void)
 __attribute__((constructor(103)))
 static void screen_capture_init(void)
 {
-    remove(CAPTURE_FILENAME);
-    cap_file = fopen(CAPTURE_FILENAME, "wb");
-    if (!cap_file) {
+    DeleteFileA(CAPTURE_FILENAME);
+    cap_file = CreateFileA(CAPTURE_FILENAME, GENERIC_WRITE, 0, NULL,
+                           CREATE_ALWAYS, FILE_ATTRIBUTE_NORMAL, NULL);
+    if (cap_file == INVALID_HANDLE_VALUE) {
         cap_disabled = 1;
         return;
     }
@@ -240,15 +226,12 @@ static void screen_capture_init(void)
 __attribute__((destructor(103)))
 static void screen_capture_fini(void)
 {
-    if (cap_file) {
-        fflush(cap_file);
-        fclose(cap_file);
-        cap_file = NULL;
+    if (cap_file != INVALID_HANDLE_VALUE) {
+        FlushFileBuffers(cap_file);
+        CloseHandle(cap_file);
+        cap_file = INVALID_HANDLE_VALUE;
         if (cap_frame_count == 0) {
-            remove(CAPTURE_FILENAME);
-        } else {
-            fprintf(stderr, "screen_capture: wrote %u frames to %s\n",
-                    cap_frame_count, CAPTURE_FILENAME);
+            DeleteFileA(CAPTURE_FILENAME);
         }
     }
 }

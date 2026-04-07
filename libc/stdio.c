@@ -939,7 +939,7 @@ FILE *fopen(const char *filename, const char *mode)
 
     /* move mode attributes to flags */
     modcod = 0; /* default to read */
-    text = !!strchr(mode, 'b'); /* set text or binary mode */
+    text = !strchr(mode, 'b'); /* set text or binary mode */
     append = !!strchr(mode, '+'); /* set append mode */
     if (strchr(mode, 'r')) modcod = 0; /* set read */
     else if (strchr(mode, 'w')) modcod = 1; /* set write */
@@ -1074,7 +1074,7 @@ FILE *freopen(const char *filename, const char *mode, FILE *stream)
     if (fclose(stream) != 0) return (NULL);
 
     /* move mode attributes to flags */
-    text = !!strchr(mode, 'b'); /* set text or binary mode */
+    text = !strchr(mode, 'b'); /* set text or binary mode */
     update = !!strchr(mode, '+'); /* set update mode */
     if (strchr(mode, 'r')) modcod = 0; /* set read */
     else if (strchr(mode, 'w')) modcod = 1; /* set write */
@@ -1159,7 +1159,7 @@ FILE *fdopen(int fd, const char *mode)
 
     /* move mode attributes to flags */
     modcod = 0; /* default to read */
-    text = !!strchr(mode, 'b'); /* set text or binary mode */
+    text = !strchr(mode, 'b'); /* set text or binary mode */
     append = !!strchr(mode, '+'); /* set update mode */
     if (strchr(mode, 'r')) modcod = 0; /* set read */
     else if (strchr(mode, 'w')) modcod = 1; /* set write */
