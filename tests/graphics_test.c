@@ -237,6 +237,7 @@ typedef enum {
 } bench;
 
 static jmp_buf   terminate_buf;
+static int       framenum = 0;
 static char      fns[100];
 static int       x, y;
 static int       xs, ys;
@@ -323,6 +324,12 @@ static void waitnext(void)
 {
 
     ami_evtrec er; /* event record */
+    char titlebuf[80];
+
+    /* set title with frame number */
+    framenum++;
+    sprintf(titlebuf, "graphics_test: frame %d", framenum);
+    ami_title(stdout, titlebuf);
 
     /* capture test screens */
     screen_capture();

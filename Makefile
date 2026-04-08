@@ -1113,8 +1113,13 @@ else
 SCREEN_CAPTURE_OBJ = linux/screen_capture.o
 endif
 
+ifeq ($(OSTYPE),Darwin)
+graphics_test: $(GLIBSD) tests/graphics_test.c $(SCREEN_CAPTURE_OBJ)
+	$(CC) $(CFLAGS) tests/graphics_test.c $(SCREEN_CAPTURE_OBJ) $(GLIBS) -o bin/graphics_test
+else
 graphics_test: $(GLIBSD) tests/graphics_test.c $(SCREEN_CAPTURE_OBJ)
 	$(CC) $(CFLAGS) tests/graphics_test.c $(SCREEN_CAPTURE_OBJ) $(GLIBS) -lpng -lz -o bin/graphics_test
+endif
 
 #
 # BMP-stream frame viewer: walks the test_images file produced by
