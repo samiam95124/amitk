@@ -81,7 +81,11 @@ typedef struct scncon {
     CGFloat     lwidth;        /* line width */
     fontptr     font;          /* current font */
     int         bold, italic, underline, strikeout;
-    int         attr;          /* attribute bitmask (reverse etc.) */
+    int         superscript, subscript;
+    int         condensed, extended;
+    int         light, xlight, xbold;
+    int         hollow, raised;
+    int         reverse;
     int         autof;         /* auto scroll/wrap mode */
 } scncon, *scnptr;
 
@@ -144,6 +148,7 @@ static void    clear_window(winptr win);
 static void    plcchr(winptr win, char c);
 static ssize_t iwrite(int fd, const void* buff, size_t count);
 static ssize_t iread(int fd, void* buff, size_t count);
+static void    update_metrics(winptr win);
 
 
 /* standard color table: ami_color → RGBA */
@@ -240,6 +245,35 @@ static CTFontRef make_ctfont(const char* name, CGFloat size, int bold, int itali
     return base;
 }
 
+/* Rebuild the current font's CTFont based on screen context effects.
+ * Called when bold, italic, condensed, extended, etc. change. */
+static void rebuild_font(winptr win)
+{
+    scnptr sc = curscn(win);
+    fontptr fp = sc->font ? sc->font : fntlst;
+    if (!fp || !fp->name) return;
+
+    int b = sc->bold || sc->xbold;
+    int it = sc->italic;
+
+    if (fp->ctfont) CFRelease(fp->ctfont);
+    fp->ctfont = make_ctfont(fp->name, win->fontsz, b, it);
+
+    /* apply condensed/extended via a matrix transform */
+    if (fp->ctfont && (sc->condensed || sc->extended)) {
+        CGFloat xscale = sc->condensed ? 0.8 : 1.25;
+        CGAffineTransform matrix = CGAffineTransformMakeScale(xscale, 1.0);
+        CTFontRef transformed = CTFontCreateCopyWithAttributes(fp->ctfont,
+                                    win->fontsz, &matrix, NULL);
+        if (transformed) {
+            CFRelease(fp->ctfont);
+            fp->ctfont = transformed;
+        }
+    }
+
+    update_metrics(win);
+}
+
 /* Build the standard 4 fonts (TERM, BOOK, SIGN, TECH) */
 static void init_fonts(void)
 {
@@ -287,6 +321,56 @@ static void init_fonts(void)
     fontptr prev = NULL, cur = fntlst, next;
     while (cur) { next = cur->next; cur->next = prev; prev = cur; cur = next; }
     fntlst = prev;
+
+    /* enumerate all installed system fonts after the 4 standard ones */
+    CTFontCollectionRef collection = CTFontCollectionCreateFromAvailableFonts(NULL);
+    if (collection) {
+        CFArrayRef descs = CTFontCollectionCreateMatchingFontDescriptors(collection);
+        if (descs) {
+            CFIndex n = CFArrayGetCount(descs);
+            /* find the tail of the font list */
+            fontptr tail = fntlst;
+            while (tail && tail->next) tail = tail->next;
+
+            for (CFIndex i = 0; i < n; i++) {
+                CTFontDescriptorRef desc = (CTFontDescriptorRef)CFArrayGetValueAtIndex(descs, i);
+                CFStringRef cfname = CTFontDescriptorCopyAttribute(desc, kCTFontDisplayNameAttribute);
+                if (!cfname) continue;
+
+                char namebuf[256];
+                if (!CFStringGetCString(cfname, namebuf, sizeof(namebuf), kCFStringEncodingUTF8)) {
+                    CFRelease(cfname);
+                    continue;
+                }
+                CFRelease(cfname);
+
+                /* skip duplicates of the 4 standard fonts */
+                int dup = 0;
+                fontptr chk = fntlst;
+                while (chk) {
+                    if (chk->name && strcmp(chk->name, namebuf) == 0) { dup = 1; break; }
+                    chk = chk->next;
+                }
+                if (dup) continue;
+
+                CTFontRef f = make_ctfont(namebuf, DEF_FONT_H, 0, 0);
+                if (!f) continue;
+
+                fontptr fp = calloc(1, sizeof(fontrec));
+                fp->ctfont = f;
+                fp->name   = strdup(namebuf);
+                fp->size   = DEF_FONT_H;
+                fp->fixed  = (CTFontGetSymbolicTraits(f) & kCTFontTraitMonoSpace) != 0;
+                fp->next   = NULL;
+
+                if (tail) { tail->next = fp; tail = fp; }
+                else      { fntlst = fp; tail = fp; }
+                fntcnt++;
+            }
+            CFRelease(descs);
+        }
+        CFRelease(collection);
+    }
 }
 
 /* Measure a string with current font; returns width in pixels */
@@ -314,22 +398,43 @@ static CGFloat measure_string(fontptr fp, const char* s, int len)
     return w;
 }
 
-/* Draw a string at (x, y) — top-left based, PA 1-based coords */
+/* Draw a string at (x, y) — top-left based, PA 1-based coords.
+ * Handles text effects: bold, italic (via font), underline, strikeout,
+ * superscript, subscript, reverse, hollow, raised, light. */
 static void draw_string(CGContextRef ctx, fontptr fp, scnptr sc,
                         int x, int y, const char* s, int len)
 {
     if (!ctx || !fp || !fp->ctfont || !s || len <= 0) return;
 
+    /* for superscript/subscript, use a smaller font */
+    CTFontRef drawFont = fp->ctfont;
+    int releaseDraw = 0;
+    CGFloat yoff = 0;
+    if (sc->superscript || sc->subscript) {
+        CGFloat smallSize = fp->size * 0.6;
+        drawFont = CTFontCreateCopyWithAttributes(fp->ctfont, smallSize, NULL, NULL);
+        releaseDraw = 1;
+        if (sc->superscript) yoff = 0; /* top of cell */
+        else yoff = fp->size * 0.4; /* lower in cell */
+    }
+
     CFStringRef cfs = CFStringCreateWithBytes(NULL, (const UInt8*)s, len,
                                               kCFStringEncodingUTF8, false);
-    if (!cfs) return;
+    if (!cfs) { if (releaseDraw) CFRelease(drawFont); return; }
 
-    /* build attribute dictionary */
-    CGFloat fgr = sc->fc.r, fgg = sc->fc.g, fgb = sc->fc.b;
-    CGColorRef color = CGColorCreateGenericRGB(fgr, fgg, fgb, 1.0);
+    /* determine colors: swap fg/bg for reverse mode */
+    pa_rgba fgc = sc->fc, bgc = sc->bc;
+    if (sc->reverse) { pa_rgba t = fgc; fgc = bgc; bgc = t; }
+
+    /* light/xlight: reduce alpha */
+    CGFloat alpha = 1.0;
+    if (sc->xlight) alpha = 0.3;
+    else if (sc->light) alpha = 0.6;
+
+    CGColorRef color = CGColorCreateGenericRGB(fgc.r, fgc.g, fgc.b, alpha);
 
     CFStringRef keys[2]   = { kCTFontAttributeName, kCTForegroundColorAttributeName };
-    CFTypeRef   values[2] = { fp->ctfont, color };
+    CFTypeRef   values[2] = { drawFont, color };
     CFDictionaryRef attrs = CFDictionaryCreate(NULL,
                                (const void**)keys, (const void**)values,
                                2, &kCFTypeDictionaryKeyCallBacks,
@@ -340,26 +445,56 @@ static void draw_string(CGContextRef ctx, fontptr fp, scnptr sc,
     CTLineRef             line = CTLineCreateWithAttributedString(as);
 
     CGFloat ascent, descent;
-    CTLineGetTypographicBounds(line, &ascent, &descent, NULL);
+    CGFloat width = CTLineGetTypographicBounds(line, &ascent, &descent, NULL);
 
-    /* The bitmap context has a top-left-down coordinate system (flipped).
-     * CoreText draws with a bottom-left-up system. We temporarily unflip
-     * the context around the line's origin so the glyphs come out right. */
     CGFloat tx = PX(x);
-    CGFloat ty = PY(y) + ascent; /* baseline position in flipped coords */
+    CGFloat ty = PY(y) + ascent + yoff;
+
+    /* draw text */
     CGContextSaveGState(ctx);
-    /* translate to the baseline point, flip Y, then draw at origin */
     CGContextTranslateCTM(ctx, tx, ty);
     CGContextScaleCTM(ctx, 1.0, -1.0);
     CGContextSetTextMatrix(ctx, CGAffineTransformIdentity);
     CGContextSetTextPosition(ctx, 0, 0);
+
+    if (sc->hollow) {
+        /* hollow: stroke the text outlines instead of filling */
+        CGContextSetTextDrawingMode(ctx, kCGTextStroke);
+        CGContextSetRGBStrokeColor(ctx, fgc.r, fgc.g, fgc.b, alpha);
+        CGContextSetLineWidth(ctx, 0.5);
+    } else if (sc->raised) {
+        /* raised: draw with a slight shadow/offset for embossed look */
+        CGContextSetShadow(ctx, CGSizeMake(1, -1), 1.0);
+    }
+
     CTLineDraw(line, ctx);
     CGContextRestoreGState(ctx);
+
+    /* underline: draw a line below the baseline */
+    if (sc->underline) {
+        CGFloat uy = PY(y) + ascent + descent * 0.5;
+        CGContextSetRGBStrokeColor(ctx, fgc.r, fgc.g, fgc.b, alpha);
+        CGContextSetLineWidth(ctx, 1.0);
+        CGContextMoveToPoint(ctx, tx, uy);
+        CGContextAddLineToPoint(ctx, tx + width, uy);
+        CGContextStrokePath(ctx);
+    }
+
+    /* strikeout: draw a line through the middle of the text */
+    if (sc->strikeout) {
+        CGFloat sy = PY(y) + ascent * 0.6;
+        CGContextSetRGBStrokeColor(ctx, fgc.r, fgc.g, fgc.b, alpha);
+        CGContextSetLineWidth(ctx, 1.0);
+        CGContextMoveToPoint(ctx, tx, sy);
+        CGContextAddLineToPoint(ctx, tx + width, sy);
+        CGContextStrokePath(ctx);
+    }
 
     CFRelease(line);
     CFRelease(as);
     CFRelease(attrs);
     CFRelease(cfs);
+    if (releaseDraw) CFRelease(drawFont);
 }
 
 /*******************************************************************************
@@ -914,9 +1049,26 @@ void ami_right(FILE* f)
 }
 
 void ami_blink(FILE* f, int e)      { /* stub — CoreText doesn't blink */ }
-void ami_reverse(FILE* f, int e)    { /* stub */ }
-void ami_superscript(FILE* f, int e){ /* stub */ }
-void ami_subscript(FILE* f, int e)  { /* stub */ }
+
+void ami_reverse(FILE* f, int e)
+{
+    winptr win = f2win(f); if (!win) return;
+    curscn(win)->reverse = e;
+}
+
+void ami_superscript(FILE* f, int e)
+{
+    winptr win = f2win(f); if (!win) return;
+    curscn(win)->superscript = e;
+    curscn(win)->subscript = 0; /* mutually exclusive */
+}
+
+void ami_subscript(FILE* f, int e)
+{
+    winptr win = f2win(f); if (!win) return;
+    curscn(win)->subscript = e;
+    curscn(win)->superscript = 0; /* mutually exclusive */
+}
 
 void ami_underline(FILE* f, int e)
 {
@@ -928,12 +1080,14 @@ void ami_italic(FILE* f, int e)
 {
     winptr win = f2win(f); if (!win) return;
     curscn(win)->italic = e;
+    rebuild_font(win);
 }
 
 void ami_bold(FILE* f, int e)
 {
     winptr win = f2win(f); if (!win) return;
     curscn(win)->bold = e;
+    rebuild_font(win);
 }
 
 void ami_strikeout(FILE* f, int e)
@@ -942,7 +1096,11 @@ void ami_strikeout(FILE* f, int e)
     curscn(win)->strikeout = e;
 }
 
-void ami_standout(FILE* f, int e)   { /* stub */ }
+void ami_standout(FILE* f, int e)
+{
+    /* implement as reverse video */
+    ami_reverse(f, e);
+}
 
 void ami_fcolor(FILE* f, ami_color c)
 {
@@ -1118,21 +1276,61 @@ void ami_frect(FILE* f, int x1, int y1, int x2, int y2)
     pa_cocoa_flush(win->han);
 }
 
+/* Build a rounded rectangle CGPath using elliptical corner arcs.
+ * xs, ys are the full width/height of the corner ellipses (PA convention).
+ * Uses CGPath with per-arc transforms since CGContext transforms reset paths. */
+static CGPathRef create_rrect_path(CGFloat x, CGFloat y,
+                                   CGFloat w, CGFloat h,
+                                   CGFloat xs, CGFloat ys)
+{
+    CGFloat rx = xs / 2.0;
+    CGFloat ry = ys / 2.0;
+    if (rx > w / 2.0) rx = w / 2.0;
+    if (ry > h / 2.0) ry = h / 2.0;
+
+    CGMutablePathRef path = CGPathCreateMutable();
+
+    /* top edge */
+    CGPathMoveToPoint(path, NULL, x + rx, y);
+    CGPathAddLineToPoint(path, NULL, x + w - rx, y);
+
+    /* top-right corner */
+    CGAffineTransform t = CGAffineTransformMake(rx, 0, 0, ry, x + w - rx, y + ry);
+    CGPathAddArc(path, &t, 0, 0, 1, -M_PI_2, 0, false);
+
+    /* right edge */
+    CGPathAddLineToPoint(path, NULL, x + w, y + h - ry);
+
+    /* bottom-right corner */
+    t = CGAffineTransformMake(rx, 0, 0, ry, x + w - rx, y + h - ry);
+    CGPathAddArc(path, &t, 0, 0, 1, 0, M_PI_2, false);
+
+    /* bottom edge */
+    CGPathAddLineToPoint(path, NULL, x + rx, y + h);
+
+    /* bottom-left corner */
+    t = CGAffineTransformMake(rx, 0, 0, ry, x + rx, y + h - ry);
+    CGPathAddArc(path, &t, 0, 0, 1, M_PI_2, M_PI, false);
+
+    /* left edge */
+    CGPathAddLineToPoint(path, NULL, x, y + ry);
+
+    /* top-left corner */
+    t = CGAffineTransformMake(rx, 0, 0, ry, x + rx, y + ry);
+    CGPathAddArc(path, &t, 0, 0, 1, M_PI, M_PI + M_PI_2, false);
+
+    CGPathCloseSubpath(path);
+    return path;
+}
+
 void ami_rrect(FILE* f, int x1, int y1, int x2, int y2, int xs, int ys)
 {
     winptr win = f2win(f); if (!win) return;
     CGContextRef ctx = get_ctx(win);
     if (!ctx) return;
-    CGFloat rx = xs / 2.0, ry = ys / 2.0;
-    CGFloat w  = x2 - x1, h = y2 - y1;
-    CGFloat cx = PX(x1), cy = PY(y1);
-    CGContextBeginPath(ctx);
-    CGContextMoveToPoint(ctx, cx + rx, cy);
-    CGContextAddArcToPoint(ctx, cx+w, cy,   cx+w, cy+h, rx);
-    CGContextAddArcToPoint(ctx, cx+w, cy+h, cx,   cy+h, ry);
-    CGContextAddArcToPoint(ctx, cx,   cy+h, cx,   cy,   rx);
-    CGContextAddArcToPoint(ctx, cx,   cy,   cx+w, cy,   ry);
-    CGContextClosePath(ctx);
+    CGPathRef path = create_rrect_path(PX(x1)+0.5, PY(y1)+0.5, x2-x1, y2-y1, xs, ys);
+    CGContextAddPath(ctx, path);
+    CGPathRelease(path);
     CGContextStrokePath(ctx);
     pa_cocoa_flush(win->han);
 }
@@ -1144,16 +1342,9 @@ void ami_frrect(FILE* f, int x1, int y1, int x2, int y2, int xs, int ys)
     if (!ctx) return;
     scnptr sc = curscn(win);
     set_fill_only(ctx, sc->fc);
-    CGFloat rx = xs / 2.0, ry = ys / 2.0;
-    CGFloat w  = x2 - x1, h = y2 - y1;
-    CGFloat cx = PX(x1), cy = PY(y1);
-    CGContextBeginPath(ctx);
-    CGContextMoveToPoint(ctx, cx + rx, cy);
-    CGContextAddArcToPoint(ctx, cx+w, cy,   cx+w, cy+h, rx);
-    CGContextAddArcToPoint(ctx, cx+w, cy+h, cx,   cy+h, ry);
-    CGContextAddArcToPoint(ctx, cx,   cy+h, cx,   cy,   rx);
-    CGContextAddArcToPoint(ctx, cx,   cy,   cx+w, cy,   ry);
-    CGContextClosePath(ctx);
+    CGPathRef path = create_rrect_path(PX(x1), PY(y1), x2-x1+1, y2-y1+1, xs, ys);
+    CGContextAddPath(ctx, path);
+    CGPathRelease(path);
     CGContextFillPath(ctx);
     pa_cocoa_flush(win->han);
 }
@@ -1431,13 +1622,53 @@ int ami_chrpos(FILE* f, const char* s, int p)
 void ami_writejust(FILE* f, const char* s, int n)  { /* stub */ }
 int  ami_justpos(FILE* f, const char* s, int p, int n) { return ami_chrpos(f, s, p); }
 
-void ami_condensed(FILE* f, int e)  { /* stub */ }
-void ami_extended(FILE* f, int e)   { /* stub */ }
-void ami_xlight(FILE* f, int e)     { /* stub */ }
-void ami_light(FILE* f, int e)      { /* stub */ }
-void ami_xbold(FILE* f, int e)      { /* stub */ }
-void ami_hollow(FILE* f, int e)     { /* stub */ }
-void ami_raised(FILE* f, int e)     { /* stub */ }
+void ami_condensed(FILE* f, int e)
+{
+    winptr win = f2win(f); if (!win) return;
+    curscn(win)->condensed = e;
+    curscn(win)->extended = 0;
+    rebuild_font(win);
+}
+
+void ami_extended(FILE* f, int e)
+{
+    winptr win = f2win(f); if (!win) return;
+    curscn(win)->extended = e;
+    curscn(win)->condensed = 0;
+    rebuild_font(win);
+}
+
+void ami_xlight(FILE* f, int e)
+{
+    winptr win = f2win(f); if (!win) return;
+    curscn(win)->xlight = e;
+    /* xlight uses a lighter weight — approximated by alpha */
+}
+
+void ami_light(FILE* f, int e)
+{
+    winptr win = f2win(f); if (!win) return;
+    curscn(win)->light = e;
+}
+
+void ami_xbold(FILE* f, int e)
+{
+    winptr win = f2win(f); if (!win) return;
+    curscn(win)->xbold = e;
+    rebuild_font(win);
+}
+
+void ami_hollow(FILE* f, int e)
+{
+    winptr win = f2win(f); if (!win) return;
+    curscn(win)->hollow = e;
+}
+
+void ami_raised(FILE* f, int e)
+{
+    winptr win = f2win(f); if (!win) return;
+    curscn(win)->raised = e;
+}
 void ami_settabg(FILE* f, int t)    { /* stub */ }
 void ami_restabg(FILE* f, int t)    { /* stub */ }
 
@@ -1453,7 +1684,7 @@ int ami_baseline(FILE* f)
 void ami_fcolorg(FILE* f, int r, int g, int b)
 {
     winptr win = f2win(f); if (!win) return;
-    pa_rgba c = { r/255.0, g/255.0, b/255.0, 1.0 };
+    pa_rgba c = { r/(double)INT_MAX, g/(double)INT_MAX, b/(double)INT_MAX, 1.0 };
     curscn(win)->fc = c;
 }
 
@@ -1462,7 +1693,7 @@ void ami_fcolorc(FILE* f, int r, int g, int b) { ami_fcolorg(f, r, g, b); }
 void ami_bcolorg(FILE* f, int r, int g, int b)
 {
     winptr win = f2win(f); if (!win) return;
-    pa_rgba c = { r/255.0, g/255.0, b/255.0, 1.0 };
+    pa_rgba c = { r/(double)INT_MAX, g/(double)INT_MAX, b/(double)INT_MAX, 1.0 };
     curscn(win)->bc = c;
 }
 
