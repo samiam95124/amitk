@@ -198,12 +198,13 @@ static CGImageRef load_frame_image(int i) {
         }
     } else if (chars.length > 0 && ([chars characterAtIndex:0] == 'q' ||
                                      [chars characterAtIndex:0] == 'Q')) {
-        [NSApp terminate:nil];
+        [self.window close];
     }
 }
 
 - (void)dealloc {
     if (currentImage) CGImageRelease(currentImage);
+    [super dealloc];
 }
 
 @end
@@ -211,59 +212,69 @@ static CGImageRef load_frame_image(int i) {
 /* ---------- main ---------- */
 
 int main(int argc, char *argv[]) {
-    @autoreleasepool {
-        src_filename = (argc > 1) ? argv[1] : DEFAULT_FILENAME;
+    NSAutoreleasePool *pool = [[NSAutoreleasePool alloc] init];
 
-        if (build_index(src_filename) != 0) return 1;
-        if (nframes == 0) {
-            fprintf(stderr, "testviewer: %s contains no PNG frames\n", src_filename);
-            return 1;
-        }
-        fprintf(stderr, "testviewer: indexed %d frame(s) from %s\n", nframes, src_filename);
+    src_filename = (argc > 1) ? argv[1] : DEFAULT_FILENAME;
 
-        [NSApplication sharedApplication];
-        [NSApp setActivationPolicy:NSApplicationActivationPolicyRegular];
-        [NSApp finishLaunching];
-
-        /* load first frame to get dimensions */
-        cur_frame = 0;
-        CGImageRef firstImg = load_frame_image(0);
-        int ww = firstImg ? (int)CGImageGetWidth(firstImg) : 800;
-        int wh = firstImg ? (int)CGImageGetHeight(firstImg) : 600;
-
-        NSRect frame = NSMakeRect(100, 100, ww, wh);
-        NSWindow *window = [[NSWindow alloc]
-            initWithContentRect:frame
-                      styleMask:NSWindowStyleMaskTitled |
-                                NSWindowStyleMaskClosable |
-                                NSWindowStyleMaskResizable
-                        backing:NSBackingStoreBuffered
-                          defer:NO];
-
-        ViewerView *view = [[ViewerView alloc] initWithFrame:frame];
-        [window setContentView:view];
-
-        view->currentImage = firstImg;
-        [window setTitle:[NSString stringWithFormat:@"testviewer [1/%d]", nframes]];
-
-        [window makeKeyAndOrderFront:nil];
-        [NSApp activateIgnoringOtherApps:YES];
-
-        /* simple event loop */
-        for (;;) {
-            @autoreleasepool {
-                NSEvent *event = [NSApp nextEventMatchingMask:NSEventMaskAny
-                                                   untilDate:[NSDate distantFuture]
-                                                      inMode:NSDefaultRunLoopMode
-                                                     dequeue:YES];
-                if (!event) continue;
-                [NSApp sendEvent:event];
-                [NSApp updateWindows];
-                if (![window isVisible]) break;
-            }
-        }
-
-        free(frames);
+    if (build_index(src_filename) != 0) return 1;
+    if (nframes == 0) {
+        fprintf(stderr, "testviewer: %s contains no PNG frames\n", src_filename);
+        return 1;
     }
+    fprintf(stderr, "testviewer: indexed %d frame(s) from %s\n", nframes, src_filename);
+
+    [NSApplication sharedApplication];
+    [NSApp setActivationPolicy:NSApplicationActivationPolicyRegular];
+    [NSApp finishLaunching];
+
+    /* load first frame to get dimensions */
+    cur_frame = 0;
+    CGImageRef firstImg = load_frame_image(0);
+    if (!firstImg) {
+        fprintf(stderr, "testviewer: failed to load frame 0\n");
+        free(frames);
+        return 1;
+    }
+    int ww = (int)CGImageGetWidth(firstImg);
+    int wh = (int)CGImageGetHeight(firstImg);
+    fprintf(stderr, "testviewer: frame 0 size %dx%d\n", ww, wh);
+
+    NSRect winRect = NSMakeRect(100, 100, ww, wh);
+    NSWindow *window = [[NSWindow alloc]
+        initWithContentRect:winRect
+                  styleMask:NSWindowStyleMaskTitled |
+                            NSWindowStyleMaskClosable |
+                            NSWindowStyleMaskResizable
+                    backing:NSBackingStoreBuffered
+                      defer:NO];
+
+    NSRect viewRect = NSMakeRect(0, 0, ww, wh);
+    ViewerView *view = [[ViewerView alloc] initWithFrame:viewRect];
+    [window setContentView:view];
+
+    view->currentImage = firstImg; /* view takes ownership */
+    [window setTitle:[NSString stringWithFormat:@"testviewer [1/%d]", nframes]];
+
+    [window makeKeyAndOrderFront:nil];
+    [NSApp activateIgnoringOtherApps:YES];
+
+    /* event loop */
+    int running = 1;
+    while (running) {
+        NSAutoreleasePool *innerPool = [[NSAutoreleasePool alloc] init];
+        NSEvent *event = [NSApp nextEventMatchingMask:NSEventMaskAny
+                                           untilDate:[NSDate distantFuture]
+                                              inMode:NSDefaultRunLoopMode
+                                             dequeue:YES];
+        if (event) {
+            [NSApp sendEvent:event];
+            [NSApp updateWindows];
+            if (![window isVisible]) running = 0;
+        }
+        [innerPool drain];
+    }
+
+    free(frames);
+    /* don't drain outer pool — Cocoa internals may have stale autoreleased objects */
     return 0;
 }

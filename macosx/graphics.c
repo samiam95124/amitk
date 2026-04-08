@@ -17,6 +17,7 @@
 #include <pthread.h>
 #include <CoreGraphics/CoreGraphics.h>
 #include <CoreText/CoreText.h>
+#include <ImageIO/ImageIO.h>
 
 #include <unistd.h>
 #include <fcntl.h>
@@ -680,14 +681,30 @@ static void pa_graphics_deinit(void)
 *                                                                              *
 *******************************************************************************/
 
-/* Get the CGContext for a window and configure it for the current screen */
+/* Map PA drawing mode to CoreGraphics blend mode */
+static CGBlendMode mode2blend(drawmode m)
+{
+    switch (m) {
+    case mdnorm:   return kCGBlendModeNormal;
+    case mdinvis:  return kCGBlendModeNormal; /* caller should skip draw */
+    case mdxor:    return kCGBlendModeDifference;
+    case mdand:    return kCGBlendModeMultiply;
+    case mdor:     return kCGBlendModeScreen;
+    default:       return kCGBlendModeNormal;
+    }
+}
+
+/* Get the CGContext for a window and configure it for the current screen.
+ * Returns NULL if the foreground mode is invisible (caller should skip). */
 static CGContextRef get_ctx(winptr win)
 {
+    scnptr sc = curscn(win);
+    if (sc->fmod == mdinvis) return NULL; /* invisible — skip drawing */
     CGContextRef ctx = pa_cocoa_get_context(win->han);
     if (!ctx) return NULL;
-    scnptr sc = curscn(win);
     CGContextSetLineWidth(ctx, sc->lwidth);
     CGContextSetShouldAntialias(ctx, false); /* crisp lines */
+    CGContextSetBlendMode(ctx, mode2blend(sc->fmod));
     set_fg(ctx, sc->fc);
     return ctx;
 }
@@ -767,12 +784,14 @@ static int draw_char_at(winptr win, char c)
     int py = sc->curyg - 1;
 
     /* fill cell background */
-    if (sc->bmod == mdnorm) {
+    if (sc->bmod != mdinvis) {
+        CGContextSetBlendMode(ctx, mode2blend(sc->bmod));
         CGContextSetRGBFillColor(ctx, sc->bc.r, sc->bc.g, sc->bc.b, 1.0);
         CGContextFillRect(ctx, CGRectMake(px, py, cw, win->linespace));
     }
 
-    /* draw glyph */
+    /* draw glyph (use foreground blend mode) */
+    CGContextSetBlendMode(ctx, mode2blend(sc->fmod));
     char s[2] = { c, 0 };
     CGContextSetRGBFillColor(ctx, sc->fc.r, sc->fc.g, sc->fc.b, 1.0);
     draw_string(ctx, fp, sc, px + 1, py + 1, s, 1);
@@ -1619,8 +1638,93 @@ int ami_chrpos(FILE* f, const char* s, int p)
     return (int)measure_string(sc->font ? sc->font : win->cfont, s, p);
 }
 
-void ami_writejust(FILE* f, const char* s, int n)  { /* stub */ }
-int  ami_justpos(FILE* f, const char* s, int p, int n) { return ami_chrpos(f, s, p); }
+#define MINJST 1 /* minimum pixels for space in justification */
+
+/* Compute justification spacing parameters.
+ * Returns: spc = pixels per space, ss = total space budget remaining. */
+static void just_params(winptr win, const char* s, int n,
+                        int* out_spc, int* out_ss)
+{
+    fontptr fp = curscn(win)->font ? curscn(win)->font : win->cfont;
+    int l = (int)strlen(s);
+    int sz = 0; /* critical size: chars + min space */
+    int ns = 0; /* number of spaces */
+    int cs = 0; /* total character width (no spaces) */
+    for (int i = 0; i < l; i++) {
+        if (s[i] == ' ') { sz += MINJST; ns++; }
+        else {
+            int cw = (int)(measure_string(fp, &s[i], 1) + 0.5);
+            sz += cw;
+            cs += cw;
+        }
+    }
+    int spc = MINJST;
+    int ss = ns * MINJST;
+    if (ns > 0 && n > sz) { spc = (n - cs) / ns; ss = n - cs; }
+    *out_spc = spc;
+    *out_ss  = ss;
+}
+
+void ami_writejust(FILE* f, const char* s, int n)
+{
+    winptr win = f2win(f); if (!win || !s) return;
+    scnptr sc  = curscn(win);
+    fontptr fp = sc->font ? sc->font : win->cfont;
+    int l = (int)strlen(s);
+
+    int spc, ss;
+    just_params(win, s, n, &spc, &ss);
+
+    CGContextRef ctx = pa_cocoa_get_context(win->han);
+    if (!ctx) return;
+
+    for (int i = 0; i < l; i++) {
+        if (s[i] == ' ') {
+            /* advance by justified space width */
+            int cbs = (spc > ss) ? ss : spc;
+            /* draw background for space */
+            if (sc->bmod != mdinvis) {
+                CGContextSetBlendMode(ctx, mode2blend(sc->bmod));
+                CGContextSetRGBFillColor(ctx, sc->bc.r, sc->bc.g, sc->bc.b, 1.0);
+                CGContextFillRect(ctx, CGRectMake(sc->curxg - 1, sc->curyg - 1,
+                                                  cbs, win->linespace));
+                CGContextSetBlendMode(ctx, mode2blend(sc->fmod));
+            }
+            if (spc > ss) sc->curxg += ss;
+            else { sc->curxg += spc; ss -= spc; }
+        } else {
+            /* draw character normally */
+            int cw = draw_char_at(win, s[i]);
+            sc->curxg += cw;
+            sc->curx = (sc->curxg - 1) / win->charspace + 1;
+        }
+    }
+    pa_cocoa_flush(win->han);
+}
+
+int ami_justpos(FILE* f, const char* s, int p, int n)
+{
+    winptr win = f2win(f); if (!win || !s) return 0;
+    fontptr fp = curscn(win)->font ? curscn(win)->font : win->cfont;
+    int l = (int)strlen(s);
+    if (p < 0 || p >= l) return 0;
+
+    int spc, ss;
+    just_params(win, s, n, &spc, &ss);
+
+    int cp = 0;  /* accumulated pixel position */
+    int crp = 0; /* result position */
+    for (int i = 0; i < l; i++) {
+        if (i == p) crp = cp;
+        if (s[i] == ' ') {
+            if (spc > ss) cp += ss;
+            else { cp += spc; ss -= spc; }
+        } else {
+            cp += (int)(measure_string(fp, &s[i], 1) + 0.5);
+        }
+    }
+    return crp;
+}
 
 void ami_condensed(FILE* f, int e)
 {
@@ -1699,11 +1803,95 @@ void ami_bcolorg(FILE* f, int r, int g, int b)
 
 void ami_bcolorc(FILE* f, int r, int g, int b) { ami_bcolorg(f, r, g, b); }
 
-void ami_loadpict(FILE* f, int p, char* fn)      { /* stub */ }
-int  ami_pictsizx(FILE* f, int p)                { return 0; }
-int  ami_pictsizy(FILE* f, int p)                { return 0; }
-void ami_picture(FILE* f, int p, int x1, int y1, int x2, int y2) { /* stub */ }
-void ami_delpict(FILE* f, int p)                 { /* stub */ }
+/* Picture storage */
+static CGImageRef pictbl[MAXPIC]; /* loaded pictures, 1-based index */
+
+/* Set or overwrite extension on a filename */
+static void setext(char* fn, const char* ext)
+{
+    char* p = strrchr(fn, '.');
+    char* s = strrchr(fn, '/');
+    if (p && (!s || p > s)) *p = 0; /* remove existing extension */
+    strcat(fn, ext);
+}
+
+void ami_loadpict(FILE* f, int p, char* fn)
+{
+    winptr win = f2win(f); if (!win) return;
+    if (p < 1 || p > MAXPIC) return;
+
+    /* delete any existing picture in this slot */
+    if (pictbl[p-1]) { CGImageRelease(pictbl[p-1]); pictbl[p-1] = NULL; }
+
+    /* copy filename and add .bmp extension if needed */
+    char fnh[512];
+    strncpy(fnh, fn, sizeof(fnh)-5);
+    fnh[sizeof(fnh)-5] = 0;
+    setext(fnh, ".bmp");
+
+    /* read file into memory */
+    FILE* pf = fopen(fnh, "rb");
+    if (!pf) return;
+    fseek(pf, 0, SEEK_END);
+    long sz = ftell(pf);
+    fseek(pf, 0, SEEK_SET);
+    uint8_t* buf = malloc(sz);
+    if (!buf) { fclose(pf); return; }
+    fread(buf, 1, sz, pf);
+    fclose(pf);
+
+    /* create CGImage via ImageIO (handles BMP natively) */
+    CFDataRef data = CFDataCreate(NULL, buf, sz);
+    free(buf);
+    if (!data) return;
+
+    CGImageSourceRef src = CGImageSourceCreateWithData(data, NULL);
+    CFRelease(data);
+    if (!src) return;
+
+    pictbl[p-1] = CGImageSourceCreateImageAtIndex(src, 0, NULL);
+    CFRelease(src);
+}
+
+int ami_pictsizx(FILE* f, int p)
+{
+    if (p < 1 || p > MAXPIC || !pictbl[p-1]) return 0;
+    return (int)CGImageGetWidth(pictbl[p-1]);
+}
+
+int ami_pictsizy(FILE* f, int p)
+{
+    if (p < 1 || p > MAXPIC || !pictbl[p-1]) return 0;
+    return (int)CGImageGetHeight(pictbl[p-1]);
+}
+
+void ami_picture(FILE* f, int p, int x1, int y1, int x2, int y2)
+{
+    winptr win = f2win(f); if (!win) return;
+    if (p < 1 || p > MAXPIC || !pictbl[p-1]) return;
+    CGContextRef ctx = pa_cocoa_get_context(win->han);
+    if (!ctx) return;
+
+    /* draw the image scaled to fit the bounding box */
+    CGFloat dx = PX(x1), dy = PY(y1);
+    CGFloat dw = x2 - x1 + 1, dh = y2 - y1 + 1;
+
+    /* CGContextDrawImage draws in CG's Y-up coords, but our context is
+     * flipped (Y-down). Save state, flip locally, draw, restore. */
+    CGContextSaveGState(ctx);
+    CGContextTranslateCTM(ctx, dx, dy + dh);
+    CGContextScaleCTM(ctx, 1.0, -1.0);
+    CGContextDrawImage(ctx, CGRectMake(0, 0, dw, dh), pictbl[p-1]);
+    CGContextRestoreGState(ctx);
+
+    pa_cocoa_flush(win->han);
+}
+
+void ami_delpict(FILE* f, int p)
+{
+    if (p < 1 || p > MAXPIC) return;
+    if (pictbl[p-1]) { CGImageRelease(pictbl[p-1]); pictbl[p-1] = NULL; }
+}
 void ami_scrollg(FILE* f, int x, int y)          { /* stub */ }
 void ami_path(FILE* f, int a)                    { /* stub */ }
 

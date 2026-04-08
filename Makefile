@@ -1130,7 +1130,7 @@ testviewer: windows/testviewer.c Makefile
 	$(CC) -g3 windows/testviewer.c -lpng -lz -lgdi32 -o bin/testviewer
 else ifeq ($(OSTYPE),Darwin)
 testviewer: macosx/testviewer.c Makefile
-	$(CC) -g3 -x objective-c -fobjc-arc macosx/testviewer.c \
+	$(CC) -g3 -x objective-c macosx/testviewer.c \
 	    -framework Cocoa -framework CoreGraphics -framework ImageIO \
 	    -o bin/testviewer
 else
