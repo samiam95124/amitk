@@ -4413,6 +4413,7 @@ static void restore(winptr win) /* window to restore */
 
     int rgb;
     scnptr sc;
+    int winw, winh; /* client area size */
 
     sc = win->screens[win->curdsp-1]; /* index screen */
     if (win->bufmod && win->visible)  { /* buffered mode is on, and visible */
@@ -4439,6 +4440,35 @@ static void restore(winptr win) /* window to restore */
         XSetClipMask(padisplay, sc->xcxt, None);
         XCopyArea(padisplay, sc->xbuf, win->xwhan, sc->xcxt, 0, 0,
                   sc->maxxg, sc->maxyg, 0, 0);
+
+        /* if the buffer is smaller than the client area, clear the margins
+           to the background color */
+        winw = win->xwr.w;
+        winh = win->xwr.h;
+        if (sc->maxxg < winw || sc->maxyg < winh) {
+
+            /* set background color as foreground for fill */
+            if (BIT(sarev) & sc->attr)
+                XSetForeground(padisplay, sc->xcxt, sc->fcrgb);
+            else
+                XSetForeground(padisplay, sc->xcxt, sc->bcrgb);
+            /* right margin: from buffer right edge to window right edge,
+               full height */
+            if (sc->maxxg < winw)
+                XFillRectangle(padisplay, win->xwhan, sc->xcxt,
+                               sc->maxxg, 0, winw - sc->maxxg, winh);
+            /* bottom margin: from buffer bottom to window bottom,
+               buffer width only (right strip already covered above) */
+            if (sc->maxyg < winh)
+                XFillRectangle(padisplay, win->xwhan, sc->xcxt,
+                               0, sc->maxyg, sc->maxxg, winh - sc->maxyg);
+            /* restore foreground color */
+            if (BIT(sarev) & sc->attr)
+                XSetForeground(padisplay, sc->xcxt, sc->bcrgb);
+            else
+                XSetForeground(padisplay, sc->xcxt, sc->fcrgb);
+
+        }
         XWUNLOCK();
         curon(win); /* show the cursor */
 
@@ -12693,60 +12723,102 @@ static void sizbufg_ivf(FILE* f, int x, int y)
 
 {
 
-    int            si;  /* index for current display screen */
-    XWindowChanges xwc; /* XWindow values */
-    winptr         win; /* pointer to windows context */
-    XEvent         e;   /* XWindow event */
+    int            si;     /* index for current display screen */
+    winptr         win;    /* pointer to windows context */
+    Pixmap         oldbuf; /* saved old buffer pixmap */
+    int            oldw, oldh; /* old buffer dimensions */
+    int            copyw, copyh; /* intersection to copy */
+    scnptr         sc;     /* screen pointer */
+    ami_evtrec     er;     /* event record for redraws */
+    int            depth;
 
     if (x < 1 || y < 1)  error(einvsiz); /* invalid buffer size */
     win = txt2win(f); /* get window context */
     if (!win->bufmod) error(ebufoff); /* error */
-    /* set buffer size */
+
+    /* save old buffer info from the current display screen */
+    sc = win->screens[win->curdsp-1];
+    oldbuf = sc->xbuf;
+    oldw = sc->maxxg;
+    oldh = sc->maxyg;
+
+    /* set new buffer size */
     win->gmaxx = x/win->charspace; /* find character size x */
     win->gmaxy = y/win->linespace; /* find character size y */
     win->gmaxxg = x; /* set size in pixels x */
     win->gmaxyg = y; /* set size in pixels y */
-    /* all the screen buffers are wrong, so tear them out */
+
+    /* tear out all screen buffers except we detach the current display
+       buffer's pixmap first (we saved it above) */
+    sc->xbuf = 0; /* detach so disscn doesn't free it */
     for (si = 0; si < MAXCON; si++) {
 
-        disscn(win, win->screens[si]);
-        ifree(win->screens[si]); /* free screen data */
-        win->screens[si] = NULL; /* clear screen data */
+        if (win->screens[si]) {
+
+            disscn(win, win->screens[si]);
+            ifree(win->screens[si]); /* free screen data */
+            win->screens[si] = NULL; /* clear screen data */
+
+        }
 
     }
+
+    /* allocate new screen buffer at the new size */
     win->screens[win->curdsp-1] = imalloc(sizeof(scncon));
-    iniscn(win, win->screens[win->curdsp-1]); /* initalize screen buffer */
+    iniscn(win, win->screens[win->curdsp-1]); /* creates new pixmap + clears it */
     if (win->curdsp != win->curupd) { /* also create the update buffer */
 
-        win->screens[win->curupd-1] = imalloc(sizeof(scncon)); /* get the display screen */
-        iniscn(win, win->screens[win->curupd-1]); /* initalize screen buffer */
+        win->screens[win->curupd-1] = imalloc(sizeof(scncon));
+        iniscn(win, win->screens[win->curupd-1]);
 
     }
-    xwc.width = win->gmaxxg; /* set XWindow width and height */
-    xwc.height = win->gmaxyg;
-    if (xwc.width != win->xmwr.w || xwc.height != win->xmwr.h) {
+
+    /* copy the intersection of old and new buffers */
+    sc = win->screens[win->curdsp-1]; /* re-index (iniscn created new sc) */
+    copyw = oldw < x ? oldw : x;
+    copyh = oldh < y ? oldh : y;
+    if (copyw > 0 && copyh > 0) {
 
         XWLOCK();
-        XConfigureWindow(padisplay, win->xmwhan, CWWidth|CWHeight, &xwc);
+        XCopyArea(padisplay, oldbuf, sc->xbuf, sc->xcxt,
+                  0, 0, copyw, copyh, 0, 0);
         XWUNLOCK();
-
-#ifdef WAITWMR
-        /* wait for the configure response with correct sizes */
-        do {
-
-            peekxevt(&e); /* peek next event */
-
-        } while (e.type != ConfigureNotify && e.xconfigure.width != x ||
-                 e.xconfigure.height != y || e.xany.window != win->xmwhan);
-#endif
-
-        /* set new size */
-        win->xmwr.w = win->gmaxxg;
-        win->xmwr.h = win->gmaxyg;
 
     }
 
-    restore(win); /* restore buffer to screen */
+    /* release the old buffer pixmap */
+    XWLOCK();
+    XFreePixmap(padisplay, oldbuf);
+    XWUNLOCK();
+
+    /* restore buffer to screen (handles margins if buffer < window) */
+    restore(win);
+
+    /* generate redraw events for newly exposed areas of the buffer
+       (areas in the new buffer not covered by the old buffer) */
+    if (x > oldw) {
+
+        /* right strip: from old width to new width, full new height */
+        er.etype = ami_etredraw;
+        er.rsx = oldw + 1;
+        er.rsy = 1;
+        er.rex = x;
+        er.rey = y;
+        isendevent(win, &er);
+
+    }
+    if (y > oldh) {
+
+        /* bottom strip: from old height to new height, old width only
+           (right strip already covered above) */
+        er.etype = ami_etredraw;
+        er.rsx = 1;
+        er.rsy = oldh + 1;
+        er.rex = oldw < x ? oldw : x;
+        er.rey = y;
+        isendevent(win, &er);
+
+    }
 
 }
 
