@@ -99,7 +99,7 @@
 #define NOCANCEL /* include nocancel overrides */
 #endif
 
-#define MAXFIL 100 /* maximum number of open files */
+#define MAXFIL 1000 /* maximum number of open files */
 #define COOKIE_SECRET_LENGTH 16 /* length of secret cookie */
 #define CVBUFSIZ 4096 /* certificate value buffer size */
 

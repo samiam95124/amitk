@@ -174,7 +174,7 @@ static enum { /* debug levels */
 #define MAXTAB 50  /* total number of tabs possible per screen */
 #define MAXPIC 50  /* total number of loadable pictures */
 #define MAXLIN 250 /* maximum length of input bufferred line */
-#define MAXFIL 100 /* maximum open files */
+#define MAXFIL 1000 /* maximum open files */
 #define MINJST 1   /* minimum pixels for space in justification */
 #define MAXFNM 250 /* number of filename characters in buffer */
 #define MAXJOY 10  /* number of joysticks possible */
@@ -2662,13 +2662,14 @@ void getfonts(void)
     FcChar8*     fcfile;
     int          fcweight, fcslant, fcwidth, fcspacing, fcindex;
     FcBool       fcscalable;
+    FcCharSet*   fccs;
 
     /* query fontconfig for all scalable fonts */
     pat = FcPatternCreate();
     FcPatternAddBool(pat, FC_SCALABLE, FcTrue);
     os = FcObjectSetBuild(FC_FAMILY, FC_FOUNDRY, FC_STYLE, FC_WEIGHT,
                           FC_SLANT, FC_WIDTH, FC_SPACING, FC_FILE, FC_INDEX,
-                          NULL);
+                          FC_CHARSET, NULL);
     fs = FcFontList(NULL, pat, os);
     FcObjectSetDestroy(os);
     FcPatternDestroy(pat);
@@ -2685,6 +2686,14 @@ void getfonts(void)
             continue;
         if (FcPatternGetString(font, FC_FILE, 0, &fcfile) != FcResultMatch)
             continue;
+
+        /* skip fonts that don't cover basic Latin (A-Z, a-z) */
+        if (FcPatternGetCharSet(font, FC_CHARSET, 0, &fccs) == FcResultMatch) {
+
+            if (!FcCharSetHasChar(fccs, 'A') || !FcCharSetHasChar(fccs, 'z'))
+                continue;
+
+        }
 
         /* get foundry, default to empty */
         if (FcPatternGetString(font, FC_FOUNDRY, 0, &fcfoundry) != FcResultMatch)
