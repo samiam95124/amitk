@@ -584,8 +584,8 @@ all: dumpmidi play playg keyboard keyboardg playmidi playmidig playwave \
      getmailg fakemail gettys gettysg msgclient msgclientg msgserver msgserverg \
      prtcertnet prtcertnetg prtcertmsg prtcertmsgg \
      prtconfig prtconfigg pixel ball1 ball2 ball3 ball4 ball5 ball6 line1 line2 \
-     line4 line5 clock
-    
+     line4 line5 clock calc
+
 else ifeq ($(OSTYPE),Darwin)
 
 #
@@ -600,7 +600,7 @@ all: dumpmidi play playg keyboard keyboardg playmidi playmidig playwave \
      getmailg fakemail gettys gettysg msgclient msgclientg msgserver msgserverg \
      prtcertnet prtcertnetg prtcertmsg prtcertmsgg listcertnet listcertnetg \
      prtconfig prtconfigg pixel ball1 ball2 ball3 ball4 ball5 ball6 line1 \
-     line2 line4 line5 clock
+     line2 line4 line5 clock calc
 
 else ifeq ($(OSTYPE),FreeBSD)
 
@@ -616,7 +616,7 @@ all: dumpmidi play playg keyboard keyboardg playmidi playmidig playwave \
      getmailg fakemail gettys gettysg msgclient msgclientg msgserver msgserverg \
      prtcertnet prtcertnetg prtcertmsg prtcertmsgg listcertnet listcertnetg \
      prtconfig prtconfigg pixel ball1 ball2 ball3 ball4 ball5 ball6 line1 \
-     line2 line4 line5 clock
+     line2 line4 line5 clock calc
     
 else
 
@@ -632,7 +632,7 @@ all: dumpmidi play playg keyboard keyboardg playmidi playmidig playwave \
      getmailg fakemail gettys gettysg msgclient msgclientg msgserver msgserverg \
      prtcertnet prtcertnetg prtcertmsg prtcertmsgg listcertnet listcertnetg \
      prtconfig prtconfigg pixel ball1 ball2 ball3 ball4 ball5 ball6 line1 \
-     line2 line4 line5 clock
+     line2 line4 line5 clock calc
     
 endif 
 
@@ -1397,6 +1397,12 @@ clock: $(GLIBSD) graph_programs/clock.c
 	$(CC) $(CFLAGS) graph_programs/clock.c $(GLIBS) -o bin/clock
 
 #
+# Calculator
+#
+calc: $(GLIBSD) graph_programs/calc.c
+	$(CC) $(CFLAGS) graph_programs/calc.c $(GLIBS) -o bin/calc
+
+#
 # Chess game
 #
 chess: $(GLIBSD) graph_games/chess.c
@@ -1449,7 +1455,7 @@ clean:
 	rm -f bin/listcertnetg bin/prtconfig bin/prtconfigg bin/pixel bin/ball1
 	rm -f bin/ball2 bin/ball3 bin/ball4 bin/ball5 bin/ball6 bin/line1 bin/line2
 	rm -f bin/line4 bin/line5
-	rm -f bin/services_test1 bin/connectnet bin/connectnetg bin/clock
+	rm -f bin/services_test1 bin/connectnet bin/connectnetg bin/clock bin/calc
 	find . -name "*.o" -type f -delete
 	rm -f lib/*.a
 	rm -f lib/*.so
