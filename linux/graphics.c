@@ -178,6 +178,16 @@ static enum { /* debug levels */
 #define MINJST 1   /* minimum pixels for space in justification */
 #define MAXFNM 250 /* number of filename characters in buffer */
 #define MAXJOY 10  /* number of joysticks possible */
+
+/* child frame dimensions (Ami-drawn frames for child windows).
+   Title bar height is based on the window's font line height so it scales
+   with text size; border and button sizes are proportional to title bar. */
+#define CFRM_TITBAR_H(win)  ((int)((win)->linespace * 2.2))
+#define CFRM_BORDER_W       4  /* resize border width in pixels */
+#define CFRM_BUTTON_SZ(win) ((int)((win)->linespace * 1.1))
+#define CFRM_BUTTON_GAP     6  /* gap between buttons */
+#define CFRM_BUTTON_MG      8  /* button margin from edge */
+#define CFRM_TITLE_SZ(win)  ((int)((win)->gfhigh * 1.15))
 #define MAXSID 100 /* number of possible logical system events */
 /* extra space to add in x/y for initial window */
 #ifdef __MACH__ /* Mac OS X */
@@ -587,6 +597,9 @@ typedef struct winrec {
                                        origin x */
     int          cwoy;              /* client window offset from parent
                                        origin y */
+    int          childfrm;          /* TRUE if using Ami-drawn child frame */
+    char*        wintitle;          /* window title string (for child frames) */
+    GC           frmgc;             /* GC for drawing on xmwhan (child frame) */
 
 } winrec;
 
@@ -4400,6 +4413,132 @@ static void cursts(winptr win)
 
 /** ****************************************************************************
 
+Draw child window frame
+
+Renders the Ami-drawn frame chrome on xmwhan for child windows. This includes
+the title bar, close button, and resize border. Called after restore() and on
+Expose events for xmwhan.
+
+*******************************************************************************/
+
+static void childfrm_draw(winptr win)
+
+{
+
+    int mw, mh;       /* master window dimensions */
+    int tbh;          /* title bar height */
+    int bsz;          /* button diameter */
+    int by;           /* button y position */
+    int bx_close;     /* close button x */
+    int bx_max;       /* maximize button x */
+    int bx_min;       /* minimize button x */
+    int tlen;         /* title text pixel length */
+    int title_size;   /* title font pixel size */
+    int corner_r;     /* outer corner radius */
+
+    if (!win->childfrm || !win->frmgc) return;
+
+    /* query the actual master window geometry rather than trust xmwr,
+       which may be stale or off by a pixel after various resize paths */
+    {
+        Window root_ret;
+        int rx, ry;
+        unsigned int rw, rh, bw, dp;
+        XGetGeometry(padisplay, win->xmwhan, &root_ret,
+                     &rx, &ry, &rw, &rh, &bw, &dp);
+        mw = (int)rw;
+        mh = (int)rh;
+    }
+    tbh = CFRM_TITBAR_H(win);
+    bsz = CFRM_BUTTON_SZ(win);
+    title_size = CFRM_TITLE_SZ(win);
+    corner_r = tbh / 3;
+
+    XWLOCK();
+
+    /* fill master frame background. Only the top-left and top-right corners
+       are rounded; bottom corners remain square because they sit against the
+       rectangular client area. We draw the body inset by corner_r at the top,
+       a full-width strip below, then 2 filled circles for the top corners. */
+    XSetForeground(padisplay, win->frmgc, 0x303030); /* dark frame bg */
+
+    /* top strip between the two top corner caps */
+    XFillRectangle(padisplay, win->xmwhan, win->frmgc,
+                   corner_r, 0, mw - corner_r*2, corner_r);
+    /* left edge of top corner area (height = corner_r) */
+    XFillRectangle(padisplay, win->xmwhan, win->frmgc,
+                   0, corner_r, corner_r, 0); /* placeholder, no body */
+    /* full body below the top corner row */
+    XFillRectangle(padisplay, win->xmwhan, win->frmgc,
+                   0, corner_r, mw, mh - corner_r);
+
+    /* 2 top corner circles (only the top half is visible due to fill above) */
+    XFillArc(padisplay, win->xmwhan, win->frmgc,
+             0, 0, corner_r*2, corner_r*2, 0, 360*64);
+    XFillArc(padisplay, win->xmwhan, win->frmgc,
+             mw - corner_r*2, 0, corner_r*2, corner_r*2, 0, 360*64);
+
+    /* draw title text - centered, using FreeType for native font rendering */
+    if (win->wintitle && win->wintitle[0] && win->ftface) {
+
+        int len = strlen(win->wintitle);
+        tlen = ft_text_width(win->ftface, win->wintitle, len);
+        int tx = (mw - tlen) / 2;
+        int ty = (tbh + title_size) / 2 - 2;
+        XSetForeground(padisplay, win->frmgc, 0xffffff); /* white text */
+        ft_draw_string(win->xmwhan, win->frmgc, win->ftface, title_size,
+                       tx, ty, win->wintitle, len);
+
+    }
+
+    /* button row layout: minimize | maximize | close, right-aligned */
+    by = (tbh - bsz) / 2;
+    bx_close = mw - bsz - CFRM_BUTTON_MG;
+    bx_max   = bx_close - bsz - CFRM_BUTTON_GAP;
+    bx_min   = bx_max   - bsz - CFRM_BUTTON_GAP;
+
+    /* draw minimize button (gray circle with horizontal line) */
+    XSetForeground(padisplay, win->frmgc, 0x606060);
+    XFillArc(padisplay, win->xmwhan, win->frmgc,
+             bx_min, by, bsz, bsz, 0, 360*64);
+    XSetForeground(padisplay, win->frmgc, 0xffffff);
+    XSetLineAttributes(padisplay, win->frmgc, 2, LineSolid, CapButt, JoinMiter);
+    XDrawLine(padisplay, win->xmwhan, win->frmgc,
+              bx_min + bsz/4, by + bsz - bsz/3,
+              bx_min + bsz - bsz/4, by + bsz - bsz/3);
+
+    /* draw maximize button (gray circle with square outline) */
+    XSetForeground(padisplay, win->frmgc, 0x606060);
+    XFillArc(padisplay, win->xmwhan, win->frmgc,
+             bx_max, by, bsz, bsz, 0, 360*64);
+    XSetForeground(padisplay, win->frmgc, 0xffffff);
+    XDrawRectangle(padisplay, win->xmwhan, win->frmgc,
+                   bx_max + bsz/4, by + bsz/4,
+                   bsz - bsz/2, bsz - bsz/2);
+
+    /* draw close button (gray circle with white X) */
+    XSetForeground(padisplay, win->frmgc, 0x606060);
+    XFillArc(padisplay, win->xmwhan, win->frmgc,
+             bx_close, by, bsz, bsz, 0, 360*64);
+    XSetForeground(padisplay, win->frmgc, 0xffffff);
+    {
+        int margin = bsz / 4;
+        XDrawLine(padisplay, win->xmwhan, win->frmgc,
+                  bx_close + margin, by + margin,
+                  bx_close + bsz - margin - 1, by + bsz - margin - 1);
+        XDrawLine(padisplay, win->xmwhan, win->frmgc,
+                  bx_close + bsz - margin - 1, by + margin,
+                  bx_close + margin, by + bsz - margin - 1);
+    }
+    XSetLineAttributes(padisplay, win->frmgc, 1, LineSolid, CapButt, JoinMiter);
+
+    XFlush(padisplay);
+    XWUNLOCK();
+
+}
+
+/** ****************************************************************************
+
 Restore screen
 
 Updates all the buffer and screen parameters from the display screen to the
@@ -4471,6 +4610,9 @@ static void restore(winptr win) /* window to restore */
         }
         XWUNLOCK();
         curon(win); /* show the cursor */
+
+        /* redraw Ami-drawn child frame if applicable */
+        if (win->childfrm) childfrm_draw(win);
 
     }
 
@@ -4828,6 +4970,9 @@ static void opnwin(int fn, int pfn, int wid, int subclient)
     win->visible = FALSE; /* set not visible */
     win->winstate = 0; /* set normal window */
     win->lwinstate = 0;
+    win->childfrm = FALSE; /* set no Ami-drawn child frame */
+    win->wintitle = NULL; /* no title */
+    win->frmgc = 0; /* no frame GC */
 
     /* set up global buffer parameters */
     win->gmaxx = maxxd; /* character max dimensions */
@@ -4924,32 +5069,74 @@ static void opnwin(int fn, int pfn, int wid, int subclient)
     XSetWMProtocols(padisplay, win->xmwhan, &win->delmsg, 1);
     XWUNLOCK();
 
-    /* create subclient window */
-    win->xwr.x = 0; /* set current rectangle */
-    win->xwr.y = 0;
+    /* set up child frame or WM frame parameters */
+    if (pwin && subclient) {
+
+        /* child window: Ami draws its own frame on xmwhan */
+        win->childfrm = TRUE;
+        win->pfw = CFRM_BORDER_W * 2;
+        win->pfh = CFRM_TITBAR_H(win) + CFRM_BORDER_W;
+        win->cwox = CFRM_BORDER_W;
+        win->cwoy = CFRM_TITBAR_H(win);
+
+        /* size master to include frame around client area */
+        XWLOCK();
+        XResizeWindow(padisplay, win->xmwhan,
+                      win->gmaxxg + win->pfw,
+                      win->gmaxyg + win->pfh);
+        XWUNLOCK();
+        win->xmwr.w = win->gmaxxg + win->pfw;
+        win->xmwr.h = win->gmaxyg + win->pfh;
+
+    } else {
+
+        /* top-level window: WM provides the frame */
+        win->childfrm = FALSE;
+        win->pfw = frmextwdt[frmcfgall];
+        win->pfh = frmexthgt[frmcfgall];
+        win->cwox = frmoffx[frmcfgall];
+        win->cwoy = frmoffy[frmcfgall];
+
+    }
+
+    /* create subclient window, offset by frame dimensions */
+    win->xwr.x = win->childfrm ? win->cwox : 0;
+    win->xwr.y = win->childfrm ? win->cwoy : 0;
     win->xwr.w = win->gmaxxg;
     win->xwr.h = win->gmaxyg;
     win->xwhan = createwindow(win->xmwhan, win->xwr.x, win->xwr.y,
                                            win->xwr.w, win->xwr.h);
 
-//dbg_printf(dlinfo, "master: %lx subclient: %lx\n", win->xmwhan, win->xwhan);
-    /* find and save the frame parameters from the immediate/parent window.
-       This may not work on some window managers */
+    /* create GC for drawing on xmwhan (used for child frame rendering) */
+    if (win->childfrm) {
 
-    /* find net extra width of frame from client area */
-    win->pfw = frmextwdt[frmcfgall];
-    win->pfh = frmexthgt[frmcfgall];
-    /* find offset from parent origin to client origin */
-    win->cwox = frmoffx[frmcfgall];
-    win->cwoy = frmoffy[frmcfgall];
+        XWLOCK();
+        win->frmgc = XCreateGC(padisplay, win->xmwhan, 0, NULL);
+        XWUNLOCK();
 
-    /* set window title from program name */
+    }
+
+    /* set window title */
     XWLOCK();
+    if (win->childfrm) {
+
+        /* store title for Ami-drawn frame */
 #if defined(__MACH__) || defined(__FreeBSD__)
-    XStoreName(padisplay, win->xmwhan, getprogname());
+        win->wintitle = strdup(getprogname());
 #else
-    XStoreName(padisplay, win->xmwhan, program_invocation_short_name);
+        win->wintitle = strdup(program_invocation_short_name);
 #endif
+
+    } else {
+
+        /* set WM title for top-level windows */
+#if defined(__MACH__) || defined(__FreeBSD__)
+        XStoreName(padisplay, win->xmwhan, getprogname());
+#else
+        XStoreName(padisplay, win->xmwhan, program_invocation_short_name);
+#endif
+
+    }
     XWUNLOCK();
 
     iniscn(win, win->screens[0]); /* initalize screen buffer */
@@ -11532,7 +11719,14 @@ static void xwinevt(winptr win, ami_evtrec* er, XEvent* e, int* keep)
     winptr         fwin; /* focus window */
 
     sc = win->screens[win->curdsp-1]; /* index screen */
-    if (e->type == Expose && win->xmwhan != e->xany.window) {
+
+    /* handle Expose on xmwhan for child-framed windows: repaint the frame */
+    if (e->type == Expose && win->childfrm &&
+        win->xmwhan == e->xany.window) {
+
+        childfrm_draw(win);
+
+    } else if (e->type == Expose && win->xmwhan != e->xany.window) {
 
         if (win->bufmod) { /* use buffer to satisfy event */
 
@@ -11614,17 +11808,39 @@ static void xwinevt(winptr win, ami_evtrec* er, XEvent* e, int* keep)
 
         if (win->xmwhan == e->xany.window) { /* it's the master window */
 
+            /* update master window tracking dimensions */
+            win->xmwr.w = e->xconfigure.width;
+            win->xmwr.h = e->xconfigure.height;
             /* find size of subclient */
             xwc.width = e->xconfigure.width; /* set frameless offset to client */
             xwc.height = e->xconfigure.height;
+            /* for child-framed windows, subtract frame thickness */
+            if (win->childfrm) {
+
+                xwc.width -= win->pfw;
+                xwc.height -= win->pfh;
+
+            }
             if (win->menu) /* if menu is active, remove that space from subclient */
-                xwc.height = e->xconfigure.height-win->menuspcy;
+                xwc.height -= win->menuspcy;
+            if (xwc.width <= 0) xwc.width = 1; /* set minimum width */
             if (xwc.height <= 0) xwc.height = 1; /* set minimum height */
             /* check subclient window has changed size */
             if (xwc.width != win->xwr.w || xwc.height != win->xwr.h) {
 
                 XWLOCK();
-                XConfigureWindow(padisplay, win->xwhan, CWWidth|CWHeight, &xwc);
+                if (win->childfrm) {
+
+                    /* keep the subclient offset by the frame thickness */
+                    XMoveResizeWindow(padisplay, win->xwhan,
+                                      win->cwox, win->cwoy,
+                                      xwc.width, xwc.height);
+
+                } else {
+
+                    XConfigureWindow(padisplay, win->xwhan, CWWidth|CWHeight, &xwc);
+
+                }
                 XWUNLOCK();
 #ifdef WAITWMR
                 /* wait for the configure response with correct sizes */
@@ -11664,6 +11880,9 @@ static void xwinevt(winptr win, ami_evtrec* er, XEvent* e, int* keep)
                 }
 
             }
+
+            /* redraw child frame after master resize */
+            if (win->childfrm) childfrm_draw(win);
 
         } else { /* its the subclient window */
 
@@ -11836,6 +12055,140 @@ static void xwinevt(winptr win, ami_evtrec* er, XEvent* e, int* keep)
             case XK_Control_R: ctrlr = FALSE; break;  /* Right control */
             case XK_Alt_L:     altl = FALSE; break;  /* Left alt */
             case XK_Alt_R:     altr = FALSE; break;  /* Right alt */
+
+        }
+
+    } else if (win->childfrm && win->xmwhan == e->xany.window &&
+               (e->type == ButtonPress || e->type == ButtonRelease ||
+                e->type == MotionNotify)) {
+
+        /* child frame mouse interaction: title bar drag, close button, resize */
+        if (e->type == ButtonPress && e->xbutton.button == Button1) {
+
+            int mx = e->xbutton.x;
+            int my = e->xbutton.y;
+            int mw = win->xmwr.w;
+            int tbh = CFRM_TITBAR_H(win);
+            int bsz = CFRM_BUTTON_SZ(win);
+
+            /* hit test: close button */
+            int cbx = mw - bsz - CFRM_BUTTON_MG;
+            int cby = (tbh - bsz) / 2;
+            if (mx >= cbx && mx < cbx + bsz &&
+                my >= cby && my < cby + bsz) {
+
+                /* close button clicked: send terminate */
+                er->etype = ami_etterm;
+                *keep = TRUE;
+
+            } else if (my < tbh) {
+
+                /* title bar: initiate drag */
+                int startx = e->xbutton.x_root;
+                int starty = e->xbutton.y_root;
+                int origx = win->xmwr.x;
+                int origy = win->xmwr.y;
+                XEvent de;
+                int dragging = TRUE;
+
+                /* grab pointer for drag tracking */
+                XWLOCK();
+                XGrabPointer(padisplay, win->xmwhan, False,
+                             ButtonReleaseMask | PointerMotionMask,
+                             GrabModeAsync, GrabModeAsync,
+                             None, None, CurrentTime);
+                XWUNLOCK();
+
+                while (dragging) {
+
+                    XWLOCK();
+                    XNextEvent(padisplay, &de);
+                    XWUNLOCK();
+                    if (de.type == MotionNotify) {
+
+                        int dx = de.xmotion.x_root - startx;
+                        int dy = de.xmotion.y_root - starty;
+                        win->xmwr.x = origx + dx;
+                        win->xmwr.y = origy + dy;
+                        XWLOCK();
+                        XMoveWindow(padisplay, win->xmwhan,
+                                    win->xmwr.x, win->xmwr.y);
+                        XWUNLOCK();
+
+                    } else if (de.type == ButtonRelease) {
+
+                        dragging = FALSE;
+
+                    }
+
+                }
+                XWLOCK();
+                XUngrabPointer(padisplay, CurrentTime);
+                XWUNLOCK();
+
+            } else if (my >= win->xmwr.h - CFRM_BORDER_W ||
+                       mx >= win->xmwr.w - CFRM_BORDER_W) {
+
+                /* resize edge: initiate resize (bottom-right corner/edges) */
+                int startx = e->xbutton.x_root;
+                int starty = e->xbutton.y_root;
+                int origw = win->xmwr.w;
+                int origh = win->xmwr.h;
+                XEvent de;
+                int resizing = TRUE;
+
+                XWLOCK();
+                XGrabPointer(padisplay, win->xmwhan, False,
+                             ButtonReleaseMask | PointerMotionMask,
+                             GrabModeAsync, GrabModeAsync,
+                             None, None, CurrentTime);
+                XWUNLOCK();
+
+                while (resizing) {
+
+                    XWLOCK();
+                    XNextEvent(padisplay, &de);
+                    XWUNLOCK();
+                    if (de.type == MotionNotify) {
+
+                        int dx = de.xmotion.x_root - startx;
+                        int dy = de.xmotion.y_root - starty;
+                        int nw = origw + dx;
+                        int nh = origh + dy;
+                        /* enforce minimums */
+                        if (nw < win->pfw + 40) nw = win->pfw + 40;
+                        if (nh < win->pfh + 40) nh = win->pfh + 40;
+                        win->xmwr.w = nw;
+                        win->xmwr.h = nh;
+                        win->xwr.w = nw - win->pfw;
+                        win->xwr.h = nh - win->pfh;
+                        XWLOCK();
+                        XResizeWindow(padisplay, win->xmwhan, nw, nh);
+                        XResizeWindow(padisplay, win->xwhan,
+                                      win->xwr.w, win->xwr.h);
+                        XWUNLOCK();
+                        childfrm_draw(win);
+
+                    } else if (de.type == ButtonRelease) {
+
+                        resizing = FALSE;
+
+                    }
+
+                }
+                XWLOCK();
+                XUngrabPointer(padisplay, CurrentTime);
+                XWUNLOCK();
+
+                /* send resize event to the client */
+                er->etype = ami_etresize;
+                er->rszx = win->xwr.w / win->charspace;
+                er->rszy = win->xwr.h / win->linespace;
+                er->rszxg = win->xwr.w;
+                er->rszyg = win->xwr.h;
+                *keep = TRUE;
+
+            }
 
         }
 
@@ -12571,10 +12924,22 @@ static void title_ivf(FILE* f, char* ts)
     winptr win; /* windows record pointer */
 
     win = txt2win(f); /* get window from file */
-    XWLOCK();
-    XStoreName(padisplay, win->xmwhan, ts);
-    XSetIconName(padisplay, win->xwhan, ts);
-    XWUNLOCK();
+    if (win->childfrm) {
+
+        /* Ami-drawn child frame: store title and repaint frame */
+        if (win->wintitle) free(win->wintitle);
+        win->wintitle = strdup(ts);
+        childfrm_draw(win);
+
+    } else {
+
+        /* top-level: set WM title */
+        XWLOCK();
+        XStoreName(padisplay, win->xmwhan, ts);
+        XSetIconName(padisplay, win->xwhan, ts);
+        XWUNLOCK();
+
+    }
 
 }
 
@@ -13578,18 +13943,42 @@ static void setsizg_ivf(FILE* f, int x, int y)
 
         /* reconfigure window */
         XWLOCK();
-        XConfigureWindow(padisplay, win->xmwhan, CWWidth|CWHeight, &xwc);
+        if (win->childfrm) {
+
+            /* For child-framed windows: x/y are total master dimensions.
+               Master = x,y. Subclient = (x-pfw, y-pfh) at offset (cwox,cwoy). */
+            XResizeWindow(padisplay, win->xmwhan, x, y);
+            XMoveResizeWindow(padisplay, win->xwhan,
+                              win->cwox, win->cwoy,
+                              xwc.width, xwc.height);
+            win->xmwr.w = x;
+            win->xmwr.h = y;
+            win->xwr.x = win->cwox;
+            win->xwr.y = win->cwoy;
+            win->xwr.w = xwc.width;
+            win->xwr.h = xwc.height;
+
+        } else {
+
+            XConfigureWindow(padisplay, win->xmwhan, CWWidth|CWHeight, &xwc);
+            /* set new size */
+            win->xmwr.w = xwc.width;
+            win->xmwr.h = xwc.height;
+
+        }
         XWUNLOCK();
 
-        /* set new size */
-        win->xmwr.w = xwc.width;
-        win->xmwr.h = xwc.height;
+        if (win->childfrm) childfrm_draw(win);
 
 #ifdef WAITWMR
-        /* wait for the configure response with correct sizes */
-        do { peekxevt(&e); /* peek next event */
-        } while (e.type != ConfigureNotify || e.xconfigure.width != xwc.width ||
-                 e.xconfigure.height != xwc.height || e.xany.window != win->xmwhan);
+        /* wait for the configure response with correct sizes (top-level only;
+           child-framed windows resize synchronously above and don't get
+           ConfigureNotify from a window manager) */
+        if (!win->childfrm) {
+            do { peekxevt(&e); /* peek next event */
+            } while (e.type != ConfigureNotify || e.xconfigure.width != xwc.width ||
+                     e.xconfigure.height != xwc.height || e.xany.window != win->xmwhan);
+        }
 #endif
 
         /* because this event may not reach ami_event() for some time, we have to
@@ -13964,41 +14353,77 @@ static void frame_ivf(FILE* f, int e)
     win->size = FALSE;
     win->sysbar = FALSE;
     win->frame = !!e; /* set new status of frame */
-    enbxfrm(win->xmwhan, e); /* enable/disable frame */
 
-    if (e) {
+    if (win->childfrm) {
 
-        /* find net extra width of frame from client area */
-        win->pfw = frmextwdt[frmcfgall];
-        win->pfh = frmexthgt[frmcfgall];
-        /* find offset from parent origin to client origin */
-        win->cwox = frmoffx[frmcfgall];
-        win->cwoy = frmoffy[frmcfgall];
+        /* Ami-drawn child frame: adjust offsets and geometry */
+        if (e) {
+
+            win->pfw = CFRM_BORDER_W * 2;
+            win->pfh = CFRM_TITBAR_H(win) + CFRM_BORDER_W;
+            win->cwox = CFRM_BORDER_W;
+            win->cwoy = CFRM_TITBAR_H(win);
+
+        } else {
+
+            win->pfw = 0;
+            win->pfh = 0;
+            win->cwox = 0;
+            win->cwoy = 0;
+
+        }
+
+        if (chg) {
+
+            /* resize master window */
+            win->xmwr.w = win->gmaxxg + win->pfw;
+            win->xmwr.h = win->gmaxyg + win->pfh;
+            XWLOCK();
+            XResizeWindow(padisplay, win->xmwhan,
+                          win->xmwr.w, win->xmwr.h);
+            /* reposition subclient within master */
+            XMoveWindow(padisplay, win->xwhan, win->cwox, win->cwoy);
+            XWUNLOCK();
+
+            restore(win);
+
+        }
 
     } else {
 
-        /* find net extra width of frame from client area */
-        win->pfw = frmextwdt[frmcfgfrm];
-        win->pfh = frmexthgt[frmcfgfrm];
-        /* find offset from parent origin to client origin */
-        win->cwox = frmoffx[frmcfgfrm];
-        win->cwoy = frmoffy[frmcfgfrm];
+        /* top-level: use WM frame */
+        enbxfrm(win->xmwhan, e); /* enable/disable frame */
 
-    }
+        if (e) {
 
-    if (chg) { /* geometry has changed */
+            win->pfw = frmextwdt[frmcfgall];
+            win->pfh = frmexthgt[frmcfgall];
+            win->cwox = frmoffx[frmcfgall];
+            win->cwoy = frmoffy[frmcfgall];
 
-        xwc.width = win->gmaxxg; /* set XWindow width and height */
-        xwc.height = win->gmaxyg;
-        XWLOCK();
-        XConfigureWindow(padisplay, win->xmwhan, CWWidth|CWHeight, &xwc);
-        XWUNLOCK();
+        } else {
 
-        /* set new size */
-        win->xmwr.w = win->gmaxxg;
-        win->xmwr.h = win->gmaxyg;
+            win->pfw = frmextwdt[frmcfgfrm];
+            win->pfh = frmexthgt[frmcfgfrm];
+            win->cwox = frmoffx[frmcfgfrm];
+            win->cwoy = frmoffy[frmcfgfrm];
 
-        restore(win); /* restore buffer to screen */
+        }
+
+        if (chg) {
+
+            xwc.width = win->gmaxxg;
+            xwc.height = win->gmaxyg;
+            XWLOCK();
+            XConfigureWindow(padisplay, win->xmwhan, CWWidth|CWHeight, &xwc);
+            XWUNLOCK();
+
+            win->xmwr.w = win->gmaxxg;
+            win->xmwr.h = win->gmaxyg;
+
+            restore(win);
+
+        }
 
     }
 
