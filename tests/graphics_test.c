@@ -332,7 +332,7 @@ static void waitnext(void)
     ami_title(stdout, titlebuf);
 
     /* capture test screens */
-    /* screen_capture(); */
+    screen_capture();
 
     do { ami_event(stdin, &er); }
     while (er.etype != ami_etenter && er.etype != ami_etterm);
