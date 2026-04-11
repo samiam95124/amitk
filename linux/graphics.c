@@ -3078,7 +3078,20 @@ void setfnt(winptr win)
 
     /* extract metrics */
     win->charspace = (int)(win->ftface->size->metrics.max_advance >> 6);
-    win->linespace = win->gfhigh;
+    {
+        /* Line height must accommodate the full font: ascender + descender.
+           If we use only gfhigh, tall glyphs can extend above the cell and
+           leave trails when cells are overwritten. */
+        int ascender  = (int)(win->ftface->size->metrics.ascender  >> 6);
+        int descender = (int)(win->ftface->size->metrics.descender >> 6);
+        if (descender < 0) descender = -descender;
+        int line_h    = (int)(win->ftface->size->metrics.height >> 6);
+        int full_h    = ascender + descender;
+        /* take the larger of the font's declared line height and
+           ascender+descender to be safe against clipping */
+        win->linespace = line_h > full_h ? line_h : full_h;
+        if (win->linespace < win->gfhigh) win->linespace = win->gfhigh;
+    }
     win->chrspcx = 0;
     win->chrspcy = 0;
     win->baseoff = (int)(win->ftface->size->metrics.ascender >> 6);
