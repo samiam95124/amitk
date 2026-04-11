@@ -74,6 +74,7 @@
 #include <X11/keysym.h>
 #include <X11/Xutil.h>
 #include <X11/Xatom.h>
+#include <X11/cursorfont.h>
 
 /* whitebook definitions */
 #include <stdlib.h>
@@ -1138,6 +1139,17 @@ static pthread_mutex_t xwlock; /* XWindow call lock */
  */
 static Display*   padisplay;      /* current display */
 static int        pascreen;       /* current screen */
+
+/* cursors used by child-frame edge resize feedback (created lazily) */
+static Cursor cfrm_cursor_left     = 0;
+static Cursor cfrm_cursor_right    = 0;
+static Cursor cfrm_cursor_top      = 0;
+static Cursor cfrm_cursor_bottom   = 0;
+static Cursor cfrm_cursor_btmleft  = 0;
+static Cursor cfrm_cursor_btmright = 0;
+static Cursor cfrm_cursor_topleft  = 0;
+static Cursor cfrm_cursor_topright = 0;
+static Cursor cfrm_cursor_arrow    = 0;
 static int        ctrll, ctrlr;   /* control key active */
 static int        shiftl, shiftr; /* shift key active */
 static int        altl, altr;     /* alt key active */
@@ -4418,6 +4430,56 @@ static void cursts(winptr win)
 
     }
 
+}
+
+/** ****************************************************************************
+
+Update cursor for child frame mouse position
+
+Sets the appropriate cursor shape on xmwhan based on which edge (if any) the
+mouse is hovering over. Standard arrow when not on a resize edge, edge-specific
+arrow on borders, diagonal arrow on corners.
+
+*******************************************************************************/
+
+static void childfrm_set_cursor(winptr win, int mx, int my)
+{
+    int mw = win->xmwr.w;
+    int mh = win->xmwr.h;
+    int on_left   = (mx < CFRM_BORDER_W);
+    int on_right  = (mx >= mw - CFRM_BORDER_W);
+    int on_top    = (my < CFRM_BORDER_W);
+    int on_bottom = (my >= mh - CFRM_BORDER_W);
+    Cursor c;
+
+    /* lazy-init cursors on first use */
+    if (!cfrm_cursor_arrow) {
+        XWLOCK();
+        cfrm_cursor_arrow    = XCreateFontCursor(padisplay, XC_left_ptr);
+        cfrm_cursor_left     = XCreateFontCursor(padisplay, XC_left_side);
+        cfrm_cursor_right    = XCreateFontCursor(padisplay, XC_right_side);
+        cfrm_cursor_top      = XCreateFontCursor(padisplay, XC_top_side);
+        cfrm_cursor_bottom   = XCreateFontCursor(padisplay, XC_bottom_side);
+        cfrm_cursor_btmleft  = XCreateFontCursor(padisplay, XC_bottom_left_corner);
+        cfrm_cursor_btmright = XCreateFontCursor(padisplay, XC_bottom_right_corner);
+        cfrm_cursor_topleft  = XCreateFontCursor(padisplay, XC_top_left_corner);
+        cfrm_cursor_topright = XCreateFontCursor(padisplay, XC_top_right_corner);
+        XWUNLOCK();
+    }
+
+    if (on_left && on_top)          c = cfrm_cursor_topleft;
+    else if (on_right && on_top)    c = cfrm_cursor_topright;
+    else if (on_left && on_bottom)  c = cfrm_cursor_btmleft;
+    else if (on_right && on_bottom) c = cfrm_cursor_btmright;
+    else if (on_left)               c = cfrm_cursor_left;
+    else if (on_right)              c = cfrm_cursor_right;
+    else if (on_top)                c = cfrm_cursor_top;
+    else if (on_bottom)             c = cfrm_cursor_bottom;
+    else                            c = cfrm_cursor_arrow;
+
+    XWLOCK();
+    XDefineCursor(padisplay, win->xmwhan, c);
+    XWUNLOCK();
 }
 
 /** ****************************************************************************
@@ -12071,6 +12133,11 @@ static void xwinevt(winptr win, ami_evtrec* er, XEvent* e, int* keep)
                (e->type == ButtonPress || e->type == ButtonRelease ||
                 e->type == MotionNotify)) {
 
+        /* update cursor shape based on hover position */
+        if (e->type == MotionNotify) {
+            childfrm_set_cursor(win, e->xmotion.x, e->xmotion.y);
+        }
+
         /* child frame mouse interaction: title bar drag, close button, resize */
         if (e->type == ButtonPress && e->xbutton.button == Button1) {
 
@@ -12079,6 +12146,12 @@ static void xwinevt(winptr win, ami_evtrec* er, XEvent* e, int* keep)
             int mw = win->xmwr.w;
             int tbh = CFRM_TITBAR_H(win);
             int bsz = CFRM_BUTTON_SZ(win);
+
+            /* selecting a child: raise it to the top of the stacking
+               order so it appears in front of its siblings */
+            XWLOCK();
+            XRaiseWindow(padisplay, win->xmwhan);
+            XWUNLOCK();
 
             /* hit test: close button */
             int cbx = mw - bsz - CFRM_BUTTON_MG;
@@ -12090,9 +12163,11 @@ static void xwinevt(winptr win, ami_evtrec* er, XEvent* e, int* keep)
                 er->etype = ami_etterm;
                 *keep = TRUE;
 
-            } else if (my < tbh) {
+            } else if (my >= CFRM_BORDER_W && my < tbh &&
+                       mx >= CFRM_BORDER_W && mx < mw - CFRM_BORDER_W) {
 
-                /* title bar: initiate drag */
+                /* title bar (excluding the top resize border and side
+                   resize borders that overlap the title bar): initiate drag */
                 int startx = e->xbutton.x_root;
                 int starty = e->xbutton.y_root;
                 int origx = win->xmwr.x;
@@ -12128,19 +12203,63 @@ static void xwinevt(winptr win, ami_evtrec* er, XEvent* e, int* keep)
 
                         dragging = FALSE;
 
+                    } else if (de.type == Expose) {
+
+                        /* X has notified us that something needs repainting
+                           because of our move. Dispatch to the right window. */
+                        int ofn = fndevt(de.xany.window);
+                        if (ofn >= 0) {
+
+                            winptr ewin = lfn2win(ofn);
+                            /* if it's a child-framed window's xmwhan,
+                               redraw the frame */
+                            if (ewin->childfrm &&
+                                ewin->xmwhan == de.xany.window) {
+
+                                childfrm_draw(ewin);
+
+                            } else {
+
+                                /* it's a buffered window content area;
+                                   restore from the buffer */
+                                restore(ewin);
+
+                            }
+
+                        }
+
                     }
 
                 }
                 XWLOCK();
                 XUngrabPointer(padisplay, CurrentTime);
                 XWUNLOCK();
+                /* final repaint after release */
+                if (win->parwin) {
+                    winptr sib;
+                    restore(win->parwin);
+                    for (sib = win->parwin->childwin; sib;
+                         sib = sib->childlst) {
+                        if (sib == win) continue;
+                        restore(sib);
+                        if (sib->childfrm) childfrm_draw(sib);
+                    }
+                }
 
             } else if (my >= win->xmwr.h - CFRM_BORDER_W ||
-                       mx >= win->xmwr.w - CFRM_BORDER_W) {
+                       mx >= win->xmwr.w - CFRM_BORDER_W ||
+                       mx < CFRM_BORDER_W ||
+                       my < CFRM_BORDER_W) {
 
-                /* resize edge: initiate resize (bottom-right corner/edges) */
+                /* resize edge: determine which edges are grabbed */
+                int rsz_left   = (mx < CFRM_BORDER_W);
+                int rsz_right  = (mx >= win->xmwr.w - CFRM_BORDER_W);
+                int rsz_top    = (my < CFRM_BORDER_W);
+                int rsz_bottom = (my >= win->xmwr.h - CFRM_BORDER_W);
                 int startx = e->xbutton.x_root;
                 int starty = e->xbutton.y_root;
+                int origx = win->xmwr.x;
+                int origy = win->xmwr.y;
                 int origw = win->xmwr.w;
                 int origh = win->xmwr.h;
                 XEvent de;
@@ -12162,21 +12281,64 @@ static void xwinevt(winptr win, ami_evtrec* er, XEvent* e, int* keep)
 
                         int dx = de.xmotion.x_root - startx;
                         int dy = de.xmotion.y_root - starty;
-                        int nw = origw + dx;
-                        int nh = origh + dy;
-                        /* enforce minimums */
-                        if (nw < win->pfw + 40) nw = win->pfw + 40;
-                        if (nh < win->pfh + 40) nh = win->pfh + 40;
+                        int nx = origx;
+                        int ny = origy;
+                        int nw = origw;
+                        int nh = origh;
+                        if (rsz_right)  nw = origw + dx;
+                        if (rsz_bottom) nh = origh + dy;
+                        if (rsz_left) {
+                            nw = origw - dx;
+                            nx = origx + dx;
+                        }
+                        if (rsz_top) {
+                            nh = origh - dy;
+                            ny = origy + dy;
+                        }
+                        /* enforce minimums; if hitting min on left/top edge,
+                           keep the opposite edge fixed */
+                        if (nw < win->pfw + 40) {
+                            if (rsz_left) nx -= (win->pfw + 40 - nw);
+                            nw = win->pfw + 40;
+                        }
+                        if (nh < win->pfh + 40) {
+                            if (rsz_top) ny -= (win->pfh + 40 - nh);
+                            nh = win->pfh + 40;
+                        }
+                        int shrunk = (nw < win->xmwr.w || nh < win->xmwr.h);
+                        win->xmwr.x = nx;
+                        win->xmwr.y = ny;
                         win->xmwr.w = nw;
                         win->xmwr.h = nh;
                         win->xwr.w = nw - win->pfw;
                         win->xwr.h = nh - win->pfh;
                         XWLOCK();
-                        XResizeWindow(padisplay, win->xmwhan, nw, nh);
+                        if (nx != origx || ny != origy) {
+                            XMoveResizeWindow(padisplay, win->xmwhan,
+                                              nx, ny, nw, nh);
+                        } else {
+                            XResizeWindow(padisplay, win->xmwhan, nw, nh);
+                        }
                         XResizeWindow(padisplay, win->xwhan,
                                       win->xwr.w, win->xwr.h);
                         XWUNLOCK();
+                        /* the client area may now be larger than the buffer;
+                           restore() copies the buffer to the screen and fills
+                           any uncovered margin with the background color */
+                        restore(win);
                         childfrm_draw(win);
+                        /* if the child shrank, repaint the parent and
+                           sibling children where this child used to be */
+                        if (shrunk && win->parwin) {
+                            winptr sib;
+                            restore(win->parwin);
+                            for (sib = win->parwin->childwin; sib;
+                                 sib = sib->childlst) {
+                                if (sib == win) continue;
+                                restore(sib);
+                                if (sib->childfrm) childfrm_draw(sib);
+                            }
+                        }
 
                     } else if (de.type == ButtonRelease) {
 
@@ -12188,6 +12350,16 @@ static void xwinevt(winptr win, ami_evtrec* er, XEvent* e, int* keep)
                 XWLOCK();
                 XUngrabPointer(padisplay, CurrentTime);
                 XWUNLOCK();
+                if (win->parwin) {
+                    winptr sib;
+                    restore(win->parwin);
+                    for (sib = win->parwin->childwin; sib;
+                         sib = sib->childlst) {
+                        if (sib == win) continue;
+                        restore(sib);
+                        if (sib->childfrm) childfrm_draw(sib);
+                    }
+                }
 
                 /* send resize event to the client */
                 er->etype = ami_etresize;
