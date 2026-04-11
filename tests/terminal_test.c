@@ -1320,13 +1320,18 @@ int main(int argc, char *argv[])
     prtcen(ami_maxy(stdout), " Buffer follow test ");
     ami_cursor(stdout, 3, 3);
     printf("Resize the window, the frame should follow the window\n");
+    x = ami_maxx(stdout);
+    y = ami_maxy(stdout);
     do { 
 
         ami_event(stdin, &er);
         if (er.etype == ami_etresize) {
 
+            box(1, 1, x, y, ' ');
             ami_sizbuf(stdout, er.rszx, er.rszy);
             box(1, 1, ami_maxx(stdout), ami_maxy(stdout), '*');
+            x = ami_maxx(stdout);
+            y = ami_maxy(stdout);
             prtcen(ami_maxy(stdout), " Buffer follow test ");
             ami_cursor(stdout, 3, 3);
             printf("Resize the window, the frame should follow the window\n");
