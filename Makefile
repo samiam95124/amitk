@@ -1097,8 +1097,13 @@ genwaveg: $(GLIBSD) sound_programs/genwave.c
 terminal_test: $(CLIBSD) tests/terminal_test.c
 	$(CC) $(CFLAGS) tests/terminal_test.c $(CLIBS) -o bin/terminal_test
 
-terminal_testg: $(GLIBSD) tests/terminal_test.c
-	$(CC) $(CFLAGS) tests/terminal_test.c $(GLIBS) -o bin/terminal_testg
+ifeq ($(OSTYPE),Darwin)
+terminal_testg: $(GLIBSD) tests/terminal_test.c $(SCREEN_CAPTURE_OBJ)
+	$(CC) $(CFLAGS) tests/terminal_test.c $(SCREEN_CAPTURE_OBJ) $(GLIBS) -o bin/terminal_testg
+else
+terminal_testg: $(GLIBSD) tests/terminal_test.c $(SCREEN_CAPTURE_OBJ)
+	$(CC) $(CFLAGS) tests/terminal_test.c $(SCREEN_CAPTURE_OBJ) $(GLIBS) -lpng -lz -o bin/terminal_testg
+endif
 	
 #
 # Test graph model compliant output
