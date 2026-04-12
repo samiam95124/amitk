@@ -348,8 +348,9 @@ int main(void)
 
     ox = ami_maxx(stdout);
     oy = ami_maxy(stdout);
-    ami_bcolor(stdout, ami_cyan);
+    ami_bcolor(stdout, ami_white);
     ami_sizbuf(stdout, 50, 50);
+    ami_bcolor(stdout, ami_cyan);
     putchar('\f');
     for (x = 1; x <= ami_maxx(stdout); x++) printf("*");
     ami_cursor(stdout, 1, ami_maxy(stdout));
@@ -371,8 +372,9 @@ int main(void)
     ox = ami_maxxg(stdout);
     oy = ami_maxyg(stdout);
     sqrrat(&xs, &ys, 1.3); /* find square ratio */
-    ami_bcolor(stdout, ami_cyan);
+    ami_bcolor(stdout, ami_white);
     ami_sizbufg(stdout, xs, ys);
+    ami_bcolor(stdout, ami_cyan);
     putchar('\f');
     ami_linewidth(stdout, 20);
     ami_line(stdout, 1, 1, ami_maxxg(stdout), 1);
