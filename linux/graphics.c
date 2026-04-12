@@ -14623,8 +14623,10 @@ static void frame_ivf(FILE* f, int e)
             XWLOCK();
             XResizeWindow(padisplay, win->xmwhan,
                           win->xmwr.w, win->xmwr.h);
-            /* reposition subclient within master */
-            XMoveWindow(padisplay, win->xwhan, win->cwox, win->cwoy);
+            /* reposition and resize subclient within master */
+            XMoveResizeWindow(padisplay, win->xwhan,
+                              win->cwox, win->cwoy,
+                              win->gmaxxg, win->gmaxyg);
             XWUNLOCK();
 
             restore(win);
