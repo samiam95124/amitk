@@ -843,9 +843,9 @@ long ami_elapsed(long r)
 {
 
     /* reference time */
-    int t;
+    long t;
 
-    t = clock();   /* get the current time */
+    t = ami_clock();   /* get the current time */
     if (t >= r) t -= r; /* time has not wrapped */
     else t += INT_MAX-r; /* time has wrapped */
 
