@@ -34,6 +34,7 @@ static int        fb;           /* front/back flipper */
 static ami_evtrec  er;
 static ami_menuptr mp;           /* menu pointer */
 static ami_menuptr ml;           /* menu list */
+static int        framenum = 0;
 static ami_menuptr sm;           /* submenu list */
 static int        sred;         /* state variables */
 static int        sgreen;
@@ -81,6 +82,11 @@ static void waitnext(void)
 {
 
     ami_evtrec er; /* event record */
+    char titlebuf[80];
+
+    framenum++;
+    sprintf(titlebuf, "management_test: frame %d", framenum);
+    ami_title(stdout, titlebuf);
 
     screen_capture();
 
