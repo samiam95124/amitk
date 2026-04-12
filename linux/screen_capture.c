@@ -233,9 +233,10 @@ void screen_capture(void) {
 
     /* Flush Petit-Ami's Xlib output buffer FIRST (its display is a separate
        connection from ours, so our XSync can't do it). Then XSync ours to
-       make sure the grab doesn't race the server. */
-    extern void pa_xflush(void);
-    pa_xflush();
+       make sure the grab doesn't race the server. pa_xflush lives in
+       graphics.c; weak link so the terminal build (no graphics.c) is a no-op. */
+    extern void pa_xflush(void) __attribute__((weak));
+    if (pa_xflush) pa_xflush();
     XSync(cap_display, False);
 
     XWindowAttributes a;

@@ -197,10 +197,7 @@ static void waittime(int n, int t)
 }
 
 
-/* screen_capture is linked in the graphics build (terminal_testg) but not the
-   plain terminal build (terminal_test). Provide a weak stub so the terminal
-   build links cleanly; the real screen_capture.o overrides it. */
-void __attribute__((weak)) screen_capture(void) { }
+extern void screen_capture(void);
 
 /* wait return to be pressed, or handle terminate */
 static void waitnext(void)
