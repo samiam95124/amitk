@@ -72,6 +72,8 @@ static enum { /* debug levels */
                                 __func__, __LINE__, ##__VA_ARGS__); \
                                 fflush(stderr); } while (0)
 
+extern void screen_capture(void);
+
 /* wait return to be pressed, or handle terminate */
 
 static void waitnext(void)
@@ -79,6 +81,8 @@ static void waitnext(void)
 {
 
     ami_evtrec er; /* event record */
+
+    screen_capture();
 
     do { ami_event(stdin, &er); }
     while (er.etype != ami_etenter && er.etype != ami_etterm);
