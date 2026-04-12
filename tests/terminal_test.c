@@ -197,11 +197,15 @@ static void waittime(int n, int t)
 }
 
 
+extern void screen_capture(void);
+
 /* wait return to be pressed, or handle terminate */
 static void waitnext(void)
 {
 
     ami_evtrec er; /* event record */
+
+    screen_capture();
 
     do { ami_event(stdin, &er);
     } while (er.etype != ami_etenter);

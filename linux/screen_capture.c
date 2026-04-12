@@ -78,34 +78,54 @@ static int window_pid_matches(Display *d, Window w, pid_t our_pid) {
 /*
  * Locate the Petit-Ami window on this display. Strategy:
  *   1. Walk _NET_CLIENT_LIST, return first window with _NET_WM_PID == getpid().
- *   2. If nothing matches, walk root's direct children and return the largest
+ *   2. Query _NET_ACTIVE_WINDOW — the currently focused window. In terminal
+ *      mode the test program is interactive, so its terminal emulator window
+ *      will be focused when screen_capture() is called.
+ *   3. If nothing matches, walk root's direct children and return the largest
  *      mapped InputOutput window.
  * Returns 0 if nothing found.
  */
 static Window find_pa_window(Display *d) {
     Window root = DefaultRootWindow(d);
     pid_t  our_pid = getpid();
+    Atom actual_type;
+    int actual_format;
+    unsigned long nitems, bytes_after;
+    unsigned char *prop = NULL;
 
+    /* pass 1: match by PID (graphics mode — we own the window) */
     Atom client_list = XInternAtom(d, "_NET_CLIENT_LIST", True);
-    if (client_list != None) {
-        Atom actual_type;
-        int actual_format;
-        unsigned long nitems, bytes_after;
-        unsigned char *prop = NULL;
-        if (XGetWindowProperty(d, root, client_list, 0, 4096, False,
+    if (client_list != None &&
+        XGetWindowProperty(d, root, client_list, 0, 4096, False,
+                           XA_WINDOW, &actual_type, &actual_format,
+                           &nitems, &bytes_after, &prop) == Success
+        && prop != NULL) {
+        Window *wlist = (Window *)prop;
+        for (unsigned long i = 0; i < nitems; i++) {
+            if (window_pid_matches(d, wlist[i], our_pid) == 1) {
+                Window found = wlist[i];
+                XFree(prop);
+                return found;
+            }
+        }
+        XFree(prop);
+    }
+
+    /* pass 2: grab the currently focused window (terminal mode — the terminal
+       emulator owns the window, but it has focus because the user is
+       interacting with our test program) */
+    Atom active_win = XInternAtom(d, "_NET_ACTIVE_WINDOW", True);
+    if (active_win != None) {
+        prop = NULL;
+        if (XGetWindowProperty(d, root, active_win, 0, 1, False,
                                XA_WINDOW, &actual_type, &actual_format,
                                &nitems, &bytes_after, &prop) == Success
-            && prop != NULL) {
-            Window *wlist = (Window *)prop;
-            for (unsigned long i = 0; i < nitems; i++) {
-                if (window_pid_matches(d, wlist[i], our_pid) == 1) {
-                    Window found = wlist[i];
-                    XFree(prop);
-                    return found;
-                }
-            }
+            && prop != NULL && nitems == 1) {
+            Window found = *(Window *)prop;
             XFree(prop);
+            if (found) return found;
         }
+        if (prop) XFree(prop);
     }
 
     /* fallback: scan root children for a large mapped IO window */
@@ -233,9 +253,10 @@ void screen_capture(void) {
 
     /* Flush Petit-Ami's Xlib output buffer FIRST (its display is a separate
        connection from ours, so our XSync can't do it). Then XSync ours to
-       make sure the grab doesn't race the server. */
-    extern void pa_xflush(void);
-    pa_xflush();
+       make sure the grab doesn't race the server. pa_xflush lives in
+       graphics.c; weak link so the terminal build (no graphics.c) is a no-op. */
+    extern void pa_xflush(void) __attribute__((weak));
+    if (pa_xflush) pa_xflush();
     XSync(cap_display, False);
 
     XWindowAttributes a;
