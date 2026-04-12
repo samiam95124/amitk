@@ -274,6 +274,13 @@ static enum { /* debug levels */
 #define MWM_HINTS_INPUT_MODE    (1L << 2)
 #define MWM_HINTS_STATUS        (1L << 3)
 
+#define MWM_FUNC_ALL            (1L << 0)
+#define MWM_FUNC_RESIZE         (1L << 1)
+#define MWM_FUNC_MOVE           (1L << 2)
+#define MWM_FUNC_MINIMIZE       (1L << 3)
+#define MWM_FUNC_MAXIMIZE       (1L << 4)
+#define MWM_FUNC_CLOSE          (1L << 5)
+
 #define MWM_DECOR_ALL           (1L << 0)
 #define MWM_DECOR_BORDER        (1L << 1)
 #define MWM_DECOR_RESIZEH       (1L << 2)
@@ -2110,15 +2117,53 @@ void enbxsiz(Window xwh, int e)
 
     Atom mwmHintsProperty;
     mwmhints hints;
+    XSizeHints sh;
 
     XWLOCK();
+
+    /* set motif hints to control decoration and function */
     mwmHintsProperty = XInternAtom(padisplay, "_MOTIF_WM_HINTS", 0);
-    hints.flags = MWM_HINTS_DECORATIONS;
-    if (e) hints.decorations = MWM_DECOR_ALL;
-    else hints.decorations = MWM_DECOR_TITLE|MWM_DECOR_MENU|MWM_DECOR_MINIMIZE|
-                             MWM_DECOR_MAXIMIZE;
+    hints.flags = MWM_HINTS_DECORATIONS | MWM_HINTS_FUNCTIONS;
+    if (e) {
+
+        hints.decorations = MWM_DECOR_ALL;
+        hints.functions = MWM_FUNC_ALL;
+
+    } else {
+
+        hints.decorations = MWM_DECOR_TITLE|MWM_DECOR_MENU|MWM_DECOR_MINIMIZE|
+                            MWM_DECOR_MAXIMIZE;
+        hints.functions = MWM_FUNC_MOVE|MWM_FUNC_MINIMIZE|MWM_FUNC_MAXIMIZE|
+                          MWM_FUNC_CLOSE;
+
+    }
     XChangeProperty(padisplay, xwh, mwmHintsProperty, mwmHintsProperty,
                     32, PropModeReplace, (unsigned char *)&hints, 5);
+
+    /* constrain size via WM_NORMAL_HINTS: setting min == max prevents resize
+       on WMs that ignore _MOTIF_WM_HINTS functions */
+    if (!e) {
+
+        XWindowAttributes a;
+        XGetWindowAttributes(padisplay, xwh, &a);
+        sh.flags = PMinSize | PMaxSize;
+        sh.min_width = a.width;
+        sh.min_height = a.height;
+        sh.max_width = a.width;
+        sh.max_height = a.height;
+        XSetWMNormalHints(padisplay, xwh, &sh);
+
+    } else {
+
+        sh.flags = PMinSize | PMaxSize;
+        sh.min_width = 1;
+        sh.min_height = 1;
+        sh.max_width = 32767;
+        sh.max_height = 32767;
+        XSetWMNormalHints(padisplay, xwh, &sh);
+
+    }
+
     XWUNLOCK();
 
 }
