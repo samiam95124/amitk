@@ -1092,21 +1092,8 @@ genwaveg: $(GLIBSD) sound_programs/genwave.c
 	$(CC) $(CFLAGS) sound_programs/genwave.c $(GLIBS) -o bin/genwaveg
 
 #
-# Screen capture object (platform-dependent)
-#
-ifeq ($(OSTYPE),Windows_NT)
-SCREEN_CAPTURE_OBJ = windows/screen_capture.o
-else ifeq ($(OSTYPE),Darwin)
-SCREEN_CAPTURE_OBJ = macosx/screen_capture.o
-else ifeq ($(OSTYPE),FreeBSD)
-SCREEN_CAPTURE_OBJ = bsd/screen_capture.o
-else
-SCREEN_CAPTURE_OBJ = linux/screen_capture.o
-endif
-
-#
 # Test console model compliant output
-#
+#	
 ifeq ($(OSTYPE),Darwin)
 terminal_test: $(CLIBSD) tests/terminal_test.c $(SCREEN_CAPTURE_OBJ)
 	$(CC) $(CFLAGS) tests/terminal_test.c $(SCREEN_CAPTURE_OBJ) $(CLIBS) -o bin/terminal_test
@@ -1122,10 +1109,20 @@ else
 terminal_testg: $(GLIBSD) tests/terminal_test.c $(SCREEN_CAPTURE_OBJ)
 	$(CC) $(CFLAGS) tests/terminal_test.c $(SCREEN_CAPTURE_OBJ) $(GLIBS) -lpng -lz -o bin/terminal_testg
 endif
-
+	
 #
 # Test graph model compliant output
 #
+ifeq ($(OSTYPE),Windows_NT)
+SCREEN_CAPTURE_OBJ = windows/screen_capture.o
+else ifeq ($(OSTYPE),Darwin)
+SCREEN_CAPTURE_OBJ = macosx/screen_capture.o
+else ifeq ($(OSTYPE),FreeBSD)
+SCREEN_CAPTURE_OBJ = bsd/screen_capture.o
+else
+SCREEN_CAPTURE_OBJ = linux/screen_capture.o
+endif
+
 ifeq ($(OSTYPE),Darwin)
 graphics_test: $(GLIBSD) tests/graphics_test.c $(SCREEN_CAPTURE_OBJ)
 	$(CC) $(CFLAGS) tests/graphics_test.c $(SCREEN_CAPTURE_OBJ) $(GLIBS) -o bin/graphics_test
