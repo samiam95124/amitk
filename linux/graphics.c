@@ -3078,7 +3078,20 @@ void setfnt(winptr win)
 
     /* extract metrics */
     win->charspace = (int)(win->ftface->size->metrics.max_advance >> 6);
-    win->linespace = win->gfhigh;
+    {
+        /* Line height must accommodate the full font: ascender + descender.
+           If we use only gfhigh, tall glyphs can extend above the cell and
+           leave trails when cells are overwritten. */
+        int ascender  = (int)(win->ftface->size->metrics.ascender  >> 6);
+        int descender = (int)(win->ftface->size->metrics.descender >> 6);
+        if (descender < 0) descender = -descender;
+        int line_h    = (int)(win->ftface->size->metrics.height >> 6);
+        int full_h    = ascender + descender;
+        /* take the larger of the font's declared line height and
+           ascender+descender to be safe against clipping */
+        win->linespace = line_h > full_h ? line_h : full_h;
+        if (win->linespace < win->gfhigh) win->linespace = win->gfhigh;
+    }
     win->chrspcx = 0;
     win->chrspcy = 0;
     win->baseoff = (int)(win->ftface->size->metrics.ascender >> 6);
@@ -6457,9 +6470,11 @@ static void iauto(winptr win, int e)
     /* check we are transitioning to auto mode */
     if (e) {
 
-        /* check display is on grid and in bounds */
-        if (sc->curxg-1%win->charspace) error(eatoofg);
-        if (sc->curxg-1%win->charspace) error(eatoofg);
+        /* check display is on grid and in bounds. Note: parentheses are
+           required because % binds tighter than -. The cursor graphical
+           position must land on a character cell boundary for x and y. */
+        if ((sc->curxg-1) % win->charspace) error(eatoofg);
+        if ((sc->curyg-1) % win->linespace) error(eatoofg);
         if (sc->angle != INT_MAX/4) error(eatoang);
         if (!icurbnd(sc)) error(eatoecb);
 
@@ -16113,6 +16128,14 @@ static void ami_deinit_graphics()
     int    fn;
 
     ami_evtrec er;
+    ami_evtcod e; /* event index */
+
+    /* Reset all event vectors back to the default handler. The client program
+       may have installed overrides (e.g. longjmp-based terminate handlers)
+       that are no longer safe to call now that main() has returned — the
+       stack frame they longjmp into is gone. */
+    evtshan = defaultevent;
+    for (e = ami_etchar; e <= ami_ettabbar; e++) evthan[e] = defaultevent;
 
     /* try to get window from stdout */
     win = NULL; /* set no window */

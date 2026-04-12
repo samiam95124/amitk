@@ -1520,6 +1520,8 @@ int main(int argc, char *argv[])
 
     if (ami_mouse(stdin) > 0) {  /* mouse test */
 
+        x = 1;
+        y = 1;
         printf("\f");
         ami_auto(stdout, FALSE);
         ami_curvis(stdout, FALSE);
@@ -1564,6 +1566,7 @@ int main(int argc, char *argv[])
             }
 
         } while (er.etype != ami_etenter);
+        ami_home(stdout);
         ami_auto(stdout, TRUE);
         ami_curvis(stdout, TRUE);
 
