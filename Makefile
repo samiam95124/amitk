@@ -1154,8 +1154,13 @@ endif
 #
 # Test windows management model compliant output
 #
-management_test: $(GLIBSD) tests/management_test.c
-	$(CC) $(CFLAGS) tests/management_test.c $(GLIBS) -o bin/management_test 
+ifeq ($(OSTYPE),Darwin)
+management_test: $(GLIBSD) tests/management_test.c $(SCREEN_CAPTURE_OBJ)
+	$(CC) $(CFLAGS) tests/management_test.c $(SCREEN_CAPTURE_OBJ) $(GLIBS) -o bin/management_test
+else
+management_test: $(GLIBSD) tests/management_test.c $(SCREEN_CAPTURE_OBJ)
+	$(CC) $(CFLAGS) tests/management_test.c $(SCREEN_CAPTURE_OBJ) $(GLIBS) -lpng -lz -o bin/management_test
+endif
 
 #
 # Test windows widget compliant output
