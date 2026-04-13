@@ -259,7 +259,7 @@ else ifeq ($(OSTYPE),FreeBSD)
 
 	CC=clang
 	CPP=clang++
-	CFLAGS=-g3 -Iinclude
+	CFLAGS=-g3 -Iinclude -I/usr/local/include/freetype2 -fcommon
 
 else
 
@@ -488,8 +488,6 @@ CLIBSCPP = $(CLIBS) cpp/terminal.o
 ifeq ($(LINK_TYPE),static)
     ifeq ($(OSTYPE),Darwin)
     	GLIBS += -Wl,-force_load,lib/petit_ami_graph.a
-    else ifeq ($(OSTYPE),FreeBSD)
-    	GLIBS += -Wl,-force_load,lib/petit_ami_graph.a
     else
     	GLIBS += -Wl,--whole-archive lib/petit_ami_graph.a -Wl,--no-whole-archive
     endif
@@ -538,7 +536,8 @@ else ifeq ($(OSTYPE),FreeBSD)
     #
 	PLIBS += -L/usr/local/lib -lm -lpthread -lssl -lcrypto
 	CLIBS += -L/usr/local/lib -lm -lpthread -lssl -lcrypto
-	GLIBS += -L/usr/local/lib -lm -lpthread -lssl -lcrypto -lX11
+	GLIBS += -L/usr/local/lib -lm -lpthread -lssl -lcrypto -lX11 \
+	         -lfreetype -lfontconfig
 	PLIBSD +=
     CLIBSD +=
 	GLIBSD +=
@@ -672,8 +671,6 @@ linux/graphics.o: linux/graphics.c include/graphics.h Makefile
 linux/system_event.o: linux/system_event.c linux/system_event.h Makefile
 	$(CC) $(CFLAGS) -c linux/system_event.c -o linux/system_event.o
 	
-linux/rotated.o: linux/rotated.c linux/rotated.h Makefile
-	$(CC) $(CFLAGS) -c linux/rotated.c -o linux/rotated.o
 
 linux/screen_capture.o: linux/screen_capture.c Makefile
 	$(CC) $(CFLAGS) -c linux/screen_capture.c -o linux/screen_capture.o
@@ -747,32 +744,38 @@ macosx/screen_capture.o: macosx/screen_capture.c macosx/pa_cocoa.h Makefile
 # BSD can use some of the same components as Linux.
 #
 bsd/stdio.o: libc/stdio.c libc/stdio.h Makefile
+	@mkdir -p $(@D)
 	$(CC) $(CFLAGS) -c libc/stdio.c -o bsd/stdio.o
-	
+
 bsd/services.o: linux/services.c include/services.h Makefile
+	@mkdir -p $(@D)
 	$(CC) $(CFLAGS) -c linux/services.c -o bsd/services.o
-	
+
 bsd/sound.o: stub/sound.c include/sound.h Makefile
+	@mkdir -p $(@D)
 	$(CC) $(CFLAGS) -c stub/sound.c -o bsd/sound.o
-	
+
 bsd/network.o: stub/network.c include/network.h Makefile
+	@mkdir -p $(@D)
 	$(CC) $(CFLAGS) -I/usr/local/include \
 		-c stub/network.c -o bsd/network.o
-	
+
 bsd/terminal.o: linux/terminal.c include/terminal.h Makefile
+	@mkdir -p $(@D)
 	$(CC) $(CFLAGS) -c linux/terminal.c -o bsd/terminal.o
-	
+
 bsd/graphics.o: linux/graphics.c include/graphics.h Makefile
+	@mkdir -p $(@D)
 	$(CC) $(CFLAGS) -I/usr/local/include -c linux/graphics.c \
 	-o bsd/graphics.o
 
-bsd/rotated.o: linux/rotated.c linux/rotated.h Makefile
-	$(CC) $(CFLAGS) -I/usr/local/include -c linux/rotated.c -o bsd/rotated.o
-	
+
 bsd/system_event.o: macosx/system_event.c linux/system_event.h Makefile
+	@mkdir -p $(@D)
 	$(CC) $(CFLAGS) -c macosx/system_event.c -o bsd/system_event.o
 
 bsd/screen_capture.o: stub/screen_capture.c Makefile
+	@mkdir -p $(@D)
 	$(CC) $(CFLAGS) -c stub/screen_capture.c -o bsd/screen_capture.o
 
 #
@@ -881,9 +884,9 @@ lib/petit_ami_term.a: bsd/services.o bsd/sound.o bsd/network.o \
 	    utils/config.o utils/option.o bsd/stdio.o
 	
 lib/petit_ami_graph.a: bsd/services.o bsd/sound.o bsd/network.o \
-    bsd/graphics.o bsd/rotated.o bsd/system_event.o \
+    bsd/graphics.o bsd/system_event.o \
 	portable/gnome_widgets.o utils/config.o utils/option.o bsd/stdio.o
-	ar rcs lib/petit_ami_graph.a bsd/services.o bsd/sound.o bsd/rotated.o \
+	ar rcs lib/petit_ami_graph.a bsd/services.o bsd/sound.o \
 	    bsd/network.o bsd/system_event.o bsd/graphics.o \
 	    portable/gnome_widgets.o utils/config.o utils/option.o bsd/stdio.o
 	
@@ -929,20 +932,20 @@ lib/petit_ami_term.a: $(LINUXSTDIO) linux/services.o linux/sound.o \
 		 cpp/terminal.o
 	
 lib/petit_ami_graph.so: $(LINUXSTDIO) linux/services.o linux/network.o \
-	linux/graphics.o linux/rotated.o linux/system_event.o \
+	linux/graphics.o linux/system_event.o \
 	portable/gnome_widgets.o utils/config.o utils/option.o cpp/terminal.o
 	$(CC) -shared $(LINUXSTDIO) linux/services.o linux/network.o \
-		linux/graphics.o linux/rotated.o linux/system_event.o \
+		linux/graphics.o linux/system_event.o \
 		portable/gnome_widgets.o utils/config.o utils/option.o cpp/terminal.o \
         -o lib/petit_ami_graph.so
-	
+
 lib/petit_ami_graph.a: $(LINUXSTDIO) linux/services.o linux/sound.o \
 	linux/fluidsynthplug.o linux/dumpsynthplug.o linux/network.o \
-	linux/graphics.o linux/rotated.o linux/system_event.o \
+	linux/graphics.o linux/system_event.o \
 	portable/gnome_widgets.o utils/config.o utils/option.o cpp/terminal.o
 	ar rcs lib/petit_ami_graph.a $(LINUXSTDIO) linux/services.o linux/sound.o \
 		linux/fluidsynthplug.o linux/dumpsynthplug.o linux/network.o \
-		linux/graphics.o linux/rotated.o linux/system_event.o \
+		linux/graphics.o linux/system_event.o \
 		portable/gnome_widgets.o utils/config.o utils/option.o  \
 		cpp/terminal.o
 	
@@ -1146,6 +1149,9 @@ testviewer: macosx/testviewer.c Makefile
 	$(CC) -g3 -x objective-c -fobjc-arc macosx/testviewer.c \
 	    -framework Cocoa -framework CoreGraphics -framework ImageIO \
 	    -o bin/testviewer
+else ifeq ($(OSTYPE),FreeBSD)
+testviewer: linux/testviewer.c Makefile
+	$(CC) -g3 -I/usr/local/include linux/testviewer.c -L/usr/local/lib -lX11 -lpng -o bin/testviewer
 else
 testviewer: linux/testviewer.c Makefile
 	$(CC) -g3 linux/testviewer.c -lX11 -lpng -o bin/testviewer
