@@ -328,10 +328,12 @@ ifeq ($(STDIO_SOURCE),stdio)
     CFLAGS +=-Ilibc
     ifneq ($(OSTYPE),Windows_NT)
     ifneq ($(OSTYPE),Darwin)
-    ifneq ($(OSTYPE),FreeBSD)
-        # Linux needs bypass to coexist with system glibc
+        # Linux and FreeBSD use X11/libXau which accesses FILE* internals
+        # directly (backdoor access). STDIO_BYPASS prevents petit_ami from
+        # exporting fopen/fclose etc. as global symbols, so libXau always
+        # uses the real system fopen and a proper FILE*. Mac OS X is exempt
+        # because it uses Cocoa/CoreGraphics and does not involve libXau.
         CFLAGS += -DSTDIO_BYPASS
-    endif
     endif
     endif
 endif
