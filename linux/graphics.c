@@ -4608,59 +4608,102 @@ static void childfrm_draw(winptr win)
     XFillArc(padisplay, win->xmwhan, win->frmgc,
              mw - corner_r*2, 0, corner_r*2, corner_r*2, 0, 360*64);
 
-    /* draw title text - centered, using FreeType for native font rendering */
-    if (win->wintitle && win->wintitle[0] && win->ftface) {
-
-        int len = strlen(win->wintitle);
-        tlen = ft_text_width(win->ftface, win->wintitle, len);
-        int tx = (mw - tlen) / 2;
-        int ty = (tbh + title_size) / 2 - 2;
-        XSetForeground(padisplay, win->frmgc, 0xffffff); /* white text */
-        ft_draw_string(win->xmwhan, win->frmgc, win->ftface, title_size,
-                       tx, ty, win->wintitle, len);
-
-    }
-
+    /* draw title text - centered, using FreeType for native font rendering.
+       If the title is too wide for the available space (between left edge and
+       the leftmost button), truncate and append "..." */
     /* button row layout: minimize | maximize | close, right-aligned */
     by = (tbh - bsz) / 2;
     bx_close = mw - bsz - CFRM_BUTTON_MG;
     bx_max   = bx_close - bsz - CFRM_BUTTON_GAP;
     bx_min   = bx_max   - bsz - CFRM_BUTTON_GAP;
 
-    /* draw minimize button (gray circle with horizontal line) */
-    XSetForeground(padisplay, win->frmgc, 0x606060);
-    XFillArc(padisplay, win->xmwhan, win->frmgc,
-             bx_min, by, bsz, bsz, 0, 360*64);
-    XSetForeground(padisplay, win->frmgc, 0xffffff);
-    XSetLineAttributes(padisplay, win->frmgc, 2, LineSolid, CapButt, JoinMiter);
-    XDrawLine(padisplay, win->xmwhan, win->frmgc,
-              bx_min + bsz/4, by + bsz - bsz/3,
-              bx_min + bsz - bsz/4, by + bsz - bsz/3);
+    if (win->wintitle && win->wintitle[0] && win->ftface) {
 
-    /* draw maximize button (gray circle with square outline) */
-    XSetForeground(padisplay, win->frmgc, 0x606060);
-    XFillArc(padisplay, win->xmwhan, win->frmgc,
-             bx_max, by, bsz, bsz, 0, 360*64);
-    XSetForeground(padisplay, win->frmgc, 0xffffff);
-    XDrawRectangle(padisplay, win->xmwhan, win->frmgc,
-                   bx_max + bsz/4, by + bsz/4,
-                   bsz - bsz/2, bsz - bsz/2);
+        int len = strlen(win->wintitle);
+        int tleft = CFRM_BUTTON_MG; /* title left margin */
+        int avail = bx_min - CFRM_BUTTON_GAP - tleft; /* space for title */
+        tlen = ft_text_width(win->ftface, win->wintitle, len);
+        int ty = (tbh + title_size) / 2 - 2;
 
-    /* draw close button (gray circle with white X) */
-    XSetForeground(padisplay, win->frmgc, 0x606060);
-    XFillArc(padisplay, win->xmwhan, win->frmgc,
-             bx_close, by, bsz, bsz, 0, 360*64);
-    XSetForeground(padisplay, win->frmgc, 0xffffff);
-    {
-        int margin = bsz / 4;
-        XDrawLine(padisplay, win->xmwhan, win->frmgc,
-                  bx_close + margin, by + margin,
-                  bx_close + bsz - margin - 1, by + bsz - margin - 1);
-        XDrawLine(padisplay, win->xmwhan, win->frmgc,
-                  bx_close + bsz - margin - 1, by + margin,
-                  bx_close + margin, by + bsz - margin - 1);
+        XSetForeground(padisplay, win->frmgc, 0xffffff);
+        if (tlen <= avail) {
+
+            /* title fits: center it in the available space */
+            int tx = tleft + (avail - tlen) / 2;
+            ft_draw_string(win->xmwhan, win->frmgc, win->ftface, title_size,
+                           tx, ty, win->wintitle, len);
+
+        } else {
+
+            /* truncate with "..." */
+            int dotw = ft_text_width(win->ftface, "...", 3);
+            if (avail > dotw) {
+
+                int tw = 0;
+                int tl;
+                for (tl = 0; tl < len; tl++) {
+
+                    int cw = 0;
+                    if (FT_Load_Char(win->ftface,
+                                     (unsigned char)win->wintitle[tl],
+                                     FT_LOAD_DEFAULT) == 0)
+                        cw = (int)(win->ftface->glyph->advance.x >> 6);
+                    if (tw + cw + dotw > avail) break;
+                    tw += cw;
+
+                }
+                ft_draw_string(win->xmwhan, win->frmgc, win->ftface,
+                               title_size, tleft, ty, win->wintitle, tl);
+                ft_draw_string(win->xmwhan, win->frmgc, win->ftface,
+                               title_size, tleft + tw, ty, "...", 3);
+
+            }
+
+        }
+
     }
-    XSetLineAttributes(padisplay, win->frmgc, 1, LineSolid, CapButt, JoinMiter);
+
+    {
+        /* button colors depend on focus state */
+        unsigned long btn_bg = 0x303030; /* min/max match title bar bg always */
+        unsigned long btn_fg = win->focus ? 0xffffff : 0x808080;
+        unsigned long cls_bg = win->focus ? 0xe04040 : 0x303030;
+
+        /* draw minimize button (circle with horizontal line) */
+        XSetForeground(padisplay, win->frmgc, btn_bg);
+        XFillArc(padisplay, win->xmwhan, win->frmgc,
+                 bx_min, by, bsz, bsz, 0, 360*64);
+        XSetForeground(padisplay, win->frmgc, btn_fg);
+        XSetLineAttributes(padisplay, win->frmgc, 2, LineSolid, CapButt, JoinMiter);
+        XDrawLine(padisplay, win->xmwhan, win->frmgc,
+                  bx_min + bsz/4, by + bsz - bsz/3,
+                  bx_min + bsz - bsz/4, by + bsz - bsz/3);
+
+        /* draw maximize button (circle with square outline) */
+        XSetForeground(padisplay, win->frmgc, btn_bg);
+        XFillArc(padisplay, win->xmwhan, win->frmgc,
+                 bx_max, by, bsz, bsz, 0, 360*64);
+        XSetForeground(padisplay, win->frmgc, btn_fg);
+        XDrawRectangle(padisplay, win->xmwhan, win->frmgc,
+                       bx_max + bsz/4, by + bsz/4,
+                       bsz - bsz/2, bsz - bsz/2);
+
+        /* draw close button (circle with X) */
+        XSetForeground(padisplay, win->frmgc, cls_bg);
+        XFillArc(padisplay, win->xmwhan, win->frmgc,
+                 bx_close, by, bsz, bsz, 0, 360*64);
+        XSetForeground(padisplay, win->frmgc, btn_fg);
+        {
+            int margin = bsz / 4;
+            XDrawLine(padisplay, win->xmwhan, win->frmgc,
+                      bx_close + margin, by + margin,
+                      bx_close + bsz - margin - 1, by + bsz - margin - 1);
+            XDrawLine(padisplay, win->xmwhan, win->frmgc,
+                      bx_close + bsz - margin - 1, by + margin,
+                      bx_close + margin, by + bsz - margin - 1);
+        }
+        XSetLineAttributes(padisplay, win->frmgc, 1, LineSolid, CapButt, JoinMiter);
+    }
 
     XFlush(padisplay);
     XWUNLOCK();
@@ -12209,10 +12252,32 @@ static void xwinevt(winptr win, ami_evtrec* er, XEvent* e, int* keep)
             int bsz = CFRM_BUTTON_SZ(win);
 
             /* selecting a child: raise it to the top of the stacking
-               order so it appears in front of its siblings */
+               order so it appears in front of its siblings, and
+               give it focus */
             XWLOCK();
             XRaiseWindow(padisplay, win->xmwhan);
             XWUNLOCK();
+#ifndef NOFAKEFOCUS
+            if (!win->focus) {
+
+                ami_evtrec er2;
+                int ff;
+                ff = remfocus(root(win), win);
+                if (ff) {
+                    er2.etype = ami_etfocus;
+                    isendevent(win, &er2);
+                }
+                curoff(win);
+                win->focus = TRUE;
+                curon(win);
+                childfrm_draw(win);
+                XWLOCK();
+                XSetInputFocus(padisplay, win->xmwhan, RevertToNone,
+                               CurrentTime);
+                XWUNLOCK();
+
+            }
+#endif
 
             /* hit test: close button */
             int cbx = mw - bsz - CFRM_BUTTON_MG;
@@ -12454,6 +12519,7 @@ static void xwinevt(winptr win, ami_evtrec* er, XEvent* e, int* keep)
             curoff(win); /* remove cursor */
             win->focus = TRUE; /* put focus */
             curon(win); /* replace cursor */
+            if (win->childfrm) childfrm_draw(win);
             XWLOCK();
             XSetInputFocus(padisplay, win->xmwhan, RevertToNone, CurrentTime);
             XWUNLOCK();
@@ -12467,6 +12533,7 @@ static void xwinevt(winptr win, ami_evtrec* er, XEvent* e, int* keep)
         curoff(win); /* remove cursor */
         win->focus = FALSE; /* remove focus */
         curon(win); /* replace cursor */
+        if (win->childfrm) childfrm_draw(win);
         er->etype = ami_etnofocus; /* set no focus event */
         *keep = TRUE; /* set found */
 
@@ -12476,6 +12543,7 @@ static void xwinevt(winptr win, ami_evtrec* er, XEvent* e, int* keep)
         curoff(win); /* remove cursor */
         win->focus = TRUE; /* put focus */
         curon(win); /* replace cursor */
+        if (win->childfrm) childfrm_draw(win);
         er->etype = ami_etfocus; /* set focus event */
         *keep = TRUE; /* set found */
 
