@@ -328,10 +328,8 @@ ifeq ($(STDIO_SOURCE),stdio)
     CFLAGS +=-Ilibc
     ifneq ($(OSTYPE),Windows_NT)
     ifneq ($(OSTYPE),Darwin)
-    ifneq ($(OSTYPE),FreeBSD)
-        # Linux needs bypass to coexist with system glibc
+        # Linux and FreeBSD need bypass to coexist with system libc
         CFLAGS += -DSTDIO_BYPASS
-    endif
     endif
     endif
 endif
