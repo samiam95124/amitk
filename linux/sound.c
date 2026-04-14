@@ -60,6 +60,7 @@
 #else
 #include <time.h>
 #include <unistd.h>
+#include <sys/event.h>
 #endif
 #include <stdlib.h>
 #include <stdint.h>
@@ -340,61 +341,44 @@ static int ifdmax;
 
 #ifdef __FreeBSD__
 /*
- * BSD timer emulation via self-pipe + timer thread.
- * Replaces Linux timerfd for the sequencer select() loop.
+ * BSD timer emulation via kqueue EVFILT_TIMER.
+ * Replaces Linux timerfd for the sequencer select() loop — a kqueue fd
+ * is a regular file descriptor that becomes readable when events are
+ * pending, so it drops into the existing select()/FD_SET machinery
+ * with no extra thread or pipe. Matches the pattern in
+ * macosx/system_event.c.
  */
-static int bsdseqpipe[2];          /* self-pipe: seqhan = bsdseqpipe[0] */
-static pthread_mutex_t bsdtmrlck;  /* lock for timer state */
-static pthread_cond_t  bsdtmrcnd;  /* condition to arm/rearm/disarm */
-static struct timespec  bsdtmrabs; /* absolute fire time */
-static int              bsdtmrarm; /* 1 = armed, 0 = disarmed */
-
-static void* bsd_timer_thread(void* arg)
-{
-    pthread_mutex_lock(&bsdtmrlck);
-    while (1) {
-        while (!bsdtmrarm)
-            pthread_cond_wait(&bsdtmrcnd, &bsdtmrlck);
-        int rc = pthread_cond_timedwait(&bsdtmrcnd, &bsdtmrlck, &bsdtmrabs);
-        if (rc == ETIMEDOUT && bsdtmrarm) {
-            bsdtmrarm = 0;
-            pthread_mutex_unlock(&bsdtmrlck);
-            char b = 1;
-            write(bsdseqpipe[1], &b, 1);
-            pthread_mutex_lock(&bsdtmrlck);
-        }
-    }
-    return NULL;
-}
+static int bsdseqkq = -1; /* kqueue fd: seqhan = bsdseqkq */
 
 static void bsd_seqtimer_init(void)
 {
-    pipe(bsdseqpipe);
-    pthread_mutex_init(&bsdtmrlck, NULL);
-    pthread_cond_init(&bsdtmrcnd, NULL);
-    bsdtmrarm = 0;
-    pthread_t tid;
-    pthread_create(&tid, NULL, bsd_timer_thread, NULL);
+    bsdseqkq = kqueue();
 }
 
 static void bsd_seqtimer_set(const struct itimerspec* ts)
 {
-    pthread_mutex_lock(&bsdtmrlck);
+    struct kevent kev;
     if (ts->it_value.tv_sec == 0 && ts->it_value.tv_nsec == 0) {
-        bsdtmrarm = 0;
+        /* disarm */
+        EV_SET(&kev, 1, EVFILT_TIMER, EV_DELETE, 0, 0, NULL);
+        kevent(bsdseqkq, &kev, 1, NULL, 0, NULL);
     } else {
-        struct timespec now;
-        clock_gettime(CLOCK_REALTIME, &now);
-        bsdtmrabs.tv_sec  = now.tv_sec  + ts->it_value.tv_sec;
-        bsdtmrabs.tv_nsec = now.tv_nsec + ts->it_value.tv_nsec;
-        if (bsdtmrabs.tv_nsec >= 1000000000L) {
-            bsdtmrabs.tv_sec++;
-            bsdtmrabs.tv_nsec -= 1000000000L;
-        }
-        bsdtmrarm = 1;
+        /* arm oneshot timer — convert to microseconds */
+        int64_t usec = (int64_t)ts->it_value.tv_sec * 1000000
+                     + ts->it_value.tv_nsec / 1000;
+        EV_SET(&kev, 1, EVFILT_TIMER,
+               EV_ADD | EV_ENABLE | EV_ONESHOT,
+               NOTE_USECONDS, usec, NULL);
+        kevent(bsdseqkq, &kev, 1, NULL, 0, NULL);
     }
-    pthread_cond_signal(&bsdtmrcnd);
-    pthread_mutex_unlock(&bsdtmrlck);
+}
+
+/* Drain any pending kqueue timer events (non-blocking). */
+static void bsd_seqtimer_consume(void)
+{
+    struct kevent events[4];
+    struct timespec zero = { 0, 0 };
+    kevent(bsdseqkq, NULL, 0, events, 4, &zero);
 }
 #endif
 
@@ -2522,7 +2506,7 @@ static void* sequencer_thread(void* data)
 #ifndef __FreeBSD__
                 read(seqhan, &exp, sizeof(uint64_t));
 #else
-                { char _b; read(seqhan, &_b, 1); }
+                bsd_seqtimer_consume();
 #endif
                 pthread_mutex_lock(&seqlock); /* take sequencer data lock */
                 p = seqlst; /* index top of list */
@@ -6397,7 +6381,7 @@ static void ami_init_sound()
     seqhan = timerfd_create(CLOCK_REALTIME, 0);
 #else
     bsd_seqtimer_init();
-    seqhan = bsdseqpipe[0];
+    seqhan = bsdseqkq;
 #endif
     seqtimact = FALSE;
 
