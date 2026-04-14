@@ -55,7 +55,12 @@
 #include <pthread.h>
 #include <alsa/asoundlib.h>
 #include <sys/time.h>
+#ifndef __FreeBSD__
 #include <sys/timerfd.h>
+#else
+#include <time.h>
+#include <unistd.h>
+#endif
 #include <stdlib.h>
 #include <stdint.h>
 
@@ -332,6 +337,66 @@ static struct timeval sintim;          /* start time input midi marking, in raw
 static fd_set ifdseta; /* active sets */
 static fd_set ifdsets; /* signaled set */
 static int ifdmax;
+
+#ifdef __FreeBSD__
+/*
+ * BSD timer emulation via self-pipe + timer thread.
+ * Replaces Linux timerfd for the sequencer select() loop.
+ */
+static int bsdseqpipe[2];          /* self-pipe: seqhan = bsdseqpipe[0] */
+static pthread_mutex_t bsdtmrlck;  /* lock for timer state */
+static pthread_cond_t  bsdtmrcnd;  /* condition to arm/rearm/disarm */
+static struct timespec  bsdtmrabs; /* absolute fire time */
+static int              bsdtmrarm; /* 1 = armed, 0 = disarmed */
+
+static void* bsd_timer_thread(void* arg)
+{
+    pthread_mutex_lock(&bsdtmrlck);
+    while (1) {
+        while (!bsdtmrarm)
+            pthread_cond_wait(&bsdtmrcnd, &bsdtmrlck);
+        int rc = pthread_cond_timedwait(&bsdtmrcnd, &bsdtmrlck, &bsdtmrabs);
+        if (rc == ETIMEDOUT && bsdtmrarm) {
+            bsdtmrarm = 0;
+            pthread_mutex_unlock(&bsdtmrlck);
+            char b = 1;
+            write(bsdseqpipe[1], &b, 1);
+            pthread_mutex_lock(&bsdtmrlck);
+        }
+    }
+    return NULL;
+}
+
+static void bsd_seqtimer_init(void)
+{
+    pipe(bsdseqpipe);
+    pthread_mutex_init(&bsdtmrlck, NULL);
+    pthread_cond_init(&bsdtmrcnd, NULL);
+    bsdtmrarm = 0;
+    pthread_t tid;
+    pthread_create(&tid, NULL, bsd_timer_thread, NULL);
+}
+
+static void bsd_seqtimer_set(const struct itimerspec* ts)
+{
+    pthread_mutex_lock(&bsdtmrlck);
+    if (ts->it_value.tv_sec == 0 && ts->it_value.tv_nsec == 0) {
+        bsdtmrarm = 0;
+    } else {
+        struct timespec now;
+        clock_gettime(CLOCK_REALTIME, &now);
+        bsdtmrabs.tv_sec  = now.tv_sec  + ts->it_value.tv_sec;
+        bsdtmrabs.tv_nsec = now.tv_nsec + ts->it_value.tv_nsec;
+        if (bsdtmrabs.tv_nsec >= 1000000000L) {
+            bsdtmrabs.tv_sec++;
+            bsdtmrabs.tv_nsec -= 1000000000L;
+        }
+        bsdtmrarm = 1;
+    }
+    pthread_cond_signal(&bsdtmrcnd);
+    pthread_mutex_unlock(&bsdtmrlck);
+}
+#endif
 
 /* Wave track storage. Note this needs locking */
 static pthread_mutex_t wavlck; /* wave track lock */
@@ -785,7 +850,11 @@ static void acttim(void)
         ts.it_value.tv_nsec = tl%10000*100000;
         ts.it_interval.tv_sec = 0; /* set does not rerun */
         ts.it_interval.tv_nsec = 0;
+#ifndef __FreeBSD__
         timerfd_settime(seqhan, 0, &ts, NULL);
+#else
+        bsd_seqtimer_set(&ts);
+#endif
         seqtimact = TRUE; /* set sequencer timer active */
 
         /* count active sequence instances */
@@ -2450,7 +2519,11 @@ static void* sequencer_thread(void* data)
             if (seqrun) { /* sequencer is still running */
 
                 /* clear the timer by reading it */
+#ifndef __FreeBSD__
                 read(seqhan, &exp, sizeof(uint64_t));
+#else
+                { char _b; read(seqhan, &_b, 1); }
+#endif
                 pthread_mutex_lock(&seqlock); /* take sequencer data lock */
                 p = seqlst; /* index top of list */
                 elap = timediff(&strtim); /* find elapsed time since seq start */
@@ -2473,7 +2546,11 @@ static void* sequencer_thread(void* data)
                     ts.it_value.tv_nsec = tl%10000*100000; /* set number of nanoseconds to run */
                     ts.it_interval.tv_sec = 0; /* set does not rerun */
                     ts.it_interval.tv_nsec = 0;
+#ifndef __FreeBSD__
                     timerfd_settime(seqhan, 0, &ts, NULL);
+#else
+                    bsd_seqtimer_set(&ts);
+#endif
                     seqtimact = TRUE; /* set sequencer timer active */
 
                 } else seqtimact = FALSE; /* set sequencer timer inactive */
@@ -2640,7 +2717,11 @@ void ami_stoptimeout(void)
         ts.it_value.tv_nsec = 0;
         ts.it_interval.tv_sec = 0;
         ts.it_interval.tv_nsec = 0;
+#ifndef __FreeBSD__
         timerfd_settime(seqhan, 0, &ts, NULL);
+#else
+        bsd_seqtimer_set(&ts);
+#endif
         seqtimact = FALSE; /* set sequencer timer inactive */
 
     }
@@ -3956,7 +4037,6 @@ static void *alsaplaymidi(void* data)
     pthread_mutex_unlock(&snmlck); /* release lock */
 
     /* sequence and destroy the master list */
-    tfd = timerfd_create(CLOCK_REALTIME, 0); /* create timer */
     gettimeofday(&strtim, NULL); /* get current time */
     while (seqlst) {
 
@@ -3965,12 +4045,21 @@ static void *alsaplaymidi(void* data)
         /* check event still is in the future */
         if (tl > 0) {
 
-            ts.it_value.tv_sec = tl/10000; /* set number of seconds to run */
-            ts.it_value.tv_nsec = tl%10000*100000; /* set number of nanoseconds to run */
-            ts.it_interval.tv_sec = 0; /* set does not rerun */
+#ifndef __FreeBSD__
+            tfd = timerfd_create(CLOCK_REALTIME, 0);
+            ts.it_value.tv_sec = tl/10000;
+            ts.it_value.tv_nsec = tl%10000*100000;
+            ts.it_interval.tv_sec = 0;
             ts.it_interval.tv_nsec = 0;
             timerfd_settime(tfd, 0, &ts, NULL);
             read(tfd, &exp, sizeof(uint64_t)); /* wait for timer expire */
+            close(tfd);
+#else
+            struct timespec bsdts;
+            bsdts.tv_sec  = tl/10000;
+            bsdts.tv_nsec = tl%10000*100000;
+            nanosleep(&bsdts, NULL);
+#endif
 
         }
         /* Change the port to be the one requested. In this case we are treating
@@ -3980,7 +4069,6 @@ static void *alsaplaymidi(void* data)
         seqlst = seqlst->next;
 
     }
-    close(tfd); /* release the timer */
 
     /* count active sequencer instances */
     pthread_mutex_lock(&snmlck);
@@ -6305,7 +6393,12 @@ static void ami_init_sound()
     for (i = 0; i < MAXMIDT; i++) numsql[i] = 0;
 
     /* create sequencer timer */
+#ifndef __FreeBSD__
     seqhan = timerfd_create(CLOCK_REALTIME, 0);
+#else
+    bsd_seqtimer_init();
+    seqhan = bsdseqpipe[0];
+#endif
     seqtimact = FALSE;
 
     /* clear input select set */
