@@ -190,6 +190,7 @@ static enum { /* debug levels */
 #define CFRM_BUTTON_GAP     6  /* gap between buttons */
 #define CFRM_BUTTON_MG      8  /* button margin from edge */
 #define CFRM_TITLE_SZ(win)  ((int)((win)->gfhigh * 1.15))
+#define CFRM_MIN_W          200 /* width of a minimized child window */
 #define MAXSID 100 /* number of possible logical system events */
 /* extra space to add in x/y for initial window */
 #ifdef __MACH__ /* Mac OS X */
@@ -609,6 +610,11 @@ typedef struct winrec {
     int          childfrm;          /* TRUE if using Ami-drawn child frame */
     char*        wintitle;          /* window title string (for child frames) */
     GC           frmgc;             /* GC for drawing on xmwhan (child frame) */
+    int          minimized;         /* TRUE if child frame is minimized */
+    int          minslot;           /* slot index when minimized (for x pos) */
+    xrect        savxmwr;           /* xmwr before minimize, for restore */
+    int          savgmaxxg;         /* gmaxxg before minimize */
+    int          savgmaxyg;         /* gmaxyg before minimize */
 
 } winrec;
 
@@ -4506,10 +4512,11 @@ static void childfrm_set_cursor(winptr win, int mx, int my)
 {
     int mw = win->xmwr.w;
     int mh = win->xmwr.h;
-    int on_left   = (mx < CFRM_BORDER_W);
-    int on_right  = (mx >= mw - CFRM_BORDER_W);
-    int on_top    = (my < CFRM_BORDER_W);
-    int on_bottom = (my >= mh - CFRM_BORDER_W);
+    /* when minimized, all edges show the arrow cursor — no resizing */
+    int on_left   = !win->minimized && (mx < CFRM_BORDER_W);
+    int on_right  = !win->minimized && (mx >= mw - CFRM_BORDER_W);
+    int on_top    = !win->minimized && (my < CFRM_BORDER_W);
+    int on_bottom = !win->minimized && (my >= mh - CFRM_BORDER_W);
     Cursor c;
 
     /* lazy-init cursors on first use */
@@ -4540,6 +4547,111 @@ static void childfrm_set_cursor(winptr win, int mx, int my)
     XWLOCK();
     XDefineCursor(padisplay, win->xmwhan, c);
     XWUNLOCK();
+}
+
+/* forward declarations */
+static void childfrm_draw(winptr win);
+static void restore(winptr win);
+
+/* Find the lowest unused minimize slot among siblings of win. The slot is the
+   x position index for arranging minimized child windows along the bottom of
+   the parent client area. */
+static int childfrm_find_minslot(winptr win)
+{
+
+    winptr parent = win->parwin;
+    winptr sib;
+    int slot = 0;
+    int found;
+
+    if (!parent) return 0;
+    do {
+        found = 0;
+        for (sib = parent->childwin; sib; sib = sib->childlst) {
+
+            if (sib != win && sib->minimized && sib->minslot == slot) {
+
+                slot++;
+                found = 1;
+                break;
+
+            }
+
+        }
+    } while (found);
+    return slot;
+
+}
+
+/* Compute the screen position of a minimized child window slot. The slot is
+   placed along the bottom of the parent's client area. If the parent is too
+   narrow to hold all minimized windows side by side, slots wrap back to the
+   left and overlap previously placed minimized windows (Windows MDI style). */
+static void childfrm_minslot_pos(winptr win, int slot, int* x, int* y)
+{
+
+    int min_w = CFRM_MIN_W;
+    int min_h = CFRM_TITBAR_H(win);
+    int parent_w, parent_h, slots_per_row;
+
+    parent_w = win->parwin ? win->parwin->xwr.w : min_w;
+    parent_h = win->parwin ? win->parwin->xwr.h : min_h;
+    slots_per_row = parent_w / min_w;
+    if (slots_per_row < 1) slots_per_row = 1;
+    *x = (slot % slots_per_row) * min_w;
+    *y = parent_h - min_h;
+
+}
+
+/* Minimize a child window: collapse it to title-bar-only at a slot along the
+   bottom of the parent client area. Saves current geometry for later restore. */
+static void childfrm_minimize(winptr win)
+{
+
+    int x, y, min_w, min_h;
+
+    if (win->minimized || !win->childfrm) return;
+    /* save current geometry */
+    win->savxmwr = win->xmwr;
+    win->savgmaxxg = win->gmaxxg;
+    win->savgmaxyg = win->gmaxyg;
+    /* assign a slot and compute its position */
+    win->minslot = childfrm_find_minslot(win);
+    childfrm_minslot_pos(win, win->minslot, &x, &y);
+    min_w = CFRM_MIN_W;
+    min_h = CFRM_TITBAR_H(win);
+    win->xmwr.x = x;
+    win->xmwr.y = y;
+    win->xmwr.w = min_w;
+    win->xmwr.h = min_h;
+    win->minimized = TRUE;
+    XWLOCK();
+    XMoveResizeWindow(padisplay, win->xmwhan, x, y, min_w, min_h);
+    /* hide the subclient — we only want to show the title bar */
+    XUnmapWindow(padisplay, win->xwhan);
+    XWUNLOCK();
+    childfrm_draw(win);
+
+}
+
+/* Restore a minimized child window to its previous position and size. */
+static void childfrm_restore(winptr win)
+{
+
+    if (!win->minimized || !win->childfrm) return;
+    win->xmwr = win->savxmwr;
+    win->gmaxxg = win->savgmaxxg;
+    win->gmaxyg = win->savgmaxyg;
+    win->minimized = FALSE;
+    XWLOCK();
+    XMoveResizeWindow(padisplay, win->xmwhan,
+                      win->xmwr.x, win->xmwr.y,
+                      win->xmwr.w, win->xmwr.h);
+    XMapWindow(padisplay, win->xwhan);
+    XWUNLOCK();
+    restore(win);
+    childfrm_draw(win);
+
 }
 
 /** ****************************************************************************
@@ -5289,6 +5401,7 @@ static void opnwin(int fn, int pfn, int wid, int subclient)
         XWUNLOCK();
 
         win->childfrm = TRUE;
+        win->minimized = FALSE;
         win->pfw = CFRM_BORDER_W * 2;
         win->pfh = CFRM_TITBAR_H(win) + CFRM_BORDER_W;
         win->cwox = CFRM_BORDER_W;
@@ -12321,15 +12434,33 @@ static void xwinevt(winptr win, ami_evtrec* er, XEvent* e, int* keep)
             }
 #endif
 
-            /* hit test: close button */
+            /* hit test: close, max, min buttons (right-aligned) */
             int cbx = mw - bsz - CFRM_BUTTON_MG;
             int cby = (tbh - bsz) / 2;
+            int mabx = cbx - bsz - CFRM_BUTTON_GAP;
+            int mibx = mabx - bsz - CFRM_BUTTON_GAP;
             if (mx >= cbx && mx < cbx + bsz &&
                 my >= cby && my < cby + bsz) {
 
                 /* close button clicked: send terminate */
                 er->etype = ami_etterm;
                 *keep = TRUE;
+
+            } else if (mx >= mabx && mx < mabx + bsz &&
+                       my >= cby && my < cby + bsz) {
+
+                /* max button: when minimized, restore to previous size */
+                if (win->minimized) childfrm_restore(win);
+                *keep = FALSE;
+                return;
+
+            } else if (mx >= mibx && mx < mibx + bsz &&
+                       my >= cby && my < cby + bsz) {
+
+                /* min button: collapse to title-bar slot at bottom of parent */
+                if (!win->minimized) childfrm_minimize(win);
+                *keep = FALSE;
+                return;
 
             } else if (my >= CFRM_BORDER_W && my < tbh &&
                        mx >= CFRM_BORDER_W && mx < mw - CFRM_BORDER_W) {
@@ -12414,10 +12545,11 @@ static void xwinevt(winptr win, ami_evtrec* er, XEvent* e, int* keep)
                     }
                 }
 
-            } else if (my >= win->xmwr.h - CFRM_BORDER_W ||
-                       mx >= win->xmwr.w - CFRM_BORDER_W ||
-                       mx < CFRM_BORDER_W ||
-                       my < CFRM_BORDER_W) {
+            } else if (!win->minimized &&
+                       (my >= win->xmwr.h - CFRM_BORDER_W ||
+                        mx >= win->xmwr.w - CFRM_BORDER_W ||
+                        mx < CFRM_BORDER_W ||
+                        my < CFRM_BORDER_W)) {
 
                 /* resize edge: determine which edges are grabbed */
                 int rsz_left   = (mx < CFRM_BORDER_W);
