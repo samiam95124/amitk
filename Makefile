@@ -454,8 +454,6 @@ endif
 ifeq ($(LINK_TYPE),static)
     ifeq ($(OSTYPE),Darwin)
     	PLIBS += lib/petit_ami_plain.a
-    else ifeq ($(OSTYPE),FreeBSD)
-    	PLIBS += lib/petit_ami_plain.a
     else
     	PLIBS += -Wl,--whole-archive lib/petit_ami_plain.a -Wl,--no-whole-archive
     endif
@@ -473,13 +471,11 @@ endif
 ifeq ($(LINK_TYPE),static)
     ifeq ($(OSTYPE),Darwin)
     	CLIBS += lib/petit_ami_term.a
-    else ifeq ($(OSTYPE),FreeBSD)
-    	CLIBS += lib/petit_ami_term.a
     else
     	CLIBS += -Wl,--whole-archive lib/petit_ami_term.a -Wl,--no-whole-archive
     endif
 else
-    CLIBS += stub/keeper.o lib/petit_ami_term.so 
+    CLIBS += stub/keeper.o lib/petit_ami_term.so
 endif
 
 CLIBSCPP = $(CLIBS) cpp/terminal.o
@@ -536,10 +532,10 @@ else ifeq ($(OSTYPE),FreeBSD)
     #
     # BSD
     #
-	PLIBS += -L/usr/local/lib -lm -lpthread -lssl -lcrypto
-	CLIBS += -L/usr/local/lib -lm -lpthread -lssl -lcrypto
-	GLIBS += -L/usr/local/lib -lm -lpthread -lssl -lcrypto -lX11 \
-	         -lfreetype -lfontconfig
+	PLIBS += -L/usr/local/lib -lasound -lfluidsynth -lm -lpthread -lssl -lcrypto
+	CLIBS += -L/usr/local/lib -lasound -lfluidsynth -lm -lpthread -lssl -lcrypto
+	GLIBS += -L/usr/local/lib -lasound -lfluidsynth -lm -lpthread -lssl -lcrypto \
+	         -lX11 -lfreetype -lfontconfig
 	PLIBSD +=
     CLIBSD +=
 	GLIBSD +=
@@ -753,9 +749,17 @@ bsd/services.o: linux/services.c include/services.h Makefile
 	@mkdir -p $(@D)
 	$(CC) $(CFLAGS) -c linux/services.c -o bsd/services.o
 
-bsd/sound.o: stub/sound.c include/sound.h Makefile
+bsd/sound.o: linux/sound.c include/sound.h Makefile
 	@mkdir -p $(@D)
-	$(CC) $(CFLAGS) -c stub/sound.c -o bsd/sound.o
+	$(CC) $(CFLAGS) -I/usr/local/include -c linux/sound.c -o bsd/sound.o
+
+bsd/fluidsynthplug.o: linux/fluidsynthplug.c include/sound.h Makefile
+	@mkdir -p $(@D)
+	$(CC) $(CFLAGS) -I/usr/local/include -c linux/fluidsynthplug.c -o bsd/fluidsynthplug.o
+
+bsd/dumpsynthplug.o: linux/dumpsynthplug.c include/sound.h Makefile
+	@mkdir -p $(@D)
+	$(CC) $(CFLAGS) -I/usr/local/include -c linux/dumpsynthplug.c -o bsd/dumpsynthplug.o
 
 bsd/network.o: stub/network.c include/network.h Makefile
 	@mkdir -p $(@D)
@@ -873,22 +877,27 @@ else ifeq ($(OSTYPE),FreeBSD)
 #
 # Use statically linked files, for BSD
 #
-lib/petit_ami_plain.a: bsd/services.o bsd/sound.o bsd/network.o \
-	utils/config.o utils/option.o bsd/stdio.o
+lib/petit_ami_plain.a: bsd/services.o bsd/sound.o bsd/fluidsynthplug.o \
+	bsd/dumpsynthplug.o bsd/network.o utils/config.o utils/option.o bsd/stdio.o
 	ar rcs lib/petit_ami_plain.a bsd/services.o bsd/sound.o \
+	    bsd/fluidsynthplug.o bsd/dumpsynthplug.o \
         bsd/network.o utils/config.o utils/option.o bsd/stdio.o
-	
-lib/petit_ami_term.a: bsd/services.o bsd/sound.o bsd/network.o \
+
+lib/petit_ami_term.a: bsd/services.o bsd/sound.o bsd/fluidsynthplug.o \
+	bsd/dumpsynthplug.o bsd/network.o \
     bsd/system_event.o bsd/terminal.o utils/config.o utils/option.o \
     bsd/stdio.o
 	ar rcs lib/petit_ami_term.a bsd/services.o bsd/sound.o \
+	    bsd/fluidsynthplug.o bsd/dumpsynthplug.o \
 	    bsd/network.o bsd/system_event.o bsd/terminal.o \
 	    utils/config.o utils/option.o bsd/stdio.o
-	
-lib/petit_ami_graph.a: bsd/services.o bsd/sound.o bsd/network.o \
+
+lib/petit_ami_graph.a: bsd/services.o bsd/sound.o bsd/fluidsynthplug.o \
+	bsd/dumpsynthplug.o bsd/network.o \
     bsd/graphics.o bsd/system_event.o \
 	portable/gnome_widgets.o utils/config.o utils/option.o bsd/stdio.o
 	ar rcs lib/petit_ami_graph.a bsd/services.o bsd/sound.o \
+	    bsd/fluidsynthplug.o bsd/dumpsynthplug.o \
 	    bsd/network.o bsd/system_event.o bsd/graphics.o \
 	    portable/gnome_widgets.o utils/config.o utils/option.o bsd/stdio.o
 	

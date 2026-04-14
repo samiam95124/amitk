@@ -263,13 +263,23 @@ static void fluidsynth_plug_init()
         devtbl[i]->settings = new_fluid_settings();
         /* create the synthesizer */
         devtbl[i]->synth = new_fluid_synth(devtbl[i]->settings);
-        /* create the audio driver as alsa type */
+        /* create the audio driver (alsa on Linux, oss on FreeBSD) */
+#ifdef __FreeBSD__
+        fluid_settings_setstr(devtbl[i]->settings, "audio.driver", "oss");
+#else
         fluid_settings_setstr(devtbl[i]->settings, "audio.driver", "alsa");
+#endif
         /* disable realtime priority to suppress warning when not running as root */
         fluid_settings_setint(devtbl[i]->settings, "audio.realtime-prio", 0);
         devtbl[i]->adriver = new_fluid_audio_driver(devtbl[i]->settings, devtbl[i]->synth);
         /* load a SoundFont and reset presets */
-        devtbl[i]->sfont_id = fluid_synth_sfload(devtbl[i]->synth, "/usr/share/sounds/sf2/FluidR3_GM.sf2", 1);
+        devtbl[i]->sfont_id = fluid_synth_sfload(devtbl[i]->synth,
+#ifdef __FreeBSD__
+            "/usr/local/share/sounds/sf2/FluidR3_GM.sf2",
+#else
+            "/usr/share/sounds/sf2/FluidR3_GM.sf2",
+#endif
+            1);
         /* fluidsynth default volume is very low. Turn up to reasonable value */
         fluid_settings_setnum(devtbl[i]->settings, "synth.gain", 1.0);
 
