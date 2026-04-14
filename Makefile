@@ -751,15 +751,15 @@ bsd/services.o: linux/services.c include/services.h Makefile
 
 bsd/sound.o: linux/sound.c include/sound.h Makefile
 	@mkdir -p $(@D)
-	$(CC) $(CFLAGS) -I/usr/local/include -c linux/sound.c -lasound -lm -pthread -o bsd/sound.o
+	$(CC) $(CFLAGS) -I/usr/local/include -c linux/sound.c -o bsd/sound.o
 
 bsd/fluidsynthplug.o: linux/fluidsynthplug.c include/sound.h Makefile
 	@mkdir -p $(@D)
-	$(CC) $(CFLAGS) -I/usr/local/include -c linux/fluidsynthplug.c -lasound -lm -pthread -o bsd/fluidsynthplug.o
+	$(CC) $(CFLAGS) -I/usr/local/include -c linux/fluidsynthplug.c -o bsd/fluidsynthplug.o
 
 bsd/dumpsynthplug.o: linux/dumpsynthplug.c include/sound.h Makefile
 	@mkdir -p $(@D)
-	$(CC) $(CFLAGS) -I/usr/local/include -c linux/dumpsynthplug.c -lasound -lm -pthread -o bsd/dumpsynthplug.o
+	$(CC) $(CFLAGS) -I/usr/local/include -c linux/dumpsynthplug.c -o bsd/dumpsynthplug.o
 
 bsd/network.o: stub/network.c include/network.h Makefile
 	@mkdir -p $(@D)
