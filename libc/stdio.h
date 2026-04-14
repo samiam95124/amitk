@@ -36,55 +36,60 @@ extern "C" {
 #ifdef STDIO_BYPASS
 
 /*
-* Functions
-*/
-#define fopen       stdio_fopen
-#define freopen     stdio_freopen
-#define fdopen      stdio_fdopen
-#define fflush      stdio_fflush
-#define fclose      stdio_fclose
-#define remove      stdio_remove
-#define rename      stdio_rename
-#define tmpfile     stdio_tmpfile
-#define tmpnam      stdio_tmpnam
-#define setvbuf     stdio_setvbuf
-#define setbuf      stdio_setbuf
-#define fprintf     stdio_fprintf
-#define printf      stdio_printf
-#define sprintf     stdio_sprintf
-#define vprintf     stdio_vprintf
-#define vfprintf    stdio_vfprintf
-#define vsprintf    stdio_vsprintf
-#define fscanf      stdio_fscanf
-#define scanf       stdio_scanf
-#define sscanf      stdio_sscanf
-#define fgetc       stdio_fgetc
-#define getc        stdio_getc
-#define fgets       stdio_fgets
-#define fputc       stdio_fputc
-#define fputs       stdio_fputs
-#define putc        stdio_putc
-#define getchar     stdio_getchar
-#define gets        stdio_gets
-#define putc        stdio_putc
-#define putchar     stdio_putchar
-#define puts        stdio_puts
-#define ungetc      stdio_ungetc
-#define fread       stdio_fread
-#define fwrite      stdio_fwrite
-#define fseek       stdio_fseek
-#define ftell       stdio_ftell
-#define rewind      stdio_rewind
-#define fgetpos     stdio_fgetpos
-#define fsetpos     stdio_fsetpos
-#define clearerr    stdio_clearerr
-#define feof        stdio_feof
-#define ferror      stdio_ferror
-#define perror      stdio_perror
-#define fileno      stdio_fileno
+ * Functions
+ *
+ * These are function-like macros so bare identifiers (format-attribute
+ * arguments like `__attribute__((format(printf, 2, 3)))` in third-party
+ * headers, address-of expressions, etc.) are left alone — only actual
+ * `name(...)` calls get rewritten to `stdio_name(...)`.
+ */
+#define fopen(...)    stdio_fopen(__VA_ARGS__)
+#define freopen(...)  stdio_freopen(__VA_ARGS__)
+#define fdopen(...)   stdio_fdopen(__VA_ARGS__)
+#define fflush(...)   stdio_fflush(__VA_ARGS__)
+#define fclose(...)   stdio_fclose(__VA_ARGS__)
+#define remove(...)   stdio_remove(__VA_ARGS__)
+#define rename(...)   stdio_rename(__VA_ARGS__)
+#define tmpfile(...)  stdio_tmpfile(__VA_ARGS__)
+#define tmpnam(...)   stdio_tmpnam(__VA_ARGS__)
+#define setvbuf(...)  stdio_setvbuf(__VA_ARGS__)
+#define setbuf(...)   stdio_setbuf(__VA_ARGS__)
+#define fprintf(...)  stdio_fprintf(__VA_ARGS__)
+#define printf(...)   stdio_printf(__VA_ARGS__)
+#define sprintf(...)  stdio_sprintf(__VA_ARGS__)
+#define vprintf(...)  stdio_vprintf(__VA_ARGS__)
+#define vfprintf(...) stdio_vfprintf(__VA_ARGS__)
+#define vsprintf(...) stdio_vsprintf(__VA_ARGS__)
+#define fscanf(...)   stdio_fscanf(__VA_ARGS__)
+#define scanf(...)    stdio_scanf(__VA_ARGS__)
+#define sscanf(...)   stdio_sscanf(__VA_ARGS__)
+#define fgetc(...)    stdio_fgetc(__VA_ARGS__)
+#define getc(...)     stdio_getc(__VA_ARGS__)
+#define fgets(...)    stdio_fgets(__VA_ARGS__)
+#define fputc(...)    stdio_fputc(__VA_ARGS__)
+#define fputs(...)    stdio_fputs(__VA_ARGS__)
+#define putc(...)     stdio_putc(__VA_ARGS__)
+#define getchar(...)  stdio_getchar(__VA_ARGS__)
+#define gets(...)     stdio_gets(__VA_ARGS__)
+#define putchar(...)  stdio_putchar(__VA_ARGS__)
+#define puts(...)     stdio_puts(__VA_ARGS__)
+#define ungetc(...)   stdio_ungetc(__VA_ARGS__)
+#define fread(...)    stdio_fread(__VA_ARGS__)
+#define fwrite(...)   stdio_fwrite(__VA_ARGS__)
+#define fseek(...)    stdio_fseek(__VA_ARGS__)
+#define ftell(...)    stdio_ftell(__VA_ARGS__)
+#define rewind(...)   stdio_rewind(__VA_ARGS__)
+#define fgetpos(...)  stdio_fgetpos(__VA_ARGS__)
+#define fsetpos(...)  stdio_fsetpos(__VA_ARGS__)
+#define clearerr(...) stdio_clearerr(__VA_ARGS__)
+#define feof(...)     stdio_feof(__VA_ARGS__)
+#define ferror(...)   stdio_ferror(__VA_ARGS__)
+#define perror(...)   stdio_perror(__VA_ARGS__)
+#define fileno(...)   stdio_fileno(__VA_ARGS__)
 
 /*
- * Declarations
+ * Type and global object-like renames (cannot be function-like since
+ * they are not invoked).
  */
 #define FILE        STDIO_FILE
 #define stdin       stdio_stdin
