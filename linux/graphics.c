@@ -75,6 +75,7 @@
 #include <X11/Xutil.h>
 #include <X11/Xatom.h>
 #include <X11/cursorfont.h>
+#include <X11/extensions/shape.h>
 
 /* whitebook definitions */
 #include <stdlib.h>
@@ -4566,16 +4567,20 @@ static void childfrm_draw(winptr win)
     int title_size;   /* title font pixel size */
     int corner_r;     /* outer corner radius */
 
-    if (!win->childfrm || !win->frmgc) return;
+    if (!win->childfrm || !win->frmgc || !win->linespace) return;
 
-    /* query the actual master window geometry rather than trust xmwr,
-       which may be stale or off by a pixel after various resize paths */
+    /* Query actual geometry from the X server. XSync ensures any pending
+       resize requests have been processed before we query. We cannot rely
+       on xmwr — some code paths set it to the parent window's dimensions. */
     {
         Window root_ret;
         int rx, ry;
         unsigned int rw, rh, bw, dp;
+        XWLOCK();
+        XSync(padisplay, False);
         XGetGeometry(padisplay, win->xmwhan, &root_ret,
                      &rx, &ry, &rw, &rh, &bw, &dp);
+        XWUNLOCK();
         mw = (int)rw;
         mh = (int)rh;
     }
@@ -4586,23 +4591,27 @@ static void childfrm_draw(winptr win)
 
     XWLOCK();
 
+    /* Clear entire xmwhan to parent background (ParentRelative), then
+       draw the frame shape. This ensures rounded corners show the parent
+       through and no stale pixels remain after resize. */
+    XClearWindow(padisplay, win->xmwhan);
+
     /* fill master frame background. Only the top-left and top-right corners
        are rounded; bottom corners remain square because they sit against the
-       rectangular client area. We draw the body inset by corner_r at the top,
-       a full-width strip below, then 2 filled circles for the top corners. */
+       rectangular client area. We draw the body below the corner row, the
+       top strip between corners, then full circles at each corner (the parts
+       that extend below corner_r are hidden by the body fill). */
     XSetForeground(padisplay, win->frmgc, 0x303030); /* dark frame bg */
+
+    /* body below the top corner row */
+    XFillRectangle(padisplay, win->xmwhan, win->frmgc,
+                   0, corner_r, mw, mh - corner_r);
 
     /* top strip between the two top corner caps */
     XFillRectangle(padisplay, win->xmwhan, win->frmgc,
                    corner_r, 0, mw - corner_r*2, corner_r);
-    /* left edge of top corner area (height = corner_r) */
-    XFillRectangle(padisplay, win->xmwhan, win->frmgc,
-                   0, corner_r, corner_r, 0); /* placeholder, no body */
-    /* full body below the top corner row */
-    XFillRectangle(padisplay, win->xmwhan, win->frmgc,
-                   0, corner_r, mw, mh - corner_r);
 
-    /* 2 top corner circles (only the top half is visible due to fill above) */
+    /* 2 top corner circles */
     XFillArc(padisplay, win->xmwhan, win->frmgc,
              0, 0, corner_r*2, corner_r*2, 0, 360*64);
     XFillArc(padisplay, win->xmwhan, win->frmgc,
@@ -4703,6 +4712,33 @@ static void childfrm_draw(winptr win)
                       bx_close + margin, by + bsz - margin - 1);
         }
         XSetLineAttributes(padisplay, win->frmgc, 1, LineSolid, CapButt, JoinMiter);
+    }
+
+    /* Apply a shape mask that physically cuts the top corners out of the
+       xmwhan window. This makes the rounded corners truly transparent —
+       the parent window shows through those pixels. */
+    {
+        Pixmap mask = XCreatePixmap(padisplay, win->xmwhan, mw, mh, 1);
+        GC mgc = XCreateGC(padisplay, mask, 0, NULL);
+        /* fill mask with 0 (transparent everywhere) */
+        XSetForeground(padisplay, mgc, 0);
+        XFillRectangle(padisplay, mask, mgc, 0, 0, mw, mh);
+        /* fill the opaque (visible) area with 1 */
+        XSetForeground(padisplay, mgc, 1);
+        /* body below top corner row */
+        XFillRectangle(padisplay, mask, mgc, 0, corner_r, mw, mh - corner_r);
+        /* top strip between corners */
+        XFillRectangle(padisplay, mask, mgc,
+                       corner_r, 0, mw - corner_r*2, corner_r);
+        /* two top corner discs */
+        XFillArc(padisplay, mask, mgc,
+                 0, 0, corner_r*2, corner_r*2, 0, 360*64);
+        XFillArc(padisplay, mask, mgc,
+                 mw - corner_r*2, 0, corner_r*2, corner_r*2, 0, 360*64);
+        XShapeCombineMask(padisplay, win->xmwhan, ShapeBounding, 0, 0,
+                          mask, ShapeSet);
+        XFreeGC(padisplay, mgc);
+        XFreePixmap(padisplay, mask);
     }
 
     XFlush(padisplay);
@@ -5245,7 +5281,13 @@ static void opnwin(int fn, int pfn, int wid, int subclient)
     /* set up child frame or WM frame parameters */
     if (pwin && subclient) {
 
-        /* child window: Ami draws its own frame on xmwhan */
+        /* child window: Ami draws its own frame on xmwhan.
+           Set background to ParentRelative so the rounded corner areas
+           (not covered by the frame fill) show the parent through. */
+        XWLOCK();
+        XSetWindowBackgroundPixmap(padisplay, win->xmwhan, ParentRelative);
+        XWUNLOCK();
+
         win->childfrm = TRUE;
         win->pfw = CFRM_BORDER_W * 2;
         win->pfh = CFRM_TITBAR_H(win) + CFRM_BORDER_W;
