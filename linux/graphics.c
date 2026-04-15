@@ -520,7 +520,9 @@ typedef struct winrec {
     int          gbcrgb;            /* background color in rgb */
     int          gcurv;             /* state of cursor visible */
     fontptr      gcfont;            /* current font select */
-    int          gfhigh;            /* current font height */
+    int          gfhigh;            /* current em-square pixel size (FreeType) */
+    int          gfcellh;           /* target character cell height (pixels) */
+    float        gfpoint;           /* current font point size */
     int          mischrx;           /* missing font character x */
     int          mischry;           /* missing font character y */
     int          misoffx;           /* missing font offset x */
@@ -991,6 +993,8 @@ static ami_fonts_t           fonts_vect;
 static ami_font_t            font_vect;
 static ami_fontnam_t         fontnam_vect;
 static ami_fontsiz_t         fontsiz_vect;
+static ami_setpoints_t        setpoints_vect;
+static ami_points_t        points_vect;
 static ami_chrspcy_t         chrspcy_vect;
 static ami_chrspcx_t         chrspcx_vect;
 static ami_dpmx_t            dpmx_vect;
@@ -3125,29 +3129,72 @@ void setfnt(winptr win)
     if (FT_New_Face(ftlibrary, best->path, best->index, &win->ftface))
         error(esystem);
 
-    /* Set pixel size, scaling down if needed so that the font's actual
-       ascender + |descender| fits within gfhigh. FreeType's pixel size
-       request is the em-square height, but the actual glyph extent
-       (ascender + descender) can exceed it. We reduce the pixel size
-       until all glyphs fit within the requested cell height. */
+    /* Set the em-square pixel size so the resulting character cell
+       (ascender + |descender| + 2) fits within win->gfcellh. This keeps
+       the cell height constant across font changes. On first call
+       (gfcellh == 0), bootstrap gfcellh from the initial gfhigh. */
     {
-        int pixsiz = win->gfhigh;
-        int ascender, descender;
-        do {
-            FT_Set_Pixel_Sizes(win->ftface, 0, pixsiz);
-            ascender  = (int)( win->ftface->size->metrics.ascender  >> 6);
-            descender = (int)(-win->ftface->size->metrics.descender >> 6);
-            if (ascender + descender <= win->gfhigh) break;
-            pixsiz--;
-        } while (pixsiz > 1);
-    }
+        FT_Face face = win->ftface;
+        int     target, pixsiz, asc, dsc;
 
-    /* extract metrics */
+        if (win->gfcellh == 0) {
+
+            /* bootstrap: use gfhigh directly and record the resulting
+               cell height as the persistent target */
+            FT_Set_Pixel_Sizes(face, 0, win->gfhigh);
+            asc = (int)( face->size->metrics.ascender  >> 6);
+            dsc = (int)(-face->size->metrics.descender >> 6);
+            win->gfcellh = asc + dsc + 2;
+            pixsiz = win->gfhigh;
+
+        } else {
+
+            /* find the largest em-square pixel size such that the
+               cell fits within gfcellh */
+            target = win->gfcellh - 2; /* ascender + |descender| target */
+            if (target < 1) target = 1;
+            pixsiz = target;
+            if (pixsiz < 1) pixsiz = 1;
+            FT_Set_Pixel_Sizes(face, 0, pixsiz);
+            asc = (int)( face->size->metrics.ascender  >> 6);
+            dsc = (int)(-face->size->metrics.descender >> 6);
+            while (asc + dsc > target && pixsiz > 1) {
+
+                pixsiz--;
+                FT_Set_Pixel_Sizes(face, 0, pixsiz);
+                asc = (int)( face->size->metrics.ascender  >> 6);
+                dsc = (int)(-face->size->metrics.descender >> 6);
+
+            }
+            while (1) {
+
+                int np = pixsiz + 1;
+                int na, nd;
+
+                FT_Set_Pixel_Sizes(face, 0, np);
+                na = (int)( face->size->metrics.ascender  >> 6);
+                nd = (int)(-face->size->metrics.descender >> 6);
+                if (na + nd > target) {
+
+                    FT_Set_Pixel_Sizes(face, 0, pixsiz);
+                    break;
+
+                }
+                pixsiz = np;
+                asc = na;
+                dsc = nd;
+
+            }
+
+        }
+        win->gfhigh    = pixsiz;
+        win->gfpoint   = pixsiz * 2835.0f / (float)win->sdpmy;
+        win->linespace = win->gfcellh;
+        win->baseoff   = asc + 1;
+    }
     win->charspace = (int)(win->ftface->size->metrics.max_advance >> 6);
-    win->linespace = win->gfhigh;
     win->chrspcx = 0;
     win->chrspcy = 0;
-    win->baseoff = (int)(win->ftface->size->metrics.ascender >> 6);
 
     if (prtftm) {
 
@@ -5337,6 +5384,8 @@ static void opnwin(int fn, int pfn, int wid, int subclient)
 
     win->gcfont = fntlst; /* index terminal font entry */
     win->gfhigh = (int)(conpnt*POINT*win->sdpmy/1000); /* set font height */
+    win->gfcellh = 0; /* 0 means: bootstrap from gfhigh on first setfnt */
+    win->gfpoint = (float)conpnt*POINT/1000.0f; /* set initial point size */
     /* set parameters of missing font character */
     win->mischrx = win->gfhigh*MISCHRX; /* set size x */
     win->mischry = win->gfhigh*MISCHRY; /* set size y */
@@ -10433,23 +10482,76 @@ static void fontsiz_ivf(FILE* f, int s)
 
 {
 
-    fontptr fp;  /* font pointer */
     winptr  win; /* windows record pointer */
-    scnptr  sc;  /* screen pointer */
 
     win = txt2win(f); /* get window from file */
-    sc = win->screens[win->curupd-1]; /* index update screen */
     if (win->screens[win->curupd-1]->autof)
         error(eatoftc); /* cannot perform with auto on */
     curoff(win); /* remove cursor with old font characteristics */
-    win->gfhigh = s; /* set new font height */
-    /* set parameters of missing font character */
-    win->mischrx = win->gfhigh*MISCHRX; /* set size x */
-    win->mischry = win->gfhigh*MISCHRY; /* set size y */
-    win->misoffx = win->gfhigh*MISOFFX; /* set offset x */
-    win->misoffy = win->gfhigh*MISOFFY; /* set offset x */
-    setfnt(win); /* select the font */
-    curon(win); /* replace cursor with new font characteristics */
+    win->gfcellh = s; /* set new target cell height */
+    setfnt(win); /* find em-square pixel size for this cell height */
+    win->mischrx = win->gfhigh*MISCHRX;
+    win->mischry = win->gfhigh*MISCHRY;
+    win->misoffx = win->gfhigh*MISOFFX;
+    win->misoffy = win->gfhigh*MISOFFY;
+    curon(win);
+
+}
+
+/* Set font size by point size (typographic points). The em-square pixel
+   size is computed from the DPI via gfhigh = ps * dpmy / 2835. The
+   resulting character cell height can be queried via ami_chrsizy(). */
+void _pa_setpoints_ovr(ami_setpoints_t nfp, ami_setpoints_t* ofp)
+    { *ofp = setpoints_vect; setpoints_vect = nfp; }
+void ami_setpoints(FILE* f, float ps) { (*setpoints_vect)(f, ps); }
+
+static void setpoints_ivf(FILE* f, float ps)
+
+{
+
+    winptr win;
+    int    pixsiz, asc, dsc;
+
+    win = txt2win(f);
+    if (win->screens[win->curupd-1]->autof)
+        error(eatoftc);
+    curoff(win);
+    pixsiz = (int)(ps * (float)win->sdpmy / 2835.0f + 0.5f);
+    if (pixsiz < 1) pixsiz = 1;
+    /* apply the point size directly to the current face to measure the
+       resulting cell height, then promote that to gfcellh so subsequent
+       font changes preserve it */
+    if (!win->ftface) setfnt(win);
+    FT_Set_Pixel_Sizes(win->ftface, 0, pixsiz);
+    asc = (int)( win->ftface->size->metrics.ascender  >> 6);
+    dsc = (int)(-win->ftface->size->metrics.descender >> 6);
+    win->gfcellh = asc + dsc + 2;
+    win->gfhigh  = pixsiz;
+    win->gfpoint = ps;
+    win->linespace = win->gfcellh;
+    win->baseoff = asc + 1;
+    win->charspace = (int)(win->ftface->size->metrics.max_advance >> 6);
+    win->mischrx = win->gfhigh*MISCHRX;
+    win->mischry = win->gfhigh*MISCHRY;
+    win->misoffx = win->gfhigh*MISOFFX;
+    win->misoffy = win->gfhigh*MISOFFY;
+    curon(win);
+
+}
+
+/* Return the current font point size. */
+void _pa_points_ovr(ami_points_t nfp, ami_points_t* ofp)
+    { *ofp = points_vect; points_vect = nfp; }
+float ami_points(FILE* f) { return ((*points_vect)(f)); }
+
+static float points_ivf(FILE* f)
+
+{
+
+    winptr win;
+
+    win = txt2win(f);
+    return win->gfpoint;
 
 }
 
@@ -15950,6 +16052,8 @@ static void ami_init_graphics(int argc, char *argv[])
     font_vect =            font_ivf;
     fontnam_vect =         fontnam_ivf;
     fontsiz_vect =         fontsiz_ivf;
+    setpoints_vect =        setpoints_ivf;
+    points_vect =        points_ivf;
     chrspcy_vect =         chrspcy_ivf;
     chrspcx_vect =         chrspcx_ivf;
     dpmx_vect =            dpmx_ivf;

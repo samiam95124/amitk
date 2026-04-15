@@ -2573,7 +2573,7 @@ int main(void)
         ami_fcolor(stdout, c1);
         ami_bcolor(stdout, c2);
         ami_fontsiz(stdout, h);
-        puts(S2);
+        printf("%d:%.1f: %s\n", ami_chrsizy(stdout), ami_points(stdout), S2);
         h = h+5;
         if (c1 < ami_magenta) c1++; else c1 = ami_black;
         if (c1 == ami_white) c1++;
@@ -2587,6 +2587,40 @@ int main(void)
     ami_font(stdout, AMI_FONT_TERM);
     ami_binvis(stdout);
     prtcen(ami_maxy(stdout), "Font sizing test");
+    waitnext();
+
+    /* ************************ Font point sizing test ************************* */
+
+    putchar('\f');
+    grid();
+    fsiz = ami_chrsizy(stdout); /* save character size to restore */
+    {
+        float ps = 6.0f;
+        ami_auto(stdout, OFF);
+        ami_font(stdout, AMI_FONT_SIGN);
+        c1 = ami_black;
+        c2 = ami_blue;
+        ami_bover(stdout);
+        while (ami_curyg(stdout)+ami_chrsizy(stdout) <= ami_maxyg(stdout)-20) {
+
+            ami_fcolor(stdout, c1);
+            ami_bcolor(stdout, c2);
+            ami_setpoints(stdout, ps);
+            printf("%d:%.1f: %s\n", ami_chrsizy(stdout), ami_points(stdout), S2);
+            ps = ps+3.0f;
+            if (c1 < ami_magenta) c1++; else c1 = ami_black;
+            if (c1 == ami_white) c1++;
+            if (c2 < ami_magenta) c2++; else c2 = ami_black;
+            if (c2 == ami_white) c2++;
+
+        }
+    }
+    ami_fontsiz(stdout, fsiz); /* restore font size */
+    ami_fcolor(stdout, ami_black);
+    ami_bcolor(stdout, ami_white);
+    ami_font(stdout, AMI_FONT_TERM);
+    ami_binvis(stdout);
+    prtcen(ami_maxy(stdout), "Font point sizing test");
     waitnext();
 
     /* ***************************** Font list test **************************** */
