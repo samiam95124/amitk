@@ -4568,6 +4568,7 @@ static void childfrm_draw(winptr win)
     int corner_r;     /* outer corner radius */
 
     if (!win->childfrm || !win->frmgc || !win->linespace) return;
+    if (!win->frame) return; /* frame is turned off — nothing to draw */
 
     /* Query actual geometry from the X server. XSync ensures any pending
        resize requests have been processed before we query. We cannot rely
@@ -14737,9 +14738,26 @@ static void frame_ivf(FILE* f, int e)
             XMoveResizeWindow(padisplay, win->xwhan,
                               win->cwox, win->cwoy,
                               win->gmaxxg, win->gmaxyg);
+            /* when frame is turned off, clear the rounded-corner shape
+               mask so the client window presents as a plain rectangle */
+            if (!e) {
+
+                XRectangle r;
+                r.x = 0;
+                r.y = 0;
+                r.width  = win->xmwr.w;
+                r.height = win->xmwr.h;
+                XShapeCombineRectangles(padisplay, win->xmwhan,
+                                        ShapeBounding, 0, 0, &r, 1,
+                                        ShapeSet, Unsorted);
+
+            }
             XWUNLOCK();
 
             restore(win);
+            /* redraw the frame (and re-apply the shape mask) when frame
+               is turned back on */
+            if (e) childfrm_draw(win);
 
         }
 
