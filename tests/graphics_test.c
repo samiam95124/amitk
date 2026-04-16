@@ -2944,7 +2944,7 @@ goto skip;
 
     /* ************************** View offset test **************************** */
 
-//skip:
+skip:
     putchar('\f');
     ami_auto(stdout, OFF);
     ami_viewoffg(stdout, -(ami_maxxg(stdout)/2), -(ami_maxyg(stdout)/2));
@@ -2974,9 +2974,10 @@ goto skip;
 
     /* ************************ Viewport scaling test ************************** */
 
-skip:
+//skip:
     putchar('\f');
     ami_auto(stdout, OFF);
+    fsiz = ami_chrsizy(stdout); /* save default font size */
     ami_font(stdout, AMI_FONT_SIGN);
     {
         int cx = ami_maxxg(stdout)/2; /* center x */
@@ -3035,11 +3036,22 @@ skip:
             printf("IN");
             ami_cursorg(stdout, cx+gs*2+5, cy+6);
             printf("OUT");
-            /* status line (drawn at physical coords via viewoff, stays put) */
-            ami_fontsiz(stdout, 16);
-            ami_cursorg(stdout, 5, ami_maxyg(stdout)-5);
-            printf("Sx:%.2f Sy:%.2f Off:%d,%d PgUp/Dn=zoom Arrows=pan Home/End=Yzoom Enter=next",
-                   vsx, vsy, vox, voy);
+            /* status at top, caption at bottom — draw at identity scale
+               so UI text stays the same physical size regardless of zoom */
+            ami_viewscale(stdout, 1.0f, 1.0f);
+            ami_viewoffg(stdout, 0, 0);
+            ami_fontsiz(stdout, fsiz);
+            ami_font(stdout, AMI_FONT_TERM);
+            {
+                char sb[120];
+                sprintf(sb, "Sx:%.2f Sy:%.2f Off:%d,%d PgUp/Dn=zoom Arrows=pan Home/End=Yzoom Enter=next",
+                        vsx, vsy, vox, voy);
+                prtcen(1, sb);
+            }
+            prtcen(ami_maxy(stdout), "View drawing scale test");
+            /* restore the current scale for next redraw */
+            ami_viewscale(stdout, vsx, vsy);
+            ami_viewoffg(stdout, vox, voy);
             /* wait for key */
             do { ami_event(stdin, &er); } while (er.etype != ami_etenter &&
                 er.etype != ami_etterm && er.etype != ami_etpagu &&
