@@ -118,13 +118,16 @@ extern char *program_invocation_short_name;
 #endif
 
 /* forward declarations for FreeType helper functions */
-static void ft_draw_char(Drawable d, GC gc, FT_Face face, int pixel_size,
+static void ft_draw_char(Drawable d, GC gc, FT_Face face,
+                         int pixel_size_x, int pixel_size_y,
                          int x, int y, char c);
-static void ft_draw_string(Drawable d, GC gc, FT_Face face, int pixel_size,
+static void ft_draw_string(Drawable d, GC gc, FT_Face face,
+                           int pixel_size_x, int pixel_size_y,
                            int x, int y, char* s, int len);
 static int  ft_text_width(FT_Face face, const char* s, int len);
 static void ft_draw_char_rotated(Drawable d, GC gc, FT_Face face,
-                                 int pixel_size, float angle_rad,
+                                 int pixel_size_x, int pixel_size_y,
+                                 float angle_rad,
                                  int x, int y, char c);
 static void ft_cache_clear(void);
 static void ft_invalidate_face(FT_Face face);
@@ -191,6 +194,22 @@ static enum { /* debug levels */
 #define CFRM_BUTTON_MG      8  /* button margin from edge */
 #define CFRM_TITLE_SZ(win)  ((int)((win)->gfhigh * 1.15))
 #define CFRM_MIN_W          200 /* width of a minimized child window */
+
+/* Logical → physical viewport transform. Petit-Ami primitives shift their
+   1-based logical coordinates by -1 before calling into X11; the transform
+   is applied after that shift so operation is entirely in 0-based space.
+   At scale 1.0 with zero offset the transform is a no-op. */
+#define L2PX(w, v)  ((int)((v) * (w)->vsx) + (w)->goffx)
+#define L2PY(w, v)  ((int)((v) * (w)->vsy) + (w)->goffy)
+#define L2PW(w, n)  ((int)((n) * (w)->vsx))
+#define L2PH(w, n)  ((int)((n) * (w)->vsy))
+/* deltas (no offset) used by scroll helpers */
+#define L2PDX(w, v) ((int)((v) * (w)->vsx))
+#define L2PDY(w, v) ((int)((v) * (w)->vsy))
+/* inverse: physical → logical, for mouse coordinate helpers */
+#define P2LX(w, v)  ((int)(((v) - (w)->goffx) / (w)->vsx))
+#define P2LY(w, v)  ((int)(((v) - (w)->goffy) / (w)->vsy))
+
 #define MAXSID 100 /* number of possible logical system events */
 /* extra space to add in x/y for initial window */
 #ifdef __MACH__ /* Mac OS X */
@@ -304,6 +323,8 @@ typedef off_t (*plseek_t)(int, off_t, int);
  */
 typedef void (*ami_viewoffg_t)(FILE* f, int x, int y);
 typedef void (*ami_viewscale_t)(FILE* f, float x, float y);
+typedef int  (*ami_scalex_t)(FILE* f, int x);
+typedef int  (*ami_scaley_t)(FILE* f, int y);
 
 /* system override calls */
 
@@ -520,7 +541,9 @@ typedef struct winrec {
     int          gbcrgb;            /* background color in rgb */
     int          gcurv;             /* state of cursor visible */
     fontptr      gcfont;            /* current font select */
-    int          gfhigh;            /* current em-square pixel size (FreeType) */
+    int          gfhigh;            /* physical em-square pixel size y (FreeType) */
+    int          gfhighx;           /* physical em-square pixel size x (asymmetric) */
+    int          gfhigh_log;        /* logical em-square pixel size y (unscaled) */
     int          gfcellh;           /* target character cell height (pixels) */
     float        gfpoint;           /* current font point size */
     int          mischrx;           /* missing font character x */
@@ -529,8 +552,10 @@ typedef struct winrec {
     int          misoffy;           /* missing font offset y */
     mode         gfmod;             /* foreground mix mode */
     mode         gbmod;             /* background mix mode */
-    int          goffx;             /* viewport offset x */
-    int          goffy;             /* viewport offset y */
+    int          goffx;             /* viewport offset x (physical pixels) */
+    int          goffy;             /* viewport offset y (physical pixels) */
+    float        vsx;                /* viewport scale x (default 1.0) */
+    float        vsy;                /* viewport scale y (default 1.0) */
     int          gwextx;            /* window extent x */
     int          gwexty;            /* window extent y */
     int          gvextx;            /* viewpor extent x */
@@ -1023,6 +1048,8 @@ static ami_picture_t         picture_vect;
 static ami_delpict_t         delpict_vect;
 static ami_viewoffg_t        viewoffg_vect;
 static ami_viewscale_t       viewscale_vect;
+static ami_scalex_t          scalex_vect;
+static ami_scaley_t          scaley_vect;
 static ami_scrollg_t         scrollg_vect;
 static ami_path_t            path_vect;
 static ami_title_t           title_vect;
@@ -1373,7 +1400,7 @@ static int errdlg(
             /* set text color */
             XSetForeground(padisplay, cxt, 0x000000);
             /* center text on circle to the right */
-            ft_draw_string(w, cxt, dlg_face, dlg_size,
+            ft_draw_string(w, cxt, dlg_face, dlg_size, dlg_size,
                            NEGCIRCLESPC+NEGCIRCLE+NEGCIRCLESPC,
                            NEGCIRCLESPC+NEGCIRCLE/2, s, strlen(s));
             /* place close button */
@@ -1381,7 +1408,7 @@ static int errdlg(
             XFillRectangle(padisplay, w, cxt, ww-cw-20, 125, cw, 40);
             XSetForeground(padisplay, cxt, 0x000000);
             XDrawRectangle(padisplay, w, cxt, ww-cw-20, 125, cw, 40);
-            ft_draw_string(w, cxt, dlg_face, dlg_size,
+            ft_draw_string(w, cxt, dlg_face, dlg_size, dlg_size,
                            ww-cw-20+15, 155, cb, strlen(cb));
             XWUNLOCK();
 
@@ -3187,11 +3214,22 @@ void setfnt(winptr win)
             }
 
         }
-        win->gfhigh    = pixsiz;
+        /* gfhigh/gfhighx are the PHYSICAL em-square pixel sizes used by
+           FreeType for glyph rendering. They include the viewport scale so
+           glyphs grow/shrink with the zoom. gfhigh_log is the LOGICAL
+           (unscaled) em-square for metric queries (charspace, xwidth).
+           charspace and linespace stay LOGICAL for cursor advancement. */
+        win->gfhigh_log = pixsiz;
+        win->gfhigh    = (int)(pixsiz * win->vsy);
+        win->gfhighx   = (int)(pixsiz * win->vsx);
+        if (win->gfhigh  < 1) win->gfhigh  = 1;
+        if (win->gfhighx < 1) win->gfhighx = 1;
         win->gfpoint   = pixsiz * 2835.0f / (float)win->sdpmy;
         win->linespace = win->gfcellh;
         win->baseoff   = asc + 1;
     }
+    /* read charspace at LOGICAL pixel size for cursor advancement */
+    FT_Set_Pixel_Sizes(win->ftface, 0, win->gfhigh_log);
     win->charspace = (int)(win->ftface->size->metrics.max_advance >> 6);
     win->chrspcx = 0;
     win->chrspcy = 0;
@@ -3223,6 +3261,9 @@ int xwidth(winptr win, char c)
 
 {
 
+    /* ensure face is at logical pixel size for correct metric queries —
+       ft_draw_char may have left it at the physical (scaled) size */
+    FT_Set_Pixel_Sizes(win->ftface, 0, win->gfhigh_log);
     if (FT_Load_Char(win->ftface, (unsigned char)c, FT_LOAD_DEFAULT))
         return 0;
     return (int)(win->ftface->glyph->advance.x >> 6);
@@ -3242,9 +3283,10 @@ every draw call.
 
 typedef struct {
 
-    FT_Face  face;        /* font face this glyph belongs to */
-    int      pixel_size;  /* pixel size used for rendering */
-    int      glyph_index; /* glyph index in font */
+    FT_Face  face;          /* font face this glyph belongs to */
+    int      pixel_size_y;  /* em-square pixel size y */
+    int      pixel_size_x;  /* em-square pixel size x (asymmetric scaling) */
+    int      glyph_index;   /* glyph index in font */
     Pixmap   stipple;     /* 1-bit depth pixmap */
     int      width;       /* bitmap width */
     int      height;      /* bitmap height */
@@ -3288,7 +3330,8 @@ creates a 1-bit Pixmap for stipple-based rendering.
 
 *******************************************************************************/
 
-static glyphcache* ft_cache_glyph(FT_Face face, int pixel_size, char c)
+static glyphcache* ft_cache_glyph(FT_Face face, int pixel_size_x,
+                                   int pixel_size_y, char c)
 
 {
 
@@ -3306,15 +3349,18 @@ static glyphcache* ft_cache_glyph(FT_Face face, int pixel_size, char c)
     GC gc1;
 
     gi = FT_Get_Char_Index(face, (unsigned char)c);
-    hash = (gi * 31 + pixel_size * 17) % GLYPH_CACHE_SIZE;
+    hash = (gi * 31 + pixel_size_y * 17 + pixel_size_x * 13) % GLYPH_CACHE_SIZE;
 
     ge = &gcache[hash];
 
     /* check for cache hit */
-    if (ge->valid && ge->face == face && ge->pixel_size == pixel_size &&
+    if (ge->valid && ge->face == face &&
+        ge->pixel_size_y == pixel_size_y &&
+        ge->pixel_size_x == pixel_size_x &&
         ge->glyph_index == (int)gi) return ge;
 
     /* cache miss - render the glyph as 8-bit grayscale */
+    FT_Set_Pixel_Sizes(face, pixel_size_x, pixel_size_y);
     if (FT_Load_Char(face, (unsigned char)c, FT_LOAD_RENDER | FT_LOAD_TARGET_NORMAL))
         return NULL;
 
@@ -3327,7 +3373,8 @@ static glyphcache* ft_cache_glyph(FT_Face face, int pixel_size, char c)
         XFreePixmap(padisplay, ge->stipple);
 
     ge->face = face;
-    ge->pixel_size = pixel_size;
+    ge->pixel_size_y = pixel_size_y;
+    ge->pixel_size_x = pixel_size_x;
     ge->glyph_index = gi;
     ge->bitmap_left = slot->bitmap_left;
     ge->bitmap_top = slot->bitmap_top;
@@ -3385,14 +3432,15 @@ Pixmap. This respects the GC function mode (normal, XOR, AND, OR).
 
 *******************************************************************************/
 
-static void ft_draw_char(Drawable d, GC gc, FT_Face face, int pixel_size,
+static void ft_draw_char(Drawable d, GC gc, FT_Face face,
+                         int pixel_size_x, int pixel_size_y,
                          int x, int y, char c)
 
 {
 
     glyphcache* ge;
 
-    ge = ft_cache_glyph(face, pixel_size, c);
+    ge = ft_cache_glyph(face, pixel_size_x, pixel_size_y, c);
     if (!ge || !ge->stipple) return;
 
     XSetStipple(padisplay, gc, ge->stipple);
@@ -3412,7 +3460,8 @@ Renders a string onto an X11 Drawable using cached glyph stipples.
 
 *******************************************************************************/
 
-static void ft_draw_string(Drawable d, GC gc, FT_Face face, int pixel_size,
+static void ft_draw_string(Drawable d, GC gc, FT_Face face,
+                           int pixel_size_x, int pixel_size_y,
                            int x, int y, char* s, int len)
 
 {
@@ -3421,7 +3470,7 @@ static void ft_draw_string(Drawable d, GC gc, FT_Face face, int pixel_size,
 
     for (i = 0; i < len; i++) {
 
-        ft_draw_char(d, gc, face, pixel_size, x, y, s[i]);
+        ft_draw_char(d, gc, face, pixel_size_x, pixel_size_y, x, y, s[i]);
         if (FT_Load_Char(face, (unsigned char)s[i], FT_LOAD_DEFAULT) == 0)
             x += (int)(face->glyph->advance.x >> 6);
 
@@ -3467,7 +3516,8 @@ pixel rotation algorithm from rotated.c.
 *******************************************************************************/
 
 static void ft_draw_char_rotated(Drawable d, GC gc, FT_Face face,
-                                 int pixel_size, float angle_rad,
+                                 int pixel_size_x, int pixel_size_y,
+                                 float angle_rad,
                                  int x, int y, char c)
 
 {
@@ -3486,7 +3536,7 @@ static void ft_draw_char_rotated(Drawable d, GC gc, FT_Face face,
     float cx, cy;      /* center of input */
     float ocx, ocy;    /* center of output */
 
-    FT_Set_Pixel_Sizes(face, 0, pixel_size);
+    FT_Set_Pixel_Sizes(face, pixel_size_x, pixel_size_y);
     if (FT_Load_Char(face, (unsigned char)c, FT_LOAD_RENDER | FT_LOAD_TARGET_NORMAL))
         return;
 
@@ -4433,16 +4483,16 @@ static void curdrw(winptr win)
     XSetFunction(padisplay, sc->xcxt, GXxor); /* set reverse */
     if (win->focus)
         XFillRectangle(padisplay, win->xwhan, sc->xcxt,
-                       sc->curxg-1, sc->curyg-1,
-                       win->charspace, win->linespace);
+                       L2PX(win, sc->curxg-1), L2PY(win, sc->curyg-1),
+                       L2PW(win, win->charspace), L2PH(win, win->linespace));
     else {
 
         XDrawRectangle(padisplay, win->xwhan, sc->xcxt,
-                       sc->curxg-1, sc->curyg-1,
-                       win->charspace, win->linespace);
+                       L2PX(win, sc->curxg-1), L2PY(win, sc->curyg-1),
+                       L2PW(win, win->charspace), L2PH(win, win->linespace));
         XDrawRectangle(padisplay, win->xwhan, sc->xcxt,
-                       sc->curxg-1+1, sc->curyg-1+1,
-                       win->charspace-2, win->linespace-2);
+                       L2PX(win, sc->curxg-1+1), L2PY(win, sc->curyg-1+1),
+                       L2PW(win, win->charspace-2), L2PH(win, win->linespace-2));
 
     }
     XSetFunction(padisplay, sc->xcxt, GXcopy); /* set overwrite */
@@ -4799,7 +4849,8 @@ static void childfrm_draw(winptr win)
 
             /* title fits: center it in the available space */
             int tx = tleft + (avail - tlen) / 2;
-            ft_draw_string(win->xmwhan, win->frmgc, win->ftface, title_size,
+            ft_draw_string(win->xmwhan, win->frmgc, win->ftface,
+                           title_size, title_size,
                            tx, ty, win->wintitle, len);
 
         } else {
@@ -4822,9 +4873,11 @@ static void childfrm_draw(winptr win)
 
                 }
                 ft_draw_string(win->xmwhan, win->frmgc, win->ftface,
-                               title_size, tleft, ty, win->wintitle, tl);
+                               title_size, title_size,
+                               tleft, ty, win->wintitle, tl);
                 ft_draw_string(win->xmwhan, win->frmgc, win->ftface,
-                               title_size, tleft + tw, ty, "...", 3);
+                               title_size, title_size,
+                               tleft + tw, ty, "...", 3);
 
             }
 
@@ -5355,6 +5408,8 @@ static void opnwin(int fn, int pfn, int wid, int subclient)
     win->gbmod = mdnorm;
     win->goffx = 0;  /* set 0 offset */
     win->goffy = 0;
+    win->vsx = 1.0f; /* viewport scale starts at 1:1 */
+    win->vsy = 1.0f;
     win->gwextx = 1; /* set 1:1 extents */
     win->gwexty = 1;
     win->gvextx = 1;
@@ -6279,6 +6334,10 @@ static void iscrollg(winptr win, int x, int y)
     } frx, fry; /* x fill, y fill */
     scnptr sc;  /* pointer to current screen */
 
+    /* transform scroll deltas to physical pixels for viewport scaling */
+    x = L2PDX(win, x);
+    y = L2PDY(win, y);
+
     sc = win->screens[win->curupd-1]; /* index current screen */
     /* scroll would result in complete clear, do it */
     if (x <= -sc->maxxg || x >= sc->maxxg ||
@@ -6795,6 +6854,17 @@ static void drwchr90(winptr win, scnptr sc, int cs, int ce, Drawable d, char c)
 
 {
 
+    /* transform position and sizes to physical pixels for viewport scaling */
+    int px  = L2PX(win, sc->curxg-1);
+    int py  = L2PY(win, sc->curyg-1);
+    int pcs = L2PW(win, cs);
+    int pls = L2PH(win, win->linespace);
+    int pbo = L2PH(win, win->baseoff);
+    int pmx = L2PW(win, win->mischrx);
+    int pmy = L2PH(win, win->mischry);
+    int pmox = L2PW(win, win->misoffx);
+    int pmoy = L2PH(win, win->misoffy);
+
     if (sc->bmod != mdinvis) { /* background is visible */
 
         XWLOCK();
@@ -6804,21 +6874,18 @@ static void drwchr90(winptr win, scnptr sc, int cs, int ce, Drawable d, char c)
         /* set background to foreground to draw character background */
         if (BIT(sarev) & sc->attr) XSetForeground(padisplay, sc->xcxt, sc->fcrgb);
         else XSetForeground(padisplay, sc->xcxt, sc->bcrgb);
-        XFillRectangle(padisplay, d, sc->xcxt, sc->curxg-1, sc->curyg-1, cs,
-                       win->linespace);
+        XFillRectangle(padisplay, d, sc->xcxt, px, py, pcs, pls);
         /* xor is non-destructive, and we can restore it. And and or are
            destructive, and would require a combining buffer to perform */
         if (sc->bmod == mdxor) {
 
             if (ce) /* character exists */
                 /* draw character */
-                ft_draw_char(d, sc->xcxt, win->ftface, win->gfhigh,
-                             sc->curxg-1, sc->curyg-1+win->baseoff, c);
+                ft_draw_char(d, sc->xcxt, win->ftface, win->gfhighx, win->gfhigh,
+                             px, py+pbo, c);
             else /* does not exist, draw missing character box */
                 XDrawRectangle(padisplay, d, sc->xcxt,
-                               sc->curxg-1+win->misoffx,
-                               sc->curyg-1+win->misoffy,
-                               win->mischrx, win->mischry);
+                               px+pmox, py+pmoy, pmx, pmy);
 
         }
         /* restore colors */
@@ -6837,23 +6904,19 @@ static void drwchr90(winptr win, scnptr sc, int cs, int ce, Drawable d, char c)
         XSetFunction(padisplay, sc->xcxt, mod2fnc[sc->fmod]);
         if (ce) /* character exists */
             /* draw character */
-            ft_draw_char(d, sc->xcxt, win->ftface, win->gfhigh,
-                         sc->curxg-1, sc->curyg-1+win->baseoff, c);
+            ft_draw_char(d, sc->xcxt, win->ftface, win->gfhighx, win->gfhigh,
+                         px, py+pbo, c);
         else /* does not exist, draw missing character box */
             XDrawRectangle(padisplay, d, sc->xcxt,
-                           sc->curxg-1+win->misoffx,
-                           sc->curyg-1+win->misoffy,
-                           win->mischrx, win->mischry);
+                           px+pmox, py+pmoy, pmx, pmy);
         /* check draw underline */
         if (sc->attr & BIT(saundl)){
 
             /* double line, may need ajusting for low DP displays */
             XDrawLine(padisplay, d, sc->xcxt,
-                      sc->curxg-1, sc->curyg-1+win->baseoff+1,
-                      sc->curxg-1+cs, sc->curyg-1+win->baseoff+1);
+                      px, py+pbo+1, px+pcs, py+pbo+1);
             XDrawLine(padisplay, d, sc->xcxt,
-                      sc->curxg-1, sc->curyg-1+win->baseoff+2,
-                      sc->curxg-1+cs, sc->curyg-1+win->baseoff+2);
+                      px, py+pbo+2, px+pcs, py+pbo+2);
 
         }
 
@@ -6861,11 +6924,11 @@ static void drwchr90(winptr win, scnptr sc, int cs, int ce, Drawable d, char c)
         if (sc->attr & BIT(sastkout)) {
 
             XDrawLine(padisplay, d, sc->xcxt,
-                      sc->curxg-1, sc->curyg-1+win->baseoff/STRIKE,
-                      sc->curxg-1+cs, sc->curyg-1+win->baseoff/STRIKE);
+                      px, py+(int)(pbo/STRIKE),
+                      px+pcs, py+(int)(pbo/STRIKE));
             XDrawLine(padisplay, d, sc->xcxt,
-                      sc->curxg-1, sc->curyg-1+win->baseoff/STRIKE+1,
-                      sc->curxg-1+cs, sc->curyg-1+win->baseoff/STRIKE+1);
+                      px, py+(int)(pbo/STRIKE)+1,
+                      px+pcs, py+(int)(pbo/STRIKE)+1);
 
         }
         /* reset foreground function */
@@ -6987,31 +7050,41 @@ static void drwchr(winptr win, scnptr sc, int cs, int ce, Drawable d, char c)
     char cb[2];      /* character buffer */
     int  xb, yb;     /* rotated baseline */
     int  xull, yull, xulr, yulr; /* underline 1 */
-
     int  xsol, ysol, xsor, ysor; /* underline 1 */
 
+    /* transform starting position and sizes for viewport scaling */
+    int px  = L2PX(win, sc->curxg-1);
+    int py  = L2PY(win, sc->curyg-1);
+    int pcs = L2PW(win, cs);
+    int pls = L2PH(win, win->linespace);
+    int pbo = L2PH(win, win->baseoff);
+    int pmx = L2PW(win, win->mischrx);
+    int pmy = L2PH(win, win->mischry);
+    int pmox = L2PW(win, win->misoffx);
+    int pmoy = L2PH(win, win->misoffy);
+
     /* find rotated character baseline */
-    xb = sc->curxg-1;
-    yb = sc->curyg-1;
-    addvect(&xb, &yb, RADIAN(sc->angle)+2*M_PI/4, win->baseoff);
+    xb = px;
+    yb = py;
+    addvect(&xb, &yb, RADIAN(sc->angle)+2*M_PI/4, pbo);
 
     /* find rotated underline left side */
-    xull = sc->curxg-1;
-    yull = sc->curyg-1;
-    addvect(&xull, &yull, RADIAN(sc->angle)+2*M_PI/4, win->baseoff+1);
+    xull = px;
+    yull = py;
+    addvect(&xull, &yull, RADIAN(sc->angle)+2*M_PI/4, pbo+1);
     /* find right side */
     xulr = xull;
     yulr = yull;
-    addvect(&xulr, &yulr, RADIAN(sc->angle), cs);
+    addvect(&xulr, &yulr, RADIAN(sc->angle), pcs);
 
     /* find rotated strikeout left side */
-    xsol = sc->curxg-1;
-    ysol = sc->curyg-1;
-    addvect(&xsol, &ysol, RADIAN(sc->angle)+2*M_PI/4, win->baseoff/STRIKE);
+    xsol = px;
+    ysol = py;
+    addvect(&xsol, &ysol, RADIAN(sc->angle)+2*M_PI/4, (int)(pbo/STRIKE));
     /* find right side */
     xsor = xsol;
     ysor = ysol;
-    addvect(&xsor, &ysor, RADIAN(sc->angle), cs);
+    addvect(&xsor, &ysor, RADIAN(sc->angle), pcs);
 
     cb[0] = c; /* place character in string form */
     cb[1] = 0;
@@ -7023,19 +7096,18 @@ static void drwchr(winptr win, scnptr sc, int cs, int ce, Drawable d, char c)
         /* set background to foreground to draw character background */
         if (BIT(sarev) & sc->attr) XSetForeground(padisplay, sc->xcxt, sc->fcrgb);
         else XSetForeground(padisplay, sc->xcxt, sc->bcrgb);
-        drwfrecta(d, sc, sc->angle, sc->curxg-1, sc->curyg-1, cs, win->linespace);
+        drwfrecta(d, sc, sc->angle, px, py, pcs, pls);
         /* xor is non-destructive, and we can restore it. And and or are
            destructive, and would require a combining buffer to perform */
         if (sc->bmod == mdxor) {
 
             if (ce) /* character exists */
                 /* draw character */
-                ft_draw_char_rotated(d, sc->xcxt, win->ftface, win->gfhigh,
+                ft_draw_char_rotated(d, sc->xcxt, win->ftface, win->gfhighx, win->gfhigh,
                                      RADIAN(sc->angle), xb, yb, c);
             else /* does not exist, draw missing character box */
                 drwrecta(d, sc, sc->angle,
-                         sc->curxg-1+win->misoffx, sc->curyg-1+win->misoffy,
-                         win->mischrx, win->mischry);
+                         px+pmox, py+pmoy, pmx, pmy);
 
         }
         /* restore colors */
@@ -7053,12 +7125,11 @@ static void drwchr(winptr win, scnptr sc, int cs, int ce, Drawable d, char c)
         XSetFunction(padisplay, sc->xcxt, mod2fnc[sc->fmod]);
         if (ce) /* character exists */
             /* draw character */
-            ft_draw_char_rotated(d, sc->xcxt, win->ftface, win->gfhigh,
+            ft_draw_char_rotated(d, sc->xcxt, win->ftface, win->gfhighx, win->gfhigh,
                                  RADIAN(sc->angle), xb, yb, c);
         else /* does not exist, draw missing character box */
             drwrecta(d, sc, sc->angle,
-                     sc->curxg-1+win->misoffx, sc->curyg-1+win->misoffy,
-                     win->mischrx, win->mischry);
+                     px+pmox, py+pmoy, pmx, pmy);
         /* check draw underline */
         if (sc->attr & BIT(saundl)){
 
@@ -8832,6 +8903,13 @@ static void drwstr90(winptr win, scnptr sc, int tw, Drawable d, char* s, int l)
 
 {
 
+    /* transform position and sizes to physical pixels for viewport scaling */
+    int px  = L2PX(win, sc->curxg-1);
+    int py  = L2PY(win, sc->curyg-1);
+    int ptw = L2PW(win, tw);
+    int pls = L2PH(win, win->linespace);
+    int pbo = L2PH(win, win->baseoff);
+
     if (sc->bmod != mdinvis) { /* background is visible */
 
         XWLOCK();
@@ -8841,14 +8919,13 @@ static void drwstr90(winptr win, scnptr sc, int tw, Drawable d, char* s, int l)
         /* set background to foreground to draw character background */
         if (BIT(sarev) & sc->attr) XSetForeground(padisplay, sc->xcxt, sc->fcrgb);
         else XSetForeground(padisplay, sc->xcxt, sc->bcrgb);
-        XFillRectangle(padisplay, d, sc->xcxt, sc->curxg-1, sc->curyg-1,
-                       tw, win->linespace);
+        XFillRectangle(padisplay, d, sc->xcxt, px, py, ptw, pls);
         /* xor is non-destructive, and we can restore it. And and or are
            destructive, and would require a combining buffer to perform */
         if (sc->bmod == mdxor)
             /* restore surface under text */
-            ft_draw_string(d, sc->xcxt, win->ftface, win->gfhigh,
-                           sc->curxg-1, sc->curyg-1+win->baseoff, s, l);
+            ft_draw_string(d, sc->xcxt, win->ftface, win->gfhighx, win->gfhigh,
+                           px, py+pbo, s, l);
         /* restore colors */
         if (BIT(sarev) & sc->attr)
             XSetForeground(padisplay, sc->xcxt, sc->bcrgb);
@@ -8864,18 +8941,16 @@ static void drwstr90(winptr win, scnptr sc, int tw, Drawable d, char* s, int l)
         /* set foreground function */
         XSetFunction(padisplay, sc->xcxt, mod2fnc[sc->fmod]);
         /* draw character */
-        ft_draw_string(d, sc->xcxt, win->ftface, win->gfhigh,
-                       sc->curxg-1, sc->curyg-1+win->baseoff, s, l);
+        ft_draw_string(d, sc->xcxt, win->ftface, win->gfhighx, win->gfhigh,
+                       px, py+pbo, s, l);
         /* check draw underline */
         if (sc->attr & BIT(saundl)){
 
             /* double line, may need ajusting for low DP displays */
             XDrawLine(padisplay, d, sc->xcxt,
-                      sc->curxg-1, sc->curyg-1+win->baseoff+1,
-                      sc->curxg-1+tw, sc->curyg-1+win->baseoff+1);
+                      px, py+pbo+1, px+ptw, py+pbo+1);
             XDrawLine(padisplay, d, sc->xcxt,
-                      sc->curxg-1, sc->curyg-1+win->baseoff+2,
-                      sc->curxg-1+tw, sc->curyg-1+win->baseoff+2);
+                      px, py+pbo+2, px+ptw, py+pbo+2);
 
         }
 
@@ -8883,11 +8958,11 @@ static void drwstr90(winptr win, scnptr sc, int tw, Drawable d, char* s, int l)
         if (sc->attr & BIT(sastkout)) {
 
             XDrawLine(padisplay, d, sc->xcxt,
-                      sc->curxg-1, sc->curyg-1+win->baseoff/STRIKE,
-                      sc->curxg-1+tw, sc->curyg-1+win->baseoff/STRIKE);
+                      px, py+(int)(pbo/STRIKE),
+                      px+ptw, py+(int)(pbo/STRIKE));
             XDrawLine(padisplay, d, sc->xcxt,
-                      sc->curxg-1, sc->curyg-1+win->baseoff/STRIKE+1,
-                      sc->curxg-1+tw, sc->curyg-1+win->baseoff/STRIKE+1);
+                      px, py+(int)(pbo/STRIKE)+1,
+                      px+ptw, py+(int)(pbo/STRIKE)+1);
 
         }
         /* reset foreground function */
@@ -9077,7 +9152,9 @@ static void line_ivf(FILE* f, int x1, int y1, int x2, int y2)
 
         /* draw the line */
         XWLOCK();
-        XDrawLine(padisplay, sc->xbuf, sc->xcxt, x1-1, y1-1, x2-1, y2-1);
+        XDrawLine(padisplay, sc->xbuf, sc->xcxt,
+                  L2PX(win, x1-1), L2PY(win, y1-1),
+                  L2PX(win, x2-1), L2PY(win, y2-1));
         XWUNLOCK();
 
     }
@@ -9087,7 +9164,9 @@ static void line_ivf(FILE* f, int x1, int y1, int x2, int y2)
         curoff(win); /* hide the cursor */
         XWLOCK();
         /* draw the line */
-        XDrawLine(padisplay, win->xwhan, sc->xcxt, x1-1, y1-1, x2-1, y2-1);
+        XDrawLine(padisplay, win->xwhan, sc->xcxt,
+                  L2PX(win, x1-1), L2PY(win, y1-1),
+                  L2PX(win, x2-1), L2PY(win, y2-1));
         XWUNLOCK();
         curon(win); /* show the cursor */
 
@@ -9141,7 +9220,9 @@ static void rect_ivf(FILE* f, int x1, int y1, int x2, int y2)
 
         /* draw the rectangle */
         XWLOCK();
-        XDrawRectangle(padisplay, sc->xbuf, sc->xcxt, x1-1, y1-1, x2-x1, y2-y1);
+        XDrawRectangle(padisplay, sc->xbuf, sc->xcxt,
+                       L2PX(win, x1-1), L2PY(win, y1-1),
+                       L2PW(win, x2-x1), L2PH(win, y2-y1));
         XWUNLOCK();
 
     }
@@ -9151,7 +9232,9 @@ static void rect_ivf(FILE* f, int x1, int y1, int x2, int y2)
         curoff(win); /* hide the cursor */
         /* draw the rectangle */
         XWLOCK();
-        XDrawRectangle(padisplay, win->xwhan, sc->xcxt, x1-1, y1-1, x2-x1, y2-y1);
+        XDrawRectangle(padisplay, win->xwhan, sc->xcxt,
+                       L2PX(win, x1-1), L2PY(win, y1-1),
+                       L2PW(win, x2-x1), L2PH(win, y2-y1));
         XWUNLOCK();
         curon(win); /* show the cursor */
 
@@ -9205,7 +9288,9 @@ static void frect_ivf(FILE* f, int x1, int y1, int x2, int y2)
 
         /* draw the rectangle */
         XWLOCK();
-        XFillRectangle(padisplay, sc->xbuf, sc->xcxt, x1-1, y1-1, x2-x1+1, y2-y1+1);
+        XFillRectangle(padisplay, sc->xbuf, sc->xcxt,
+                       L2PX(win, x1-1), L2PY(win, y1-1),
+                       L2PW(win, x2-x1+1), L2PH(win, y2-y1+1));
         XWUNLOCK();
 
     }
@@ -9215,7 +9300,9 @@ static void frect_ivf(FILE* f, int x1, int y1, int x2, int y2)
         curoff(win); /* hide the cursor */
         /* draw the rectangle */
         XWLOCK();
-        XFillRectangle(padisplay, win->xwhan, sc->xcxt, x1-1, y1-1, x2-x1+1, y2-y1+1);
+        XFillRectangle(padisplay, win->xwhan, sc->xcxt,
+                       L2PX(win, x1-1), L2PY(win, y1-1),
+                       L2PW(win, x2-x1+1), L2PH(win, y2-y1+1));
         XWUNLOCK();
         curon(win); /* show the cursor */
 
@@ -9268,6 +9355,9 @@ static void rrect_ivf(FILE* f, int x1, int y1, int x2, int y2, int xs, int ys)
     y1--;
     x2--;
     y2--;
+    x1 = L2PX(win, x1); y1 = L2PY(win, y1);
+    x2 = L2PX(win, x2); y2 = L2PY(win, y2);
+    xs = L2PW(win, xs); ys = L2PH(win, ys);
     /* limit the size of the corner circles if greater than the height or
         width */
     if (xs > x2-x1+1) xs = x2-x1+1; /* limit rounding elipse */
@@ -9375,6 +9465,9 @@ static void frrect_ivf(FILE* f, int x1, int y1, int x2, int y2, int xs, int ys)
     y1--;
     x2--;
     y2--;
+    x1 = L2PX(win, x1); y1 = L2PY(win, y1);
+    x2 = L2PX(win, x2); y2 = L2PY(win, y2);
+    xs = L2PW(win, xs); ys = L2PH(win, ys);
     /* set foreground function */
     XWLOCK();
     XSetFunction(padisplay, sc->xcxt, mod2fnc[sc->fmod]);
@@ -9561,7 +9654,9 @@ static void ellipse_ivf(FILE* f, int x1, int y1, int x2, int y2)
 
         /* draw the ellipse */
         XWLOCK();
-        XDrawArc(padisplay, sc->xbuf, sc->xcxt, x1-1, y1-1, x2-x1, y2-y1,
+        XDrawArc(padisplay, sc->xbuf, sc->xcxt,
+                 L2PX(win, x1-1), L2PY(win, y1-1),
+                 L2PW(win, x2-x1), L2PH(win, y2-y1),
                  0, 360*64);
         XWUNLOCK();
 
@@ -9572,7 +9667,9 @@ static void ellipse_ivf(FILE* f, int x1, int y1, int x2, int y2)
         curoff(win); /* hide the cursor */
         /* draw the ellipse */
         XWLOCK();
-        XDrawArc(padisplay, win->xwhan, sc->xcxt, x1-1, y1-1, x2-x1, y2-y1,
+        XDrawArc(padisplay, win->xwhan, sc->xcxt,
+                 L2PX(win, x1-1), L2PY(win, y1-1),
+                 L2PW(win, x2-x1), L2PH(win, y2-y1),
                  0, 360*64);
         XWUNLOCK();
         curon(win); /* show the cursor */
@@ -9627,7 +9724,9 @@ static void fellipse_ivf(FILE* f, int x1, int y1, int x2, int y2)
 
         /* draw the ellipse */
         XWLOCK();
-        XFillArc(padisplay, sc->xbuf, sc->xcxt, x1-1, y1-1, x2-x1+1, y2-y1+1,
+        XFillArc(padisplay, sc->xbuf, sc->xcxt,
+                 L2PX(win, x1-1), L2PY(win, y1-1),
+                 L2PW(win, x2-x1+1), L2PH(win, y2-y1+1),
                  0, 360*64);
         XWUNLOCK();
 
@@ -9638,7 +9737,9 @@ static void fellipse_ivf(FILE* f, int x1, int y1, int x2, int y2)
         curoff(win); /* hide the cursor */
         /* draw the ellipse */
         XWLOCK();
-        XFillArc(padisplay, win->xwhan, sc->xcxt, x1-1, y1-1, x2-x1+1, y2-y1+1,
+        XFillArc(padisplay, win->xwhan, sc->xcxt,
+                 L2PX(win, x1-1), L2PY(win, y1-1),
+                 L2PW(win, x2-x1+1), L2PH(win, y2-y1+1),
                  0, 360*64);
         XWUNLOCK();
         curon(win); /* show the cursor */
@@ -9722,7 +9823,9 @@ static void arc_ivf(FILE* f, int x1, int y1, int x2, int y2, int sa, int ea)
 
             /* draw the arc */
             XWLOCK();
-            XDrawArc(padisplay, sc->xbuf, sc->xcxt, x1-1, y1-1, x2-x1, y2-y1,
+            XDrawArc(padisplay, sc->xbuf, sc->xcxt,
+                     L2PX(win, x1-1), L2PY(win, y1-1),
+                     L2PW(win, x2-x1), L2PH(win, y2-y1),
             		 a1, a2);
             XWUNLOCK();
 
@@ -9733,7 +9836,9 @@ static void arc_ivf(FILE* f, int x1, int y1, int x2, int y2, int sa, int ea)
             curoff(win); /* hide the cursor */
             /* draw the arc */
             XWLOCK();
-            XDrawArc(padisplay, win->xwhan, sc->xcxt, x1-1, y1-1, x2-x1, y2-y1,
+            XDrawArc(padisplay, win->xwhan, sc->xcxt,
+                     L2PX(win, x1-1), L2PY(win, y1-1),
+                     L2PW(win, x2-x1), L2PH(win, y2-y1),
             		 a1, a2);
             XWUNLOCK();
             curon(win); /* show the cursor */
@@ -9803,8 +9908,10 @@ static void farc_ivf(FILE* f, int x1, int y1, int x2, int y2, int sa, int ea)
 
             /* draw the ellipse */
             XWLOCK();
-            XFillArc(padisplay, sc->xbuf, sc->xcxt, x1-1, y1-1, x2-x1+1,
-                     y2-y1+1, a1, a2);
+            XFillArc(padisplay, sc->xbuf, sc->xcxt,
+                     L2PX(win, x1-1), L2PY(win, y1-1),
+                     L2PW(win, x2-x1+1), L2PH(win, y2-y1+1),
+                     a1, a2);
             XWUNLOCK();
 
         }
@@ -9814,8 +9921,10 @@ static void farc_ivf(FILE* f, int x1, int y1, int x2, int y2, int sa, int ea)
             curoff(win); /* hide the cursor */
             /* draw the ellipse */
             XWLOCK();
-            XFillArc(padisplay, win->xwhan, sc->xcxt, x1-1, y1-1, x2-x1+1,
-                     y2-y1+1, a1, a2);
+            XFillArc(padisplay, win->xwhan, sc->xcxt,
+                     L2PX(win, x1-1), L2PY(win, y1-1),
+                     L2PW(win, x2-x1+1), L2PH(win, y2-y1+1),
+                     a1, a2);
             XWUNLOCK();
             curon(win); /* show the cursor */
 
@@ -9882,7 +9991,7 @@ static void fchord_ivf(FILE* f, int x1, int y1, int x2, int y2, int sa, int ea)
 
             /* draw the ellipse */
             XWLOCK();
-            XFillArc(padisplay, sc->xbuf, sc->xcxt, x1-1, y1-1, x2-x1+1, y2-y1+1,
+            XFillArc(padisplay, sc->xbuf, sc->xcxt, L2PX(win, x1-1), L2PY(win, y1-1), L2PW(win, x2-x1+1), L2PH(win, y2-y1+1),
                      a1, a2);
             XWUNLOCK();
 
@@ -9893,7 +10002,7 @@ static void fchord_ivf(FILE* f, int x1, int y1, int x2, int y2, int sa, int ea)
             curoff(win); /* hide the cursor */
             /* draw the ellipse */
             XWLOCK();
-            XFillArc(padisplay, win->xwhan, sc->xcxt, x1-1, y1-1, x2-x1+1, y2-y1+1,
+            XFillArc(padisplay, win->xwhan, sc->xcxt, L2PX(win, x1-1), L2PY(win, y1-1), L2PW(win, x2-x1+1), L2PH(win, y2-y1+1),
                      a1, a2);
             XWUNLOCK();
             curon(win); /* show the cursor */
@@ -9933,12 +10042,9 @@ static void ftriangle_ivf(FILE* f, int x1, int y1, int x2, int y2, int x3, int y
     win = txt2win(f); /* get window from file */
     sc = win->screens[win->curupd-1];
     /* place the triangle points in the X array */
-    pa[0].x = x1;
-    pa[0].y = y1;
-    pa[1].x = x2;
-    pa[1].y = y2;
-    pa[2].x = x3;
-    pa[2].y = y3;
+    pa[0].x = L2PX(win, x1-1);  pa[0].y = L2PY(win, y1-1);
+    pa[1].x = L2PX(win, x2-1);  pa[1].y = L2PY(win, y2-1);
+    pa[2].x = L2PX(win, x3-1);  pa[2].y = L2PY(win, y3-1);
 
     /* set foreground function */
     XWLOCK();
@@ -10002,7 +10108,8 @@ static void setpixel_ivf(FILE* f, int x, int y)
         curoff(win); /* hide the cursor */
         /* draw the pixel */
         XWLOCK();
-        XDrawPoint(padisplay, sc->xbuf, sc->xcxt, x-1, y-1);
+        XDrawPoint(padisplay, sc->xbuf, sc->xcxt,
+                   L2PX(win, x-1), L2PY(win, y-1));
         XWUNLOCK();
         curon(win); /* show the cursor */
 
@@ -10013,7 +10120,8 @@ static void setpixel_ivf(FILE* f, int x, int y)
         curoff(win); /* hide the cursor */
         /* draw the pixel */
         XWLOCK();
-        XDrawPoint(padisplay, win->xwhan, sc->xcxt, x-1, y-1);
+        XDrawPoint(padisplay, win->xwhan, sc->xcxt,
+                   L2PX(win, x-1), L2PY(win, y-1));
         XWUNLOCK();
         curon(win); /* show the cursor */
 
@@ -10522,11 +10630,19 @@ static void setpoints_ivf(FILE* f, float ps)
        resulting cell height, then promote that to gfcellh so subsequent
        font changes preserve it */
     if (!win->ftface) setfnt(win);
-    FT_Set_Pixel_Sizes(win->ftface, 0, pixsiz);
+    win->gfhigh_log = pixsiz;
+    {
+        int phys_y = (int)(pixsiz * win->vsy);
+        int phys_x = (int)(pixsiz * win->vsx);
+        if (phys_y < 1) phys_y = 1;
+        if (phys_x < 1) phys_x = 1;
+        win->gfhigh  = phys_y;
+        win->gfhighx = phys_x;
+    }
+    FT_Set_Pixel_Sizes(win->ftface, 0, pixsiz); /* logical for metrics */
     asc = (int)( win->ftface->size->metrics.ascender  >> 6);
     dsc = (int)(-win->ftface->size->metrics.descender >> 6);
     win->gfcellh = asc + dsc + 2;
-    win->gfhigh  = pixsiz;
     win->gfpoint = ps;
     win->linespace = win->gfcellh;
     win->baseoff = asc + 1;
@@ -11581,8 +11697,9 @@ static void picture_ivf(FILE* f, int p, int x1, int y1, int x2, int y2)
 
         /* draw the picture */
         XWLOCK();
-        XPutImage(padisplay, sc->xbuf, sc->xcxt, fp->xi, 0, 0, x1-1, y1-1,
-                  x2-x1+1, y2-y1+1);
+        XPutImage(padisplay, sc->xbuf, sc->xcxt, fp->xi, 0, 0,
+                  L2PX(win, x1-1), L2PY(win, y1-1),
+                  L2PW(win, x2-x1+1), L2PH(win, y2-y1+1));
         XWUNLOCK();
 
     }
@@ -11593,7 +11710,8 @@ static void picture_ivf(FILE* f, int p, int x1, int y1, int x2, int y2)
         /* draw the rectangle */
         XWLOCK();
         XPutImage(padisplay, win->xwhan, sc->xcxt, fp->xi, 0, 0,
-                             x1-1, y1-1, x2-x1+1, y2-y1+1);
+                  L2PX(win, x1-1), L2PY(win, y1-1),
+                  L2PW(win, x2-x1+1), L2PH(win, y2-y1+1));
         XWUNLOCK();
         curon(win); /* show the cursor */
 
@@ -11622,25 +11740,33 @@ static void viewoffg_ivf(FILE* f, int x, int y)
 
 {
 
+    winptr win;
+
+    win = txt2win(f);
+    win->goffx = x;
+    win->goffy = y;
+
 }
 
 /** ****************************************************************************
 
 Set viewport scale
 
-Sets the viewport scale in x and y. The scale is a real fraction between 0 and
-1, with 1 being 1:1 scaling. Viewport scales are allways smaller than logical
-scales, which means that there are more than one logical pixel to map to a
-given physical pixel, but never the reverse. This means that pixels are lost
-in going to the display, but the display never needs to interpolate pixels
-from logical pixels.
+Sets the viewport scale factors in x and y. The scale is a positive floating
+point multiplier applied to logical drawing coordinates to produce physical
+pixel positions. A scale of 1.0 is identity (no scaling). Scales greater than
+1.0 magnify; scales less than 1.0 shrink.
 
-Note:
+The scale applies to user drawing primitives (lines, figures, pictures, text,
+cursor, child window placement) but does not affect UI chrome (title bars,
+frame decorations, menus, widget internals) or mouse coordinate reporting.
+Applications that need to convert mouse coordinates from physical to logical
+can use ami_scalex() and ami_scaley().
 
-Right now, symmetrical scaling (both x and y scales set the same) are all that
-works completely, since we don't presently have a method to warp text to fit
-a scaling process. However, this can be done by various means, including
-painting into a buffer and transfering asymmetrically, or using outlines.
+Asymmetric scaling (different x and y factors) is supported via FreeType's
+asymmetric pixel size facility, which stretches glyph outlines independently
+in each axis before rasterization. charspace and linespace track the
+asymmetric scale automatically.
 
 *******************************************************************************/
 
@@ -11651,6 +11777,57 @@ void ami_viewscale(FILE* f, float x, float y) { (*viewscale_vect)(f, x, y); }
 static void viewscale_ivf(FILE* f, float x, float y)
 
 {
+
+    winptr win;
+
+    if (x <= 0.0f || y <= 0.0f) error(esystem);
+    win = txt2win(f);
+    win->vsx = x;
+    win->vsy = y;
+    setfnt(win); /* re-select font at the new pixel size */
+
+}
+
+/** ****************************************************************************
+
+Convert physical pixel coordinate to logical drawing coordinate
+
+Applies the inverse of the current viewscale/viewoff transform. Used to map
+mouse coordinates (which stay in physical pixels for UI purposes) back to the
+logical drawing space so applications can hit-test or position against a
+scaled drawing.
+
+*******************************************************************************/
+
+void _pa_scalex_ovr(ami_scalex_t nfp, ami_scalex_t* ofp)
+    { *ofp = scalex_vect; scalex_vect = nfp; }
+int ami_scalex(FILE* f, int x) { return ((*scalex_vect)(f, x)); }
+
+static int scalex_ivf(FILE* f, int x)
+
+{
+
+    winptr win;
+
+    win = txt2win(f);
+    if (win->vsx == 0.0f) return x; /* defensive */
+    return (int)(((float)(x - win->goffx)) / win->vsx);
+
+}
+
+void _pa_scaley_ovr(ami_scaley_t nfp, ami_scaley_t* ofp)
+    { *ofp = scaley_vect; scaley_vect = nfp; }
+int ami_scaley(FILE* f, int y) { return ((*scaley_vect)(f, y)); }
+
+static int scaley_ivf(FILE* f, int y)
+
+{
+
+    winptr win;
+
+    win = txt2win(f);
+    if (win->vsy == 0.0f) return y;
+    return (int)(((float)(y - win->goffy)) / win->vsy);
 
 }
 
@@ -14521,6 +14698,8 @@ static void setsizg_ivf(FILE* f, int x, int y)
     XEvent e; /* Xwindow event */
 
     win = txt2win(f); /* get window context */
+    /* if child, apply parent's viewport scale to the requested size */
+    if (win->parwin) { x = L2PW(win->parwin, x); y = L2PH(win->parwin, y); }
     /* change to client terms with zero clip */
     xwc.width = x-win->pfw; if (xwc.width < 1) xwc.width = 1;
     xwc.height = y-win->pfh; if (xwc.height < 1) xwc.height = 1;
@@ -14654,9 +14833,13 @@ static void setposg_ivf(FILE* f, int x, int y)
     /* don't repeat positions, it will cause a no-op in windows manager */
     if (x-1 != win->xmwr.x || y-1 != win->xmwr.y) {
 
-        /* reconfigure window */
+        /* reconfigure window; if child, apply parent's viewport scale */
         XWLOCK();
-        XMoveWindow(padisplay, win->xmwhan, x-1, y-1);
+        if (win->parwin)
+            XMoveWindow(padisplay, win->xmwhan,
+                        L2PX(win->parwin, x-1), L2PY(win->parwin, y-1));
+        else
+            XMoveWindow(padisplay, win->xmwhan, x-1, y-1);
         XWUNLOCK();
 
 #ifdef WAITWMR
@@ -16082,6 +16265,8 @@ static void ami_init_graphics(int argc, char *argv[])
     delpict_vect =         delpict_ivf;
     viewoffg_vect =        viewoffg_ivf;
     viewscale_vect =       viewscale_ivf;
+    scalex_vect =          scalex_ivf;
+    scaley_vect =          scaley_ivf;
     scrollg_vect =         scrollg_ivf;
     path_vect =            path_ivf;
     title_vect =           title_ivf;

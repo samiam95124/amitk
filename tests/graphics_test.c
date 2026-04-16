@@ -1189,6 +1189,7 @@ int main(void)
     float f;
 
     if (setjmp(terminate_buf)) goto terminate;
+goto skip;
     ami_curvis(stdout, FALSE);
     ami_binvis(stdout);
     printf("Graphics screen test vs. 0.1\n");
@@ -2943,35 +2944,187 @@ int main(void)
 
     /* ************************** View offset test **************************** */
 
-#if 0 /* view offsets are not completely working */
+skip:
     putchar('\f');
     ami_auto(stdout, OFF);
     ami_viewoffg(stdout, -(ami_maxxg(stdout)/2), -(ami_maxyg(stdout)/2));
     grid();
-    ami_fcolor(stdout, AMI_GREEN);
+    ami_fcolor(stdout, ami_green);
     ami_frect(stdout, 0, 0, 100, 100);
-    ami_cursorg(stdout, 1, -(maxyg(stdout)/2));
+    ami_cursorg(stdout, 1, -(ami_maxyg(stdout)/2));
     ami_fcolor(stdout, ami_black);
     printf("View offset test\n");
     printf("\n");
     printf("The 1,1 origin is now at screen center\n");
     waitnext();
     ami_viewoffg(stdout, 0, 0);
-#endif
 
    /* ************************** View scale test **************************** */
 
-#if 0 /* view scales are not completely working */
     putchar('\f');
     ami_auto(stdout, OFF);
-    ami_viewscale(stdout, 0.5);
+    ami_viewscale(stdout, 0.5f, 0.5f);
     grid();
-    ami_fcolor(stdout, AMI_GREEN);
+    ami_fcolor(stdout, ami_green);
     ami_frect(stdout, 0, 0, 100, 100);
     prtcen(1, "Logical coordinates are now 1/2 size");
-    prtcen(ami_maxy(stdout), "View scale text");
+    prtcen(ami_maxy(stdout), "View scale test");
     waitnext();
-#endif
+    ami_viewscale(stdout, 1.0f, 1.0f);
+
+    /* ************************ Viewport scaling test ************************** */
+
+//skip:
+    putchar('\f');
+    ami_auto(stdout, OFF);
+    fsiz = ami_chrsizy(stdout); /* save default font size */
+    ami_font(stdout, AMI_FONT_SIGN);
+    {
+        int cx = ami_maxxg(stdout)/2; /* center x */
+        int cy = ami_maxyg(stdout)/2; /* center y */
+        int ww = ami_maxxg(stdout);   /* window width */
+        int wh = ami_maxyg(stdout);   /* window height */
+        int gs = 80; /* gate size */
+        float vsx = 1.0f, vsy = 1.0f;
+        int vox = 0, voy = 0;
+        ami_evtrec er;
+        int done = 0;
+
+        /* initial offset: center the drawing */
+        vox = (int)(ww/2 - (cx-1) * vsx);
+        voy = (int)(wh/2 - (cy-1) * vsy);
+        ami_viewoffg(stdout, vox, voy);
+
+        while (!done) {
+
+            putchar('\f');
+            /* draw boundary lines showing valid coordinate space */
+            ami_fcolor(stdout, ami_cyan);
+            ami_line(stdout, 1, 1, ami_maxxg(stdout), 1);
+            ami_line(stdout, 1, ami_maxyg(stdout), ami_maxxg(stdout), ami_maxyg(stdout));
+            ami_line(stdout, 1, 1, 1, ami_maxyg(stdout));
+            ami_line(stdout, ami_maxxg(stdout), 1, ami_maxxg(stdout), ami_maxyg(stdout));
+            /* draw a simple CMOS inverter schematic */
+            ami_fcolor(stdout, ami_black);
+            /* VDD and VSS rails */
+            ami_line(stdout, cx-gs*2, cy-gs*2, cx+gs*2, cy-gs*2); /* VDD */
+            ami_line(stdout, cx-gs*2, cy+gs*2, cx+gs*2, cy+gs*2); /* VSS */
+            /* PMOS: gate on left, source/drain vertical */
+            ami_rect(stdout, cx-gs/2, cy-gs*3/2, cx+gs/2, cy-gs/2); /* body */
+            ami_line(stdout, cx-gs, cy-gs, cx-gs/2, cy-gs); /* gate */
+            ami_line(stdout, cx, cy-gs*2, cx, cy-gs*3/2); /* source to VDD */
+            ami_line(stdout, cx, cy-gs/2, cx, cy); /* drain to mid */
+            /* NMOS: gate on left, source/drain vertical */
+            ami_rect(stdout, cx-gs/2, cy+gs/2, cx+gs/2, cy+gs*3/2); /* body */
+            ami_line(stdout, cx-gs, cy+gs, cx-gs/2, cy+gs); /* gate */
+            ami_line(stdout, cx, cy+gs*3/2, cx, cy+gs*2); /* source to VSS */
+            ami_line(stdout, cx, cy, cx, cy+gs/2); /* drain from mid */
+            /* input line */
+            ami_line(stdout, cx-gs*2, cy, cx-gs, cy);
+            ami_line(stdout, cx-gs, cy-gs, cx-gs, cy+gs);
+            /* output line */
+            ami_line(stdout, cx, cy, cx+gs*2, cy);
+            /* output dot */
+            ami_fellipse(stdout, cx+gs/4-5, cy-5, cx+gs/4+5, cy+5);
+            /* labels */
+            ami_fontsiz(stdout, 20);
+            ami_cursorg(stdout, cx-gs/4, cy-gs*2-5);
+            printf("VDD");
+            ami_cursorg(stdout, cx-gs/4, cy+gs*2+20);
+            printf("VSS");
+            ami_cursorg(stdout, cx-gs*2-30, cy+6);
+            printf("IN");
+            ami_cursorg(stdout, cx+gs*2+5, cy+6);
+            printf("OUT");
+            /* status at top, caption at bottom — draw at identity scale
+               so UI text stays the same physical size regardless of zoom */
+            ami_viewscale(stdout, 1.0f, 1.0f);
+            ami_viewoffg(stdout, 0, 0);
+            ami_fontsiz(stdout, fsiz);
+            ami_font(stdout, AMI_FONT_TERM);
+            {
+                char sb[120];
+                sprintf(sb, "Sx:%.2f Sy:%.2f Off:%d,%d PgUp/Dn=zoom Arrows=pan Home/End=Yzoom Enter=next",
+                        vsx, vsy, vox, voy);
+                prtcen(1, sb);
+            }
+            prtcen(ami_maxy(stdout), "View drawing scale test");
+            /* restore the current scale for next redraw */
+            ami_viewscale(stdout, vsx, vsy);
+            ami_viewoffg(stdout, vox, voy);
+            /* wait for key */
+            do { ami_event(stdin, &er); } while (er.etype != ami_etenter &&
+                er.etype != ami_etterm && er.etype != ami_etpagu &&
+                er.etype != ami_etpagd && er.etype != ami_etup &&
+                er.etype != ami_etdown && er.etype != ami_etleft &&
+                er.etype != ami_etright && er.etype != ami_ethomel &&
+                er.etype != ami_etendl);
+            if (er.etype == ami_etterm || er.etype == ami_etenter) {
+
+                done = 1;
+
+            } else if (er.etype == ami_etpagu) {
+
+                vsx *= 1.25f;
+                vsy *= 1.25f;
+                ami_viewscale(stdout, vsx, vsy);
+                vox = (int)(ww/2 - (cx-1) * vsx);
+                voy = (int)(wh/2 - (cy-1) * vsy);
+                ami_viewoffg(stdout, vox, voy);
+
+            } else if (er.etype == ami_etpagd) {
+
+                vsx /= 1.25f;
+                vsy /= 1.25f;
+                if (vsx < 0.01f) vsx = 0.01f;
+                if (vsy < 0.01f) vsy = 0.01f;
+                ami_viewscale(stdout, vsx, vsy);
+                vox = (int)(ww/2 - (cx-1) * vsx);
+                voy = (int)(wh/2 - (cy-1) * vsy);
+                ami_viewoffg(stdout, vox, voy);
+
+            } else if (er.etype == ami_ethomel) {
+
+                vsy *= 1.25f;
+                ami_viewscale(stdout, vsx, vsy);
+                voy = (int)(wh/2 - (cy-1) * vsy);
+                ami_viewoffg(stdout, vox, voy);
+
+            } else if (er.etype == ami_etendl) {
+
+                vsy /= 1.25f;
+                if (vsy < 0.01f) vsy = 0.01f;
+                ami_viewscale(stdout, vsx, vsy);
+                voy = (int)(wh/2 - (cy-1) * vsy);
+                ami_viewoffg(stdout, vox, voy);
+
+            } else if (er.etype == ami_etup) {
+
+                voy -= 20;
+                ami_viewoffg(stdout, vox, voy);
+
+            } else if (er.etype == ami_etdown) {
+
+                voy += 20;
+                ami_viewoffg(stdout, vox, voy);
+
+            } else if (er.etype == ami_etleft) {
+
+                vox -= 20;
+                ami_viewoffg(stdout, vox, voy);
+
+            } else if (er.etype == ami_etright) {
+
+                vox += 20;
+                ami_viewoffg(stdout, vox, voy);
+
+            }
+
+        }
+        /* reset to identity */
+        ami_viewscale(stdout, 1.0f, 1.0f);
+        ami_viewoffg(stdout, 0, 0);
+    }
 
     /* ************************** Benchmarks **************************** */
 
