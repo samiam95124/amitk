@@ -6321,6 +6321,10 @@ static void iscrollg(winptr win, int x, int y)
     } frx, fry; /* x fill, y fill */
     scnptr sc;  /* pointer to current screen */
 
+    /* transform scroll deltas to physical pixels for viewport scaling */
+    x = L2PDX(win, x);
+    y = L2PDY(win, y);
+
     sc = win->screens[win->curupd-1]; /* index current screen */
     /* scroll would result in complete clear, do it */
     if (x <= -sc->maxxg || x >= sc->maxxg ||
@@ -14678,6 +14682,8 @@ static void setsizg_ivf(FILE* f, int x, int y)
     XEvent e; /* Xwindow event */
 
     win = txt2win(f); /* get window context */
+    /* if child, apply parent's viewport scale to the requested size */
+    if (win->parwin) { x = L2PW(win->parwin, x); y = L2PH(win->parwin, y); }
     /* change to client terms with zero clip */
     xwc.width = x-win->pfw; if (xwc.width < 1) xwc.width = 1;
     xwc.height = y-win->pfh; if (xwc.height < 1) xwc.height = 1;
@@ -14811,9 +14817,13 @@ static void setposg_ivf(FILE* f, int x, int y)
     /* don't repeat positions, it will cause a no-op in windows manager */
     if (x-1 != win->xmwr.x || y-1 != win->xmwr.y) {
 
-        /* reconfigure window */
+        /* reconfigure window; if child, apply parent's viewport scale */
         XWLOCK();
-        XMoveWindow(padisplay, win->xmwhan, x-1, y-1);
+        if (win->parwin)
+            XMoveWindow(padisplay, win->xmwhan,
+                        L2PX(win->parwin, x-1), L2PY(win->parwin, y-1));
+        else
+            XMoveWindow(padisplay, win->xmwhan, x-1, y-1);
         XWUNLOCK();
 
 #ifdef WAITWMR
