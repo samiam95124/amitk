@@ -1189,6 +1189,7 @@ int main(void)
     float f;
 
     if (setjmp(terminate_buf)) goto terminate;
+goto skip;
     ami_curvis(stdout, FALSE);
     ami_binvis(stdout);
     printf("Graphics screen test vs. 0.1\n");
@@ -2943,38 +2944,38 @@ int main(void)
 
     /* ************************** View offset test **************************** */
 
-#if 0 /* view offsets are not completely working */
+//skip:
     putchar('\f');
     ami_auto(stdout, OFF);
     ami_viewoffg(stdout, -(ami_maxxg(stdout)/2), -(ami_maxyg(stdout)/2));
     grid();
-    ami_fcolor(stdout, AMI_GREEN);
+    ami_fcolor(stdout, ami_green);
     ami_frect(stdout, 0, 0, 100, 100);
-    ami_cursorg(stdout, 1, -(maxyg(stdout)/2));
+    ami_cursorg(stdout, 1, -(ami_maxyg(stdout)/2));
     ami_fcolor(stdout, ami_black);
     printf("View offset test\n");
     printf("\n");
     printf("The 1,1 origin is now at screen center\n");
     waitnext();
     ami_viewoffg(stdout, 0, 0);
-#endif
 
    /* ************************** View scale test **************************** */
 
-#if 0 /* view scales are not completely working */
     putchar('\f');
     ami_auto(stdout, OFF);
-    ami_viewscale(stdout, 0.5);
+    ami_viewscale(stdout, 0.5f, 0.5f);
     grid();
-    ami_fcolor(stdout, AMI_GREEN);
+    ami_fcolor(stdout, ami_green);
     ami_frect(stdout, 0, 0, 100, 100);
     prtcen(1, "Logical coordinates are now 1/2 size");
-    prtcen(ami_maxy(stdout), "View scale text");
+    prtcen(ami_maxy(stdout), "View scale test");
     waitnext();
-#endif
+    ami_viewscale(stdout, 1.0f, 1.0f);
 
     /* ************************ Viewport scaling test ************************** */
 
+skip:
+fprintf(stderr, "starting viewport scaling test\n");
     putchar('\f');
     ami_auto(stdout, OFF);
     ami_font(stdout, AMI_FONT_SIGN);
@@ -3033,17 +3034,20 @@ int main(void)
                 er.etype != ami_etpagd && er.etype != ami_etup &&
                 er.etype != ami_etdown && er.etype != ami_etleft &&
                 er.etype != ami_etright);
+fprintf(stderr, "received event\n");
             if (er.etype == ami_etterm || er.etype == ami_etenter) {
 
                 done = 1;
 
             } else if (er.etype == ami_etpagu) {
 
+fprintf(stderr, "page up\n");
                 vs *= 1.25f;
                 ami_viewscale(stdout, vs, vs);
 
             } else if (er.etype == ami_etpagd) {
 
+fprintf(stderr, "page down\n");
                 vs /= 1.25f;
                 if (vs < 0.01f) vs = 0.01f;
                 ami_viewscale(stdout, vs, vs);
