@@ -2975,22 +2975,34 @@ goto skip;
     /* ************************ Viewport scaling test ************************** */
 
 skip:
-fprintf(stderr, "starting viewport scaling test\n");
     putchar('\f');
     ami_auto(stdout, OFF);
     ami_font(stdout, AMI_FONT_SIGN);
     {
         int cx = ami_maxxg(stdout)/2; /* center x */
         int cy = ami_maxyg(stdout)/2; /* center y */
+        int ww = ami_maxxg(stdout);   /* window width */
+        int wh = ami_maxyg(stdout);   /* window height */
         int gs = 80; /* gate size */
-        float vs = 1.0f;
+        float vsx = 1.0f, vsy = 1.0f;
         int vox = 0, voy = 0;
         ami_evtrec er;
         int done = 0;
 
+        /* initial offset: center the drawing */
+        vox = (int)(ww/2 - (cx-1) * vsx);
+        voy = (int)(wh/2 - (cy-1) * vsy);
+        ami_viewoffg(stdout, vox, voy);
+
         while (!done) {
 
             putchar('\f');
+            /* draw boundary lines showing valid coordinate space */
+            ami_fcolor(stdout, ami_cyan);
+            ami_line(stdout, 1, 1, ami_maxxg(stdout), 1);
+            ami_line(stdout, 1, ami_maxyg(stdout), ami_maxxg(stdout), ami_maxyg(stdout));
+            ami_line(stdout, 1, 1, 1, ami_maxyg(stdout));
+            ami_line(stdout, ami_maxxg(stdout), 1, ami_maxxg(stdout), ami_maxyg(stdout));
             /* draw a simple CMOS inverter schematic */
             ami_fcolor(stdout, ami_black);
             /* VDD and VSS rails */
@@ -3023,34 +3035,56 @@ fprintf(stderr, "starting viewport scaling test\n");
             printf("IN");
             ami_cursorg(stdout, cx+gs*2+5, cy+6);
             printf("OUT");
-            /* status line */
+            /* status line (drawn at physical coords via viewoff, stays put) */
             ami_fontsiz(stdout, 16);
             ami_cursorg(stdout, 5, ami_maxyg(stdout)-5);
-            printf("Scale: %.2f  Offset: %d,%d  PgUp/PgDn=zoom  Arrows=pan  Enter=next",
-                   vs, vox, voy);
+            printf("Sx:%.2f Sy:%.2f Off:%d,%d PgUp/Dn=zoom Arrows=pan Home/End=Yzoom Enter=next",
+                   vsx, vsy, vox, voy);
             /* wait for key */
             do { ami_event(stdin, &er); } while (er.etype != ami_etenter &&
                 er.etype != ami_etterm && er.etype != ami_etpagu &&
                 er.etype != ami_etpagd && er.etype != ami_etup &&
                 er.etype != ami_etdown && er.etype != ami_etleft &&
-                er.etype != ami_etright);
-fprintf(stderr, "received event\n");
+                er.etype != ami_etright && er.etype != ami_ethomel &&
+                er.etype != ami_etendl);
             if (er.etype == ami_etterm || er.etype == ami_etenter) {
 
                 done = 1;
 
             } else if (er.etype == ami_etpagu) {
 
-fprintf(stderr, "page up\n");
-                vs *= 1.25f;
-                ami_viewscale(stdout, vs, vs);
+                vsx *= 1.25f;
+                vsy *= 1.25f;
+                ami_viewscale(stdout, vsx, vsy);
+                vox = (int)(ww/2 - (cx-1) * vsx);
+                voy = (int)(wh/2 - (cy-1) * vsy);
+                ami_viewoffg(stdout, vox, voy);
 
             } else if (er.etype == ami_etpagd) {
 
-fprintf(stderr, "page down\n");
-                vs /= 1.25f;
-                if (vs < 0.01f) vs = 0.01f;
-                ami_viewscale(stdout, vs, vs);
+                vsx /= 1.25f;
+                vsy /= 1.25f;
+                if (vsx < 0.01f) vsx = 0.01f;
+                if (vsy < 0.01f) vsy = 0.01f;
+                ami_viewscale(stdout, vsx, vsy);
+                vox = (int)(ww/2 - (cx-1) * vsx);
+                voy = (int)(wh/2 - (cy-1) * vsy);
+                ami_viewoffg(stdout, vox, voy);
+
+            } else if (er.etype == ami_ethomel) {
+
+                vsy *= 1.25f;
+                ami_viewscale(stdout, vsx, vsy);
+                voy = (int)(wh/2 - (cy-1) * vsy);
+                ami_viewoffg(stdout, vox, voy);
+
+            } else if (er.etype == ami_etendl) {
+
+                vsy /= 1.25f;
+                if (vsy < 0.01f) vsy = 0.01f;
+                ami_viewscale(stdout, vsx, vsy);
+                voy = (int)(wh/2 - (cy-1) * vsy);
+                ami_viewoffg(stdout, vox, voy);
 
             } else if (er.etype == ami_etup) {
 

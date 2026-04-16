@@ -3213,9 +3213,14 @@ void setfnt(winptr win)
             }
 
         }
-        win->gfhigh    = pixsiz;
-        win->gfhighx   = (win->vsy != 0.0f) ?
-                          (int)(pixsiz * win->vsx / win->vsy) : pixsiz;
+        /* gfhigh/gfhighx are the PHYSICAL em-square pixel sizes used by
+           FreeType for glyph rendering. They include the viewport scale so
+           glyphs grow/shrink with the zoom. charspace and linespace stay
+           LOGICAL (from the unscaled metrics above) for cursor advancement. */
+        win->gfhigh    = (int)(pixsiz * win->vsy);
+        win->gfhighx   = (int)(pixsiz * win->vsx);
+        if (win->gfhigh  < 1) win->gfhigh  = 1;
+        if (win->gfhighx < 1) win->gfhighx = 1;
         win->gfpoint   = pixsiz * 2835.0f / (float)win->sdpmy;
         win->linespace = win->gfcellh;
         win->baseoff   = asc + 1;
