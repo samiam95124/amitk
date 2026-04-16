@@ -1,0 +1,3 @@
+[submodule "BSDGames"]
+	path = BSDGames
+	url = https://github.com/vattam/BSDGames

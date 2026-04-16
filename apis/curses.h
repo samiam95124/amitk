@@ -18,6 +18,7 @@
 #ifndef _AMI_CURSES_H
 #define _AMI_CURSES_H
 
+#include <stdio.h>
 #include <stdarg.h>
 
 /* boolean */
@@ -121,9 +122,27 @@ int getmaxy(WINDOW* win);
 /* screen reading */
 int mvinch(int y, int x);
 
+/* windows (minimal — all map to stdscr) */
+WINDOW* newwin(int nlines, int ncols, int begin_y, int begin_x);
+int     wrefresh(WINDOW* win);
+int     wmove(WINDOW* win, int y, int x);
+int     waddch(WINDOW* win, int ch);
+int     waddstr(WINDOW* win, const char* str);
+int     mvwaddch(WINDOW* win, int y, int x, int ch);
+int     mvwaddstr(WINDOW* win, int y, int x, const char* str);
+int     wprintw(WINDOW* win, const char* fmt, ...);
+int     mvwprintw(WINDOW* win, int y, int x, const char* fmt, ...);
+int     wclear(WINDOW* win);
+int     wclrtoeol(WINDOW* win);
+int     wgetch(WINDOW* win);
+
 /* misc */
 int napms(int ms);
 int beep(void);
+int baudrate(void);
+int scrollok(WINDOW* win, int bf);
+int touchwin(WINDOW* win);
+int winch(WINDOW* win);
 
 /* box drawing */
 int box(WINDOW* win, int verch, int horch);
