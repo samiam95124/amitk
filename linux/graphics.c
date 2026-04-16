@@ -6837,6 +6837,17 @@ static void drwchr90(winptr win, scnptr sc, int cs, int ce, Drawable d, char c)
 
 {
 
+    /* transform position and sizes to physical pixels for viewport scaling */
+    int px  = L2PX(win, sc->curxg-1);
+    int py  = L2PY(win, sc->curyg-1);
+    int pcs = L2PW(win, cs);
+    int pls = L2PH(win, win->linespace);
+    int pbo = L2PH(win, win->baseoff);
+    int pmx = L2PW(win, win->mischrx);
+    int pmy = L2PH(win, win->mischry);
+    int pmox = L2PW(win, win->misoffx);
+    int pmoy = L2PH(win, win->misoffy);
+
     if (sc->bmod != mdinvis) { /* background is visible */
 
         XWLOCK();
@@ -6846,8 +6857,7 @@ static void drwchr90(winptr win, scnptr sc, int cs, int ce, Drawable d, char c)
         /* set background to foreground to draw character background */
         if (BIT(sarev) & sc->attr) XSetForeground(padisplay, sc->xcxt, sc->fcrgb);
         else XSetForeground(padisplay, sc->xcxt, sc->bcrgb);
-        XFillRectangle(padisplay, d, sc->xcxt, sc->curxg-1, sc->curyg-1, cs,
-                       win->linespace);
+        XFillRectangle(padisplay, d, sc->xcxt, px, py, pcs, pls);
         /* xor is non-destructive, and we can restore it. And and or are
            destructive, and would require a combining buffer to perform */
         if (sc->bmod == mdxor) {
@@ -6855,12 +6865,10 @@ static void drwchr90(winptr win, scnptr sc, int cs, int ce, Drawable d, char c)
             if (ce) /* character exists */
                 /* draw character */
                 ft_draw_char(d, sc->xcxt, win->ftface, win->gfhighx, win->gfhigh,
-                             sc->curxg-1, sc->curyg-1+win->baseoff, c);
+                             px, py+pbo, c);
             else /* does not exist, draw missing character box */
                 XDrawRectangle(padisplay, d, sc->xcxt,
-                               sc->curxg-1+win->misoffx,
-                               sc->curyg-1+win->misoffy,
-                               win->mischrx, win->mischry);
+                               px+pmox, py+pmoy, pmx, pmy);
 
         }
         /* restore colors */
@@ -6880,22 +6888,18 @@ static void drwchr90(winptr win, scnptr sc, int cs, int ce, Drawable d, char c)
         if (ce) /* character exists */
             /* draw character */
             ft_draw_char(d, sc->xcxt, win->ftface, win->gfhighx, win->gfhigh,
-                         sc->curxg-1, sc->curyg-1+win->baseoff, c);
+                         px, py+pbo, c);
         else /* does not exist, draw missing character box */
             XDrawRectangle(padisplay, d, sc->xcxt,
-                           sc->curxg-1+win->misoffx,
-                           sc->curyg-1+win->misoffy,
-                           win->mischrx, win->mischry);
+                           px+pmox, py+pmoy, pmx, pmy);
         /* check draw underline */
         if (sc->attr & BIT(saundl)){
 
             /* double line, may need ajusting for low DP displays */
             XDrawLine(padisplay, d, sc->xcxt,
-                      sc->curxg-1, sc->curyg-1+win->baseoff+1,
-                      sc->curxg-1+cs, sc->curyg-1+win->baseoff+1);
+                      px, py+pbo+1, px+pcs, py+pbo+1);
             XDrawLine(padisplay, d, sc->xcxt,
-                      sc->curxg-1, sc->curyg-1+win->baseoff+2,
-                      sc->curxg-1+cs, sc->curyg-1+win->baseoff+2);
+                      px, py+pbo+2, px+pcs, py+pbo+2);
 
         }
 
@@ -6903,11 +6907,11 @@ static void drwchr90(winptr win, scnptr sc, int cs, int ce, Drawable d, char c)
         if (sc->attr & BIT(sastkout)) {
 
             XDrawLine(padisplay, d, sc->xcxt,
-                      sc->curxg-1, sc->curyg-1+win->baseoff/STRIKE,
-                      sc->curxg-1+cs, sc->curyg-1+win->baseoff/STRIKE);
+                      px, py+(int)(pbo/STRIKE),
+                      px+pcs, py+(int)(pbo/STRIKE));
             XDrawLine(padisplay, d, sc->xcxt,
-                      sc->curxg-1, sc->curyg-1+win->baseoff/STRIKE+1,
-                      sc->curxg-1+cs, sc->curyg-1+win->baseoff/STRIKE+1);
+                      px, py+(int)(pbo/STRIKE)+1,
+                      px+pcs, py+(int)(pbo/STRIKE)+1);
 
         }
         /* reset foreground function */
@@ -7029,31 +7033,41 @@ static void drwchr(winptr win, scnptr sc, int cs, int ce, Drawable d, char c)
     char cb[2];      /* character buffer */
     int  xb, yb;     /* rotated baseline */
     int  xull, yull, xulr, yulr; /* underline 1 */
-
     int  xsol, ysol, xsor, ysor; /* underline 1 */
 
+    /* transform starting position and sizes for viewport scaling */
+    int px  = L2PX(win, sc->curxg-1);
+    int py  = L2PY(win, sc->curyg-1);
+    int pcs = L2PW(win, cs);
+    int pls = L2PH(win, win->linespace);
+    int pbo = L2PH(win, win->baseoff);
+    int pmx = L2PW(win, win->mischrx);
+    int pmy = L2PH(win, win->mischry);
+    int pmox = L2PW(win, win->misoffx);
+    int pmoy = L2PH(win, win->misoffy);
+
     /* find rotated character baseline */
-    xb = sc->curxg-1;
-    yb = sc->curyg-1;
-    addvect(&xb, &yb, RADIAN(sc->angle)+2*M_PI/4, win->baseoff);
+    xb = px;
+    yb = py;
+    addvect(&xb, &yb, RADIAN(sc->angle)+2*M_PI/4, pbo);
 
     /* find rotated underline left side */
-    xull = sc->curxg-1;
-    yull = sc->curyg-1;
-    addvect(&xull, &yull, RADIAN(sc->angle)+2*M_PI/4, win->baseoff+1);
+    xull = px;
+    yull = py;
+    addvect(&xull, &yull, RADIAN(sc->angle)+2*M_PI/4, pbo+1);
     /* find right side */
     xulr = xull;
     yulr = yull;
-    addvect(&xulr, &yulr, RADIAN(sc->angle), cs);
+    addvect(&xulr, &yulr, RADIAN(sc->angle), pcs);
 
     /* find rotated strikeout left side */
-    xsol = sc->curxg-1;
-    ysol = sc->curyg-1;
-    addvect(&xsol, &ysol, RADIAN(sc->angle)+2*M_PI/4, win->baseoff/STRIKE);
+    xsol = px;
+    ysol = py;
+    addvect(&xsol, &ysol, RADIAN(sc->angle)+2*M_PI/4, (int)(pbo/STRIKE));
     /* find right side */
     xsor = xsol;
     ysor = ysol;
-    addvect(&xsor, &ysor, RADIAN(sc->angle), cs);
+    addvect(&xsor, &ysor, RADIAN(sc->angle), pcs);
 
     cb[0] = c; /* place character in string form */
     cb[1] = 0;
@@ -7065,7 +7079,7 @@ static void drwchr(winptr win, scnptr sc, int cs, int ce, Drawable d, char c)
         /* set background to foreground to draw character background */
         if (BIT(sarev) & sc->attr) XSetForeground(padisplay, sc->xcxt, sc->fcrgb);
         else XSetForeground(padisplay, sc->xcxt, sc->bcrgb);
-        drwfrecta(d, sc, sc->angle, sc->curxg-1, sc->curyg-1, cs, win->linespace);
+        drwfrecta(d, sc, sc->angle, px, py, pcs, pls);
         /* xor is non-destructive, and we can restore it. And and or are
            destructive, and would require a combining buffer to perform */
         if (sc->bmod == mdxor) {
@@ -7076,8 +7090,7 @@ static void drwchr(winptr win, scnptr sc, int cs, int ce, Drawable d, char c)
                                      RADIAN(sc->angle), xb, yb, c);
             else /* does not exist, draw missing character box */
                 drwrecta(d, sc, sc->angle,
-                         sc->curxg-1+win->misoffx, sc->curyg-1+win->misoffy,
-                         win->mischrx, win->mischry);
+                         px+pmox, py+pmoy, pmx, pmy);
 
         }
         /* restore colors */
@@ -7099,8 +7112,7 @@ static void drwchr(winptr win, scnptr sc, int cs, int ce, Drawable d, char c)
                                  RADIAN(sc->angle), xb, yb, c);
         else /* does not exist, draw missing character box */
             drwrecta(d, sc, sc->angle,
-                     sc->curxg-1+win->misoffx, sc->curyg-1+win->misoffy,
-                     win->mischrx, win->mischry);
+                     px+pmox, py+pmoy, pmx, pmy);
         /* check draw underline */
         if (sc->attr & BIT(saundl)){
 
@@ -8874,6 +8886,13 @@ static void drwstr90(winptr win, scnptr sc, int tw, Drawable d, char* s, int l)
 
 {
 
+    /* transform position and sizes to physical pixels for viewport scaling */
+    int px  = L2PX(win, sc->curxg-1);
+    int py  = L2PY(win, sc->curyg-1);
+    int ptw = L2PW(win, tw);
+    int pls = L2PH(win, win->linespace);
+    int pbo = L2PH(win, win->baseoff);
+
     if (sc->bmod != mdinvis) { /* background is visible */
 
         XWLOCK();
@@ -8883,14 +8902,13 @@ static void drwstr90(winptr win, scnptr sc, int tw, Drawable d, char* s, int l)
         /* set background to foreground to draw character background */
         if (BIT(sarev) & sc->attr) XSetForeground(padisplay, sc->xcxt, sc->fcrgb);
         else XSetForeground(padisplay, sc->xcxt, sc->bcrgb);
-        XFillRectangle(padisplay, d, sc->xcxt, sc->curxg-1, sc->curyg-1,
-                       tw, win->linespace);
+        XFillRectangle(padisplay, d, sc->xcxt, px, py, ptw, pls);
         /* xor is non-destructive, and we can restore it. And and or are
            destructive, and would require a combining buffer to perform */
         if (sc->bmod == mdxor)
             /* restore surface under text */
             ft_draw_string(d, sc->xcxt, win->ftface, win->gfhighx, win->gfhigh,
-                           sc->curxg-1, sc->curyg-1+win->baseoff, s, l);
+                           px, py+pbo, s, l);
         /* restore colors */
         if (BIT(sarev) & sc->attr)
             XSetForeground(padisplay, sc->xcxt, sc->bcrgb);
@@ -8907,17 +8925,15 @@ static void drwstr90(winptr win, scnptr sc, int tw, Drawable d, char* s, int l)
         XSetFunction(padisplay, sc->xcxt, mod2fnc[sc->fmod]);
         /* draw character */
         ft_draw_string(d, sc->xcxt, win->ftface, win->gfhighx, win->gfhigh,
-                       sc->curxg-1, sc->curyg-1+win->baseoff, s, l);
+                       px, py+pbo, s, l);
         /* check draw underline */
         if (sc->attr & BIT(saundl)){
 
             /* double line, may need ajusting for low DP displays */
             XDrawLine(padisplay, d, sc->xcxt,
-                      sc->curxg-1, sc->curyg-1+win->baseoff+1,
-                      sc->curxg-1+tw, sc->curyg-1+win->baseoff+1);
+                      px, py+pbo+1, px+ptw, py+pbo+1);
             XDrawLine(padisplay, d, sc->xcxt,
-                      sc->curxg-1, sc->curyg-1+win->baseoff+2,
-                      sc->curxg-1+tw, sc->curyg-1+win->baseoff+2);
+                      px, py+pbo+2, px+ptw, py+pbo+2);
 
         }
 
@@ -8925,11 +8941,11 @@ static void drwstr90(winptr win, scnptr sc, int tw, Drawable d, char* s, int l)
         if (sc->attr & BIT(sastkout)) {
 
             XDrawLine(padisplay, d, sc->xcxt,
-                      sc->curxg-1, sc->curyg-1+win->baseoff/STRIKE,
-                      sc->curxg-1+tw, sc->curyg-1+win->baseoff/STRIKE);
+                      px, py+(int)(pbo/STRIKE),
+                      px+ptw, py+(int)(pbo/STRIKE));
             XDrawLine(padisplay, d, sc->xcxt,
-                      sc->curxg-1, sc->curyg-1+win->baseoff/STRIKE+1,
-                      sc->curxg-1+tw, sc->curyg-1+win->baseoff/STRIKE+1);
+                      px, py+(int)(pbo/STRIKE)+1,
+                      px+ptw, py+(int)(pbo/STRIKE)+1);
 
         }
         /* reset foreground function */
