@@ -2973,6 +2973,109 @@ int main(void)
     waitnext();
 #endif
 
+    /* ************************ Viewport scaling test ************************** */
+
+    putchar('\f');
+    ami_auto(stdout, OFF);
+    ami_font(stdout, AMI_FONT_SIGN);
+    {
+        int cx = ami_maxxg(stdout)/2; /* center x */
+        int cy = ami_maxyg(stdout)/2; /* center y */
+        int gs = 80; /* gate size */
+        float vs = 1.0f;
+        int vox = 0, voy = 0;
+        ami_evtrec er;
+        int done = 0;
+
+        while (!done) {
+
+            putchar('\f');
+            /* draw a simple CMOS inverter schematic */
+            ami_fcolor(stdout, ami_black);
+            /* VDD and VSS rails */
+            ami_line(stdout, cx-gs*2, cy-gs*2, cx+gs*2, cy-gs*2); /* VDD */
+            ami_line(stdout, cx-gs*2, cy+gs*2, cx+gs*2, cy+gs*2); /* VSS */
+            /* PMOS: gate on left, source/drain vertical */
+            ami_rect(stdout, cx-gs/2, cy-gs*3/2, cx+gs/2, cy-gs/2); /* body */
+            ami_line(stdout, cx-gs, cy-gs, cx-gs/2, cy-gs); /* gate */
+            ami_line(stdout, cx, cy-gs*2, cx, cy-gs*3/2); /* source to VDD */
+            ami_line(stdout, cx, cy-gs/2, cx, cy); /* drain to mid */
+            /* NMOS: gate on left, source/drain vertical */
+            ami_rect(stdout, cx-gs/2, cy+gs/2, cx+gs/2, cy+gs*3/2); /* body */
+            ami_line(stdout, cx-gs, cy+gs, cx-gs/2, cy+gs); /* gate */
+            ami_line(stdout, cx, cy+gs*3/2, cx, cy+gs*2); /* source to VSS */
+            ami_line(stdout, cx, cy, cx, cy+gs/2); /* drain from mid */
+            /* input line */
+            ami_line(stdout, cx-gs*2, cy, cx-gs, cy);
+            ami_line(stdout, cx-gs, cy-gs, cx-gs, cy+gs);
+            /* output line */
+            ami_line(stdout, cx, cy, cx+gs*2, cy);
+            /* output dot */
+            ami_fellipse(stdout, cx+gs/4-5, cy-5, cx+gs/4+5, cy+5);
+            /* labels */
+            ami_fontsiz(stdout, 20);
+            ami_cursorg(stdout, cx-gs/4, cy-gs*2-5);
+            printf("VDD");
+            ami_cursorg(stdout, cx-gs/4, cy+gs*2+20);
+            printf("VSS");
+            ami_cursorg(stdout, cx-gs*2-30, cy+6);
+            printf("IN");
+            ami_cursorg(stdout, cx+gs*2+5, cy+6);
+            printf("OUT");
+            /* status line */
+            ami_fontsiz(stdout, 16);
+            ami_cursorg(stdout, 5, ami_maxyg(stdout)-5);
+            printf("Scale: %.2f  Offset: %d,%d  PgUp/PgDn=zoom  Arrows=pan  Enter=next",
+                   vs, vox, voy);
+            /* wait for key */
+            do { ami_event(stdin, &er); } while (er.etype != ami_etenter &&
+                er.etype != ami_etterm && er.etype != ami_etpagu &&
+                er.etype != ami_etpagd && er.etype != ami_etup &&
+                er.etype != ami_etdown && er.etype != ami_etleft &&
+                er.etype != ami_etright);
+            if (er.etype == ami_etterm || er.etype == ami_etenter) {
+
+                done = 1;
+
+            } else if (er.etype == ami_etpagu) {
+
+                vs *= 1.25f;
+                ami_viewscale(stdout, vs, vs);
+
+            } else if (er.etype == ami_etpagd) {
+
+                vs /= 1.25f;
+                if (vs < 0.01f) vs = 0.01f;
+                ami_viewscale(stdout, vs, vs);
+
+            } else if (er.etype == ami_etup) {
+
+                voy -= 20;
+                ami_viewoffg(stdout, vox, voy);
+
+            } else if (er.etype == ami_etdown) {
+
+                voy += 20;
+                ami_viewoffg(stdout, vox, voy);
+
+            } else if (er.etype == ami_etleft) {
+
+                vox -= 20;
+                ami_viewoffg(stdout, vox, voy);
+
+            } else if (er.etype == ami_etright) {
+
+                vox += 20;
+                ami_viewoffg(stdout, vox, voy);
+
+            }
+
+        }
+        /* reset to identity */
+        ami_viewscale(stdout, 1.0f, 1.0f);
+        ami_viewoffg(stdout, 0, 0);
+    }
+
     /* ************************** Benchmarks **************************** */
 
     ami_bover(stdout);
