@@ -4470,16 +4470,16 @@ static void curdrw(winptr win)
     XSetFunction(padisplay, sc->xcxt, GXxor); /* set reverse */
     if (win->focus)
         XFillRectangle(padisplay, win->xwhan, sc->xcxt,
-                       sc->curxg-1, sc->curyg-1,
-                       win->charspace, win->linespace);
+                       L2PX(win, sc->curxg-1), L2PY(win, sc->curyg-1),
+                       L2PW(win, win->charspace), L2PH(win, win->linespace));
     else {
 
         XDrawRectangle(padisplay, win->xwhan, sc->xcxt,
-                       sc->curxg-1, sc->curyg-1,
-                       win->charspace, win->linespace);
+                       L2PX(win, sc->curxg-1), L2PY(win, sc->curyg-1),
+                       L2PW(win, win->charspace), L2PH(win, win->linespace));
         XDrawRectangle(padisplay, win->xwhan, sc->xcxt,
-                       sc->curxg-1+1, sc->curyg-1+1,
-                       win->charspace-2, win->linespace-2);
+                       L2PX(win, sc->curxg-1+1), L2PY(win, sc->curyg-1+1),
+                       L2PW(win, win->charspace-2), L2PH(win, win->linespace-2));
 
     }
     XSetFunction(padisplay, sc->xcxt, GXcopy); /* set overwrite */
