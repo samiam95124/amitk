@@ -459,6 +459,10 @@ void ami_picture(FILE* f, int p, int x1, int y1, int x2, int y2);
 void ami_delpict(FILE* f, int p);
 void ami_scrollg(FILE* f, int x, int y);
 void ami_path(FILE* f, int a);
+void ami_viewoffg(FILE* f, int x, int y);
+void ami_viewscale(FILE* f, float x, float y);
+int  ami_scalex(FILE* f, int x);
+int  ami_scaley(FILE* f, int y);
 
 /* Window management functions */
 
@@ -709,6 +713,10 @@ typedef void (*ami_picture_t)(FILE* f, int p, int x1, int y1, int x2, int y2);
 typedef void (*ami_delpict_t)(FILE* f, int p);
 typedef void (*ami_scrollg_t)(FILE* f, int x, int y);
 typedef void (*ami_path_t)(FILE* f, int a);
+typedef void (*ami_viewoffg_t)(FILE* f, int x, int y);
+typedef void (*ami_viewscale_t)(FILE* f, float x, float y);
+typedef int  (*ami_scalex_t)(FILE* f, int x);
+typedef int  (*ami_scaley_t)(FILE* f, int y);
 typedef void (*ami_openwin_t)(FILE** infile, FILE** outfile, FILE* parent, int wid);
 typedef void (*ami_buffer_t)(FILE* f, int e);
 typedef void (*ami_sizbufg_t)(FILE* f, int x, int y);
@@ -977,6 +985,10 @@ void _pa_sizable_ovr(ami_sizable_t nfp, ami_sizable_t* ofp);
 void _pa_sysbar_ovr(ami_sysbar_t nfp, ami_sysbar_t* ofp);
 void _pa_focus_ovr(ami_focus_t nfp, ami_focus_t* ofp);
 void _pa_path_ovr(ami_path_t nfp, ami_path_t* ofp);
+void _pa_viewoffg_ovr(ami_viewoffg_t nfp, ami_viewoffg_t* ofp);
+void _pa_viewscale_ovr(ami_viewscale_t nfp, ami_viewscale_t* ofp);
+void _pa_scalex_ovr(ami_scalex_t nfp, ami_scalex_t* ofp);
+void _pa_scaley_ovr(ami_scaley_t nfp, ami_scaley_t* ofp);
 void _pa_getwigid_ovr(ami_getwigid_t nfp, ami_getwigid_t* ofp);
 void _pa_killwidget_ovr(ami_killwidget_t nfp, ami_killwidget_t* ofp);
 void _pa_selectwidget_ovr(ami_selectwidget_t nfp, ami_selectwidget_t* ofp);
