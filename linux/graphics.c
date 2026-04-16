@@ -541,8 +541,9 @@ typedef struct winrec {
     int          gbcrgb;            /* background color in rgb */
     int          gcurv;             /* state of cursor visible */
     fontptr      gcfont;            /* current font select */
-    int          gfhigh;            /* current em-square pixel size y (FreeType) */
-    int          gfhighx;           /* current em-square pixel size x (asymmetric) */
+    int          gfhigh;            /* physical em-square pixel size y (FreeType) */
+    int          gfhighx;           /* physical em-square pixel size x (asymmetric) */
+    int          gfhigh_log;        /* logical em-square pixel size y (unscaled) */
     int          gfcellh;           /* target character cell height (pixels) */
     float        gfpoint;           /* current font point size */
     int          mischrx;           /* missing font character x */
@@ -3215,8 +3216,10 @@ void setfnt(winptr win)
         }
         /* gfhigh/gfhighx are the PHYSICAL em-square pixel sizes used by
            FreeType for glyph rendering. They include the viewport scale so
-           glyphs grow/shrink with the zoom. charspace and linespace stay
-           LOGICAL (from the unscaled metrics above) for cursor advancement. */
+           glyphs grow/shrink with the zoom. gfhigh_log is the LOGICAL
+           (unscaled) em-square for metric queries (charspace, xwidth).
+           charspace and linespace stay LOGICAL for cursor advancement. */
+        win->gfhigh_log = pixsiz;
         win->gfhigh    = (int)(pixsiz * win->vsy);
         win->gfhighx   = (int)(pixsiz * win->vsx);
         if (win->gfhigh  < 1) win->gfhigh  = 1;
@@ -3225,6 +3228,8 @@ void setfnt(winptr win)
         win->linespace = win->gfcellh;
         win->baseoff   = asc + 1;
     }
+    /* read charspace at LOGICAL pixel size for cursor advancement */
+    FT_Set_Pixel_Sizes(win->ftface, 0, win->gfhigh_log);
     win->charspace = (int)(win->ftface->size->metrics.max_advance >> 6);
     win->chrspcx = 0;
     win->chrspcy = 0;
@@ -3256,6 +3261,9 @@ int xwidth(winptr win, char c)
 
 {
 
+    /* ensure face is at logical pixel size for correct metric queries —
+       ft_draw_char may have left it at the physical (scaled) size */
+    FT_Set_Pixel_Sizes(win->ftface, 0, win->gfhigh_log);
     if (FT_Load_Char(win->ftface, (unsigned char)c, FT_LOAD_DEFAULT))
         return 0;
     return (int)(win->ftface->glyph->advance.x >> 6);
@@ -10622,16 +10630,19 @@ static void setpoints_ivf(FILE* f, float ps)
        resulting cell height, then promote that to gfcellh so subsequent
        font changes preserve it */
     if (!win->ftface) setfnt(win);
+    win->gfhigh_log = pixsiz;
     {
-        int pixsizx = (win->vsy != 0.0f) ?
-                       (int)(pixsiz * win->vsx / win->vsy) : pixsiz;
-        FT_Set_Pixel_Sizes(win->ftface, pixsizx, pixsiz);
-        win->gfhighx = pixsizx;
+        int phys_y = (int)(pixsiz * win->vsy);
+        int phys_x = (int)(pixsiz * win->vsx);
+        if (phys_y < 1) phys_y = 1;
+        if (phys_x < 1) phys_x = 1;
+        win->gfhigh  = phys_y;
+        win->gfhighx = phys_x;
     }
+    FT_Set_Pixel_Sizes(win->ftface, 0, pixsiz); /* logical for metrics */
     asc = (int)( win->ftface->size->metrics.ascender  >> 6);
     dsc = (int)(-win->ftface->size->metrics.descender >> 6);
     win->gfcellh = asc + dsc + 2;
-    win->gfhigh  = pixsiz;
     win->gfpoint = ps;
     win->linespace = win->gfcellh;
     win->baseoff = asc + 1;
