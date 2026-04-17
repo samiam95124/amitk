@@ -41,6 +41,17 @@ static int   cur_ungetch = -1;  /* ungetch buffer */
 /* color pair table: fg/bg for each pair */
 static struct { short fg; short bg; } color_pairs[COLOR_PAIRS];
 
+/* screen content buffer for mvinch/winch readback */
+static int  scrbuf_inited = 0;
+static char scrbuf[256][256];
+
+static void scrbuf_init(void) {
+
+    memset(scrbuf, ' ', sizeof(scrbuf));
+    scrbuf_inited = 1;
+
+}
+
 /* the single window */
 static WINDOW stdscr_data;
 WINDOW* stdscr = &stdscr_data;
@@ -175,6 +186,8 @@ int refresh(void) {
 
 int clear(void) {
 
+    if (!scrbuf_inited) scrbuf_init();
+    else memset(scrbuf, ' ', sizeof(scrbuf));
     putchar('\f');
     return OK;
 
@@ -227,6 +240,14 @@ int move(int y, int x) {
 
 int addch(int ch) {
 
+    if (!scrbuf_inited) scrbuf_init();
+    /* track screen contents for mvinch/winch readback */
+    {
+        int cx = ami_curx(stdout) - 1;
+        int cy = ami_cury(stdout) - 1;
+        if (cy >= 0 && cy < 256 && cx >= 0 && cx < 256)
+            scrbuf[cy][cx] = (char)(ch & 0x7F);
+    }
     if (ch > 0x7F) put_utf8(ch); /* ACS/Unicode character */
     else putchar(ch);
     return OK;
@@ -475,15 +496,6 @@ int getmaxy(WINDOW* win) { (void)win; return LINES; }
    Ami doesn't have a "read character at position" function, so we
    return ' ' as a fallback. The snake game uses this to check if a
    position is empty — we track the screen content in a simple buffer. */
-static int scrbuf_inited = 0;
-static char scrbuf[256][256]; /* max 256x256 screen */
-
-static void scrbuf_init(void) {
-
-    memset(scrbuf, ' ', sizeof(scrbuf));
-    scrbuf_inited = 1;
-
-}
 
 int mvinch(int y, int x) {
 
@@ -507,6 +519,21 @@ int napms(int ms) {
 }
 
 int beep(void) { return OK; }
+int baudrate(void) { return 38400; }
+int scrollok(WINDOW* win, int bf) { (void)win; (void)bf; return OK; }
+int touchwin(WINDOW* win) { (void)win; return OK; }
+
+int winch(WINDOW* win) {
+
+    int cx, cy;
+    (void)win;
+    if (!scrbuf_inited) scrbuf_init();
+    cx = ami_curx(stdout) - 1;
+    cy = ami_cury(stdout) - 1;
+    if (cy < 0 || cy >= 256 || cx < 0 || cx >= 256) return ' ';
+    return (unsigned char)scrbuf[cy][cx];
+
+}
 
 /*******************************************************************************
 
@@ -573,3 +600,108 @@ int vline(int ch, int n) {
 
 int mvhline(int y, int x, int ch, int n) { move(y, x); return hline(ch, n); }
 int mvvline(int y, int x, int ch, int n) { move(y, x); return vline(ch, n); }
+
+/*******************************************************************************
+
+Window functions (minimal — all map to stdscr with an origin offset)
+
+Curses windows are mapped to stdscr with a stored origin. Drawing calls
+offset by the window's begin_y/begin_x. This is sufficient for programs
+that use a small number of non-overlapping windows (like worm's status
+bar + game area).
+
+*******************************************************************************/
+
+#define MAX_WINS 16
+static struct { int used; int by; int bx; int ny; int nx; } wins[MAX_WINS];
+
+WINDOW* newwin(int nlines, int ncols, int begin_y, int begin_x) {
+
+    int i;
+    for (i = 1; i < MAX_WINS; i++) {
+
+        if (!wins[i].used) {
+
+            wins[i].used = 1;
+            wins[i].by = begin_y;
+            wins[i].bx = begin_x;
+            wins[i].ny = nlines;
+            wins[i].nx = ncols;
+            return (WINDOW*)((long)i);
+
+        }
+
+    }
+    return stdscr;
+
+}
+
+static void win_origin(WINDOW* win, int* oy, int* ox) {
+
+    long idx = (long)win;
+    if (idx > 0 && idx < MAX_WINS && wins[idx].used) {
+
+        *oy = wins[idx].by;
+        *ox = wins[idx].bx;
+
+    } else {
+
+        *oy = 0;
+        *ox = 0;
+
+    }
+
+}
+
+int wrefresh(WINDOW* win) { (void)win; return refresh(); }
+
+int wmove(WINDOW* win, int y, int x) {
+
+    int oy, ox;
+    win_origin(win, &oy, &ox);
+    return move(oy + y, ox + x);
+
+}
+
+int waddch(WINDOW* win, int ch) { (void)win; return addch(ch); }
+int waddstr(WINDOW* win, const char* str) { (void)win; return addstr(str); }
+
+int mvwaddch(WINDOW* win, int y, int x, int ch) {
+
+    wmove(win, y, x);
+    return addch(ch);
+
+}
+
+int mvwaddstr(WINDOW* win, int y, int x, const char* str) {
+
+    wmove(win, y, x);
+    return addstr(str);
+
+}
+
+int wprintw(WINDOW* win, const char* fmt, ...) {
+
+    va_list ap;
+    (void)win;
+    va_start(ap, fmt);
+    vprintf(fmt, ap);
+    va_end(ap);
+    return OK;
+
+}
+
+int mvwprintw(WINDOW* win, int y, int x, const char* fmt, ...) {
+
+    va_list ap;
+    wmove(win, y, x);
+    va_start(ap, fmt);
+    vprintf(fmt, ap);
+    va_end(ap);
+    return OK;
+
+}
+
+int wclear(WINDOW* win) { (void)win; return clear(); }
+int wclrtoeol(WINDOW* win) { (void)win; return clrtoeol(); }
+int wgetch(WINDOW* win) { (void)win; return getch(); }
