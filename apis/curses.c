@@ -522,6 +522,13 @@ int beep(void) { return OK; }
 int baudrate(void) { return 38400; }
 int scrollok(WINDOW* win, int bf) { (void)win; (void)bf; return OK; }
 int touchwin(WINDOW* win) { (void)win; return OK; }
+int leaveok(WINDOW* win, int bf) { (void)win; (void)bf; return OK; }
+int standout(void) { return attron(A_STANDOUT); }
+int standend(void) { return attrset(A_NORMAL); }
+int nl(void) { return OK; }
+int nonl(void) { return OK; }
+char erasechar(void) { return '\b'; }
+char killchar(void) { return 0x15; /* Ctrl-U */ }
 
 int winch(WINDOW* win) {
 

@@ -231,7 +231,8 @@ static filptr opnfil[MAXFIL];  /* open files table */
 static pthread_mutex_t oflock; /* lock for this structure */
 static filptr frefil;          /* free file entries list */
 static pthread_mutex_t fflock; /* lock for this structure */
-static ami_certptr frecert;     /* free certificate name/value entries list */
+static ami_certptr frecert;    /* free certificate name/value entries list */
+static int in_condes;          /* executing in constructor or destructor */
 
 /*
  * openSSL variables
@@ -250,6 +251,26 @@ int cookie_initialized;
 
 /*******************************************************************************
 
+Process abort
+
+Processes a program abort. If the constructor/destructor flag is active, meaning
+inside a constructor or destructor, we do an immediate abort. Otherwise we do
+a planned abort. The difference is in if the constructor/destructor stacking is
+performed.
+
+*******************************************************************************/
+
+static void net_abort(void)
+
+{
+
+    if (in_condes) _exit(1); /* slam abort */
+    else exit(1); /* planned abort */
+
+}
+
+/*******************************************************************************
+
 Process network library error
 
 Outputs an error message using the special syslib function, then halts.
@@ -262,7 +283,7 @@ static void netwrterr(const char* s)
 
     fprintf(stderr, "\nError: Network: %s\n", s);
 
-    exit(1);
+    net_abort();
 
 }
 
@@ -340,7 +361,7 @@ static void linuxerror(void)
 
     fprintf(stderr, "\nLinux Error: %s\n", strerror(errno));
 
-    exit(1);
+    net_abort();
 
 }
 /*******************************************************************************
@@ -352,12 +373,22 @@ SSL errors at this time.
 
 *******************************************************************************/
 
+static int sslerrcb(const char *str, size_t len, void *u)
+
+{
+
+    (void)u;
+    fprintf(stderr, "%.*s", (int)len, str);
+    return 1;
+
+}
+
 static void sslerrorqueue(void)
 
 {
 
-    ERR_print_errors_fp(stderr);
-    exit(1);
+    ERR_print_errors_cb(sslerrcb, NULL);
+    net_abort();
 
 }
 
@@ -407,7 +438,7 @@ static void sslerror(SSL* ssl, int r)
 
     }
 
-    exit(1);
+    net_abort();
 
 }
 
@@ -2663,6 +2694,8 @@ static void ami_init_network()
     int fi;
     int r;
 
+    in_condes = 1; /* set in constructor */
+
     frefil = NULL; /* clear free files list */
     /* clear open files table */
     for (fi = 0; fi < MAXFIL; fi++) opnfil[fi] = NULL;
@@ -2724,6 +2757,8 @@ static void ami_init_network()
     /* set cookie uninitialized */
     cookie_initialized = FALSE;
 
+    in_condes = 0; /* set clear constructor */
+
 }
 
 /*******************************************************************************
@@ -2738,6 +2773,8 @@ static void ami_deinit_network()
 {
 
     int fi;
+
+    in_condes = 1; /* set in destructor */
 
     /* holding copies of system vectors */
     pread_t cppread;
@@ -2784,5 +2821,7 @@ static void ami_deinit_network()
     pthread_mutex_destroy(&oflock);
     /* release the free files lock */
     pthread_mutex_destroy(&fflock);
+
+    in_condes = 0; /* clear the destructor */
 
 }

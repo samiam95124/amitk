@@ -22,6 +22,7 @@
 #include <stdarg.h>
 
 /* boolean */
+#include <stdbool.h>
 #ifndef TRUE
 #define TRUE  1
 #endif
@@ -38,6 +39,7 @@
 /* window type (we only support stdscr — this is a dummy struct) */
 typedef struct _win_st { int dummy; } WINDOW;
 extern WINDOW* stdscr;
+#define curscr stdscr
 extern int LINES;
 extern int COLS;
 
@@ -143,6 +145,13 @@ int baudrate(void);
 int scrollok(WINDOW* win, int bf);
 int touchwin(WINDOW* win);
 int winch(WINDOW* win);
+int leaveok(WINDOW* win, int bf);
+int standout(void);
+int standend(void);
+int nl(void);
+int nonl(void);
+char erasechar(void);
+char killchar(void);
 
 /* box drawing */
 int box(WINDOW* win, int verch, int horch);
