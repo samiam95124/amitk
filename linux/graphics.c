@@ -3510,8 +3510,11 @@ static int ft_text_width(FT_Face face, const char* s, int len)
 Draw rotated character using FreeType
 
 Renders a character at an arbitrary angle onto an X11 Drawable. The glyph
-bitmap is rendered at 0 degrees then rotated client-side using the same
-pixel rotation algorithm from rotated.c.
+is rasterized pre-rotated by FreeType itself (via FT_Set_Transform), which
+gives proper subpixel-accurate rotation with no aliasing artifacts from
+manual pixel sampling. The 8-bit alpha output is thresholded to 1-bit and
+drawn as a stipple, matching the non-rotated ft_draw_char path so GC
+function modes (XOR, AND, OR) apply identically.
 
 *******************************************************************************/
 
@@ -3523,22 +3526,38 @@ static void ft_draw_char_rotated(Drawable d, GC gc, FT_Face face,
 {
 
     FT_GlyphSlot slot;
-    int w, h, pitch;
+    FT_Matrix    mat;
+    int          w, h, pitch;
     unsigned char* buf;
-    int ow, oh;        /* output dimensions */
-    float sin_a, cos_a;
-    int i, j, si, sj;
-    int bw;
-    char* data;
-    XImage* ximg;
-    Pixmap pix;
-    GC gc1;
-    float cx, cy;      /* center of input */
-    float ocx, ocy;    /* center of output */
+    int          i, j, bw;
+    char*        data;
+    XImage*      ximg;
+    Pixmap       pix;
+    GC           gc1;
+    int          gx, gy;
 
     FT_Set_Pixel_Sizes(face, pixel_size_x, pixel_size_y);
-    if (FT_Load_Char(face, (unsigned char)c, FT_LOAD_RENDER | FT_LOAD_TARGET_NORMAL))
+
+    /* 16.16 fixed-point rotation matrix for FreeType. The input angle_rad
+       is Petit-Ami's COMPASS convention (0 = north/up, π/2 = east, positive
+       turns clockwise in screen view). FreeType's matrix is math-CCW with
+       its own y-up coordinate system, so the FT rotation angle is
+       (π/2 − angle_rad). Using cos(π/2 − x) = sin(x) and
+       sin(π/2 − x) = cos(x) gives: */
+    mat.xx = (FT_Fixed)( sin(angle_rad) * 0x10000);
+    mat.xy = (FT_Fixed)(-cos(angle_rad) * 0x10000);
+    mat.yx = (FT_Fixed)( cos(angle_rad) * 0x10000);
+    mat.yy = (FT_Fixed)( sin(angle_rad) * 0x10000);
+    FT_Set_Transform(face, &mat, NULL);
+
+    if (FT_Load_Char(face, (unsigned char)c,
+                     FT_LOAD_RENDER | FT_LOAD_TARGET_NORMAL)) {
+        FT_Set_Transform(face, NULL, NULL); /* reset for subsequent loads */
         return;
+    }
+    /* Reset immediately — the transform is sticky on the face, and the
+       unrotated ft_cache_glyph path shares this face. */
+    FT_Set_Transform(face, NULL, NULL);
 
     slot = face->glyph;
     w = slot->bitmap.width;
@@ -3548,57 +3567,39 @@ static void ft_draw_char_rotated(Drawable d, GC gc, FT_Face face,
     buf = slot->bitmap.buffer;
     pitch = slot->bitmap.pitch;
 
-    sin_a = sin(angle_rad);
-    cos_a = cos(angle_rad);
-
-    /* compute output bounding box */
-    ow = (int)(fabs(w * cos_a) + fabs(h * sin_a) + 2);
-    oh = (int)(fabs(w * sin_a) + fabs(h * cos_a) + 2);
-    if (ow == 0 || oh == 0) return;
-
-    cx = w / 2.0f;
-    cy = h / 2.0f;
-    ocx = ow / 2.0f;
-    ocy = oh / 2.0f;
-
-    /* create 1-bit rotated bitmap using XPutPixel for portable bit order */
-    bw = (ow + 7) / 8;
-    data = (char*)calloc(bw * oh, 1);
-
+    /* Threshold 8-bit alpha to a 1-bit bitmap. Petit-Ami's text is 1-bit
+       everywhere (see ft_cache_glyph) so this matches the non-rotated
+       path's rendering character. */
+    bw = (w + 7) / 8;
+    data = (char*)calloc(bw * h, 1);
     ximg = XCreateImage(padisplay, DefaultVisual(padisplay, pascreen),
-                        1, XYBitmap, 0, data, ow, oh, 8, bw);
-    for (j = 0; j < oh; j++) {
-        for (i = 0; i < ow; i++) {
+                        1, XYBitmap, 0, data, w, h, 8, bw);
+    for (j = 0; j < h; j++)
+        for (i = 0; i < w; i++)
+            XPutPixel(ximg, i, j, (buf[j * pitch + i] > 127) ? 1 : 0);
 
-            /* reverse-map from output to input */
-            float dx = i - ocx;
-            float dy = j - ocy;
-            si = (int)(dx * cos_a + dy * sin_a + cx);
-            sj = (int)(-dx * sin_a + dy * cos_a + cy);
-            if (si >= 0 && si < w && sj >= 0 && sj < h) {
-
-                if (buf[sj * pitch + si] > 127)
-                    XPutPixel(ximg, i, j, 1);
-
-            }
-
-        }
-    }
-
-    /* paint the rotated glyph pixel by pixel */
+    pix = XCreatePixmap(padisplay, DefaultRootWindow(padisplay), w, h, 1);
     {
-        int gx, gy;
-        /* adjust position for rotation center offset */
-        gx = x + slot->bitmap_left - (int)(ocx - cx * cos_a - cy * sin_a);
-        gy = y - slot->bitmap_top - (int)(ocy + cx * sin_a - cy * cos_a);
-
-        for (j = 0; j < oh; j++)
-            for (i = 0; i < ow; i++)
-                if (XGetPixel(ximg, i, j))
-                    XDrawPoint(padisplay, d, gc, gx + i, gy + j);
+        XGCValues gcv;
+        gcv.foreground = 1;
+        gcv.background = 0;
+        gc1 = XCreateGC(padisplay, pix, GCForeground | GCBackground, &gcv);
     }
-
+    XPutImage(padisplay, pix, gc1, ximg, 0, 0, 0, 0, w, h);
+    XFreeGC(padisplay, gc1);
     XDestroyImage(ximg); /* frees data */
+
+    /* FreeType updated bitmap_left/bitmap_top to reflect the rotated glyph's
+       bounding box — no manual offset correction needed. */
+    gx = x + slot->bitmap_left;
+    gy = y - slot->bitmap_top;
+    XSetStipple(padisplay, gc, pix);
+    XSetFillStyle(padisplay, gc, FillStippled);
+    XSetTSOrigin(padisplay, gc, gx, gy);
+    XFillRectangle(padisplay, d, gc, gx, gy, w, h);
+    XSetFillStyle(padisplay, gc, FillSolid);
+
+    XFreePixmap(padisplay, pix);
 
 }
 
