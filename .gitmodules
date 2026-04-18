@@ -4,3 +4,6 @@
 [submodule "curses/nano"]
 	path = curses/nano
 	url = https://git.savannah.gnu.org/git/nano.git
+[submodule "curses/htop"]
+	path = curses/htop
+	url = https://github.com/htop-dev/htop.git
