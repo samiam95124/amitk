@@ -782,6 +782,17 @@ static WINDOW stdscr_data;
 WINDOW* stdscr = &stdscr_data;
 int LINES = 25;
 int COLS = 80;
+int COLORS = 8;                     /* number of foreground colors supported */
+void* cur_term = NULL;              /* terminfo state — dummy (we don't use the
+                                       ncurses terminfo layer; provided so
+                                       programs that include <term.h> link) */
+
+/* terminfo capability string externs — NULL in our adapter. Programs that
+   pass these to tputs get a no-op; screen-mode transitions handled by
+   terminal.c's own xterm sync. */
+char* enter_ca_mode = NULL;
+char* exit_ca_mode  = NULL;
+char* clear_screen  = NULL;
 
 /* map curses color to Ami color */
 static ami_color color_to_ami(short c) {
@@ -1527,3 +1538,145 @@ int wclrtoeol(WINDOW* win) { (void)win; return clrtoeol(); }
 int wgetch(WINDOW* win) { (void)win; return getch(); }
 int wattron(WINDOW* win, int attrs) { (void)win; return attron(attrs); }
 int wattroff(WINDOW* win, int attrs) { (void)win; return attroff(attrs); }
+
+/* X/Open attr_t-based variants — route through existing int attrs APIs. */
+int wattr_on(WINDOW* win, attr_t attrs, void* opts) {
+    (void)opts; return wattron(win, (int)attrs);
+}
+int wattr_off(WINDOW* win, attr_t attrs, void* opts) {
+    (void)opts; return wattroff(win, (int)attrs);
+}
+int wattrset(WINDOW* win, attr_t attrs) {
+    (void)win; return attrset((int)attrs);
+}
+
+int whline(WINDOW* win, chtype ch, int n) { (void)win; return hline((int)ch, n); }
+int wvline(WINDOW* win, chtype ch, int n) { (void)win; return vline((int)ch, n); }
+
+/*******************************************************************************
+
+Terminfo surface (stubs for programs that pull in <term.h>)
+
+Our adapter does not drive terminfo — initscr() talks to terminal.c directly.
+Programs like htop include <term.h> anyway and reference cur_term/define_key/
+tputs/... as part of their CRT setup. These no-op stubs let them link; the
+program's curses-level calls (initscr, attron, refresh, ...) do the real work.
+
+*******************************************************************************/
+
+int set_escdelay(int ms) { (void)ms; return OK; }
+int define_key(const char* definition, int keycode) {
+    (void)definition; (void)keycode; return OK;
+}
+int mouseinterval(int interval) { (void)interval; return 0; }
+int intrflush(WINDOW* win, int bf) { (void)win; (void)bf; return OK; }
+int mvcur(int oldrow, int oldcol, int newrow, int newcol) {
+    (void)oldrow; (void)oldcol;
+    return move(newrow, newcol);
+}
+
+/* tputs — emit a terminfo capability string via the outc callback. Skips
+   padding specs of the form $<N>, $<N*>, $<N/> (we don't simulate delays). */
+int tputs(const char* str, int affcnt, int (*outc_fn)(int)) {
+    (void)affcnt;
+    if (!str || !outc_fn) return ERR;
+    while (*str) {
+        if (str[0] == '$' && str[1] == '<') {
+            str += 2;
+            while (*str && *str != '>') str++;
+            if (*str) str++;
+            continue;
+        }
+        outc_fn((unsigned char)*str++);
+    }
+    return OK;
+}
+
+/*******************************************************************************
+
+Wide-character curses (minimal shim)
+
+setcchar/getcchar round-trip the cchar_t struct. wadd_wch encodes chars[0]
+as UTF-8 and feeds the bytes through addch — terminal.c's plcchrext reassembles
+them in the target cell. chars[1..] (combining marks) are dropped; terminal.c
+stores a single codepoint per cell so combining marks have nowhere to go.
+
+*******************************************************************************/
+
+int setcchar(cchar_t* cch, const wchar_t* wch, const attr_t attrs,
+             short color_pair, const void* opts) {
+    int i;
+    (void)opts;
+    if (!cch || !wch) return ERR;
+    cch->attr      = attrs | COLOR_PAIR(color_pair);
+    cch->ext_color = 0;
+    for (i = 0; i < CCHARW_MAX - 1 && wch[i]; i++) cch->chars[i] = wch[i];
+    cch->chars[i] = 0;
+    return OK;
+}
+
+int getcchar(const cchar_t* cch, wchar_t* wch, attr_t* attrs,
+             short* color_pair, void* opts) {
+    int i, n = 0;
+    (void)opts;
+    if (!cch) return ERR;
+    while (n < CCHARW_MAX && cch->chars[n]) n++;
+    if (!wch) return n;                 /* query-only form */
+    if (attrs)      *attrs      = cch->attr;
+    if (color_pair) *color_pair = (short)PAIR_NUMBER(cch->attr);
+    for (i = 0; i < n; i++) wch[i] = cch->chars[i];
+    wch[n] = 0;
+    return OK;
+}
+
+int wadd_wch(WINDOW* win, const cchar_t* cch) {
+    unsigned int code;
+    (void)win;
+    if (!cch || !cch->chars[0]) return OK;
+    code = (unsigned int)cch->chars[0];
+    if (code < 0x80) {
+        addch((int)code);
+    } else if (code < 0x800) {
+        addch(0xC0 |  (code >> 6));
+        addch(0x80 |  (code        & 0x3F));
+    } else if (code < 0x10000) {
+        addch(0xE0 |  (code >> 12));
+        addch(0x80 | ((code >>  6) & 0x3F));
+        addch(0x80 |  (code        & 0x3F));
+    } else {
+        addch(0xF0 |  (code >> 18));
+        addch(0x80 | ((code >> 12) & 0x3F));
+        addch(0x80 | ((code >>  6) & 0x3F));
+        addch(0x80 |  (code        & 0x3F));
+    }
+    return OK;
+}
+
+int wadd_wchnstr(WINDOW* win, const cchar_t* cchs, int n) {
+    int i;
+    int cx, cy;
+    if (!cchs) return ERR;
+    cx = ami_curx(stdout);
+    cy = ami_cury(stdout);
+    for (i = 0; (n < 0 || i < n) && cchs[i].chars[0]; i++) {
+        wadd_wch(win, &cchs[i]);
+    }
+    /* waddchnstr/wadd_wchnstr do not advance the cursor (X/Open) */
+    ami_cursor(stdout, cx, cy);
+    return OK;
+}
+
+int mvadd_wch(int y, int x, const cchar_t* cch) {
+    move(y, x);
+    return wadd_wch(stdscr, cch);
+}
+
+int mvadd_wchnstr(int y, int x, const cchar_t* cchs, int n) {
+    move(y, x);
+    return wadd_wchnstr(stdscr, cchs, n);
+}
+
+int mvaddnstr(int y, int x, const char* str, int n) {
+    move(y, x);
+    return addnstr(str, n);
+}
