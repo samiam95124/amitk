@@ -1414,6 +1414,33 @@ goto skip;
     ami_linewidth(stdout, 1);
     waitnext();
 
+    /* ************************** 45 degree lines test ************************* */
+
+    putchar('\f');
+    grid();
+    yspace = ami_maxyg(stdout)/20;
+    xspace = ami_maxxg(stdout)/20;
+    /* Lines have slope 1 (y = x + y_intercept). Draw them long enough to
+       exit the window on both ends — X11 clips to the window area. Stepping
+       the y-intercept from below the top-right corner down to above the
+       bottom-left fills the whole usable window with parallel diagonals. */
+    ysize = ami_maxxg(stdout)+ami_maxyg(stdout);
+    y = -(ami_maxxg(stdout)-xspace);
+    w = 1;
+    while (y+w/2 < ami_maxyg(stdout)-ami_chrsizy(stdout)-yspace) {
+
+        ami_linewidth(stdout, w);
+        ami_line(stdout, 0, y, ysize, y+ysize);
+        y = y+xspace;
+        w = w+1;
+
+    }
+    ami_linewidth(stdout, 1);
+    /* caption last — the text blanks the background behind it, so it's
+       still readable after the diagonals have swept through the bottom */
+    prtcen(ami_maxy(stdout), "45 degree lines test");
+    waitnext();
+
     /* **************************** Polar lines test *************************** */
 
     putchar('\f');
