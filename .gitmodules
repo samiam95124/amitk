@@ -1,3 +1,6 @@
 [submodule "curses/BSDGames"]
 	path = curses/BSDGames
 	url = https://github.com/vattam/BSDGames
+[submodule "curses/nano"]
+	path = curses/nano
+	url = https://git.savannah.gnu.org/git/nano.git
