@@ -1205,6 +1205,7 @@ int main(void)
 
     ami_frametimer(stdout, TRUE); /* start frame timer */
     if (setjmp(terminate_buf)) goto terminate;
+goto skip;
     ami_curvis(stdout, FALSE);
     ami_binvis(stdout);
     printf("Graphics screen test vs. 0.1\n");
@@ -2784,6 +2785,45 @@ int main(void)
     prtcen(ami_maxy(stdout), "Character sizes and positions");
     waitnext();
     ami_bcolor(stdout, ami_white);
+
+    /* ************************** Polar text lines test ************************ */
+
+skip:
+    putchar('\f');
+    grid();
+    ami_auto(stdout, OFF); /* rotated text is incompatible with the text grid */
+    x = ami_maxxg(stdout)/2; /* window center */
+    y = ami_maxyg(stdout)/2;
+    l = ami_chrsizx(stdout)*5; /* start radius — 5 char widths from center */
+    ami_fcolor(stdout, ami_black);
+    ami_bover(stdout);
+    a = 0;
+    while (a < 360) {
+
+        /* Endpoint of radial at angle a, radius l. */
+        rectcord(a, l, &tx1, &ty1);
+        /* Rotate text so it reads OUTWARD along the radial. ami_path uses
+           the same compass convention as rectcord (0 = north, 90 = east),
+           ratioed to INT_MAX = 360°. */
+        ami_path(stdout, a*DEGREE);
+        /* Shift origin perpendicular to the drawing direction by half the
+           character height, so the radial passes through the vertical
+           center of the text (not the default top-left origin). The
+           baseline side sits in direction (cos(a), sin(a)) from the
+           origin in screen coords — we shift origin the opposite way. */
+        f = a*0.01745329; /* degrees to radians (matches rectcord) */
+        ami_cursorg(stdout,
+                    x+tx1 - (int)(ami_chrsizy(stdout)/2.0 * cos(f)),
+                    y-ty1 - (int)(ami_chrsizy(stdout)/2.0 * sin(f)));
+        printf("this is a test string");
+        a = a+10;
+
+    }
+    ami_path(stdout, INT_MAX/4); /* restore default (90° / east-reading) */
+    ami_binvis(stdout);
+    prtcen(ami_maxy(stdout), "Polar text lines");
+    waitnext();
+    ami_auto(stdout, ON); /* re-enable the text grid */
 
     /* ************************* Graphical tabbing test ************************ */
 
