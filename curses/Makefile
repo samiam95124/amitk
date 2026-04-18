@@ -55,10 +55,15 @@ GLIBS   = $(CURSES_GOBJ) $(ROOT)/stub/keeper.o $(GOBJ) \
           -lasound -lfluidsynth -lm -lpthread -lssl -lcrypto \
           -lX11 -lXext -lfreetype -lfontconfig -lbsd -lstdc++
 
-GAMES    = snake rain worm worms canfield
-PROGRAMS = $(GAMES) nano
-BINS     = $(PROGRAMS) $(addsuffix g,$(PROGRAMS))
-BIN_EXES = $(addprefix $(BINDIR)/,$(BINS))
+GAMES     = snake rain worm worms canfield
+PROGRAMS  = $(GAMES) nano
+# Standalone programs: have their own build system (autotools etc.). Built
+# by this Makefile as per-target recipes, both terminal and graphical
+# variants following the <name> / <name>g convention.
+STANDALONE = htop
+BINS      = $(PROGRAMS) $(addsuffix g,$(PROGRAMS)) \
+            $(STANDALONE) $(addsuffix g,$(STANDALONE))
+BIN_EXES  = $(addprefix $(BINDIR)/,$(BINS))
 
 # Any .adp files in this directory are staged next to the binaries.
 ADP_SRC  = $(wildcard *.adp)
@@ -145,6 +150,82 @@ $(BINDIR)/nano:  $(CURSES_TOBJ) $(NANO_SRC) | $(BINDIR)
 $(BINDIR)/nanog: $(CURSES_GOBJ) $(NANO_SRC) | $(BINDIR)
 	$(CC) $(CFLAGS) $(NANO_FLAGS) -o $@ $(NANO_SRC) $(GLIBS)
 
+# htop — uses its own autoconf+automake build. We override LIBS / AM_CPPFLAGS
+# to swap ncursesw for the Petit-Ami stack. Configure runs once per fresh
+# tree; thereafter htop's own Makefile handles incremental rebuilds. Built
+# twice — once against terminal.c (htop) and once against graphics.c (htopg).
+HTOP_DIR      = htop
+HTOP_ROOT     = $(abspath $(ROOT))
+
+# Per-variant backend object lists (abspath form — htop's Makefile runs from
+# its own subdirectory). The curses object is variant-specific; everything
+# else matches the TLIBS / GLIBS recipes above.
+HTOP_TOBJ     = $(HTOP_ROOT)/apis/curses.o $(HTOP_ROOT)/stub/keeper.o \
+                $(HTOP_ROOT)/linux/stdio.o $(HTOP_ROOT)/linux/services.o \
+                $(HTOP_ROOT)/linux/network.o $(HTOP_ROOT)/linux/terminal.o \
+                $(HTOP_ROOT)/linux/system_event.o \
+                $(HTOP_ROOT)/utils/config.o $(HTOP_ROOT)/utils/option.o \
+                $(HTOP_ROOT)/cpp/terminal.o \
+                $(HTOP_ROOT)/linux/sound.o $(HTOP_ROOT)/linux/fluidsynthplug.o \
+                $(HTOP_ROOT)/linux/dumpsynthplug.o \
+                -lasound -lfluidsynth -lm -lpthread -lssl -lcrypto -lbsd -lstdc++
+
+HTOP_GOBJ     = $(HTOP_ROOT)/apis/cursesg.o $(HTOP_ROOT)/stub/keeper.o \
+                $(HTOP_ROOT)/linux/stdio.o $(HTOP_ROOT)/linux/services.o \
+                $(HTOP_ROOT)/linux/network.o $(HTOP_ROOT)/linux/graphics.o \
+                $(HTOP_ROOT)/linux/system_event.o \
+                $(HTOP_ROOT)/portable/gnome_widgets.o \
+                $(HTOP_ROOT)/utils/config.o $(HTOP_ROOT)/utils/option.o \
+                $(HTOP_ROOT)/cpp/terminal.o \
+                $(HTOP_ROOT)/linux/sound.o $(HTOP_ROOT)/linux/fluidsynthplug.o \
+                $(HTOP_ROOT)/linux/dumpsynthplug.o \
+                -lasound -lfluidsynth -lm -lpthread -lssl -lcrypto \
+                -lX11 -lXext -lfreetype -lfontconfig -lbsd -lstdc++
+
+HTOP_PA_CPPFLAGS = -I$(HTOP_ROOT)/apis -I$(HTOP_ROOT)/include \
+                   -I/usr/include/libunwind -DNDEBUG
+HTOP_T_LIBS   = -lunwind -Wl,-Bsymbolic-functions $(HTOP_TOBJ) -ldl -lm
+HTOP_G_LIBS   = -lunwind -Wl,-Bsymbolic-functions $(HTOP_GOBJ) -ldl -lm
+
+$(HTOP_DIR)/configure:
+	cd $(HTOP_DIR) && ./autogen.sh
+
+# After configure, tweak config.h so htop's ProvideCurses.h /
+# ProvideTerm.h land on plain <curses.h> / <term.h> (ours, via AM_CPPFLAGS)
+# instead of the system ncursesw/ncurses variants. HAVE_LIBNCURSESW stays
+# on so htop keeps its wide-character code paths.
+$(HTOP_DIR)/Makefile: $(HTOP_DIR)/configure
+	cd $(HTOP_DIR) && ./configure
+	sed -i \
+	    -e '/^#define HAVE_NCURSESW_CURSES_H /d' \
+	    -e '/^#define HAVE_NCURSESW_TERM_H /d' \
+	    -e '/^#define HAVE_NCURSES_CURSES_H /d' \
+	    -e '/^#define HAVE_NCURSES_TERM_H /d' \
+	    -e '/^#define HAVE_NCURSES_NCURSES_H /d' \
+	    -e '/^#define HAVE_NCURSES_H /d' \
+	    -e 's|^/\* #undef HAVE_CURSES_H \*/|#define HAVE_CURSES_H 1|' \
+	    $(HTOP_DIR)/config.h
+
+# htop's Makefile only ever produces one file called `htop`. For each of our
+# two variants (terminal / graphics), force-relink by deleting it first,
+# then move the output under the Petit-Ami <name>/<name>g convention.
+$(BINDIR)/htop: $(CURSES_TOBJ) $(HTOP_DIR)/Makefile | $(BINDIR)
+	rm -f $(HTOP_DIR)/htop
+	cd $(HTOP_DIR) && $(MAKE) \
+	    LIBS='$(HTOP_T_LIBS)' \
+	    AM_CPPFLAGS='$(HTOP_PA_CPPFLAGS)' htop
+	mv $(HTOP_DIR)/htop $@
+
+$(BINDIR)/htopg: $(CURSES_GOBJ) $(HTOP_DIR)/Makefile | $(BINDIR)
+	rm -f $(HTOP_DIR)/htop
+	cd $(HTOP_DIR) && $(MAKE) \
+	    LIBS='$(HTOP_G_LIBS)' \
+	    AM_CPPFLAGS='$(HTOP_PA_CPPFLAGS)' htop
+	mv $(HTOP_DIR)/htop $@
+
 clean:
 	rm -f $(CURSES_TOBJ) $(CURSES_GOBJ) $(BIN_EXES) $(BIN_ADP) \
 	      $(BINDIR)/gomoku $(BINDIR)/gomokug
+	@if [ -f $(HTOP_DIR)/Makefile ]; then \
+	    $(MAKE) -C $(HTOP_DIR) clean > /dev/null 2>&1 || true; \
+	fi

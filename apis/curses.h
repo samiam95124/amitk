@@ -134,9 +134,33 @@ int     mvwaddch(WINDOW* win, int y, int x, int ch);
 int     mvwaddstr(WINDOW* win, int y, int x, const char* str);
 int     wprintw(WINDOW* win, const char* fmt, ...);
 int     mvwprintw(WINDOW* win, int y, int x, const char* fmt, ...);
+int     mvwaddnstr(WINDOW* win, int y, int x, const char* str, int n);
 int     wclear(WINDOW* win);
 int     wclrtoeol(WINDOW* win);
 int     wgetch(WINDOW* win);
+int     wattron(WINDOW* win, int attrs);
+int     wattroff(WINDOW* win, int attrs);
+int     wattr_on(WINDOW* win, attr_t attrs, void* opts);
+int     wattr_off(WINDOW* win, attr_t attrs, void* opts);
+int     wattrset(WINDOW* win, attr_t attrs);
+int     whline(WINDOW* win, chtype ch, int n);
+int     wvline(WINDOW* win, chtype ch, int n);
+
+/* terminfo / low-level terminal — minimal surface for programs that use
+   <term.h> (e.g. htop's CRT.c). Our adapter doesn't drive terminfo, so
+   cur_term is a dummy and these are mostly no-op stubs. */
+extern int   COLORS;
+extern void* cur_term;
+/* terminfo capability strings — NULL in our adapter; tputs is a no-op on NULL */
+extern char* enter_ca_mode;
+extern char* exit_ca_mode;
+extern char* clear_screen;
+int set_escdelay(int ms);
+int define_key(const char* definition, int keycode);
+int mouseinterval(int interval);
+int intrflush(WINDOW* win, int bf);
+int mvcur(int oldrow, int oldcol, int newrow, int newcol);
+int tputs(const char* str, int affcnt, int (*outc_fn)(int));
 
 /* misc */
 int napms(int ms);
@@ -152,6 +176,36 @@ int nl(void);
 int nonl(void);
 char erasechar(void);
 char killchar(void);
+int delwin(WINDOW* win);
+int doupdate(void);
+int wnoutrefresh(WINDOW* win);
+int clearok(WINDOW* win, int bf);
+int use_default_colors(void);
+int waddnstr(WINDOW* win, const char* str, int n);
+int wredrawln(WINDOW* win, int beg, int num);
+int savetty(void);
+int resetty(void);
+int typeahead(int fd);
+int meta(WINDOW* win, int bf);
+int idlok(WINDOW* win, int bf);
+
+/* mouse (minimal stubs) */
+typedef unsigned long mmask_t;
+typedef struct { short id; int x, y, z; mmask_t bstate; } MEVENT;
+#define BUTTON1_CLICKED    0x004
+#define BUTTON1_PRESSED    0x002
+#define BUTTON1_RELEASED   0x001
+#define BUTTON2_CLICKED    0x040
+#define BUTTON2_PRESSED    0x020
+#define BUTTON2_RELEASED   0x010
+#define BUTTON3_CLICKED    0x400
+#define BUTTON3_PRESSED    0x200
+#define BUTTON3_RELEASED   0x100
+#define KEY_MOUSE          0x199
+#define REPORT_MOUSE_POSITION 0x100000
+mmask_t mousemask(mmask_t newmask, mmask_t* oldmask);
+int getmouse(MEVENT* event);
+int ungetmouse(MEVENT* event);
 
 /* box drawing */
 int box(WINDOW* win, int verch, int horch);
@@ -188,8 +242,34 @@ int mvvline(int y, int x, int ch, int n);
 #define KEY_IC        0x14B  /* insert */
 #define KEY_DC        0x14A  /* delete */
 #define KEY_BACKSPACE 0x107
-#define KEY_F(n)      (0x109 + (n))
+#define KEY_F0        0x109
+#define KEY_F(n)      (KEY_F0 + (n))
 #define KEY_ENTER     0x157
+#define KEY_SLEFT     0x189   /* shift-left arrow */
+#define KEY_SRIGHT    0x192   /* shift-right arrow */
 #define KEY_RESIZE    0x19A
+#define KEY_MAX       0x1FF   /* maximum legal key value */
+
+/* Wide-character curses (X/Open Option). Minimal shim: we store a single
+   wide char per cell — combining marks in chars[1..] are dropped. That's
+   fine for the programs we target (htop only fills chars[0]), and it
+   matches terminal.c's own UTF-8-per-cell storage model. */
+#include <stddef.h>                 /* for wchar_t without pulling in stdio */
+#define CCHARW_MAX 5
+typedef struct {
+    attr_t   attr;
+    wchar_t  chars[CCHARW_MAX];
+    int      ext_color;
+} cchar_t;
+
+int setcchar(cchar_t* cch, const wchar_t* wch, const attr_t attrs,
+             short color_pair, const void* opts);
+int getcchar(const cchar_t* cch, wchar_t* wch, attr_t* attrs,
+             short* color_pair, void* opts);
+int wadd_wch(WINDOW* win, const cchar_t* cch);
+int wadd_wchnstr(WINDOW* win, const cchar_t* cchs, int n);
+int mvadd_wch(int y, int x, const cchar_t* cch);
+int mvadd_wchnstr(int y, int x, const cchar_t* cchs, int n);
+int mvaddnstr(int y, int x, const char* str, int n);
 
 #endif /* _AMI_CURSES_H */
