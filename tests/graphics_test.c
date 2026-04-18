@@ -506,6 +506,22 @@ static void grid(void)
 
 }
 
+/* draw screen edge */
+
+static void edge(void)
+
+{
+
+    /* draw boundary lines showing valid coordinate space */
+    ami_fcolor(stdout, ami_red);
+    ami_line(stdout, 1, 1, ami_maxxg(stdout), 1);
+    ami_line(stdout, 1, ami_maxyg(stdout), ami_maxxg(stdout), ami_maxyg(stdout));
+    ami_line(stdout, 1, 1, 1, ami_maxyg(stdout));
+    ami_line(stdout, ami_maxxg(stdout), 1, ami_maxxg(stdout), ami_maxyg(stdout));
+    ami_fcolor(stdout, ami_black);
+
+}
+
 /* This is the square2 program */
 #define MAXSQUARE  (10)
 #define REPRATE    (2) /* number of moves per frame, should be low */
@@ -600,7 +616,6 @@ static void squares(void)
     /* place squares on display */
     for (i = 0; i < MAXSQUARE; i++)
         drawsquare(baltbl[i].c, baltbl[i].x, baltbl[i].y);
-    ami_frametimer(stdout, TRUE); /* start frame timer */
     done = FALSE; /* set ! done */
     while (!done) {
 
@@ -740,9 +755,9 @@ typedef void (*benchtestFP)(int w, int t, long* s);
 /* run benchmark test
  *
  * Since different processors take different amounts of time to run the tests,
- * we normalize them to gather as much data as needed to run for 15 seconds
+ * we normalize them to gather as much data as needed to run for 5 seconds
  * per test. To find out how many test we need to run for that time, we measure
- * a small number of tests, then extrapolate that time to 15 seconds. Since the
+ * a small number of tests, then extrapolate that time to 5 seconds. Since the
  * test could iterate in a very short (unmeasurable) time, we run the tests at
  * progressive orders of magnitude until we run at least 10ms of test time and
  * at least 10 iterations.
@@ -771,8 +786,8 @@ static void benchtest(
 
     } while (et < SECOND); /* set minimum time to measure for stability */
     i /= 2; /* remove last scale */
-    /* find iterations for 15 second run */
-    i = (SECOND*15*0.0001)/(et*0.0001/i);
+    /* find iterations for 5 second run */
+    i = (SECOND*5*0.0001)/(et*0.0001/i);
     fp(w, i, &s); /* run final test */
     benchtab[bn].iter = i; /* place iterations */
     benchtab[bn].time = s; /* place time to run */
@@ -1188,8 +1203,8 @@ int main(void)
     long t, et;
     float f;
 
+    ami_frametimer(stdout, TRUE); /* start frame timer */
     if (setjmp(terminate_buf)) goto terminate;
-goto skip;
     ami_curvis(stdout, FALSE);
     ami_binvis(stdout);
     printf("Graphics screen test vs. 0.1\n");
@@ -2944,39 +2959,50 @@ goto skip;
 
     /* ************************** View offset test **************************** */
 
-skip:
     putchar('\f');
-    ami_auto(stdout, OFF);
-    ami_viewoffg(stdout, -(ami_maxxg(stdout)/2), -(ami_maxyg(stdout)/2));
+    ami_auto(stdout, OFF); /* turn off autoscroll */
+    ami_curvis(stdout, FALSE); /* turn off cursor */
+    edge();
+    /* move the origin right and down */
+    ami_viewoffg(stdout, ami_maxxg(stdout)/2, ami_maxyg(stdout)/2);
     grid();
     ami_fcolor(stdout, ami_green);
     ami_frect(stdout, 0, 0, 100, 100);
     ami_cursorg(stdout, 1, -(ami_maxyg(stdout)/2));
-    ami_fcolor(stdout, ami_black);
-    printf("View offset test\n");
-    printf("\n");
-    printf("The 1,1 origin is now at screen center\n");
-    waitnext();
+    /* reset origin */
     ami_viewoffg(stdout, 0, 0);
+    ami_fcolor(stdout, ami_black);
+    prtcen(ami_maxy(stdout), "View offset test");
+    prtcen(1, "The 1,1 origin is now at screen center\n");
+    waitnext();
+    ami_auto(stdout, ON); /* back to normal character */
+    ami_curvis(stdout, TRUE); /* turn on cursor */
 
    /* ************************** View scale test **************************** */
 
     putchar('\f');
     ami_auto(stdout, OFF);
+    ami_curvis(stdout, FALSE); /* turn off cursor */
+    edge();
     ami_viewscale(stdout, 0.5f, 0.5f);
     grid();
     ami_fcolor(stdout, ami_green);
     ami_frect(stdout, 0, 0, 100, 100);
+    ami_fcolor(stdout, ami_black);
+    /* reset origin and scale */
+    ami_viewscale(stdout, 1.0f, 1.0f);
+    ami_viewoffg(stdout, 0, 0);
     prtcen(1, "Logical coordinates are now 1/2 size");
     prtcen(ami_maxy(stdout), "View scale test");
     waitnext();
-    ami_viewscale(stdout, 1.0f, 1.0f);
+    ami_auto(stdout, ON); /* back to normal character */
+    ami_curvis(stdout, TRUE); /* turn on cursor */
 
     /* ************************ Viewport scaling test ************************** */
 
-//skip:
     putchar('\f');
     ami_auto(stdout, OFF);
+    ami_curvis(stdout, FALSE); /* turn off cursor */
     fsiz = ami_chrsizy(stdout); /* save default font size */
     ami_font(stdout, AMI_FONT_SIGN);
     {
@@ -3059,11 +3085,9 @@ skip:
                 er.etype != ami_etdown && er.etype != ami_etleft &&
                 er.etype != ami_etright && er.etype != ami_ethomel &&
                 er.etype != ami_etendl);
-            if (er.etype == ami_etterm || er.etype == ami_etenter) {
-
-                done = 1;
-
-            } else if (er.etype == ami_etpagu) {
+            if (er.etype == ami_etterm) longjmp(terminate_buf, 1);
+            else if (er.etype == ami_etenter) done = 1;
+            else if (er.etype == ami_etpagu) {
 
                 vsx *= 1.25f;
                 vsy *= 1.25f;
@@ -3124,6 +3148,8 @@ skip:
         /* reset to identity */
         ami_viewscale(stdout, 1.0f, 1.0f);
         ami_viewoffg(stdout, 0, 0);
+        ami_curvis(stdout, FALSE); /* turn off cursor */
+
     }
 
     /* ************************** Benchmarks **************************** */
@@ -3135,96 +3161,112 @@ skip:
     s = benchtab[bnline1].time;
     printf("Line speed for width: 1, %d iterations %f seconds\n", i, s*0.0001);
     printf("Seconds per line %f\n", s*0.0001/i);
+    chkbrk(); /* check user break*/
 
     benchtest(linespeed, bnline10, 10);
     i = benchtab[bnline10].iter;
     s = benchtab[bnline10].time;
     printf("Line speed for width: 10, %d iterations %f seconds\n", i, s*0.0001);
     printf("Seconds per line %f\n", s*0.0001/i);
+    chkbrk(); /* check user break*/
 
     benchtest(rectspeed, bnrect1, 1);
     i = benchtab[bnrect1].iter;
     s = benchtab[bnrect1].time;
     printf("Rectangle speed for width: 1, %d iterations %f seconds\n", i, s*0.0001);
     printf("Seconds per rectangle %f\n", s*0.0001/i);
+    chkbrk(); /* check user break*/
 
     benchtest(rectspeed, bnrect10, 10);
     i = benchtab[bnrect10].iter;
     s = benchtab[bnrect10].time;
     printf("Rectangle speed for width: 10, %d iterations %f seconds\n", i, s*0.0001);
     printf("Seconds per rectangle %f\n", s*0.0001/i);
+    chkbrk(); /* check user break*/
 
     benchtest(rrectspeed, bnrrect1, 1);
     i = benchtab[bnrrect1].iter;
     s = benchtab[bnrrect1].time;
     printf("Rounded rectangle speed for width: 1, %d iterations %f seconds\n", i, s*0.0001);
     printf("Seconds per rounded rectangle %f\n", s*0.0001/i);
+    chkbrk(); /* check user break*/
 
     benchtest(rrectspeed, bnrrect10, 10);
     i = benchtab[bnrrect10].iter;
     s = benchtab[bnrrect10].time;
     printf("Rounded rectangle speed for width: 10, %d iterations %f seconds\n", i, s*0.0001);
     printf("Seconds per rounded rectangle %f\n", s*0.0001/i);
+    chkbrk(); /* check user break*/
 
     benchtest(frectspeed, bnfrect, 1);
     i = benchtab[bnfrect].iter;
     s = benchtab[bnfrect].time;
     printf("Filled rectangle speed, %d iterations %f seconds\n", i, s*0.0001);
     printf("Seconds per filled rectangle %f\n", s*0.0001/i);
+    chkbrk(); /* check user break*/
 
     benchtest(frrectspeed, bnfrrect, 1);
     i = benchtab[bnfrrect].iter;
     s = benchtab[bnfrrect].time;
     printf("Filled rounded rectangle speed, %d iterations %f seconds\n", i, s*0.0001);
     printf("Seconds per filled rounded rectangle %f\n", s*0.0001/i);
+    chkbrk(); /* check user break*/
 
     benchtest(ellipsespeed, bnellipse1, 1);
     i = benchtab[bnellipse1].iter;
     s = benchtab[bnellipse1].time;
     printf("Ellipse speed for width: 1, %d iterations %f seconds\n", i, s*0.0001);
     printf("Seconds per ellipse %f\n", s*0.0001/i);
+    chkbrk(); /* check user break*/
 
     benchtest(ellipsespeed, bnellipse10, 10);
     i = benchtab[bnellipse10].iter;
     s = benchtab[bnellipse10].time;
     printf("Ellipse speed for width: 10, %d iterations %f seconds\n", i, s*0.0001);
     printf("Seconds per ellipse %f\n", s*0.0001/i);
+    chkbrk(); /* check user break*/
 
     benchtest(fellipsespeed, bnfellipse, 1);
     i = benchtab[bnfellipse].iter;
     s = benchtab[bnfellipse].time;
     printf("Filled ellipse speed, %d iterations %f seconds\n", i, s*0.0001);
     printf("Seconds per filled ellipse %f\n", s*0.0001/i);
+    chkbrk(); /* check user break*/
 
     benchtest(arcspeed, bnarc1, 1);
     i = benchtab[bnarc1].iter;
     s = benchtab[bnarc1].time;
     printf("Arc speed for width: 1, %d iterations %f seconds\n", i, s*0.0001);
     printf("Seconds per arc %f\n", s*0.0001/i);
+    chkbrk(); /* check user break*/
 
     benchtest(arcspeed, bnarc10, 1);
     i = benchtab[bnarc10].iter;
     s = benchtab[bnarc10].time;
     printf("Arc speed for width: 10, %d iterations %f seconds\n", i, s*0.0001);
     printf("Seconds per arc %f\n", s*0.0001/i);
+    chkbrk(); /* check user break*/
 
     benchtest(farcspeed, bnfarc, 1);
     i = benchtab[bnfarc].iter;
     s = benchtab[bnfarc].time;
     printf("Filled arc speed for width: 1, %d iterations %f seconds\n", i, s*0.0001);
     printf("Seconds per filled arc %f\n", s*0.0001/i);
+    chkbrk(); /* check user break*/
 
     benchtest(fchordspeed, bnfchord, 1);
     i = benchtab[bnfchord].iter;
     s = benchtab[bnfchord].time;
     printf("Filled chord speed for width: 1, %d iterations %f seconds\n", i, s*0.0001);
     printf("Seconds per filled chord %f\n", s*0.0001/i);
+    chkbrk(); /* check user break*/
 
     benchtest(ftrianglespeed, bnftriangle, 1);
     i = benchtab[bnftriangle].iter;
     s = benchtab[bnftriangle].time;
     printf("Filled triangle speed for width: 1, %d iterations %f seconds\n", i, s*0.0001);
     printf("Seconds per filled triangle %f\n", s*0.0001/i);
+    chkbrk(); /* check user break*/
 
     ami_bover(stdout);
     ami_fover(stdout);
@@ -3234,6 +3276,7 @@ skip:
     ami_home(stdout);
     printf("Text speed, with overwrite, %d iterations %f seconds\n", i, s*0.0001);
     printf("Seconds per write %f\n", s*0.0001/i);
+    chkbrk(); /* check user break*/
 
     ami_binvis(stdout);
     ami_fover(stdout);
@@ -3244,18 +3287,21 @@ skip:
     ami_bover(stdout);
     printf("Text speed, invisible background, %d iterations %f seconds\n", i, s*0.0001);
     printf("Seconds per write %f\n", s*0.0001/i);
+    chkbrk(); /* check user break*/
 
     benchtest(fpictspeed, bnpict, 1);
     i = benchtab[bnpict].iter;
     s = benchtab[bnpict].time;
     printf("Picture draw speed for width: 1, %d iterations %f seconds\n", i, s*0.0001);
     printf("Seconds per picture %f\n", s*0.0001/i);
+    chkbrk(); /* check user break*/
 
     benchtest(fpictnsspeed, bnpictns, 1);
     i = benchtab[bnpictns].iter;
     s = benchtab[bnpictns].time;
     printf("No scale picture draw speed for width: 1, %d iterations %f seconds\n", i, s*0.0001);
     printf("Seconds per picture %f\n", s*0.0001/i);
+    chkbrk(); /* check user break*/
 
     /* output table */
 

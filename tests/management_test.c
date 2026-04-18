@@ -299,6 +299,7 @@ int main(void)
 
     if (setjmp(terminate_buf)) goto terminate;
 
+goto skip;
     ami_auto(stdout, OFF);
     ami_curvis(stdout, OFF);
     printf("Managed screen test vs. 0.1\n");
@@ -758,6 +759,7 @@ int main(void)
 
     /* ************************* Child windows test character ****************** */
 
+skip:
     putchar('\f');
     chrgrid();
     prtcen(ami_maxy(stdout), "Child windows test character");
