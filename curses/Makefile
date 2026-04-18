@@ -55,10 +55,13 @@ GLIBS   = $(CURSES_GOBJ) $(ROOT)/stub/keeper.o $(GOBJ) \
           -lasound -lfluidsynth -lm -lpthread -lssl -lcrypto \
           -lX11 -lXext -lfreetype -lfontconfig -lbsd -lstdc++
 
-GAMES    = snake rain worm worms canfield
-PROGRAMS = $(GAMES) nano
-BINS     = $(PROGRAMS) $(addsuffix g,$(PROGRAMS))
-BIN_EXES = $(addprefix $(BINDIR)/,$(BINS))
+GAMES     = snake rain worm worms canfield
+PROGRAMS  = $(GAMES) nano
+# Standalone programs: have their own build system, terminal-only (no graphical
+# variant today), built by this Makefile as a per-target recipe.
+STANDALONE = htop
+BINS      = $(PROGRAMS) $(addsuffix g,$(PROGRAMS)) $(STANDALONE)
+BIN_EXES  = $(addprefix $(BINDIR)/,$(BINS))
 
 # Any .adp files in this directory are staged next to the binaries.
 ADP_SRC  = $(wildcard *.adp)
@@ -145,6 +148,54 @@ $(BINDIR)/nano:  $(CURSES_TOBJ) $(NANO_SRC) | $(BINDIR)
 $(BINDIR)/nanog: $(CURSES_GOBJ) $(NANO_SRC) | $(BINDIR)
 	$(CC) $(CFLAGS) $(NANO_FLAGS) -o $@ $(NANO_SRC) $(GLIBS)
 
+# htop (terminal only — uses its own autoconf+automake build).
+# Overrides LIBS / AM_CPPFLAGS to swap ncursesw for the Petit-Ami stack.
+# Configure runs once (autogen then configure) per fresh tree; thereafter
+# htop's own Makefile handles incremental rebuilds. The $(CURSES_TOBJ)
+# prerequisite forces a re-link if the adapter changes.
+HTOP_DIR      = htop
+HTOP_ROOT     = $(abspath $(ROOT))
+HTOP_PA_LIBS  = $(HTOP_ROOT)/apis/curses.o $(HTOP_ROOT)/stub/keeper.o \
+                $(HTOP_ROOT)/linux/stdio.o $(HTOP_ROOT)/linux/services.o \
+                $(HTOP_ROOT)/linux/network.o $(HTOP_ROOT)/linux/terminal.o \
+                $(HTOP_ROOT)/linux/system_event.o \
+                $(HTOP_ROOT)/utils/config.o $(HTOP_ROOT)/utils/option.o \
+                $(HTOP_ROOT)/cpp/terminal.o \
+                $(HTOP_ROOT)/linux/sound.o $(HTOP_ROOT)/linux/fluidsynthplug.o \
+                $(HTOP_ROOT)/linux/dumpsynthplug.o \
+                -lasound -lfluidsynth -lm -lpthread -lssl -lcrypto -lbsd -lstdc++
+HTOP_PA_CPPFLAGS = -I$(HTOP_ROOT)/apis -I$(HTOP_ROOT)/include \
+                   -I/usr/include/libunwind -DNDEBUG
+HTOP_LIBS_OVERRIDE = -lunwind -Wl,-Bsymbolic-functions $(HTOP_PA_LIBS) -ldl -lm
+
+$(HTOP_DIR)/configure:
+	cd $(HTOP_DIR) && ./autogen.sh
+
+# After configure, tweak config.h so htop's ProvideCurses.h /
+# ProvideTerm.h land on plain <curses.h> / <term.h> (ours, via AM_CPPFLAGS)
+# instead of the system ncursesw/ncurses variants. HAVE_LIBNCURSESW stays
+# on so htop keeps its wide-character code paths.
+$(HTOP_DIR)/Makefile: $(HTOP_DIR)/configure
+	cd $(HTOP_DIR) && ./configure
+	sed -i \
+	    -e '/^#define HAVE_NCURSESW_CURSES_H /d' \
+	    -e '/^#define HAVE_NCURSESW_TERM_H /d' \
+	    -e '/^#define HAVE_NCURSES_CURSES_H /d' \
+	    -e '/^#define HAVE_NCURSES_TERM_H /d' \
+	    -e '/^#define HAVE_NCURSES_NCURSES_H /d' \
+	    -e '/^#define HAVE_NCURSES_H /d' \
+	    -e 's|^/\* #undef HAVE_CURSES_H \*/|#define HAVE_CURSES_H 1|' \
+	    $(HTOP_DIR)/config.h
+
+$(BINDIR)/htop: $(CURSES_TOBJ) $(HTOP_DIR)/Makefile | $(BINDIR)
+	cd $(HTOP_DIR) && $(MAKE) \
+	    LIBS='$(HTOP_LIBS_OVERRIDE)' \
+	    AM_CPPFLAGS='$(HTOP_PA_CPPFLAGS)' htop
+	mv $(HTOP_DIR)/htop $@
+
 clean:
 	rm -f $(CURSES_TOBJ) $(CURSES_GOBJ) $(BIN_EXES) $(BIN_ADP) \
 	      $(BINDIR)/gomoku $(BINDIR)/gomokug
+	@if [ -f $(HTOP_DIR)/Makefile ]; then \
+	    $(MAKE) -C $(HTOP_DIR) clean > /dev/null 2>&1 || true; \
+	fi

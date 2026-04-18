@@ -151,6 +151,10 @@ int     wvline(WINDOW* win, chtype ch, int n);
    cur_term is a dummy and these are mostly no-op stubs. */
 extern int   COLORS;
 extern void* cur_term;
+/* terminfo capability strings — NULL in our adapter; tputs is a no-op on NULL */
+extern char* enter_ca_mode;
+extern char* exit_ca_mode;
+extern char* clear_screen;
 int set_escdelay(int ms);
 int define_key(const char* definition, int keycode);
 int mouseinterval(int interval);
@@ -191,6 +195,12 @@ typedef struct { short id; int x, y, z; mmask_t bstate; } MEVENT;
 #define BUTTON1_CLICKED    0x004
 #define BUTTON1_PRESSED    0x002
 #define BUTTON1_RELEASED   0x001
+#define BUTTON2_CLICKED    0x040
+#define BUTTON2_PRESSED    0x020
+#define BUTTON2_RELEASED   0x010
+#define BUTTON3_CLICKED    0x400
+#define BUTTON3_PRESSED    0x200
+#define BUTTON3_RELEASED   0x100
 #define KEY_MOUSE          0x199
 #define REPORT_MOUSE_POSITION 0x100000
 mmask_t mousemask(mmask_t newmask, mmask_t* oldmask);
@@ -235,7 +245,10 @@ int mvvline(int y, int x, int ch, int n);
 #define KEY_F0        0x109
 #define KEY_F(n)      (KEY_F0 + (n))
 #define KEY_ENTER     0x157
+#define KEY_SLEFT     0x189   /* shift-left arrow */
+#define KEY_SRIGHT    0x192   /* shift-right arrow */
 #define KEY_RESIZE    0x19A
+#define KEY_MAX       0x1FF   /* maximum legal key value */
 
 /* Wide-character curses (X/Open Option). Minimal shim: we store a single
    wide char per cell — combining marks in chars[1..] are dropped. That's
@@ -255,5 +268,8 @@ int getcchar(const cchar_t* cch, wchar_t* wch, attr_t* attrs,
              short* color_pair, void* opts);
 int wadd_wch(WINDOW* win, const cchar_t* cch);
 int wadd_wchnstr(WINDOW* win, const cchar_t* cchs, int n);
+int mvadd_wch(int y, int x, const cchar_t* cch);
+int mvadd_wchnstr(int y, int x, const cchar_t* cchs, int n);
+int mvaddnstr(int y, int x, const char* str, int n);
 
 #endif /* _AMI_CURSES_H */

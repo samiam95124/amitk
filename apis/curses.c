@@ -787,6 +787,13 @@ void* cur_term = NULL;              /* terminfo state — dummy (we don't use th
                                        ncurses terminfo layer; provided so
                                        programs that include <term.h> link) */
 
+/* terminfo capability string externs — NULL in our adapter. Programs that
+   pass these to tputs get a no-op; screen-mode transitions handled by
+   terminal.c's own xterm sync. */
+char* enter_ca_mode = NULL;
+char* exit_ca_mode  = NULL;
+char* clear_screen  = NULL;
+
 /* map curses color to Ami color */
 static ami_color color_to_ami(short c) {
 
@@ -1657,4 +1664,19 @@ int wadd_wchnstr(WINDOW* win, const cchar_t* cchs, int n) {
     /* waddchnstr/wadd_wchnstr do not advance the cursor (X/Open) */
     ami_cursor(stdout, cx, cy);
     return OK;
+}
+
+int mvadd_wch(int y, int x, const cchar_t* cch) {
+    move(y, x);
+    return wadd_wch(stdscr, cch);
+}
+
+int mvadd_wchnstr(int y, int x, const cchar_t* cchs, int n) {
+    move(y, x);
+    return wadd_wchnstr(stdscr, cchs, n);
+}
+
+int mvaddnstr(int y, int x, const char* str, int n) {
+    move(y, x);
+    return addnstr(str, n);
 }
