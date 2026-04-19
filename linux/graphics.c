@@ -457,7 +457,7 @@ typedef struct scncon { /* screen context */
 
     /* fields used by graph module */
     int     lwidth;      /* width of lines */
-    int     lstyle;      /* style of lines (ami_linestyle) */
+    ami_lstyle lstyle;   /* style of lines */
     /* note that the pixel and character dimensions and positions are kept
       in parallel for both characters and pixels */
     int     maxx;        /* maximum characters in x */
@@ -10485,9 +10485,9 @@ thick dashed lines remain visually dashed.
 
 void _pa_linestyle_ovr(ami_linestyle_t nfp, ami_linestyle_t* ofp)
     { *ofp = linestyle_vect; linestyle_vect = nfp; }
-void ami_linestyle(FILE* f, int style) { (*linestyle_vect)(f, style); }
+void ami_linestyle(FILE* f, ami_lstyle style) { (*linestyle_vect)(f, style); }
 
-static void linestyle_ivf(FILE* f, int style)
+static void linestyle_ivf(FILE* f, ami_lstyle style)
 
 {
 

@@ -61,8 +61,8 @@ extern "C" {
    widgets placed onto it. */
 typedef enum { ami_black, ami_white, ami_red, ami_green, ami_blue, ami_cyan,
                ami_yellow, ami_magenta, ami_backcolor } ami_color;
-/* line styles (passed as int to ami_linestyle) */
-enum { ami_lssolid, ami_lsdash, ami_lsdot };
+/* line styles */
+typedef enum { ami_lssolid, ami_lsdash, ami_lsdot } ami_lstyle;
 /* events */
 typedef enum {
     ami_etchar,     /* ANSI character returned */
@@ -402,7 +402,7 @@ int ami_curxg(FILE* f);
 int ami_curyg(FILE* f);
 void ami_line(FILE* f, int x1, int y1, int x2, int y2);
 void ami_linewidth(FILE* f, int w);
-void ami_linestyle(FILE* f, int style);
+void ami_linestyle(FILE* f, ami_lstyle style);
 void ami_rect(FILE* f, int x1, int y1, int x2, int y2);
 void ami_frect(FILE* f, int x1, int y1, int x2, int y2);
 void ami_rrect(FILE* f, int x1, int y1, int x2, int y2, int xs, int ys);
@@ -659,7 +659,7 @@ typedef int (*ami_curxg_t)(FILE* f);
 typedef int (*ami_curyg_t)(FILE* f);
 typedef void (*ami_line_t)(FILE* f, int x1, int y1, int x2, int y2);
 typedef void (*ami_linewidth_t)(FILE* f, int w);
-typedef void (*ami_linestyle_t)(FILE* f, int style);
+typedef void (*ami_linestyle_t)(FILE* f, ami_lstyle style);
 typedef void (*ami_rect_t)(FILE* f, int x1, int y1, int x2, int y2);
 typedef void (*ami_frect_t)(FILE* f, int x1, int y1, int x2, int y2);
 typedef void (*ami_rrect_t)(FILE* f, int x1, int y1, int x2, int y2, int xs, int ys);
