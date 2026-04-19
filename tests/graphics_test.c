@@ -1441,6 +1441,149 @@ goto skip;
     prtcen(ami_maxy(stdout), "45 degree lines test");
     waitnext();
 
+    /* ******************** Line style tests (dashed + dotted) ***************** *
+     *                                                                          *
+     * Repeat the Vertical / Horizontal / 45 degree lines tests for each of the *
+     * two non-solid styles. Each page sets ami_linestyle once, draws the same  *
+     * family of increasing-width lines as the solid version, then restores     *
+     * ami_lssolid so subsequent tests are unaffected.                          *
+     *                                                                          *
+     **************************************************************************/
+
+    /* ********************** Vertical lines test — dashed ********************* */
+
+    putchar('\f');
+    grid();
+    ami_linestyle(stdout, ami_lsdash);
+    yspace = ami_maxyg(stdout)/20;
+    xspace = ami_maxxg(stdout)/50;
+    y = yspace;
+    w = 1;
+    while (y+w/2 < ami_maxyg(stdout)-ami_chrsizy(stdout)) {
+
+        ami_linewidth(stdout, w);
+        ami_line(stdout, xspace, y, ami_maxxg(stdout)-xspace, y);
+        y = y+yspace;
+        w = w+1;
+
+    }
+    ami_linewidth(stdout, 1);
+    ami_linestyle(stdout, ami_lssolid);
+    prtcen(ami_maxy(stdout), "Vertical lines test (dashed)");
+    waitnext();
+
+    /* ********************** Vertical lines test — dotted ********************* */
+
+    putchar('\f');
+    grid();
+    ami_linestyle(stdout, ami_lsdot);
+    yspace = ami_maxyg(stdout)/20;
+    xspace = ami_maxxg(stdout)/50;
+    y = yspace;
+    w = 1;
+    while (y+w/2 < ami_maxyg(stdout)-ami_chrsizy(stdout)) {
+
+        ami_linewidth(stdout, w);
+        ami_line(stdout, xspace, y, ami_maxxg(stdout)-xspace, y);
+        y = y+yspace;
+        w = w+1;
+
+    }
+    ami_linewidth(stdout, 1);
+    ami_linestyle(stdout, ami_lssolid);
+    prtcen(ami_maxy(stdout), "Vertical lines test (dotted)");
+    waitnext();
+
+    /* ********************* Horizontal lines test — dashed ******************** */
+
+    putchar('\f');
+    grid();
+    ami_linestyle(stdout, ami_lsdash);
+    yspace = ami_maxyg(stdout)/20;
+    xspace = ami_maxxg(stdout)/20;
+    x = xspace;
+    w = 1;
+    while (x+w/2 < ami_maxxg(stdout)-20) {
+
+        ami_linewidth(stdout, w);
+        ami_line(stdout, x, yspace, x, ami_maxyg(stdout)-ami_chrsizy(stdout));
+        x = x+xspace;
+        w = w+1;
+
+    }
+    ami_linewidth(stdout, 1);
+    ami_linestyle(stdout, ami_lssolid);
+    prtcen(ami_maxy(stdout), "Horizontal lines test (dashed)");
+    waitnext();
+
+    /* ********************* Horizontal lines test — dotted ******************** */
+
+    putchar('\f');
+    grid();
+    ami_linestyle(stdout, ami_lsdot);
+    yspace = ami_maxyg(stdout)/20;
+    xspace = ami_maxxg(stdout)/20;
+    x = xspace;
+    w = 1;
+    while (x+w/2 < ami_maxxg(stdout)-20) {
+
+        ami_linewidth(stdout, w);
+        ami_line(stdout, x, yspace, x, ami_maxyg(stdout)-ami_chrsizy(stdout));
+        x = x+xspace;
+        w = w+1;
+
+    }
+    ami_linewidth(stdout, 1);
+    ami_linestyle(stdout, ami_lssolid);
+    prtcen(ami_maxy(stdout), "Horizontal lines test (dotted)");
+    waitnext();
+
+    /* ********************* 45 degree lines test — dashed ********************* */
+
+    putchar('\f');
+    grid();
+    ami_linestyle(stdout, ami_lsdash);
+    yspace = ami_maxyg(stdout)/20;
+    xspace = ami_maxxg(stdout)/20;
+    ysize = ami_maxxg(stdout)+ami_maxyg(stdout);
+    y = -(ami_maxxg(stdout)-xspace);
+    w = 1;
+    while (y+w/2 < ami_maxyg(stdout)-ami_chrsizy(stdout)-yspace) {
+
+        ami_linewidth(stdout, w);
+        ami_line(stdout, 0, y, ysize, y+ysize);
+        y = y+xspace;
+        w = w+1;
+
+    }
+    ami_linewidth(stdout, 1);
+    ami_linestyle(stdout, ami_lssolid);
+    prtcen(ami_maxy(stdout), "45 degree lines test (dashed)");
+    waitnext();
+
+    /* ********************* 45 degree lines test — dotted ********************* */
+
+    putchar('\f');
+    grid();
+    ami_linestyle(stdout, ami_lsdot);
+    yspace = ami_maxyg(stdout)/20;
+    xspace = ami_maxxg(stdout)/20;
+    ysize = ami_maxxg(stdout)+ami_maxyg(stdout);
+    y = -(ami_maxxg(stdout)-xspace);
+    w = 1;
+    while (y+w/2 < ami_maxyg(stdout)-ami_chrsizy(stdout)-yspace) {
+
+        ami_linewidth(stdout, w);
+        ami_line(stdout, 0, y, ysize, y+ysize);
+        y = y+xspace;
+        w = w+1;
+
+    }
+    ami_linewidth(stdout, 1);
+    ami_linestyle(stdout, ami_lssolid);
+    prtcen(ami_maxy(stdout), "45 degree lines test (dotted)");
+    waitnext();
+
     /* **************************** Polar lines test *************************** */
 
     putchar('\f');
