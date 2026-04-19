@@ -457,6 +457,7 @@ typedef struct scncon { /* screen context */
 
     /* fields used by graph module */
     int     lwidth;      /* width of lines */
+    int     lstyle;      /* style of lines (ami_linestyle) */
     /* note that the pixel and character dimensions and positions are kept
       in parallel for both characters and pixels */
     int     maxx;        /* maximum characters in x */
@@ -989,6 +990,7 @@ static ami_curxg_t           curxg_vect;
 static ami_curyg_t           curyg_vect;
 static ami_line_t            line_vect;
 static ami_linewidth_t       linewidth_vect;
+static ami_linestyle_t       linestyle_vect;
 static ami_rect_t            rect_vect;
 static ami_frect_t           frect_vect;
 static ami_rrect_t           rrect_vect;
@@ -5197,6 +5199,7 @@ static void iniscn(winptr win, scnptr sc)
     sc->autof = win->gauto; /* set auto scroll and wrap */
     sc->curv = win->gcurv; /* set cursor visibility */
     sc->lwidth = 1; /* set single pixel width */
+    sc->lstyle = ami_lssolid; /* set default line style */
     sc->cfont = win->gcfont; /* set current font */
     sc->fmod = win->gfmod; /* set mix modes */
     sc->bmod = win->gbmod;
@@ -10402,6 +10405,53 @@ Sets the width of lines and several other figures.
 
 *******************************************************************************/
 
+/* Push the current lwidth/lstyle pair into the X GC. Shared by
+   linewidth_ivf and linestyle_ivf — setting either field re-applies both.
+
+   XSetDashes values are absolute pixels (X11 does not scale them with line
+   width), so we scale them ourselves here. Dashes stay visually proportional
+   as width grows, with a minimum floor so width-1 lines still read as
+   dashed/dotted rather than nearly-solid. Values clamped to 127 (signed char
+   range used by XSetDashes). */
+static void applylineattrs(scnptr sc)
+
+{
+
+    int  xstyle;
+    int  on, off;
+    char dashes[2];
+    int  w;
+
+    switch (sc->lstyle) {
+        case ami_lsdash: xstyle = LineOnOffDash; break;
+        case ami_lsdot:  xstyle = LineOnOffDash; break;
+        default:         xstyle = LineSolid;     break;
+    }
+    XSetLineAttributes(padisplay, sc->xcxt, sc->lwidth, xstyle,
+                       CapButt, JoinMiter);
+
+    if (sc->lstyle == ami_lsdash) {
+
+        w = sc->lwidth > 0 ? sc->lwidth : 1;
+        on  = w*4;  if (on  < 16) on  = 16;  if (on  > 127) on  = 127;
+        off = w*2;  if (off <  8) off =  8;  if (off > 127) off = 127;
+        dashes[0] = (char)on;
+        dashes[1] = (char)off;
+        XSetDashes(padisplay, sc->xcxt, 0, dashes, 2);
+
+    } else if (sc->lstyle == ami_lsdot) {
+
+        w = sc->lwidth > 0 ? sc->lwidth : 1;
+        on  = w;       if (on  <  2) on  =  2;  if (on  > 127) on  = 127;
+        off = w*3;     if (off <  6) off =  6;  if (off > 127) off = 127;
+        dashes[0] = (char)on;
+        dashes[1] = (char)off;
+        XSetDashes(padisplay, sc->xcxt, 0, dashes, 2);
+
+    }
+
+}
+
 void _pa_linewidth_ovr(ami_linewidth_t nfp, ami_linewidth_t* ofp)
     { *ofp = linewidth_vect; linewidth_vect = nfp; }
 void ami_linewidth(FILE* f, int w) { (*linewidth_vect)(f, w); }
@@ -10417,8 +10467,38 @@ static void linewidth_ivf(FILE* f, int w)
     sc = win->screens[win->curupd-1]; /* index update screen */
     sc->lwidth = w; /* set the line width */
     XWLOCK();
-    /* copy to X */
-    XSetLineAttributes(padisplay, sc->xcxt, w, LineSolid, CapButt, JoinMiter);
+    applylineattrs(sc); /* push width + current style into X */
+    XWUNLOCK();
+
+}
+
+/** ****************************************************************************
+
+Set line style
+
+Selects solid, dashed, or dotted line rendering for subsequent line-drawing
+primitives. X11 supports dashed/dotted lines at any width via
+XSetLineAttributes + XSetDashes. Dash patterns scale with line width so
+thick dashed lines remain visually dashed.
+
+*******************************************************************************/
+
+void _pa_linestyle_ovr(ami_linestyle_t nfp, ami_linestyle_t* ofp)
+    { *ofp = linestyle_vect; linestyle_vect = nfp; }
+void ami_linestyle(FILE* f, int style) { (*linestyle_vect)(f, style); }
+
+static void linestyle_ivf(FILE* f, int style)
+
+{
+
+    winptr win; /* windows record pointer */
+    scnptr sc;  /* screen pointer */
+
+    win = txt2win(f);
+    sc = win->screens[win->curupd-1];
+    sc->lstyle = style;
+    XWLOCK();
+    applylineattrs(sc);
     XWUNLOCK();
 
 }
@@ -16207,6 +16287,7 @@ static void ami_init_graphics(int argc, char *argv[])
     curyg_vect =           curyg_ivf;
     line_vect =            line_ivf;
     linewidth_vect =       linewidth_ivf;
+    linestyle_vect =       linestyle_ivf;
     rect_vect =            rect_ivf;
     frect_vect =           frect_ivf;
     rrect_vect =           rrect_ivf;
