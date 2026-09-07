@@ -470,7 +470,7 @@ static void gn_frmdraw(winptr win, int mw, int mh)
 
     }
 
-    pd_flush(grx_padisplay);
+    pd_winflush(win->xmwhan); /* this frame's toplevel, not every one */
 
 }
 

@@ -77,12 +77,20 @@ struct pd_canvas {
     int       depth;
     uint32_t* px;
     pd_win*   owner; /* window whose content this is; NULL free */
+    pthread_mutex_t lk; /* the pixels, held for a drawing operation only */
 
 };
 
 /* toplevel (root-parented window) data */
 typedef struct wltop {
 
+    pthread_mutex_t lk;     /* the toplevel: buffers, callback and configure
+                               state, held through a compose */
+    pthread_mutex_t dlk;    /* the damage rectangle alone: a drawing thread
+                               unions into it without waiting for a compose */
+    int     refs;           /* holders: the window, and a flush walk while it
+                               composes; freed when the last lets go */
+    pd_win* win;            /* the window it belongs to, NULL once dropped */
     struct wl_surface*  surf;
     struct xdg_surface* xsurf;
     struct xdg_toplevel* xtop;
@@ -162,7 +170,10 @@ struct pd_display {
     int    epfd;            /* epoll handed out as the event descriptor */
     int    evfd;            /* eventfd waking the queue */
     int    rtfd;            /* key repeat timerfd */
-    pthread_mutex_t lk;     /* layer lock (recursive) */
+    pthread_mutex_t lk;     /* the connection and the seat: the socket's
+                               read and dispatch, the pointer, keyboard,
+                               focus and grab state, the cursor. Drawing,
+                               composition and the tree are not under it */
     unsigned long sizetok;  /* resize request token counter */
     evq   *eqh, *eqt, *eqf; /* event queue head/tail/free */
     struct pd_win root;
@@ -200,7 +211,7 @@ static int    dpyopen;
 
 /* forward */
 static void pump(pd_display* d);
-static void compose(pd_display* d, pd_win* win);
+static void compose(pd_display* d, wltop* t);
 static void flushtops(pd_display* d);
 static void setcursor(pd_display* d, pd_win* w);
 static void mktoplevel(pd_display* d, pd_win* w);
@@ -215,6 +226,62 @@ Lock and time helpers
 
 #define LK(d)   pthread_mutex_lock(&(d)->lk)
 #define ULK(d)  pthread_mutex_unlock(&(d)->lk)
+
+/* The other blocks and their locks. The tree lock covers the window
+   tree's structure and each window's geometry, mapped flag, canvas and
+   toplevel pointers: composition and hit testing read it, creation,
+   deletion, moves, sizes and restacking write it. The queue lock covers
+   the event queue alone. A canvas and a toplevel carry their own locks
+   in their records. The order, where locks nest: connection, then a
+   toplevel, then the tree, then a canvas; the queue last, under any.
+   Damage marking takes the toplevel's lock by itself, never under the
+   tree's; the tree lock is taken for reading again inside a compose
+   started from the flush walk, which the reader-preferring kind allows */
+static pthread_rwlock_t treelk;
+static pthread_mutex_t  qlk = PTHREAD_MUTEX_INITIALIZER;
+#define TREERD() pthread_rwlock_rdlock(&treelk)
+#define TREEWR() pthread_rwlock_wrlock(&treelk)
+#define TREEUN() pthread_rwlock_unlock(&treelk)
+#define QLK()    pthread_mutex_lock(&qlk)
+#define QULK()   pthread_mutex_unlock(&qlk)
+
+static void reclock(pthread_mutex_t* m)
+{
+    pthread_mutexattr_t ma;
+
+    pthread_mutexattr_init(&ma);
+    pthread_mutexattr_settype(&ma, PTHREAD_MUTEX_RECURSIVE);
+    pthread_mutex_init(m, &ma);
+    pthread_mutexattr_destroy(&ma);
+}
+static void canlk(pd_canvas* c)  { pthread_mutex_lock(&c->lk); }
+static void canulk(pd_canvas* c) { pthread_mutex_unlock(&c->lk); }
+static void toplk(wltop* t)      { pthread_mutex_lock(&t->lk); }
+static void topulk(wltop* t)     { pthread_mutex_unlock(&t->lk); }
+static void dmglk(wltop* t)      { pthread_mutex_lock(&t->dlk); }
+static void dmgulk(wltop* t)     { pthread_mutex_unlock(&t->dlk); }
+static void topref(wltop* t)     { __atomic_add_fetch(&t->refs, 1, __ATOMIC_RELAXED); }
+static void topunref(wltop* t)
+{
+    if (__atomic_sub_fetch(&t->refs, 1, __ATOMIC_ACQ_REL) == 0) {
+
+        pthread_mutex_destroy(&t->lk);
+        pthread_mutex_destroy(&t->dlk);
+        free(t);
+
+    }
+}
+/* two canvases, in address order, once when they are the same */
+static void canlk2(pd_canvas* a, pd_canvas* b)
+{
+    if (a == b) { canlk(a); return; }
+    if (a < b) { canlk(a); canlk(b); } else { canlk(b); canlk(a); }
+}
+static void canulk2(pd_canvas* a, pd_canvas* b)
+{
+    canulk(a);
+    if (a != b) canulk(b);
+}
 
 static int64_t nowms(void)
 {
@@ -248,12 +315,14 @@ static void enq(pd_display* d, pd_evt* e)
     evq* p;
     uint64_t one = 1;
 
+    QLK();
     if (d->eqf) { p = d->eqf; d->eqf = p->next; }
     else p = malloc(sizeof(evq));
     p->e = *e;
     p->next = NULL;
     if (d->eqt) d->eqt->next = p; else d->eqh = p;
     d->eqt = p;
+    QULK();
     if (write(d->evfd, &one, 8) < 0) { /* wake is advisory */ }
 }
 
@@ -261,13 +330,15 @@ static int deq(pd_display* d, pd_evt* e)
 {
     evq* p;
 
+    QLK();
     p = d->eqh;
-    if (!p) return (0);
+    if (!p) { QULK(); return (0); }
     d->eqh = p->next;
     if (!d->eqh) d->eqt = NULL;
     *e = p->e;
     p->next = d->eqf;
     d->eqf = p;
+    QULK();
     return (1);
 }
 
@@ -321,12 +392,14 @@ static pd_canvas* newcanvas(int w, int h, int depth)
     c->w = w; c->h = h; c->depth = depth;
     c->px = calloc((size_t)w*h, 4);
     c->owner = NULL;
+    reclock(&c->lk);
     return (c);
 }
 
 static void freecanvas(pd_canvas* c)
 {
     if (!c) return;
+    pthread_mutex_destroy(&c->lk);
     free(c->px);
     free(c);
 }
@@ -347,7 +420,10 @@ static pd_canvas* wincanvas(pd_win* w)
     return (w->can);
 }
 
-/* resize a window canvas preserving overlapping content; new area white */
+/* resize a window canvas preserving overlapping content; new area white.
+   Under the tree's write lock: the canvas pointer changes. The old canvas
+   is taken before it is read and freed, so a drawing in flight in it
+   finishes first */
 static void sizecanvas(pd_win* w, int nw, int nh)
 {
     pd_canvas* c;
@@ -359,11 +435,13 @@ static void sizecanvas(pd_win* w, int nw, int nh)
     if (c->w == nw && c->h == nh) return;
     n = newcanvas(nw, nh, c->depth);
     n->owner = w;
+    canlk(c);
     for (y = 0; y < nh; y++)
         for (x = 0; x < nw; x++)
             n->px[y*nw+x] = (x < c->w && y < c->h)? c->px[y*c->w+x]: 0xffffff;
-    freecanvas(c);
+    canulk(c);
     w->can = n;
+    freecanvas(c);
 }
 
 /* The live beat's publisher: drain buffer releases from their own queue
@@ -374,6 +452,7 @@ static void beatpump(pd_display* d)
     struct pollfd pf;
 
     if (!d->dpy) return;
+    LK(d); /* the socket read and the release queue's dispatch */
     while (wl_display_prepare_read_queue(d->dpy, d->bufq) != 0)
         wl_display_dispatch_queue_pending(d->dpy, d->bufq);
     wl_display_flush(d->dpy);
@@ -382,7 +461,8 @@ static void beatpump(pd_display* d)
     if (poll(&pf, 1, 0) > 0) wl_display_read_events(d->dpy);
     else wl_display_cancel_read(d->dpy);
     wl_display_dispatch_queue_pending(d->dpy, d->bufq);
-    flushtops(d);
+    ULK(d);
+    flushtops(d); /* the composes, under their toplevels' locks */
 }
 
 /* accumulate damage on the toplevel containing a window; rect in window
@@ -392,7 +472,12 @@ static void windmg(pd_win* p, int x, int y, int w, int h)
     wltop* t;
     int x2, y2;
 
-    /* to surface coordinates, walking up to the toplevel (root child) */
+    /* The walk to the toplevel reads the ancestors without the tree lock:
+       a window's ancestors outlive it, the caller owning the window it
+       draws in, and an offset read while a parent moves only widens the
+       union. The lock this takes is the toplevel's, for the union, and
+       never under the tree's: composition holds the toplevel's lock and
+       then reads the tree, and the reverse would deadlock */
     while (p->parent && p->parent->parent) { x += p->x; y += p->y; p = p->parent; }
     if (!p->parent) return; /* the root draws nowhere */
     t = p->top;
@@ -400,6 +485,7 @@ static void windmg(pd_win* p, int x, int y, int w, int h)
     x2 = x+w; y2 = y+h;
     if (x < 0) x = 0;
     if (y < 0) y = 0;
+    dmglk(t);
     if (!t->dmg) { t->dx1 = x; t->dy1 = y; t->dx2 = x2; t->dy2 = y2; t->dmg = 1; }
     else {
 
@@ -409,6 +495,7 @@ static void windmg(pd_win* p, int x, int y, int w, int h)
         if (y2 > t->dy2) t->dy2 = y2;
 
     }
+    dmgulk(t);
     /* The other half of immediate-mode reconciliation: a program drawing
        in a tight loop never returns to the event machinery, and nothing
        else would publish its damage -- the screen freezes while memory
@@ -995,14 +1082,15 @@ void pd_point(pd_canvas* c, pd_draw* dr, int x, int y)
 {
     pd_display* d = &thedpy;
 
-    LK(d);
+    (void)d;
     if (c && !drnoop(dr)) {
 
+        canlk(c);
         plot(c, x, y, dr->fg, dr->mix);
+        canulk(c);
         candmg(c, x, y, 1, 1);
 
     }
-    ULK(d);
 }
 
 void pd_line(pd_canvas* c, pd_draw* dr, int x1, int y1, int x2, int y2)
@@ -1010,26 +1098,28 @@ void pd_line(pd_canvas* c, pd_draw* dr, int x1, int y1, int x2, int y2)
     pd_display* d = &thedpy;
     int lx, ly, hx, hy, b;
 
-    LK(d);
+    (void)d;
     if (c && !drnoop(dr)) {
 
+        canlk(c);
         anyline(c, dr, x1, y1, x2, y2);
+        canulk(c);
         lx = x1 < x2? x1: x2; hx = x1 > x2? x1: x2;
         ly = y1 < y2? y1: y2; hy = y1 > y2? y1: y2;
         b = dr->lw/2+1;
         candmg(c, lx-b, ly-b, hx-lx+2*b+1, hy-ly+2*b+1);
 
     }
-    ULK(d);
 }
 
 void pd_rect(pd_canvas* c, pd_draw* dr, int x, int y, int w, int h)
 {
     pd_display* d = &thedpy;
 
-    LK(d);
+    (void)d;
     if (c && !drnoop(dr)) {
 
+        canlk(c);
         if (dr->lw > 1 && dr->lstyle == pd_linesolid && !dr->stipple) {
 
             /* The frame as four fills with square-joined corners, the
@@ -1063,24 +1153,25 @@ void pd_rect(pd_canvas* c, pd_draw* dr, int x, int y, int w, int h)
             anyline(c, dr, x, y+h, x, y);
 
         }
+        canulk(c);
         candmg(c, x-dr->lw, y-dr->lw, w+2*dr->lw+1, h+2*dr->lw+1);
 
     }
-    ULK(d);
 }
 
 void pd_frect(pd_canvas* c, pd_draw* dr, int x, int y, int w, int h)
 {
     pd_display* d = &thedpy;
 
-    LK(d);
+    (void)d;
     if (c && !drnoop(dr)) {
 
+        canlk(c);
         fillrect(c, dr, x, y, w, h);
+        canulk(c);
         candmg(c, x, y, w, h);
 
     }
-    ULK(d);
 }
 
 void pd_fpoly(pd_canvas* c, pd_draw* dr, const int* xy, int n)
@@ -1090,7 +1181,7 @@ void pd_fpoly(pd_canvas* c, pd_draw* dr, const int* xy, int n)
     ppoint* pt;
     int     i, lx, ly, hx, hy;
 
-    LK(d);
+    (void)d;
     if (c && !drnoop(dr) && n > 0) {
 
         pt = n <= 64? stk: malloc((size_t)n*sizeof(ppoint));
@@ -1100,7 +1191,9 @@ void pd_fpoly(pd_canvas* c, pd_draw* dr, const int* xy, int n)
             pt[i].y = (short)xy[i*2+1];
 
         }
+        canlk(c);
         fillpoly(c, dr, pt, n);
+        canulk(c);
         lx = hx = pt[0].x; ly = hy = pt[0].y;
         for (i = 1; i < n; i++) {
 
@@ -1114,7 +1207,6 @@ void pd_fpoly(pd_canvas* c, pd_draw* dr, const int* xy, int n)
         if (pt != stk) free(pt);
 
     }
-    ULK(d);
 }
 
 void pd_arc(pd_canvas* c, pd_draw* dr, int x, int y, int w, int h,
@@ -1124,9 +1216,10 @@ void pd_arc(pd_canvas* c, pd_draw* dr, int x, int y, int w, int h,
     ppoint pt[MAXARC];
     int    n, i;
 
-    LK(d);
+    (void)d;
     if (c && !drnoop(dr)) {
 
+        canlk(c);
         if (abs(a2) >= 360*64 && dr->lstyle == pd_linesolid && !dr->stipple)
             /* the complete ellipse walks scanlines; the path polygon
                is for thin partial sweeps and patterned lines */
@@ -1141,20 +1234,22 @@ void pd_arc(pd_canvas* c, pd_draw* dr, int x, int y, int w, int h,
                 anyline(c, dr, pt[i].x, pt[i].y, pt[i+1].x, pt[i+1].y);
 
         }
+        canulk(c);
         candmg(c, x-dr->lw, y-dr->lw, w+2*dr->lw+1, h+2*dr->lw+1);
 
     }
-    ULK(d);
 }
 
 /* filled arc core: pie closes through the center, chord rim to rim */
 static void farc(pd_canvas* c, pd_draw* dr, int x, int y, int w, int h,
                  int a1, int a2, int pie)
 {
+    canlk(c);
     if (abs(a2) >= 360*64)
         /* the complete ellipse walks scanlines directly */
         fillellipse(c, dr, x, y, w, h);
     else fillarcpart(c, dr, x, y, w, h, a1, a2, pie);
+    canulk(c);
     candmg(c, x, y, w+1, h+1);
 }
 
@@ -1163,9 +1258,8 @@ void pd_farcpie(pd_canvas* c, pd_draw* dr, int x, int y, int w, int h,
 {
     pd_display* d = &thedpy;
 
-    LK(d);
+    (void)d;
     if (c && !drnoop(dr)) farc(c, dr, x, y, w, h, a1, a2, 1);
-    ULK(d);
 }
 
 void pd_farcchord(pd_canvas* c, pd_draw* dr, int x, int y, int w, int h,
@@ -1173,9 +1267,8 @@ void pd_farcchord(pd_canvas* c, pd_draw* dr, int x, int y, int w, int h,
 {
     pd_display* d = &thedpy;
 
-    LK(d);
+    (void)d;
     if (c && !drnoop(dr)) farc(c, dr, x, y, w, h, a1, a2, 0);
-    ULK(d);
 }
 
 void pd_glyph(pd_canvas* c, pd_draw* dr, int x, int y,
@@ -1184,9 +1277,10 @@ void pd_glyph(pd_canvas* c, pd_draw* dr, int x, int y,
     pd_display* d = &thedpy;
     int i, j, on;
 
-    LK(d);
+    (void)d;
     if (c && !drnoop(dr) && mask) {
 
+        canlk(c);
         for (j = 0; j < mh; j++)
             for (i = 0; i < mw; i++) {
 
@@ -1199,10 +1293,10 @@ void pd_glyph(pd_canvas* c, pd_draw* dr, int x, int y,
                 if (on) plot(c, x+i, y+j, dr->fg, dr->mix);
 
             }
+        canulk(c);
         candmg(c, x, y, mw, mh);
 
     }
-    ULK(d);
 }
 
 void pd_blit(pd_canvas* dst, int dx, int dy,
@@ -1211,7 +1305,7 @@ void pd_blit(pd_canvas* dst, int dx, int dy,
     pd_display* d = &thedpy;
     int iw, ih, y;
 
-    LK(d);
+    (void)d;
     if (src && dst) {
 
         iw = w; ih = h;
@@ -1226,15 +1320,16 @@ void pd_blit(pd_canvas* dst, int dx, int dy,
         if (dy+ih > dst->h) ih = dst->h-dy;
         if (iw > 0 && ih > 0) {
 
+            canlk2(dst, src);
             for (y = 0; y < ih; y++)
                 memcpy(&dst->px[(size_t)(dy+y)*dst->w+dx],
                        &src->px[(size_t)(sy+y)*src->w+sx], (size_t)iw*4);
+            canulk2(dst, src);
             candmg(dst, dx, dy, iw, ih);
 
         }
 
     }
-    ULK(d);
 }
 
 void pd_scroll(pd_canvas* c, int dx, int dy, int sx, int sy, int w, int h)
@@ -1242,7 +1337,7 @@ void pd_scroll(pd_canvas* c, int dx, int dy, int sx, int sy, int w, int h)
     pd_display* d = &thedpy;
     int iw, ih, y, ydir;
 
-    LK(d);
+    (void)d;
     if (c) {
 
         iw = w; ih = h;
@@ -1259,15 +1354,16 @@ void pd_scroll(pd_canvas* c, int dx, int dy, int sx, int sy, int w, int h)
             /* row order against the copy direction: overlapping vertical
                moves must not read rows already written */
             ydir = dy > sy? -1: 1;
+            canlk(c);
             for (y = ydir > 0? 0: ih-1; ydir > 0? y < ih: y >= 0; y += ydir)
                 memmove(&c->px[(size_t)(dy+y)*c->w+dx],
                         &c->px[(size_t)(sy+y)*c->w+sx], (size_t)iw*4);
+            canulk(c);
             candmg(c, dx, dy, iw, ih);
 
         }
 
     }
-    ULK(d);
 }
 
 void pd_stretch(pd_canvas* dst, int dx, int dy, int dw, int dh,
@@ -1277,11 +1373,12 @@ void pd_stretch(pd_canvas* dst, int dx, int dy, int dw, int dh,
     int   x, y, fx, fy;
     float xr, yr;
 
-    LK(d);
+    (void)d;
     if (src && dst && dw > 0 && dh > 0 && sw > 0 && sh > 0) {
 
         xr = (float)sw/dw;
         yr = (float)sh/dh;
+        canlk2(dst, src);
         for (y = 0; y < dh; y++) {
 
             if (dy+y < 0 || dy+y >= dst->h) continue;
@@ -1300,10 +1397,10 @@ void pd_stretch(pd_canvas* dst, int dx, int dy, int dw, int dh,
             }
 
         }
+        canulk2(dst, src);
         candmg(dst, dx, dy, dw, dh);
 
     }
-    ULK(d);
 }
 
 /*******************************************************************************
@@ -1316,9 +1413,8 @@ pd_canvas* pd_cannew(pd_display* d, int w, int h)
 {
     pd_canvas* c;
 
-    LK(d);
+    (void)d;
     c = newcanvas(w, h, 32);
-    ULK(d);
     return (c);
 }
 
@@ -1326,9 +1422,8 @@ void pd_candel(pd_canvas* c)
 {
     pd_display* d = &thedpy;
 
-    LK(d);
+    (void)d;
     freecanvas(c);
-    ULK(d);
 }
 
 pd_canvas* pd_wincanvas(pd_win* w)
@@ -1336,9 +1431,19 @@ pd_canvas* pd_wincanvas(pd_win* w)
     pd_display* d = &thedpy;
     pd_canvas*  c;
 
-    LK(d);
-    c = wincanvas(w);
-    ULK(d);
+    (void)d;
+    /* the pointer under the tree's read lock; a first use makes the
+       canvas under the write lock */
+    TREERD();
+    c = w->can;
+    TREEUN();
+    if (!c) {
+
+        TREEWR();
+        c = wincanvas(w);
+        TREEUN();
+
+    }
     return (c);
 }
 
@@ -1351,7 +1456,7 @@ void pd_cansize(pd_canvas* c, int* w, int* h)
 /* the stride returned counts 32-bit pixels per row */
 uint32_t* pd_canlock(pd_canvas* c, int* stride)
 {
-    LK(&thedpy);
+    canlk(c); /* the canvas's own lock, held until the unlock */
     *stride = c->w;
     return (c->px);
 }
@@ -1359,8 +1464,8 @@ uint32_t* pd_canlock(pd_canvas* c, int* stride)
 void pd_canunlock(pd_canvas* c)
 {
     /* writes through the raw pointer publish with the unlock */
+    canulk(c);
     candmg(c, 0, 0, c->w, c->h);
-    ULK(&thedpy);
 }
 
 /*******************************************************************************
@@ -1433,42 +1538,72 @@ static pd_win* hittest(pd_win* top, int sx, int sy, int* xo, int* yo)
     return (w);
 }
 
-/* full recomposition of the toplevel above a window */
+/* full recomposition of the toplevel above a window. The toplevel is
+   found under the tree's read lock and released before its own lock is
+   taken: the toplevel's lock is never taken under the tree's */
 static void topfulldmg(pd_win* w)
 {
     pd_win* t;
+    wltop*  tp;
+    int     tw, th;
 
+    TREERD();
     t = winTop(w);
     if (!t && w->top) t = w;
-    if (t && t->top) {
+    tp = t? t->top: NULL;
+    tw = t? t->w: 0; th = t? t->h: 0;
+    TREEUN();
+    if (tp) {
 
-        t->top->dmg = 1; t->top->dx1 = 0; t->top->dy1 = 0;
-        t->top->dx2 = t->w; t->top->dy2 = t->h;
+        dmglk(tp);
+        tp->dmg = 1; tp->dx1 = 0; tp->dy1 = 0;
+        tp->dx2 = tw; tp->dy2 = th;
+        dmgulk(tp);
 
     }
+}
+
+/* a window's toplevel record, under the tree's read lock */
+static wltop* wintopof(pd_win* w)
+{
+    wltop* tp;
+
+    TREERD();
+    tp = w->top;
+    TREEUN();
+    return (tp);
 }
 
 pd_win* pd_winnew(pd_display* d, pd_win* parent, int x, int y, int w, int h)
 {
     pd_win* win;
 
-    LK(d);
     win = calloc(1, sizeof(pd_win));
     win->x = x; win->y = y;
     win->w = w? w: 1; win->h = h? h: 1;
     win->cursor = -1;
+    TREEWR();
     linkchild(parent? parent: &d->root, win);
-    ULK(d);
+    TREEUN();
     return (win);
 }
 
+/* Take a toplevel down. Detached from the window under the tree's write
+   lock first, so no flush walk finds it after; then its protocol objects
+   are destroyed under the connection lock, which the dispatch of their
+   remaining events also holds, and its record freed */
 static void droptop(pd_display* d, pd_win* w)
 {
     wltop* t;
     int    i;
 
+    TREEWR();
     t = w->top;
+    w->top = NULL;
+    TREEUN();
     if (!t) return;
+    LK(d);
+    toplk(t);
     if (t->fcb) wl_callback_destroy(t->fcb);
     for (i = 0; i < 2; i++)
         if (t->buf[i]) {
@@ -1480,9 +1615,11 @@ static void droptop(pd_display* d, pd_win* w)
     if (t->xtop) xdg_toplevel_destroy(t->xtop);
     if (t->xsurf) xdg_surface_destroy(t->xsurf);
     if (t->surf) wl_surface_destroy(t->surf);
-    free(t);
-    w->top = NULL;
     wl_display_flush(d->dpy);
+    t->win = NULL; /* a compose finding this composes nothing */
+    topulk(t);
+    ULK(d);
+    topunref(t); /* the window's reference; a flush walk's may remain */
 }
 
 void pd_windel(pd_win* win)
@@ -1490,20 +1627,31 @@ void pd_windel(pd_win* win)
     pd_display* d = &thedpy;
     pd_win* c;
 
-    LK(d);
-    while ((c = win->childs)) { ULK(d); pd_windel(c); LK(d); }
+    for (;;) {
+
+        TREERD();
+        c = win->childs;
+        TREEUN();
+        if (!c) break;
+        pd_windel(c);
+
+    }
+    LK(d); /* the seat's references to it */
     if (d->ptrwin == win) d->ptrwin = NULL;
     if (d->ptrtop == win) d->ptrtop = NULL;
     if (d->focus == win) d->focus = NULL;
     if (d->kbdtop == win) d->kbdtop = NULL;
     if (d->grab == win) d->grab = NULL;
     if (d->igrab == win) d->igrab = NULL;
+    ULK(d);
     droptop(d, win);
+    TREEWR(); /* out of the tree: no walk reaches it after this */
     unlinkchild(win);
+    TREEUN();
+    if (win->can) { canlk(win->can); canulk(win->can); } /* a use in flight ends */
     freecanvas(win->can);
     free(win->title);
     free(win);
-    ULK(d);
 }
 
 void pd_winmap(pd_win* win, int visible)
@@ -1511,15 +1659,23 @@ void pd_winmap(pd_win* win, int visible)
     pd_display* d = &thedpy;
     pd_evt e;
 
-    LK(d);
-    if (visible && !win->mapped) {
+    int istop, w, h, was, hastop;
 
-        win->mapped = 1;
-        if (win->parent == &d->root) {
+    TREEWR();
+    was = win->mapped;
+    istop = win->parent == &d->root;
+    hastop = win->top != NULL;
+    w = win->w; h = win->h;
+    if (visible && !was) win->mapped = 1;
+    else if (!visible && was) win->mapped = 0;
+    TREEUN();
+    if (visible && !was) {
+
+        if (istop) {
 
             /* toplevel: begin the map handshake; pd_etmap follows the
                first configure */
-            if (!win->top) mktoplevel(d, win);
+            if (!hastop) { LK(d); mktoplevel(d, win); ULK(d); }
 
         } else {
 
@@ -1527,32 +1683,33 @@ void pd_winmap(pd_win* win, int visible)
             mkevt(&e, pd_etmap, win);
             enq(d, &e);
             mkevt(&e, pd_etredraw, win);
-            e.rw = win->w; e.rh = win->h;
+            e.rw = w; e.rh = h;
             enq(d, &e);
-            windmg(win, 0, 0, win->w, win->h);
+            windmg(win, 0, 0, w, h);
 
         }
 
-    } else if (!visible && win->mapped) {
+    } else if (!visible && was) {
 
-        win->mapped = 0;
-        if (win->parent == &d->root) droptop(d, win);
+        if (istop) droptop(d, win);
         else topfulldmg(win);
 
     }
-    ULK(d);
 }
 
 void pd_winmove(pd_win* win, int x, int y)
 {
     pd_display* d = &thedpy;
 
-    LK(d);
+    int child;
+
+    TREEWR();
     win->x = x; win->y = y;
+    child = win->parent != &d->root;
+    TREEUN();
     /* a toplevel records the wish; the compositor places toplevels. A
        child moves within its parent, and the ancestor surface recomposes */
-    if (win->parent != &d->root) topfulldmg(win);
-    ULK(d);
+    if (child) topfulldmg(win);
 }
 
 unsigned long pd_winsize(pd_win* win, int width, int height)
@@ -1562,12 +1719,16 @@ unsigned long pd_winsize(pd_win* win, int width, int height)
     pd_evt e;
     int ow, oh;
 
-    LK(d);
-    tok = ++d->sizetok;
+    wltop* tp;
+
+    tok = __atomic_add_fetch(&d->sizetok, 1, __ATOMIC_RELAXED);
+    TREEWR(); /* the geometry and the canvas */
     ow = win->w; oh = win->h;
     win->w = width; win->h = height;
     sizecanvas(win, width, height);
-    if (win->parent == &d->root && win->top) sizebufs(d, win);
+    tp = win->parent == &d->root? win->top: NULL;
+    TREEUN();
+    if (tp) { toplk(tp); sizebufs(d, win); topulk(tp); } /* its buffers */
     topfulldmg(win);
     /* the answering resize, carrying the caller's token */
     mkevt(&e, pd_etresize, win);
@@ -1575,7 +1736,6 @@ unsigned long pd_winsize(pd_win* win, int width, int height)
     e.token = tok;
     enq(d, &e);
     expodmg(d, win, ow, oh);
-    ULK(d);
     return (tok);
 }
 
@@ -1583,31 +1743,37 @@ void pd_winraise(pd_win* win)
 {
     pd_display* d = &thedpy;
 
-    LK(d);
-    if (win->parent && win->parent != &d->root) {
+    int child;
+
+    TREEWR();
+    child = win->parent && win->parent != &d->root;
+    if (child) {
 
         unlinkchild(win);
         linkchild(win->parent, win);
-        topfulldmg(win);
 
     }
-    ULK(d);
+    TREEUN();
+    if (child) topfulldmg(win);
 }
 
 void pd_winlower(pd_win* win)
 {
     pd_display* d = &thedpy;
 
-    LK(d);
-    if (win->parent && win->parent != &d->root) {
+    int child;
+
+    TREEWR();
+    child = win->parent && win->parent != &d->root;
+    if (child) {
 
         unlinkchild(win);
         win->sibnext = win->parent->childs;
         win->parent->childs = win;
-        topfulldmg(win);
 
     }
-    ULK(d);
+    TREEUN();
+    if (child) topfulldmg(win);
 }
 
 void pd_wingeom(pd_win* win, int* x, int* y, int* width, int* height,
@@ -1617,7 +1783,7 @@ void pd_wingeom(pd_win* win, int* x, int* y, int* width, int* height,
     pd_win* p;
     int     m;
 
-    LK(d);
+    TREERD();
     if (win == &d->root) {
 
         if (x) *x = 0;
@@ -1638,24 +1804,24 @@ void pd_wingeom(pd_win* win, int* x, int* y, int* width, int* height,
         if (mapped) *mapped = m;
 
     }
-    ULK(d);
+    TREEUN();
 }
 
 void pd_winlimits(pd_win* win, int minw, int minh, int maxw, int maxh)
 {
     pd_display* d = &thedpy;
 
-    LK(d);
-    if (win->top && win->top->xtop) {
+    wltop* tp = wintopof(win);
 
-        xdg_toplevel_set_min_size(win->top->xtop,
+    if (tp && tp->xtop) {
+
+        xdg_toplevel_set_min_size(tp->xtop,
             (minw+d->scale-1)/d->scale, (minh+d->scale-1)/d->scale);
-        xdg_toplevel_set_max_size(win->top->xtop,
+        xdg_toplevel_set_max_size(tp->xtop,
             (maxw+d->scale-1)/d->scale, (maxh+d->scale-1)/d->scale);
         wl_display_flush(d->dpy);
 
     }
-    ULK(d);
 }
 
 void pd_grab(pd_win* win, int on)
@@ -1672,12 +1838,14 @@ int pd_pointer(pd_win* win, int* x, int* y)
     pd_display* d = &thedpy;
     int ox, oy, in;
 
-    LK(d);
+    LK(d); /* the pointer's place */
+    TREERD(); /* the window's */
     winorg(win, &ox, &oy);
     *x = (int)d->ptrx-ox;
     *y = (int)d->ptry-oy;
     in = d->ptrtop && winTop(win) == d->ptrtop &&
          *x >= 0 && *y >= 0 && *x < win->w && *y < win->h;
+    TREEUN();
     ULK(d);
     return (in);
 }
@@ -1686,12 +1854,16 @@ void pd_wintitle(pd_win* win, const char* title)
 {
     pd_display* d = &thedpy;
 
-    LK(d);
-    free(win->title);
+    wltop* tp;
+    char*  old;
+
+    TREEWR(); /* the window's title */
+    old = win->title;
     win->title = strdup(title? title: "");
-    if (win->top && win->top->xtop)
-        xdg_toplevel_set_title(win->top->xtop, win->title);
-    ULK(d);
+    tp = win->top;
+    if (tp && tp->xtop) xdg_toplevel_set_title(tp->xtop, win->title);
+    TREEUN();
+    free(old);
 }
 
 void pd_winframe(pd_win* win, int titx, int tity, int titw, int tith,
@@ -1699,15 +1871,17 @@ void pd_winframe(pd_win* win, int titx, int tity, int titw, int tith,
 {
     pd_display* d = &thedpy;
 
-    LK(d);
-    if (win->top) {
+    wltop* tp = wintopof(win);
 
-        win->top->titx = titx; win->top->tity = tity;
-        win->top->titw = titw; win->top->tith = tith;
-        win->top->borderw = borderw;
+    if (tp) {
+
+        toplk(tp);
+        tp->titx = titx; tp->tity = tity;
+        tp->titw = titw; tp->tith = tith;
+        tp->borderw = borderw;
+        topulk(tp);
 
     }
-    ULK(d);
 }
 
 void pd_minimize(pd_win* win)
@@ -1715,10 +1889,11 @@ void pd_minimize(pd_win* win)
     pd_display* d = &thedpy;
     pd_evt e;
 
-    LK(d);
-    if (win->top && win->top->xtop) {
+    wltop* tp = wintopof(win);
 
-        xdg_toplevel_set_minimized(win->top->xtop);
+    if (tp && tp->xtop) {
+
+        xdg_toplevel_set_minimized(tp->xtop);
         wl_display_flush(d->dpy);
         /* the shell reports nothing back for minimize; the caller learns
            of its own request here */
@@ -1726,50 +1901,55 @@ void pd_minimize(pd_win* win)
         enq(d, &e);
 
     }
-    ULK(d);
 }
 
 void pd_maximize(pd_win* win, int on)
 {
     pd_display* d = &thedpy;
 
-    LK(d);
-    if (win->top && win->top->xtop) {
+    wltop* tp = wintopof(win);
 
-        if (on) xdg_toplevel_set_maximized(win->top->xtop);
-        else xdg_toplevel_unset_maximized(win->top->xtop);
+    if (tp && tp->xtop) {
+
+        if (on) xdg_toplevel_set_maximized(tp->xtop);
+        else xdg_toplevel_unset_maximized(tp->xtop);
         wl_display_flush(d->dpy);
 
     }
-    ULK(d);
 }
 
 void pd_windrag(pd_win* win)
 {
     pd_display* d = &thedpy;
 
-    LK(d);
-    if (win->top && win->top->xtop) {
+    wltop* tp = wintopof(win);
+
+    if (tp && tp->xtop) {
 
         /* the compositor owns the move from here; the press that started
            it releases through the implicit grab when the pointer leaves */
-        xdg_toplevel_move(win->top->xtop, d->seat, d->inserial);
+        LK(d); /* the seat and the serial */
+        xdg_toplevel_move(tp->xtop, d->seat, d->inserial);
+        ULK(d);
         wl_display_flush(d->dpy);
 
     }
-    ULK(d);
 }
 
 void pd_cursor(pd_win* win, pd_curshape shape)
 {
     pd_display* d = &thedpy;
 
-    LK(d);
+    int inside;
+
+    LK(d); /* the shape is seat state: setcursor reads it under this lock */
     win->cursor = shape;
     /* the visible cursor changes immediately when the pointer is inside;
        the frame hover cursors depend on it */
-    if (d->ptrwin == win || (d->ptrwin && winTop(d->ptrwin) == win))
-        setcursor(d, d->ptrwin);
+    TREERD();
+    inside = d->ptrwin == win || (d->ptrwin && winTop(d->ptrwin) == win);
+    TREEUN();
+    if (inside) setcursor(d, d->ptrwin);
     ULK(d);
 }
 
@@ -1788,7 +1968,9 @@ static void bufrelease(void* data, struct wl_buffer* b)
     wltop* t = data;
     int    i;
 
+    toplk(t);
     for (i = 0; i < 2; i++) if (t->buf[i] == b) t->bufbusy[i] = 0;
+    topulk(t);
 }
 
 static const struct wl_buffer_listener buf_lis = { bufrelease };
@@ -1847,7 +2029,9 @@ static void sizebufs(pd_display* d, pd_win* win)
 
     }
     /* full redraw next commit */
+    dmglk(t);
     t->dmg = 1; t->dx1 = 0; t->dy1 = 0; t->dx2 = win->w; t->dy2 = win->h;
+    dmgulk(t);
 }
 
 /* recursive blit of the window tree into the composition buffer */
@@ -1867,11 +2051,16 @@ static void blittree(pd_win* w, uint32_t* dst, int dw, int dh, int ox, int oy,
         if (y1 < cy1) y1 = cy1;
         if (x2 > cx2) x2 = cx2;
         if (y2 > cy2) y2 = cy2;
-        if (x2 > x1 && y2 > y1)
+        if (x2 > x1 && y2 > y1) {
+
+            canlk(cv); /* its rows, whole */
             for (y = y1; y < y2; y++)
                 memcpy(&dst[(size_t)y*dw+x1],
                        &cv->px[(size_t)(y-oy)*cv->w+(x1-ox)],
                        (size_t)(x2-x1)*4);
+            canulk(cv);
+
+        }
 
     }
     for (c = w->childs; c; c = c->sibnext)
@@ -1965,10 +2154,10 @@ uint32_t* pd_winsnap(pd_display* d, pd_win* win, int* width, int* height)
     int       w, h;
 
     if (!d || !win) return (NULL);
-    LK(d);
+    TREERD(); /* the tree below the window, and each canvas as it is read */
     w = win->w;
     h = win->h;
-    if (w <= 0 || h <= 0) { ULK(d); return (NULL); }
+    if (w <= 0 || h <= 0) { TREEUN(); return (NULL); }
     px = calloc((size_t)w*h, sizeof(uint32_t));
     if (px) {
 
@@ -1976,7 +2165,7 @@ uint32_t* pd_winsnap(pd_display* d, pd_win* win, int* width, int* height)
         alphaover(px, w, 0, 0, w, h);
 
     }
-    ULK(d);
+    TREEUN();
     if (width) *width = w;
     if (height) *height = h;
 
@@ -1984,14 +2173,89 @@ uint32_t* pd_winsnap(pd_display* d, pd_win* win, int* width, int* height)
 }
 
 /* compose and commit a toplevel's damage */
-static void compose(pd_display* d, pd_win* win)
-{
-    wltop* t;
-    int    b;
-    int    x1, y1, x2, y2;
+/* the flattened tree of a toplevel: what a compose blits, taken under the
+   tree's read lock and used after it is released */
+typedef struct {
+    pd_canvas* cv;
+    int        ox, oy, w, h;
+} blitent;
+#define MAXBLIT 512 /* windows a compose can carry; more are left out */
 
-    t = win->top;
-    if (!t || !t->configured || !win->mapped || !t->dmg) return;
+static int flatten(pd_win* w, int ox, int oy, blitent* out, int n)
+{
+    pd_win* c;
+
+    if (!w->mapped && w->parent) return (n);
+    if (w->can && n < MAXBLIT) {
+
+        out[n].cv = w->can; out[n].ox = ox; out[n].oy = oy;
+        out[n].w = w->w; out[n].h = w->h;
+        n++;
+
+    }
+    for (c = w->childs; c; c = c->sibnext)
+        n = flatten(c, ox+c->x, oy+c->y, out, n);
+    return (n);
+}
+
+static int blitcmp(const void* a, const void* b)
+{
+    const blitent* x = a; const blitent* y = b;
+    return (x->cv < y->cv? -1: x->cv > y->cv? 1: 0);
+}
+
+/* blit the flattened tree into the composition buffer, clipped; the
+   canvases are held by the caller */
+static void blitlist(blitent* l, int n, uint32_t* dst, int dw,
+                     int cx1, int cy1, int cx2, int cy2)
+{
+    int i, x1, y1, x2, y2, y;
+    pd_canvas* cv;
+
+    for (i = 0; i < n; i++) {
+
+        cv = l[i].cv;
+        x1 = l[i].ox; y1 = l[i].oy; x2 = l[i].ox+l[i].w; y2 = l[i].oy+l[i].h;
+        if (x1 < cx1) x1 = cx1;
+        if (y1 < cy1) y1 = cy1;
+        if (x2 > cx2) x2 = cx2;
+        if (y2 > cy2) y2 = cy2;
+        if (x2 > x1 && y2 > y1)
+            for (y = y1; y < y2; y++)
+                memcpy(&dst[(size_t)y*dw+x1],
+                       &cv->px[(size_t)(y-l[i].oy)*cv->w+(x1-l[i].ox)],
+                       (size_t)(x2-x1)*4);
+
+    }
+}
+
+static void compose(pd_display* d, wltop* t)
+{
+    pd_win* win;
+    int     b;
+    int     x1, y1, x2, y2;
+    int     ww, wh, mapped, dmg;
+    blitent list[MAXBLIT];
+    int     n, i, k;
+
+    /* Under the toplevel's lock throughout: its buffers and callback are
+       its own. The tree is read only to flatten it, and the canvases of
+       the flattened list are locked in address order, the order every
+       taker of more than one uses, so the blit runs holding no lock but
+       theirs. The damage rectangle is under its own small lock, so a
+       drawing thread's union never waits for this. */
+    if (!t) return;
+    toplk(t);
+    win = t->win;
+    if (!win) { topulk(t); return; } /* dropped */
+    TREERD();
+    ww = win->w; wh = win->h; mapped = win->mapped;
+    TREEUN();
+    dmglk(t);
+    dmg = t->dmg;
+    x1 = t->dx1; y1 = t->dy1; x2 = t->dx2; y2 = t->dy2;
+    dmgulk(t);
+    if (!t->configured || !mapped || !dmg) { topulk(t); return; }
     /* pace to the frame callback, for one refresh: while a callback is
        outstanding and younger than a refresh, the frame in flight is as
        fresh as the screen can show; the damage waits, and the callback
@@ -1999,34 +2263,40 @@ static void compose(pd_display* d, pd_win* win)
        mailbox behavior below stands, a late frame replaced by a fresher
        one. Without this, a window the compositor is not showing, whose
        buffers come straight back and whose callbacks never come, was
-       recomposed in full on every poll of the display, by every thread,
-       under the display's lock: eight windows drawn by eight threads
-       starved each other and the event loop to a standstill. */
-    if (t->fcb && nowms()-t->fcbtime < PACEMS) { t->commitpend = 1; return; }
+       recomposed in full on every poll of the display */
+    if (t->fcb && nowms()-t->fcbtime < PACEMS) { t->commitpend = 1; topulk(t); return; }
     /* a resize mid-application holds its commit; the bailout keeps a
        caller that never finishes from freezing the window */
     if (t->applying) {
 
-        if (nowms()-t->applyms < 50) { t->commitpend = 1; return; }
+        if (nowms()-t->applyms < 50) { t->commitpend = 1; topulk(t); return; }
         t->applying = 0;
 
     }
     sizebufs(d, win);
     b = t->curbuf;
     if (t->bufbusy[b]) b = 1-b;
-    if (t->bufbusy[b]) { t->commitpend = 1; return; }
-    if (!t->buf[b]) return;
-    x1 = t->dx1; y1 = t->dy1; x2 = t->dx2; y2 = t->dy2;
+    if (t->bufbusy[b]) { t->commitpend = 1; topulk(t); return; }
+    if (!t->buf[b]) { topulk(t); return; }
     if (x1 < 0) x1 = 0;
     if (y1 < 0) y1 = 0;
-    if (x2 > win->w) x2 = win->w;
-    if (y2 > win->h) y2 = win->h;
+    if (x2 > ww) x2 = ww;
+    if (y2 > wh) y2 = wh;
     /* both buffers must carry the history; compose damage into both is
        avoided by composing the union of this and the other buffer's staleness:
        simplest correct form, compose full frame when switching buffers */
-    if (b != t->curbuf) { x1 = 0; y1 = 0; x2 = win->w; y2 = win->h; }
-    if (x2 <= x1 || y2 <= y1) { t->dmg = 0; return; }
-    blittree(win, t->bufpx[b], t->bufw, t->bufh, 0, 0, x1, y1, x2, y2);
+    if (b != t->curbuf) { x1 = 0; y1 = 0; x2 = ww; y2 = wh; }
+    /* the damage is taken: what lands from here is the next frame's */
+    dmglk(t);
+    t->dmg = 0;
+    dmgulk(t);
+    if (x2 <= x1 || y2 <= y1) { topulk(t); return; }
+    TREERD(); /* the tree below, flattened, and its canvases taken */
+    n = flatten(win, 0, 0, list, 0);
+    qsort(list, n, sizeof(blitent), blitcmp);
+    for (i = 0; i < n; i++) if (!i || list[i].cv != list[i-1].cv) canlk(list[i].cv);
+    TREEUN();
+    blitlist(list, n, t->bufpx[b], t->bufw, x1, y1, x2, y2);
     alphaover(t->bufpx[b], t->bufw, x1, y1, x2, y2);
     if (roundon(t))
         roundcorners(d, win, t->bufpx[b], t->bufw, x1, y1, x2, y2);
@@ -2036,19 +2306,18 @@ static void compose(pd_display* d, pd_win* win)
        blits buy corners that are always current */
     {
         int rad = CORNERRAD*d->scale;
-        int k, bx, by, bx2, by2;
+        int bx, by, bx2, by2;
 
         for (k = 0; k < 4; k++) {
 
-            bx = (k&1)? win->w-rad: 0;
-            by = (k&2)? win->h-rad: 0;
+            bx = (k&1)? ww-rad: 0;
+            by = (k&2)? wh-rad: 0;
             if (bx < 0) bx = 0;
             if (by < 0) by = 0;
-            bx2 = bx+rad > win->w? win->w: bx+rad;
-            by2 = by+rad > win->h? win->h: by+rad;
+            bx2 = bx+rad > ww? ww: bx+rad;
+            by2 = by+rad > wh? wh: by+rad;
             if (bx2 <= bx || by2 <= by) continue;
-            blittree(win, t->bufpx[b], t->bufw, t->bufh, 0, 0,
-                     bx, by, bx2, by2);
+            blitlist(list, n, t->bufpx[b], t->bufw, bx, by, bx2, by2);
             alphaover(t->bufpx[b], t->bufw, bx, by, bx2, by2);
             if (roundon(t))
                 roundcorners(d, win, t->bufpx[b], t->bufw, bx, by,
@@ -2057,6 +2326,7 @@ static void compose(pd_display* d, pd_win* win)
 
         }
     }
+    for (i = 0; i < n; i++) if (!i || list[i].cv != list[i-1].cv) canulk(list[i].cv);
     wl_surface_attach(t->surf, t->buf[b], 0, 0);
     wl_surface_damage_buffer(t->surf, x1, y1, x2-x1, y2-y1);
     /* Mailbox presentation: a free buffer commits at once, and the
@@ -2074,7 +2344,6 @@ static void compose(pd_display* d, pd_win* win)
     wl_surface_commit(t->surf);
     t->bufbusy[b] = 1;
     t->curbuf = b;
-    t->dmg = 0;
     t->commitpend = 0;
     /* the rig's capture path: record exactly what was committed. Written
        here, a teardown flush cannot overwrite a good frame with the
@@ -2083,14 +2352,16 @@ static void compose(pd_display* d, pd_win* win)
         const char* dump = rigenv("PD_DUMP", "AMI_WL_DUMP");
         char fn[256];
         FILE* f;
-        int x, y, i;
+        int x, y;
         uint32_t p;
         pd_win* rc;
 
         if (dump) {
 
             i = 0;
+            TREERD();
             for (rc = d->root.childs; rc && rc != win; rc = rc->sibnext) i++;
+            TREEUN();
             /* one file per commit: teardown commits a black frame as the
                windows dismantle, and sequencing keeps every earlier frame
                inspectable */
@@ -2114,6 +2385,7 @@ static void compose(pd_display* d, pd_win* win)
 
         }
     }
+    topulk(t);
 }
 
 static void framedone(void* data, struct wl_callback* cb, uint32_t tm)
@@ -2123,13 +2395,21 @@ static void framedone(void* data, struct wl_callback* cb, uint32_t tm)
     pd_evt e;
 
     (void)tm;
-    if (win->top && win->top->fcb == cb) win->top->fcb = NULL;
-    wl_callback_destroy(cb);
-    if (win->top && (win->top->commitpend || win->top->dmg)) {
+    wltop* t = wintopof(win);
 
-        win->top->dmg = 1;
-        compose(d, win);
-
+    /* The callback is destroyed here only while the toplevel still holds
+       it. A flush's fallback on another thread, or the drop, destroys the
+       one it holds and clears it under the toplevel's lock; a done event
+       already in flight for that callback then arrives here, and a second
+       destroy would take libwayland's reference count below zero */
+    if (t) {
+        toplk(t);
+        if (t->fcb == cb) { t->fcb = NULL; wl_callback_destroy(cb); }
+        if (t->commitpend || t->dmg) {
+            dmglk(t); t->dmg = 1; dmgulk(t);
+            compose(d, t);
+        }
+        topulk(t);
     }
     /* the compositor's frame pacing, surfaced to the client when asked:
        this is the true beginning-of-refresh signal for this surface */
@@ -2144,24 +2424,58 @@ static void framedone(void* data, struct wl_callback* cb, uint32_t tm)
 static void flushtops(pd_display* d)
 {
     pd_win* c;
+    wltop*  held[MAXBLIT];
+    int     n, i;
 
-    for (c = d->root.childs; c; c = c->sibnext)
-        if (c->top && c->top->dmg) {
+    /* the toplevels with damage, taken under the tree's read lock and
+       held by reference, so the composes run with the tree free for the
+       window operations of other threads */
+    n = 0;
+    TREERD();
+    for (c = d->root.childs; c && n < MAXBLIT; c = c->sibnext)
+        if (c->top && c->top->dmg) { topref(c->top); held[n++] = c->top; }
+    TREEUN();
+    for (i = 0; i < n; i++) {
 
-            /* A compositor throttles a surface it is not showing by
-               withholding frame callbacks; damage must still land
-               eventually or a hidden window never updates and a
-               callback-less compositor wedges everything. Past a beat,
-               commit without the pacing */
-            if (c->top->fcb && nowms()-c->top->fcbtime > 100) {
+        /* A compositor throttles a surface it is not showing by
+           withholding frame callbacks; damage must still land
+           eventually or a hidden window never updates and a
+           callback-less compositor wedges everything. Past a beat,
+           commit without the pacing */
+        toplk(held[i]);
+        if (held[i]->fcb && nowms()-held[i]->fcbtime > 100) {
 
-                wl_callback_destroy(c->top->fcb);
-                c->top->fcb = NULL;
-
-            }
-            compose(d, c);
+            wl_callback_destroy(held[i]->fcb);
+            held[i]->fcb = NULL;
 
         }
+        topulk(held[i]);
+        compose(d, held[i]);
+        topunref(held[i]);
+
+    }
+    wl_display_flush(d->dpy);
+}
+
+/* flush one window's toplevel: its damage composed and committed now */
+void pd_winflush(pd_win* w)
+{
+    pd_display* d = &thedpy;
+    pd_win*     top;
+    wltop*      t;
+
+    TREERD();
+    top = winTop(w);
+    if (!top && w && w->top) top = w;
+    t = top? top->top: NULL;
+    if (t) topref(t);
+    TREEUN();
+    if (t) {
+
+        compose(d, t);
+        topunref(t);
+
+    }
     wl_display_flush(d->dpy);
 }
 
@@ -2174,12 +2488,16 @@ static void xsconf(void* data, struct xdg_surface* s, uint32_t serial)
     pd_evt      e;
     int         ow, oh;
 
-    t = win->top;
+    t = wintopof(win);
     if (!t) return;
     xdg_surface_ack_configure(s, serial);
+    toplk(t);
     t->configured = 1;
+    TREERD();
+    ow = win->w; oh = win->h;
+    TREEUN();
     if (t->confw > 0 && t->confh > 0 &&
-        (t->confw != win->w || t->confh != win->h)) {
+        (t->confw != ow || t->confh != oh)) {
 
         /* The compositor resized us. Apply the size before reporting, so
            the caller reacts to a fait accompli, and the resize carries
@@ -2187,11 +2505,12 @@ static void xsconf(void* data, struct xdg_surface* s, uint32_t serial)
            the caller finishes reconfiguring (frame, children, chrome):
            publishing the half-applied state would hand the compositor
            interim sizes and make its resize anchoring wander */
-        ow = win->w; oh = win->h;
+        TREEWR(); /* the geometry and the canvas */
         win->w = t->confw; win->h = t->confh;
+        sizecanvas(win, win->w, win->h);
+        TREEUN();
         t->applying = 1;
         t->applyms = nowms();
-        sizecanvas(win, win->w, win->h);
         sizebufs(d, win);
         mkevt(&e, pd_etresize, win);
         e.w = t->confw; e.h = t->confh;
@@ -2208,10 +2527,16 @@ static void xsconf(void* data, struct xdg_surface* s, uint32_t serial)
         e.rw = win->w; e.rh = win->h;
         enq(d, &e);
         /* first content: whatever has been drawn shows now */
-        t->dmg = 1; t->dx1 = 0; t->dy1 = 0; t->dx2 = win->w; t->dy2 = win->h;
-        compose(d, win);
+        TREERD();
+        ow = win->w; oh = win->h;
+        TREEUN();
+        dmglk(t);
+        t->dmg = 1; t->dx1 = 0; t->dy1 = 0; t->dx2 = ow; t->dy2 = oh;
+        dmgulk(t);
+        compose(d, t);
 
     }
+    topulk(t);
 }
 
 static const struct xdg_surface_listener xsurf_lis = { xsconf };
@@ -2227,8 +2552,9 @@ static void xtconf(void* data, struct xdg_toplevel* xt, int32_t w, int32_t h,
     pd_evt      e;
 
     (void)xt;
-    t = win->top;
+    t = wintopof(win);
     if (!t) return;
+    toplk(t);
     t->confw = w*d->scale; t->confh = h*d->scale;
     act = 0; max = 0;
     wl_array_for_each(st, states) {
@@ -2251,6 +2577,7 @@ static void xtconf(void* data, struct xdg_toplevel* xt, int32_t w, int32_t h,
         enq(d, &e);
 
     }
+    topulk(t);
 }
 
 static void xtclose(void* data, struct xdg_toplevel* xt)
@@ -2271,7 +2598,13 @@ static void mktoplevel(pd_display* d, pd_win* win)
     wltop* t;
 
     t = calloc(1, sizeof(wltop));
+    reclock(&t->lk);
+    pthread_mutex_init(&t->dlk, NULL);
+    t->refs = 1; /* the window's */
+    t->win = win;
+    TREEWR();
     win->top = t;
+    TREEUN();
     t->surf = wl_compositor_create_surface(d->comp);
     wl_surface_set_user_data(t->surf, win);
     if (d->scale > 1) wl_surface_set_buffer_scale(t->surf, d->scale);
@@ -2318,7 +2651,9 @@ static void setcursor(pd_display* d, pd_win* w)
 
     if (!d->ptr) return; /* no pointer, no one to show it to */
     shape = -1;
+    TREERD();
     while (w && shape < 0) { shape = w->cursor; w = w->parent; }
+    TREEUN();
     if (shape < 0) shape = pd_curarrow;
     if (shape == d->curshown && d->csurf) return;
     if (!d->ctheme) {
@@ -2391,9 +2726,13 @@ static pd_win* ptrroute(pd_display* d, int* x, int* y)
     pd_win* w;
     int     ox, oy, px, py;
 
+    /* the tree is read under its lock; the seat state under the
+       connection lock the dispatch holds */
     if (d->grab) {
 
+        TREERD();
         winorg(d->grab, &ox, &oy);
+        TREEUN();
         *x = (int)d->ptrx-ox; *y = (int)d->ptry-oy;
         return (d->grab);
 
@@ -2402,7 +2741,9 @@ static pd_win* ptrroute(pd_display* d, int* x, int* y)
 
         /* the press window holds the pointer until release, so drags
            track and the release arrives even outside its bounds */
+        TREERD();
         winorg(d->igrab, &ox, &oy);
+        TREEUN();
         *x = (int)d->ptrx-ox; *y = (int)d->ptry-oy;
         return (d->igrab);
 
@@ -2411,13 +2752,16 @@ static pd_win* ptrroute(pd_display* d, int* x, int* y)
     /* the frame ring owns the pointer where it rides over the client
        edge, the way invisible resize handles behave */
     px = (int)d->ptrx; py = (int)d->ptry;
+    TREERD();
     if (frmedges(d->ptrtop, px, py)) {
 
+        TREEUN();
         *x = px; *y = py;
         return (d->ptrtop);
 
     }
     w = hittest(d->ptrtop, px, py, x, y);
+    TREEUN();
     return (w);
 }
 
@@ -2428,7 +2772,9 @@ static void crossevt(pd_display* d, pd_win* w, pd_etype t)
 
     if (!w) return;
     mkevt(&e, t, w);
+    TREERD();
     winorg(w, &ox, &oy);
+    TREEUN();
     e.x = (int)d->ptrx-ox;
     e.y = (int)d->ptry-oy;
     enq(d, &e);
@@ -2468,7 +2814,9 @@ static void ptrleave(void* data, struct wl_pointer* p, uint32_t serial,
         pd_evt e;
         int    ox, oy, b;
 
+        TREERD();
         winorg(d->igrab, &ox, &oy);
+        TREEUN();
         for (b = 1; b <= 3; b++)
             if (d->mods & btnmask(b)) {
 
@@ -2544,7 +2892,11 @@ static void ptrbutton(void* data, struct wl_pointer* p, uint32_t serial,
     if (state && b == 1 && !d->grab && t && t->top && w == t) {
 
         int px = (int)d->ptrx, py = (int)d->ptry;
-        unsigned edges = frmedges(t, px, py);
+        unsigned edges;
+
+        TREERD();
+        edges = frmedges(t, px, py);
+        TREEUN();
 
         if (edges) {
 
@@ -2925,6 +3277,17 @@ pd_display* pd_open(void)
     memset(d, 0, sizeof(thedpy));
     d->dpy = wl_display_connect(NULL);
     if (!d->dpy) return (NULL);
+    {
+        /* the tree lock prefers readers: a compose started from the flush
+           walk takes the read lock again inside, and must not wait behind
+           a writer queued between the two */
+        pthread_rwlockattr_t ra;
+
+        pthread_rwlockattr_init(&ra);
+        pthread_rwlockattr_setkind_np(&ra, PTHREAD_RWLOCK_PREFER_READER_NP);
+        pthread_rwlock_init(&treelk, &ra);
+        pthread_rwlockattr_destroy(&ra);
+    }
     d->bufq = wl_display_create_queue(d->dpy);
     pthread_mutexattr_init(&ma);
     pthread_mutexattr_settype(&ma, PTHREAD_MUTEX_RECURSIVE);
@@ -3042,8 +3405,10 @@ static void injline(pd_display* d, char* ln)
     /* a pointer target: the first mapped toplevel */
     if (!d->ptrtop) {
 
+        TREERD();
         for (c = d->root.childs; c; c = c->sibnext)
             if (c->mapped && c->top) { d->ptrtop = c; break; }
+        TREEUN();
 
     }
     if (!d->kbdtop) d->kbdtop = d->ptrtop;
@@ -3094,8 +3459,10 @@ static void injline(pd_display* d, char* ln)
         int i = 0;
 
         d->ptrtop = NULL;
+        TREERD();
         for (c = d->root.childs; c; c = c->sibnext)
             if (c->mapped && c->top && i++ == a) { d->ptrtop = c; break; }
+        TREEUN();
         d->kbdtop = d->ptrtop;
         d->ptrwin = NULL;
 
@@ -3109,12 +3476,17 @@ static void injline(pd_display* d, char* ln)
             pd_evt  e;
             int     ow, oh;
 
-            w->top->confw = x; w->top->confh = y;
+            wltop* tp = w->top;
+
+            toplk(tp);
+            tp->confw = x; tp->confh = y;
             if (x > 0 && y > 0 && (x != w->w || y != w->h)) {
 
+                TREEWR();
                 ow = w->w; oh = w->h;
                 w->w = x; w->h = y;
                 sizecanvas(w, x, y);
+                TREEUN();
                 sizebufs(d, w);
                 mkevt(&e, pd_etresize, w);
                 e.w = x; e.h = y;
@@ -3122,6 +3494,7 @@ static void injline(pd_display* d, char* ln)
                 expodmg(d, w, ow, oh);
 
             }
+            topulk(tp);
 
         }
 
@@ -3171,6 +3544,7 @@ static void pump(pd_display* d)
     int      i, n;
 
     if (!d->dpy) return;
+    LK(d); /* the socket, its dispatch and the seat state it updates */
     injpoll(d); /* rig-injected input, when enabled */
     /* the prepare-read protocol: we are the only reader thread by
        construction (the caller's event loop), but the protocol keeps us
@@ -3192,7 +3566,8 @@ static void pump(pd_display* d)
     if (read(d->rtfd, &exp, 8) == 8 && d->rptkey) n = (int)exp;
     for (i = 0; i < n && i < 10; i++)
         keyevt(d, pd_etkeydown, d->rptkey, (uint32_t)nowms());
-    /* opportunistic commit of deferred damage */
+    ULK(d);
+    /* opportunistic commit of deferred damage, under the toplevels' locks */
     flushtops(d);
 }
 
@@ -3200,21 +3575,20 @@ void pd_present(pd_win* win, int x, int y, int width, int height)
 {
     pd_display* d = &thedpy;
 
-    LK(d);
+    (void)d;
     windmg(win, x, y, width, height);
-    ULK(d);
 }
 
 void pd_flush(pd_display* d)
 {
     pd_win* c;
 
-    LK(d);
     /* the caller declares its state complete: held resizes commit */
+    TREERD();
     for (c = d->root.childs; c; c = c->sibnext)
-        if (c->top) c->top->applying = 0;
+        if (c->top) { toplk(c->top); c->top->applying = 0; topulk(c->top); }
+    TREEUN();
     flushtops(d);
-    ULK(d);
 }
 
 void pd_sync(pd_display* d)
@@ -3227,13 +3601,13 @@ void pd_sync(pd_display* d)
        a bound so a stalled compositor cannot wedge the caller */
     for (i = 0; i < 200; i++) {
 
-        LK(d);
         flushtops(d);
         pump(d);
         pend = 0;
+        TREERD();
         for (c = d->root.childs; c; c = c->sibnext)
             if (c->top && (c->top->dmg || c->top->commitpend)) pend = 1;
-        ULK(d);
+        TREEUN();
         if (!pend) break;
         usleep(1000);
 
@@ -3246,10 +3620,8 @@ int pd_evtnext(pd_display* d, pd_evt* e, int block)
 
     for (;;) {
 
-        LK(d);
         pump(d);
         got = deq(d, e);
-        ULK(d);
         if (got) return (1);
         if (!block) { e->etype = pd_etnone; return (0); }
         usleep(1000);
@@ -3261,11 +3633,11 @@ int pd_evtpeek(pd_display* d, pd_evt* e)
 {
     int got;
 
-    LK(d);
     pump(d);
     got = 0;
+    QLK();
     if (d->eqh) { *e = d->eqh->e; got = 1; }
-    ULK(d);
+    QULK();
     return (got);
 }
 
@@ -3274,8 +3646,8 @@ int pd_evtcheck(pd_display* d, pd_win* w, pd_etype t, pd_evt* e)
     evq** pp;
     evq*  p;
 
-    LK(d);
     pump(d);
+    QLK();
     pp = &d->eqh;
     while (*pp) {
 
@@ -3286,14 +3658,14 @@ int pd_evtcheck(pd_display* d, pd_win* w, pd_etype t, pd_evt* e)
             *pp = p->next;
             if (d->eqt == p) { d->eqt = NULL; for (p = d->eqh; p; p = p->next) d->eqt = p; }
             else { p->next = d->eqf; d->eqf = p; }
-            ULK(d);
+            QULK();
             return (1);
 
         }
         pp = &(*pp)->next;
 
     }
-    ULK(d);
+    QULK();
     return (0);
 }
 
@@ -3301,10 +3673,8 @@ void pd_evtpost(pd_display* d, const pd_evt* e)
 {
     pd_evt c;
 
-    LK(d);
     c = *e;
     enq(d, &c);
-    ULK(d);
 }
 
 /* Deliver the compositor's frame pacing as pd_etframe events for the
@@ -3317,7 +3687,8 @@ void pd_frameevents(pd_win* w, int on)
     pd_display* d = &thedpy;
     pd_win* p;
 
-    LK(d);
+    (void)d;
+    TREEWR();
     p = w;
     if (p) {
 
@@ -3325,5 +3696,5 @@ void pd_frameevents(pd_win* w, int on)
         p->frmevt = on;
 
     }
-    ULK(d);
+    TREEUN();
 }
