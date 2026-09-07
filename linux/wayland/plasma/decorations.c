@@ -579,7 +579,9 @@ static void pl_frmdraw(winptr win, int mw, int mh)
 
     }
 
-    pd_winflush(win->xmwhan); /* this frame's toplevel, not every one */
+    /* no flush here: the frame is drawn under the window's lock, and the
+       damage it marked is composed by the live beat or the event loop's
+       next pump, with no lock of ours held */
 
 }
 

@@ -229,6 +229,8 @@ static void ft_draw_string_un(pd_canvas* d, pd_draw* gc, glyphcache* cache,
 static glyphcache* dlgcache(void);
 static void scnlock(winptr win);
 static void scnunlock(winptr win);
+static int  scnpause(winptr win);
+static void scnresume(winptr win, int d);
 
 static void ft_draw_char(pd_canvas* d, pd_draw* gc, winptr win,
                          int pixel_size_x, int pixel_size_y,
@@ -3975,8 +3977,34 @@ static windefer*       windeflst;  /* disposals awaiting the event end */
    threads on different windows never wait on each other, and it is
    recursive, since the routines call each other. Nothing holds it across
    a wait: the line editor drops it before it waits for the next key. */
-static void scnlock(winptr win) { pthread_mutex_lock(&win->scnlock); }
-static void scnunlock(winptr win) { pthread_mutex_unlock(&win->scnlock); }
+static void scnlock(winptr win)
+{
+    pthread_mutex_lock(&win->scnlock);
+    if (!win->scndepth++) win->scnowner = pthread_self();
+}
+static void scnunlock(winptr win)
+{
+    win->scndepth--;
+    pthread_mutex_unlock(&win->scnlock);
+}
+/* Release a window's lock whole across a wait, and take it back after: no
+   lock is held across a blocking wait, however deep the caller holds it.
+   Only the holder pauses; a lock another thread holds, or none, is left
+   alone and nothing is retaken. */
+static int scnpause(winptr win)
+{
+    int d, i;
+
+    if (!win->scndepth || !pthread_equal(win->scnowner, pthread_self())) return (0);
+    d = win->scndepth;
+    win->scndepth = 0;
+    for (i = 0; i < d; i++) pthread_mutex_unlock(&win->scnlock);
+    return (d);
+}
+static void scnresume(winptr win, int d)
+{
+    while (d-- > 0) scnlock(win);
+}
 
 /* The child list lock. A window's list of children is a block of data
    threads share: a thread opens a child on the window, another closes
@@ -4069,6 +4097,7 @@ static winptr getwin(void)
         pthread_mutexattr_init(&ma);
         pthread_mutexattr_settype(&ma, PTHREAD_MUTEX_RECURSIVE);
         pthread_mutex_init(&p->scnlock, &ma);
+        p->scndepth = 0;
         pthread_mutex_init(&p->chllock, &ma);
         pthread_mutexattr_destroy(&ma);
 
@@ -4543,6 +4572,27 @@ static void waitxmap(pd_win* wh, ami_ulong since)
 
     waitxevt(pd_etmap, wh, since, &e);
 
+}
+
+/* the same waits with the window's lock released across them: a wait
+   under a window's lock kept the event thread, which answers it, from
+   that window, and every other thread from drawing in it */
+static int waitxevtp(winptr win, int type, pd_win* wh, ami_ulong since, pd_evt* out)
+{
+    int d, r;
+
+    d = scnpause(win);
+    r = waitxevt(type, wh, since, out);
+    scnresume(win, d);
+    return (r);
+}
+static void nextxevtp(winptr win, pd_evt* e)
+{
+    int d;
+
+    d = scnpause(win);
+    nextxevt(grx_padisplay, e);
+    scnresume(win, d);
 }
 
 static void peekxevt(pd_evt* e)
@@ -5409,16 +5459,20 @@ static void winvis(winptr win)
 
 {
 
-    ami_ulong snc; /* serial of the provoking request */
 
 #ifndef NOWDELAY
    if (!win->visible) { /* not already visible */
+
+        /* the lock is released across the map waits below, and another
+           thread on this window finds it not yet visible: one presents,
+           the rest draw on into the canvas, which shows when it maps */
+        if (win->mapping) return;
+        win->mapping = TRUE;
 
         /* first make all parents visible */
         if (win->parwin) winvis(win->parwin);
 
         /* present the master window onscreen */
-        snc = 0;
         pd_winmap(win->xmwhan, 1);
         /* place; a master child's origin carries the parent frame offset */
         {
@@ -5434,20 +5488,23 @@ static void winvis(winptr win)
             pd_winmove(win->xmwhan, win->xmwr.x+ox, win->xmwr.y+oy);
 
         }
-        pd_winflush(win->xmwhan); /* this window's toplevel alone */
 
         /* wait for the window to be displayed */
-        waitxmap(win->xmwhan, snc);
+        /* No wait for the map. The drawing goes into the window's own
+           canvas and is retained until the compositor configures and the
+           first compose lands, so nothing needs the map to have happened;
+           and a wait here, under the window's lock, held the event thread
+           that answers it from the window, and released, let another
+           thread free the screen a caller of this had in hand. The map
+           event still reaches the program through the queue. */
 
         /* present the subclient window onscreen */
-        snc = 0;
         pd_winmap(win->xwhan, 1);
-        pd_winflush(win->xmwhan); /* this window's toplevel alone */
 
         /* wait for the window to be displayed */
-        waitxmap(win->xwhan, snc);
 
         win->visible = TRUE; /* set now visible */
+        win->mapping = FALSE;
         restore(win); /* restore window */
 
     }
@@ -5680,6 +5737,7 @@ static void opnwin(int fn, int pfn, ami_long wid, int subclient)
     win->curdsp = 1; /* set current display screen */
     win->curupd = 1; /* set current update screen */
     win->visible = FALSE; /* set not visible */
+    win->mapping = FALSE; /* and not being presented */
     win->winstate = 0; /* set normal window */
     win->lwinstate = 0;
     win->childfrm = FALSE; /* set no Ami-drawn child frame */
@@ -11861,7 +11919,6 @@ static void blockcopyg_ivf(FILE* f, ami_long s, ami_long d, ami_long sx1, ami_lo
     }
     /* the copy is a complete act: push the requests to the server, so the
        result is onscreen before the caller's next step */
-    pd_winflush(win->xmwhan); /* this window's toplevel alone */
 
     scnunlock(win);
 
@@ -12968,7 +13025,7 @@ static void xwinevt(winptr win, ami_evtrec* er, pd_evt* e, int* keep)
                        clamp the request); a child menu window configures
                        synchronously and is not waited on */
                     if (!mwin->parwin &&
-                        waitxevt(pd_etresize, mwin->xmwhan, snc, &xe)) {
+                        waitxevtp(win, pd_etresize, mwin->xmwhan, snc, &xe)) {
 
                         xwc.width = xe.w;   /* adopt granted */
                         xwc.height = xe.h;
@@ -13299,7 +13356,7 @@ static void xwinevt(winptr win, ami_evtrec* er, pd_evt* e, int* keep)
 
                 while (dragging) {
 
-                    nextxevt(grx_padisplay, &de);
+                    nextxevtp(win, &de); /* the lock released across the wait */
                     if (de.etype == pd_etmouse) {
 
                         /* Coalesce only the consecutive run of already-queued
@@ -13312,7 +13369,7 @@ static void xwinevt(winptr win, ami_evtrec* er, pd_evt* e, int* keep)
                             pd_evt pk;
                             pd_evtpeek(grx_padisplay, &pk);
                             if (pk.etype != pd_etmouse) break;
-                            nextxevt(grx_padisplay, &de);
+                            nextxevtp(win, &de); /* the lock released across the wait */
                         }
                         int dx, dy;
                         if (pspace) {
@@ -13397,7 +13454,7 @@ static void xwinevt(winptr win, ami_evtrec* er, pd_evt* e, int* keep)
 
                 while (resizing) {
 
-                    nextxevt(grx_padisplay, &de);
+                    nextxevtp(win, &de); /* the lock released across the wait */
                     if (de.etype == pd_etmouse) {
 
                         /* motion compression: collapse a burst of queued motion
@@ -14751,7 +14808,7 @@ static void buffer_ivf(FILE* f, ami_long e)
                size. A child window configures synchronously and grants
                what was asked; only a top-level has a manager to answer. */
             if (!win->parwin &&
-                waitxevt(pd_etresize, win->xmwhan, snc, &xe)) {
+                waitxevtp(win, pd_etresize, win->xmwhan, snc, &xe)) {
 
                 win->xmwr.w = xe.w;   /* adopt WM-granted size */
                 win->xmwr.h = xe.h;
