@@ -497,19 +497,27 @@ void system_event_getsevt(sevptr ev)
     int                     si;  /* index for system event entries */
     uint64_t                exp; /* timer expiration time */
     char                    drain[64]; /* signal pipe contents */
+    int                     k;   /* scan count */
+    static int              lastsi = -1; /* the entry returned last, for a fair scan */
 
     pthread_mutex_lock(&evtlock); /* take the event lock */
     ev->typ = se_none; /* set no event occurred */
     do { /* find an active event */
 
         /* search for fid and sig entries */
-        for (si = 0; si < sysno && ev->typ == se_none; si++) if (systab[si]) {
+        /* the scan resumes after the entry returned last time: a scan from
+           the start returns the first ready entry every time, and one that
+           is always ready, a display eight threads keep busy, starves the
+           entries after it. The event loop's own timer never came. */
+        for (k = 0; k < sysno && ev->typ == se_none; k++)
+            if (systab[si = (lastsi+1+k)%sysno]) {
 
             if (systab[si]->fid >= 0 && FD_ISSET(systab[si]->fid, &ifdsets)) {
 
                 /* fid has flagged */
                 ev->typ = systab[si]->typ; /* set key event occurred */
                 ev->lse = si+1; /* set system logical event no */
+                lastsi = si; /* the next scan starts after this one */
                 FD_CLR(systab[si]->fid, &ifdsets); /* remove from input signals */
                 if (systab[si]->typ == se_tim) /* is a timer */
                     /* clear the timer by reading it's expiration time */

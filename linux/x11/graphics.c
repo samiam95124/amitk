@@ -1884,6 +1884,10 @@ static void *imalloc(size_t size)
     void* ptr;
 
     rt = 0;
+    /* retry a failing allocation, up to 100 times; stop as soon as it
+       succeeds. This loop once ran to 100 unconditionally, calling malloc
+       100 times and leaking 99 of every allocation the module made -- a
+       long run grew to the memory limit and was killed. */
     do {
 
         ptr = malloc(size);
@@ -1891,7 +1895,7 @@ static void *imalloc(size_t size)
         memrty++;
         if (memrty > maxrty) maxrty = memrty;
 
-    } while (rt < 100);
+    } while (!ptr && rt < 100);
     if (!ptr) {
 
 #ifdef PRTMEM
@@ -7327,7 +7331,9 @@ static void ileft(winptr win)
             iup(win); /* move cursor up one line */
             curoff(win); /* hide the cursor */
             sc->curx = sc->maxx; /* set cursor to extreme right */
-            sc->curxg = sc->maxxg-win->charspace;
+            /* the last column's cell: one past the width less a cell is
+               off the grid when the width is a whole number of cells */
+            sc->curxg = (sc->maxx-1)*win->charspace+1;
             curon(win); /* show the cursor */
 
         } else {
@@ -11665,7 +11671,8 @@ static void writejust_ivf(FILE* f, const char* s, ami_long n)
     /* if space provided is greater than the minimum, distribute the extra space
        amoung the existing spaces */
     ss = ns*MINJST; /* set minimum distribution of space */
-    if (n > sz) { spc = (n-cs)/ns; ss = n-cs; }
+    /* a string with no spaces has nothing to spread the space over */
+    if (n > sz && ns) { spc = (n-cs)/ns; ss = n-cs; }
     /* Output the string with our choosen spacing */
     for (i = 0; i < l; i++) {
 
@@ -11797,7 +11804,8 @@ static ami_long justpos_ivf(FILE* f, const char* s, ami_long p, ami_long n)
     /* if space provided is greater than the minimum, distribute the extra space
        amoung the existing spaces */
     ss = ns*MINJST; /* set minimum distribution of space */
-    if (n > sz) { spc = (n-cs)/ns; ss = n-cs; }
+    /* a string with no spaces has nothing to spread the space over */
+    if (n > sz && ns) { spc = (n-cs)/ns; ss = n-cs; }
     cp = 0; /* set 0 offset to character */
     crp = 0; /* clear result position */
     /* Output the string with our choosen spacing */

@@ -453,9 +453,8 @@ static void pl_frmdraw(winptr win, int mw, int mh)
            and a program drawing from another thread -- the remote display
            server does -- would otherwise render through it in between and
            leave it at its own size. */
-        grx_ftlock();
         FT_Set_Pixel_Sizes(win->ftface, title_size, title_size);
-        tlen = grx_ft_text_width(win->ftface, win->wintitle, len);
+        tlen = grx_ft_text_width(win, win->wintitle, len);
         int ty = (tbh + title_size) / 2 - 2;
 
         win->frmgc->fg = win->focus? framepal()->text: framepal()->textun;
@@ -464,13 +463,13 @@ static void pl_frmdraw(winptr win, int mw, int mh)
             /* title fits: center it in the available space */
             int tx = tleft + (avail - tlen) / 2;
             grx_ft_draw_string(pd_wincanvas(win->xmwhan), win->frmgc,
-                               win->ftface, title_size, title_size,
+                               win, title_size, title_size,
                                tx, ty, win->wintitle, len);
 
         } else {
 
             /* truncate with "..." */
-            int dotw = grx_ft_text_width(win->ftface, "...", 3);
+            int dotw = grx_ft_text_width(win, "...", 3);
             if (avail > dotw) {
 
                 int tw = 0;
@@ -487,16 +486,15 @@ static void pl_frmdraw(winptr win, int mw, int mh)
 
                 }
                 grx_ft_draw_string(pd_wincanvas(win->xmwhan), win->frmgc,
-                                   win->ftface, title_size, title_size,
+                                   win, title_size, title_size,
                                    tleft, ty, win->wintitle, tl);
                 grx_ft_draw_string(pd_wincanvas(win->xmwhan), win->frmgc,
-                                   win->ftface, title_size, title_size,
+                                   win, title_size, title_size,
                                    tleft + tw, ty, "...", 3);
 
             }
 
         }
-        grx_ftunlock();
 
     }
 

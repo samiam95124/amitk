@@ -3663,7 +3663,9 @@ static void ileft(winptr win)
             iup(win); /* move cursor up one line */
             curoff(win); /* hide the cursor */
             sc->curx = sc->maxx; /* set cursor to extreme right */
-            sc->curxg = sc->maxxg-win->charspace;
+            /* the last column's cell: one past the width less a cell is
+               off the grid when the width is a whole number of cells */
+            sc->curxg = (sc->maxx-1)*win->charspace+1;
             curon(win); /* show the cursor */
 
         } else {

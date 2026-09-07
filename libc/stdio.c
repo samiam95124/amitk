@@ -138,6 +138,9 @@ A test suite for the module is provided in tests/stdio_test.c.
 #include <unistd.h>
 #include <ctype.h>
 #include <sys/stat.h>
+#ifndef _WIN32
+#include <pthread.h>
+#endif
 
 #include <localdefs.h>
 
@@ -213,6 +216,21 @@ FILE *stderr = &stderrfe;
 /* open files table. The first 0, 1, and 2 entries are tied to stdin, stdout
    and stderr. This does not have to be, but it makes the system more
    organized. */
+
+/* The file table lock. The table of open files is a block of data threads
+   share: two threads opening at once must not be handed the same entry.
+   The allocation of an entry is under the lock, and the entry is marked
+   claimed before the lock drops, since the descriptor goes in only after.
+   Windows builds the module without pthreads and keeps the table as it
+   was. */
+#ifndef _WIN32
+static pthread_mutex_t filtablock = PTHREAD_MUTEX_INITIALIZER;
+#define FILTABLOCK()   pthread_mutex_lock(&filtablock)
+#define FILTABUNLOCK() pthread_mutex_unlock(&filtablock)
+#else
+#define FILTABLOCK()
+#define FILTABUNLOCK()
+#endif
 
 static FILE *opnfil[FOPEN_MAX] = {
 
@@ -730,15 +748,16 @@ static int maknod(void)
     int i, f; /* file table indexs */
 
     /* search first free file entry */
+    FILTABLOCK(); /* the table, for the allocation */
     f = 0; /* set no entry found */
     for (i = 0; i < FOPEN_MAX; i++) /* traverse table */
        if (!opnfil[i]) f = i; /* found NULL entry */
-       else if (opnfil[i]->_fileno < 0) f = i; /* found closed entry */
-    if (!f) return (f); /* file table is full, return error */
+       else if (opnfil[i]->_fileno == -1) f = i; /* found closed entry */
+    if (!f) { FILTABUNLOCK(); return (f); } /* file table is full, return error */
     if (!opnfil[f]) { /* not recyling a previous entry, allocate */
 
        opnfil[f] = malloc(sizeof(FILE)); /* get a new file tracking struct */
-       if (!opnfil[f]) return (0); /* couldn't allocate, exit w/ error */
+       if (!opnfil[f]) { FILTABUNLOCK(); return (0); } /* couldn't allocate, exit w/ error */
 
     }
     /* register the exit flush once, so buffered output is not lost on exit */
@@ -748,8 +767,10 @@ static int maknod(void)
        full buffering (neither the unbuffered nor line buffered flag), with the
        buffer allocated on first use. */
     memset(opnfil[f], 0, sizeof(FILE));
-    opnfil[f]->_fileno = -1; /* no logical file attached yet */
+    opnfil[f]->_fileno = -2; /* claimed, no logical file attached yet: not
+                                free to another thread, as -1 is */
     opnfil[f]->_flags = _IO_IS_FILEBUF; /* file backed, fully buffered */
+    FILTABUNLOCK();
 
     return f; /* return file id */
 

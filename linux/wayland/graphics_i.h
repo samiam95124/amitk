@@ -21,6 +21,7 @@
 
 #include <stdio.h>
 #include <sys/types.h>
+#include <pthread.h>
 
 #include <localdefs.h>
 #include <graphics.h>
@@ -169,9 +170,18 @@ typedef struct winrec {
     ami_long     wid;               /* this window logical id */
     winptr       childwin;          /* list of child windows */
     winptr       childlst;          /* list pointer if this is a child */
+    pthread_mutex_t chllock;        /* the lock on the child list above: a
+                                       thread opening or closing a child
+                                       of this window, or walking its
+                                       children, holds it for that (see
+                                       chllock() in graphics.c) */
     scnptr       screens[MAXCON];   /* screen contexts array */
     int          curdsp;            /* index for current display screen */
     int          curupd;            /* index for current update screen */
+    pthread_mutex_t scnlock;        /* the lock on the screens: the table
+                                       above, curdsp and curupd, and the
+                                       screen records themselves (see
+                                       scnlock() in graphics.c) */
     /* global sets. these are the global set parameters that apply to any new
       created screen buffer */
     ami_long     gmaxx;             /* maximum x size */
@@ -284,6 +294,7 @@ typedef struct winrec {
     xrect        xmwr;              /* master window rectangle */
     xrect        xwr;               /* subclient window rectangle */
     FT_Face      ftface;            /* current FreeType font face */
+    void*        gcache;            /* the face's glyph cache, graphics.c's */
     int          pfw;               /* parent/frame width (extra) */
     int          pfh;               /* parent frame height (extra) */
     int          cwox;              /* client window offset from parent
@@ -318,10 +329,10 @@ typedef struct winrec {
 extern pd_display* grx_padisplay; /* the display frames are flushed to */
 
 /* FreeType text, used for the frame title */
-void grx_ft_draw_string(pd_canvas* d, pd_draw* gc, FT_Face face,
+void grx_ft_draw_string(pd_canvas* d, pd_draw* gc, winptr win,
                         int pixel_size_x, int pixel_size_y,
                         int x, int y, char* s, int len);
-int  grx_ft_text_width(FT_Face face, const char* s, int len);
+int  grx_ft_text_width(winptr win, const char* s, int len);
 /* The font lock. The calls above take it themselves; this is for holding
    it across a run of them, as a title does -- measured at one size, then
    drawn -- so that another thread cannot render through the same face in
