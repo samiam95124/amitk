@@ -178,6 +178,9 @@ typedef struct winrec {
     scnptr       screens[MAXCON];   /* screen contexts array */
     int          curdsp;            /* index for current display screen */
     int          curupd;            /* index for current update screen */
+    int             scndepth;       /* how deep the owner holds scnlock: a
+                                       wait releases it whole and retakes */
+    pthread_t       scnowner;       /* who holds it, valid while scndepth */
     pthread_mutex_t scnlock;        /* the lock on the screens: the table
                                        above, curdsp and curupd, and the
                                        screen records themselves (see
@@ -284,6 +287,7 @@ typedef struct winrec {
     int          sysbar;            /* system bar on/off */
     int          sizests;           /* last resize status save */
     int          visible;           /* window is visible */
+    int          mapping;        /* a thread is presenting it, its lock released across the map waits */
     /* window state, 0 = normal, 1 = maximized, 2 = minimized */
     int          winstate;
     int          lwinstate;         /* last window state */
