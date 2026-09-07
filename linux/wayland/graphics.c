@@ -212,28 +212,35 @@ static pthread_mutex_t ftlock;
 
 /* forward declarations for FreeType helper functions. The _un names are
    the work; the ones without hold the font lock across it */
-static void ft_draw_char_un(pd_canvas* d, pd_draw* gc, FT_Face face,
+typedef struct glyphcache glyphcache; /* a face\'s glyph cache, below */
+static void ft_draw_char_un(pd_canvas* d, pd_draw* gc, glyphcache* cache, FT_Face face,
                             int pixel_size_x, int pixel_size_y,
                             int x, int y, char c);
 static void ft_draw_char_rotated_un(pd_canvas* d, pd_draw* gc, FT_Face face,
                                     int pixel_size_x, int pixel_size_y,
                                     float angle_rad, int x, int y, char c);
-static void ft_cache_clear_un(void);
-static void ft_invalidate_face_un(FT_Face face);
+static void ft_cache_free(glyphcache* cache);
+static int  ft_new_face(const char* path, int index, FT_Face* out);
+static void ft_done_face(FT_Face face);
+static int  ft_text_width_un(FT_Face face, const char* s, int len);
+static void ft_draw_string_un(pd_canvas* d, pd_draw* gc, glyphcache* cache,
+                              FT_Face face, int pixel_size_x, int pixel_size_y,
+                              int x, int y, char* s, int len);
+static glyphcache* dlgcache(void);
+static void scnlock(winptr win);
+static void scnunlock(winptr win);
 
-static void ft_draw_char(pd_canvas* d, pd_draw* gc, FT_Face face,
+static void ft_draw_char(pd_canvas* d, pd_draw* gc, winptr win,
                          int pixel_size_x, int pixel_size_y,
                          int x, int y, char c);
-void grx_ft_draw_string(pd_canvas* d, pd_draw* gc, FT_Face face,
+void grx_ft_draw_string(pd_canvas* d, pd_draw* gc, winptr win,
                            int pixel_size_x, int pixel_size_y,
                            int x, int y, char* s, int len);
-int  grx_ft_text_width(FT_Face face, const char* s, int len);
-static void ft_draw_char_rotated(pd_canvas* d, pd_draw* gc, FT_Face face,
+int  grx_ft_text_width(winptr win, const char* s, int len);
+static void ft_draw_char_rotated(pd_canvas* d, pd_draw* gc, winptr win,
                                  int pixel_size_x, int pixel_size_y,
                                  float angle_rad,
                                  int x, int y, char c);
-static void ft_cache_clear(void);
-static void ft_invalidate_face(FT_Face face);
 
 /*
  * Debug print system
@@ -1239,7 +1246,7 @@ static int errdlg(
 
     }
 
-    if (FT_New_Face(ftlibrary, (char*)fcfile, 0, &dlg_face)) {
+    if (ft_new_face((char*)fcfile, 0, &dlg_face)) {
 
         FcPatternDestroy(match);
         return (1);
@@ -1249,9 +1256,9 @@ static int errdlg(
     FT_Set_Pixel_Sizes(dlg_face, 0, dlg_size);
 
     /* minimum width for dialog system bar */
-    mw = grx_ft_text_width(dlg_face, t, strlen(t))+DLGTITPAD*sf;
+    mw = ft_text_width_un(dlg_face, t, strlen(t))+DLGTITPAD*sf;
     /* minimum width for dialog contents */
-    wd = nspc+ncirc+nspc+grx_ft_text_width(dlg_face, s, strlen(s));
+    wd = nspc+ncirc+nspc+ft_text_width_un(dlg_face, s, strlen(s));
     if (wd > mw) mw = wd; /* set minimum overall */
 
     /* find screen placement */
@@ -1271,7 +1278,7 @@ static int errdlg(
 
     pd_wintitle(w, t);
 
-    cw = grx_ft_text_width(dlg_face, cb, strlen(cb))+DLGBTNPAD*sf;
+    cw = ft_text_width_un(dlg_face, cb, strlen(cb))+DLGBTNPAD*sf;
     /* set button rectangle */
     bx1 = ww-cw-DLGBTNX*sf;
     by1 = btny;
@@ -1299,14 +1306,14 @@ static int errdlg(
             /* set text color */
             cxt->fg = 0x000000;
             /* center text on circle to the right */
-            grx_ft_draw_string(pd_wincanvas(w), cxt, dlg_face, dlg_size, dlg_size,
+            ft_draw_string_un(pd_wincanvas(w), cxt, dlgcache(), dlg_face, dlg_size, dlg_size,
                            nspc+ncirc+nspc, nspc+ncirc/2, s, strlen(s));
             /* place close button */
             cxt->fg = 0xffffff;
             pd_frect(pd_wincanvas(w), cxt, bx1, btny, cw, btnh);
             cxt->fg = 0x000000;
             pd_rect(pd_wincanvas(w), cxt, bx1, btny, cw, btnh);
-            grx_ft_draw_string(pd_wincanvas(w), cxt, dlg_face, dlg_size, dlg_size,
+            ft_draw_string_un(pd_wincanvas(w), cxt, dlgcache(), dlg_face, dlg_size, dlg_size,
                            bx1+DLGBTNTXTX*sf, DLGBTNTXTY*sf, cb, strlen(cb));
 
         } else if (e.etype == pd_etbtndown) {
@@ -1320,7 +1327,7 @@ static int errdlg(
     } while (1);
 
     pd_windel(w);
-    FT_Done_Face(dlg_face);
+    ft_done_face(dlg_face);
 
     return (0); /* exit no error */
 
@@ -1589,6 +1596,10 @@ static void *imalloc(size_t size)
     void* ptr;
 
     rt = 0;
+    /* retry a failing allocation, up to 100 times; stop as soon as it
+       succeeds. This loop once ran to 100 unconditionally, calling malloc
+       100 times and leaking 99 of every allocation the module made -- a
+       long run grew to the memory limit and was killed. */
     do {
 
         ptr = malloc(size);
@@ -1596,7 +1607,7 @@ static void *imalloc(size_t size)
         memrty++;
         if (memrty > maxrty) maxrty = memrty;
 
-    } while (rt < 100);
+    } while (!ptr && rt < 100);
     if (!ptr) {
 
 #ifdef PRTMEM
@@ -2902,6 +2913,10 @@ void setfnt(winptr win)
 
 {
 
+    /* the window's face is set under the window's lock; the library's own
+       lock is taken around the face's creation and destruction only */
+    scnlock(win);
+
     int      caps; /* matched capabilities set */
     xcaplst* cl;   /* capability list pointer */
     xcaplst* best; /* best matching entry */
@@ -2909,9 +2924,8 @@ void setfnt(winptr win)
     /* release any existing FreeType face */
     if (win->ftface) {
 
-        fflush(stderr);
-        ft_invalidate_face(win->ftface);
-        FT_Done_Face(win->ftface);
+        if (win->gcache) ft_cache_free(win->gcache); /* its glyphs go with it */
+        ft_done_face(win->ftface);
         win->ftface = NULL;
 
     }
@@ -2943,7 +2957,7 @@ void setfnt(winptr win)
     if (!best || !best->path) error(esystem);
 
     /* load the font face */
-    if (FT_New_Face(ftlibrary, best->path, best->index, &win->ftface))
+    if (ft_new_face(best->path, best->index, &win->ftface))
         error(esystem);
 
     /* Set the em-square pixel size so the resulting character cell
@@ -3036,6 +3050,8 @@ void setfnt(winptr win)
 
     }
 
+    scnunlock(win);
+
 }
 
 /*******************************************************************************
@@ -3056,12 +3072,16 @@ int xwidth(winptr win, char c)
     /* the face is at whatever size was last drawn with, the chrome's title
        included, so the logical size is set for the metric query, under the
        lock that keeps another thread's drawing from changing it in between */
-    pthread_mutex_lock(&ftlock);
-    FT_Set_Pixel_Sizes(win->ftface, 0, win->gfhigh_log);
+    scnlock(win); /* the window's face, under its lock */
     w = 0;
-    if (!FT_Load_Char(win->ftface, (unsigned char)c, FT_LOAD_DEFAULT))
-        w = (int)(win->ftface->glyph->advance.x >> 6);
-    pthread_mutex_unlock(&ftlock);
+    if (win->ftface) {
+
+        FT_Set_Pixel_Sizes(win->ftface, 0, win->gfhigh_log);
+        if (!FT_Load_Char(win->ftface, (unsigned char)c, FT_LOAD_DEFAULT))
+            w = (int)(win->ftface->glyph->advance.x >> 6);
+
+    }
+    scnunlock(win);
 
     return (w);
 
@@ -3078,7 +3098,7 @@ every draw call.
 
 #define GLYPH_CACHE_SIZE 512
 
-typedef struct {
+struct glyphcache {
 
     FT_Face  face;          /* font face this glyph belongs to */
     int      pixel_size_y;  /* em-square pixel size y */
@@ -3092,27 +3112,75 @@ typedef struct {
     int      advance;     /* horizontal advance */
     int      valid;       /* entry is valid */
 
-} glyphcache;
+};
 
-static glyphcache gcache[GLYPH_CACHE_SIZE];
+/* The cache is per face owner: a window's cache sits in its record and is
+   used, like its face, under the window's lock, so it needs none of its
+   own; the error dialog's face has this one. A single table shared by all
+   windows needed a lock of its own, and an entry handed to a caller could
+   be replaced under it by another window's glyph. */
+static glyphcache* dlg_cache; /* made at first use */
+
+/* a window's cache, made at first use */
+static glyphcache* wincache(winptr win)
+
+{
+
+    if (!win->gcache) win->gcache = calloc(GLYPH_CACHE_SIZE, sizeof(glyphcache));
+
+    return ((glyphcache*)win->gcache);
+
+}
+
+/* the error dialog's cache, made at first use */
+static glyphcache* dlgcache(void)
+
+{
+
+    if (!dlg_cache) dlg_cache = calloc(GLYPH_CACHE_SIZE, sizeof(glyphcache));
+
+    return (dlg_cache);
+
+}
+
+/* the library's own lock: FreeType allows one library across threads
+   provided face creation and destruction are serialized; a face is then
+   used by one thread at a time, which its owner's lock provides */
+static int ft_new_face(const char* path, int index, FT_Face* out)
+
+{
+
+    int rc;
+
+    pthread_mutex_lock(&ftlock);
+    rc = FT_New_Face(ftlibrary, path, index, out);
+    pthread_mutex_unlock(&ftlock);
+
+    return (rc);
+
+}
+
+static void ft_done_face(FT_Face face)
+
+{
+
+    pthread_mutex_lock(&ftlock);
+    FT_Done_Face(face);
+    pthread_mutex_unlock(&ftlock);
+
+}
 
 /* Invalidate all cache entries that reference a given face */
-static void ft_invalidate_face_un(FT_Face face)
+static void ft_cache_free(glyphcache* cache)
 
 {
 
     int i;
 
     for (i = 0; i < GLYPH_CACHE_SIZE; i++) {
-
-        if (gcache[i].valid && gcache[i].face == face) {
-
-            free(gcache[i].mask);
-            gcache[i].valid = 0;
-            gcache[i].mask = 0;
-
-        }
-
+        free(cache[i].mask);
+        cache[i].valid = 0;
+        cache[i].mask = 0;
     }
 
 }
@@ -3126,8 +3194,8 @@ and keeps the alpha mask for pd_glyph rendering.
 
 *******************************************************************************/
 
-static glyphcache* ft_cache_glyph(FT_Face face, int pixel_size_x,
-                                   int pixel_size_y, char c)
+static glyphcache* ft_cache_glyph(glyphcache* cache, FT_Face face,
+                                   int pixel_size_x, int pixel_size_y, char c)
 
 {
 
@@ -3142,7 +3210,7 @@ static glyphcache* ft_cache_glyph(FT_Face face, int pixel_size_x,
     gi = FT_Get_Char_Index(face, (unsigned char)c);
     hash = (gi * 31 + pixel_size_y * 17 + pixel_size_x * 13) % GLYPH_CACHE_SIZE;
 
-    ge = &gcache[hash];
+    ge = &cache[hash];
 
     /* check for cache hit */
     if (ge->valid && ge->face == face &&
@@ -3200,15 +3268,15 @@ alpha mask, honoring the draw record's mix mode.
 
 *******************************************************************************/
 
-static void ft_draw_char_un(pd_canvas* d, pd_draw* gc, FT_Face face,
-                            int pixel_size_x, int pixel_size_y,
+static void ft_draw_char_un(pd_canvas* d, pd_draw* gc, glyphcache* cache,
+                            FT_Face face, int pixel_size_x, int pixel_size_y,
                             int x, int y, char c)
 
 {
 
     glyphcache* ge;
 
-    ge = ft_cache_glyph(face, pixel_size_x, pixel_size_y, c);
+    ge = ft_cache_glyph(cache, face, pixel_size_x, pixel_size_y, c);
     if (!ge || !ge->mask) return;
 
     pd_glyph(d, gc, x + ge->bitmap_left, y - ge->bitmap_top,
@@ -3224,8 +3292,8 @@ Renders a string onto an X11 pd_canvas* using cached glyph stipples.
 
 *******************************************************************************/
 
-static void ft_draw_string_un(pd_canvas* d, pd_draw* gc, FT_Face face,
-                              int pixel_size_x, int pixel_size_y,
+static void ft_draw_string_un(pd_canvas* d, pd_draw* gc, glyphcache* cache,
+                              FT_Face face, int pixel_size_x, int pixel_size_y,
                               int x, int y, char* s, int len)
 
 {
@@ -3234,7 +3302,8 @@ static void ft_draw_string_un(pd_canvas* d, pd_draw* gc, FT_Face face,
 
     for (i = 0; i < len; i++) {
 
-        ft_draw_char(d, gc, face, pixel_size_x, pixel_size_y, x, y, s[i]);
+        /* under the caller's FreeType lock, with the face it resolved */
+        ft_draw_char_un(d, gc, cache, face, pixel_size_x, pixel_size_y, x, y, s[i]);
         if (FT_Load_Char(face, (unsigned char)s[i], FT_LOAD_DEFAULT) == 0)
             x += (int)(face->glyph->advance.x >> 6);
 
@@ -3346,21 +3415,6 @@ Clears all cached glyph pixmaps. Called when font system is shutting down.
 
 *******************************************************************************/
 
-static void ft_cache_clear_un(void)
-
-{
-
-    int i;
-
-    for (i = 0; i < GLYPH_CACHE_SIZE; i++) {
-
-        free(gcache[i].mask);
-        gcache[i].valid = 0;
-        gcache[i].mask = 0;
-
-    }
-
-}
 
 /*******************************************************************************
 
@@ -3382,43 +3436,50 @@ them, as the decorations do to measure a title and then draw it.
 void grx_ftlock(void) { pthread_mutex_lock(&ftlock); }
 void grx_ftunlock(void) { pthread_mutex_unlock(&ftlock); }
 
-static void ft_draw_char(pd_canvas* d, pd_draw* gc, FT_Face face,
+static void ft_draw_char(pd_canvas* d, pd_draw* gc, winptr win,
                          int pixel_size_x, int pixel_size_y,
                          int x, int y, char c)
 
 {
 
-    pthread_mutex_lock(&ftlock);
-    ft_draw_char_un(d, gc, face, pixel_size_x, pixel_size_y, x, y, c);
-    pthread_mutex_unlock(&ftlock);
+    /* the face and its cache are the window's, used under its lock: setfnt
+       replaces the face under the same lock */
+    scnlock(win);
+    if (win->ftface)
+        ft_draw_char_un(d, gc, wincache(win), win->ftface, pixel_size_x,
+                        pixel_size_y, x, y, c);
+    scnunlock(win);
 
 }
 
-void grx_ft_draw_string(pd_canvas* d, pd_draw* gc, FT_Face face,
+void grx_ft_draw_string(pd_canvas* d, pd_draw* gc, winptr win,
                         int pixel_size_x, int pixel_size_y,
                         int x, int y, char* s, int len)
 
 {
 
-    pthread_mutex_lock(&ftlock);
-    ft_draw_string_un(d, gc, face, pixel_size_x, pixel_size_y, x, y, s, len);
-    pthread_mutex_unlock(&ftlock);
+    scnlock(win); /* the window's face and cache, under its lock */
+    if (win->ftface)
+        ft_draw_string_un(d, gc, wincache(win), win->ftface, pixel_size_x,
+                          pixel_size_y, x, y, s, len);
+    scnunlock(win);
 
 }
 
-int grx_ft_text_width(FT_Face face, const char* s, int len)
+int grx_ft_text_width(winptr win, const char* s, int len)
 
 {
 
-    int w;
+    int w = 0;
 
-    pthread_mutex_lock(&ftlock);
-    w = ft_text_width_un(face, s, len);
-    pthread_mutex_unlock(&ftlock);
+    scnlock(win); /* the window's face, under its lock */
+    if (win->ftface) w = ft_text_width_un(win->ftface, s, len);
+    scnunlock(win);
 
     return (w);
 
 }
+
 
 /* The width of a string in the window's own font. The face is shared with
    the chrome, which measures and draws the title at its own size, and a
@@ -3432,48 +3493,36 @@ static int wintextwidth(winptr win, const char* s, int len)
 
     int w;
 
-    pthread_mutex_lock(&ftlock);
-    FT_Set_Pixel_Sizes(win->ftface, 0, win->gfhigh_log);
-    w = ft_text_width_un(win->ftface, s, len);
-    pthread_mutex_unlock(&ftlock);
+    scnlock(win); /* the window's face, under its lock */
+    w = 0;
+    if (win->ftface) {
+
+        FT_Set_Pixel_Sizes(win->ftface, 0, win->gfhigh_log);
+        w = ft_text_width_un(win->ftface, s, len);
+
+    }
+    scnunlock(win);
 
     return (w);
 
 }
 
-static void ft_draw_char_rotated(pd_canvas* d, pd_draw* gc, FT_Face face,
+static void ft_draw_char_rotated(pd_canvas* d, pd_draw* gc, winptr win,
                                  int pixel_size_x, int pixel_size_y,
                                  float angle_rad,
                                  int x, int y, char c)
 
 {
 
-    pthread_mutex_lock(&ftlock);
-    ft_draw_char_rotated_un(d, gc, face, pixel_size_x, pixel_size_y,
-                            angle_rad, x, y, c);
-    pthread_mutex_unlock(&ftlock);
+    scnlock(win); /* the window's face, under its lock */
+    if (win->ftface)
+        ft_draw_char_rotated_un(d, gc, win->ftface, pixel_size_x, pixel_size_y,
+                                angle_rad, x, y, c);
+    scnunlock(win);
 
 }
 
-static void ft_cache_clear(void)
 
-{
-
-    pthread_mutex_lock(&ftlock);
-    ft_cache_clear_un();
-    pthread_mutex_unlock(&ftlock);
-
-}
-
-static void ft_invalidate_face(FT_Face face)
-
-{
-
-    pthread_mutex_lock(&ftlock);
-    ft_invalidate_face_un(face);
-    pthread_mutex_unlock(&ftlock);
-
-}
 
 
 /*******************************************************************************
@@ -3806,6 +3855,7 @@ void rescale(pd_canvas* dp, pd_canvas* sp)
 
     unsigned int px1, px2, px3, px4;
     int sx, sy, dx, dy;
+    int sx1, sy1; /* the neighbors, clamped */
     float xr, yr;
     int xd, yd;
     int b, r, g;
@@ -3833,11 +3883,16 @@ void rescale(pd_canvas* dp, pd_canvas* sp)
             sy = yr*dy; /* find source y location */
             xd = (xr*dx)-sx;
             yd = (yr*dy)-sy;
+            /* the right and down neighbors, clamped to the source: a
+               source one pixel wide or high has none, and the neighbor
+               read ran past the end of its canvas */
+            sx1 = sx+1 < sw? sx+1: sx;
+            sy1 = sy+1 < sh? sy+1: sy;
             si = (sy*sstride+sx); /* find net source index */
             px1 = src[si]; /* get this pixel */
-            px2 = src[si+1]; /* get right pixel */
-            px3 = src[si+sstride]; /* get down pixel */
-            px4 = src[si+sstride+1]; /* get down/right pixel */
+            px2 = src[sy*sstride+sx1]; /* get right pixel */
+            px3 = src[sy1*sstride+sx]; /* get down pixel */
+            px4 = src[sy1*sstride+sx1]; /* get down/right pixel */
 
             b = (px1&0xff)*(1-xd)*(1-yd)+(px2&0xff)*xd*(1-yd)+
                    (px3&0xff)*yd*(1-xd)+(px4&0xff)*xd*yd;
@@ -3910,11 +3965,93 @@ static pthread_mutex_t winfrelock = PTHREAD_MUTEX_INITIALIZER;
 static int             evtbusy;    /* threads inside event processing */
 static windefer*       windeflst;  /* disposals awaiting the event end */
 
+/* The screen lock. A window's screens -- the table, the current display and
+   update indexes, and the screen records themselves -- are a block of data
+   that threads share: a thread drawing on the window reads them through
+   the draw, the event thread reads them handling the window's events, and
+   a buffer resize, a buffer switch or buffer off tears the table out and
+   rebuilds it. Each routine that touches the block takes the window's lock
+   for the access and drops it after. The lock is the window's own, so
+   threads on different windows never wait on each other, and it is
+   recursive, since the routines call each other. Nothing holds it across
+   a wait: the line editor drops it before it waits for the next key. */
+static void scnlock(winptr win) { pthread_mutex_lock(&win->scnlock); }
+static void scnunlock(winptr win) { pthread_mutex_unlock(&win->scnlock); }
+
+/* The child list lock. A window's list of children is a block of data
+   threads share: a thread opens a child on the window, another closes
+   one, the event thread walks the list to repaint the siblings of a
+   window that moved. Each holds the parent's list lock for its push, its
+   unlink or its read of the list, and no longer: a walk that goes on to
+   draw the siblings takes a copy of the list under the lock and draws
+   from the copy with the lock dropped, since drawing a sibling takes the
+   sibling's screen lock, and a thread holding that could be waiting for
+   this. */
+static void chllock(winptr win) { pthread_mutex_lock(&win->chllock); }
+static void chlunlock(winptr win) { pthread_mutex_unlock(&win->chllock); }
+
+/* The hold on the window records. A thread about to stand on windows it
+   does not own, the siblings of a window, holds the records against
+   disposal, as the event thread does through the handling of an event: a
+   disposal meanwhile is deferred to the last release. */
+static void winhold(void)
+
+{
+
+    pthread_mutex_lock(&winfrelock);
+    evtbusy++;
+    pthread_mutex_unlock(&winfrelock);
+
+}
+
+static void dispwin(winptr p); /* forward */
+static void disscn(winptr win, scnptr sc); /* forward */
+
+static void winrelease(void)
+
+{
+
+    windefer* dp;
+
+    pthread_mutex_lock(&winfrelock);
+    if (!--evtbusy) while (windeflst) {
+
+        /* the disposals that waited on this hold */
+        dp = windeflst;
+        windeflst = dp->next;
+        dispwin(dp->win);
+        ifree(dp);
+
+    }
+    pthread_mutex_unlock(&winfrelock);
+
+}
+
+/* the siblings of a window, copied under the parent's list lock; the
+   count, up to the room given */
+static int siblings(winptr win, winptr* out, int room)
+
+{
+
+    winptr sib;
+    int    n = 0;
+
+    if (!win->parwin) return (0);
+    chllock(win->parwin);
+    for (sib = win->parwin->childwin; sib && n < room; sib = sib->childlst)
+        if (sib != win) out[n++] = sib;
+    chlunlock(win->parwin);
+
+    return (n);
+
+}
+
 static winptr getwin(void)
 
 {
 
     winptr p;
+    pthread_mutexattr_t ma;
 
     pthread_mutex_lock(&winfrelock);
     if (winfre) { /* there is a freed entry */
@@ -3927,6 +4064,13 @@ static winptr getwin(void)
         p = imalloc(sizeof(winrec));
         wincnt++; /* count entries */
         wintot += sizeof(winrec); /* add to total memory used */
+        /* the screen lock lives as long as the record, freed entries
+           keeping theirs */
+        pthread_mutexattr_init(&ma);
+        pthread_mutexattr_settype(&ma, PTHREAD_MUTEX_RECURSIVE);
+        pthread_mutex_init(&p->scnlock, &ma);
+        pthread_mutex_init(&p->chllock, &ma);
+        pthread_mutexattr_destroy(&ma);
 
     }
     pthread_mutex_unlock(&winfrelock);
@@ -3951,7 +4095,29 @@ static void dispwin(winptr p)
     int si;
 
     for (si = 0; si < MAXCON; si++)
-        if (p->screens[si]) { ifree(p->screens[si]); p->screens[si] = NULL; }
+        if (p->screens[si]) {
+
+            disscn(p, p->screens[si]); /* the canvas and context too */
+            ifree(p->screens[si]);
+            p->screens[si] = NULL;
+
+        }
+    /* the frame's drawing context and the title string, given per window
+       by opnwin and title; leaked on every window close before this */
+    if (p->frmgc) { free(p->frmgc); p->frmgc = NULL; }
+    if (p->wintitle) { free(p->wintitle); p->wintitle = NULL; }
+    /* the FreeType face setfnt gave the window, and its cached glyphs. This
+       was never released on close -- every window leaked its face and the
+       masks of every glyph it drew. The window is gone here, so nothing
+       draws through the face; FreeType is entered under its lock. */
+    if (p->ftface) { ft_done_face(p->ftface); p->ftface = NULL; }
+    if (p->gcache) {
+
+        ft_cache_free(p->gcache); /* its glyph masks, then the table */
+        free(p->gcache);
+        p->gcache = NULL;
+
+    }
     p->next = winfre; /* push to list */
     winfre = p;
 
@@ -4102,15 +4268,21 @@ static int fndevt(pd_win* w)
 
 {
 
-    int fi; /* index for file table */
-    int ff; /* found file */
+    int    fi; /* index for file table */
+    int    ff; /* found file */
+    winptr wp; /* the entry's window, taken once */
 
     fi = 0; /* start index */
     ff = -1; /* set no file found */
     while (fi < MAXFIL) {
 
-        if (opnfil[fi] && opnfil[fi]->win &&
-            (opnfil[fi]->win->xmwhan == w || opnfil[fi]->win->xwhan == w)) {
+        /* the window is taken into a local and used from there: a worker
+           closing this file sets opnfil[fi]->win to NULL between the test
+           and the use, and the record read twice would fault. Window
+           records are pooled and never freed, so the local is always safe
+           to read, a stale one at worst. */
+        wp = opnfil[fi]? opnfil[fi]->win: NULL;
+        if (wp && (wp->xmwhan == w || wp->xwhan == w)) {
 
             ff = fi; /* set found */
             fi = MAXFIL; /* terminate */
@@ -4344,8 +4516,13 @@ static int waitxevt(int type, pd_win* wh, ami_ulong since, pd_evt* out)
     for (;;) {
 
         if (sawxevt(type, wh, since, out)) return (1);
-        got = 0;
-        if (evtpending(grx_padisplay)) { nextxevt(grx_padisplay, &e); got = 1; }
+        /* a non-blocking fetch: the check and the take are one operation.
+           This was a peek followed by a blocking fetch, and the event thread
+           could take the peeked event between the two; the fetch then waited
+           for an event that never came, an idle desktop sends none, and the
+           bound below was never reached. The random test hung this way after
+           49 minutes, a worker waiting for its parent's map. */
+        got = pd_evtnext(grx_padisplay, &e, 0);
         if (got) { notexevt(&e); enquexevt(&e); }
         else {
 
@@ -4638,6 +4815,8 @@ static void curdrw(winptr win)
 
     scnptr sc;  /* pointer to current screen */
 
+    scnlock(win); /* the screens */
+    if (!win->xwhan) { scnunlock(win); return; } /* closed: no canvas to draw in */
     sc = win->screens[win->curupd-1]; /* index current update screen */
     sc->xcxt->fg = colnum(ami_white);
     sc->xcxt->mix = pd_mixxor; /* set reverse */
@@ -4659,6 +4838,8 @@ static void curdrw(winptr win)
     if (BIT(sarev) & sc->attr) sc->xcxt->fg = sc->bcrgb;
     else sc->xcxt->fg = sc->fcrgb;
 
+    scnunlock(win);
+
 }
 
 /*******************************************************************************
@@ -4675,6 +4856,7 @@ static void curon(winptr win)
 
     scnptr sc;  /* pointer to current screen */
 
+    scnlock(win); /* the screens */
     sc = win->screens[win->curdsp-1]; /* index current screen */
     if (!win->fcurdwn && sc->curv && icurbnd(sc))  {
 
@@ -4684,6 +4866,8 @@ static void curon(winptr win)
         win->fcurdwn = TRUE; /* set cursor on screen */
 
     }
+
+    scnunlock(win);
 
 }
 
@@ -4701,6 +4885,7 @@ static void curoff(winptr win)
 
     scnptr sc;  /* pointer to current screen */
 
+    scnlock(win); /* the screens */
     sc = win->screens[win->curdsp-1]; /* index current screen */
     if (win->fcurdwn && sc->curv && icurbnd(sc))  {
 
@@ -4708,6 +4893,8 @@ static void curoff(winptr win)
         win->fcurdwn = FALSE; /* set cursor not on screen */
 
     }
+
+    scnunlock(win);
 
 }
 
@@ -4727,6 +4914,7 @@ static void cursts(winptr win)
 {
 
 
+    scnlock(win); /* the screens */
     if (win->screens[win->curdsp-1]->curv &&
         icurbnd(win->screens[win->curdsp-1])) {
 
@@ -4750,6 +4938,8 @@ static void cursts(winptr win)
         }
 
     }
+
+    scnunlock(win);
 
 }
 
@@ -4831,6 +5021,7 @@ static int childfrm_find_minslot(winptr win)
     int found;
 
     if (!parent) return 0;
+    chllock(parent); /* the list, for the search */
     do {
         found = 0;
         for (sib = parent->childwin; sib; sib = sib->childlst) {
@@ -4845,6 +5036,7 @@ static int childfrm_find_minslot(winptr win)
 
         }
     } while (found);
+    chlunlock(parent);
     return slot;
 
 }
@@ -4944,10 +5136,15 @@ static void themechange(void)
     if (!dec->themechg(thmfd)) return; /* no change to the palette */
     /* repaint every framed window in the new palette */
     for (fi = 0; fi < MAXFIL; fi++)
-        if (opnfil[fi] && opnfil[fi]->win && opnfil[fi]->win->childfrm &&
-            opnfil[fi]->win->xmwhan)
-            dec->frmdraw(opnfil[fi]->win, opnfil[fi]->win->xmwr.w,
-                         opnfil[fi]->win->xmwr.h);
+        if (opnfil[fi] && opnfil[fi]->win && opnfil[fi]->win->childfrm) {
+
+            scnlock(opnfil[fi]->win); /* its frame, under its lock */
+            if (opnfil[fi]->win->xmwhan)
+                dec->frmdraw(opnfil[fi]->win, opnfil[fi]->win->xmwr.w,
+                             opnfil[fi]->win->xmwr.h);
+            scnunlock(opnfil[fi]->win);
+
+        }
 
 }
 
@@ -4967,6 +5164,13 @@ static void restore(winptr win) /* window to restore */
     scnptr sc;
     int winw, winh; /* client area size */
 
+    scnlock(win); /* the screens */
+    if (!win->xwhan) { /* closed meanwhile: nothing to restore */
+
+        scnunlock(win);
+        return;
+
+    }
     sc = win->screens[win->curdsp-1]; /* index screen */
     if (win->bufmod && win->visible)  { /* buffered mode is on, and visible */
 
@@ -5022,6 +5226,8 @@ static void restore(winptr win) /* window to restore */
 
     }
 
+    scnunlock(win);
+
 }
 
 /* Restore only the rectangle (x,y,w,h) of a buffered window's client area from
@@ -5040,8 +5246,14 @@ static void restore_rect(winptr win, int x, int y, int w, int h)
     int    cx, cy, cw, ch; /* exposed rect clipped to the buffer */
 
     if (w <= 0 || h <= 0) return;
+    scnlock(win); /* the screens */
     sc = win->screens[win->curdsp-1]; /* index screen */
-    if (!(win->bufmod && win->visible)) return; /* nothing buffered to restore */
+    if (!(win->bufmod && win->visible)) { /* nothing buffered to restore */
+
+        scnunlock(win);
+        return;
+
+    }
 
     curoff(win); /* hide the cursor for drawing */
     /* background fill for the whole exposed rect (covers any beyond-buffer part;
@@ -5061,6 +5273,8 @@ static void restore_rect(winptr win, int x, int y, int w, int h)
     sc->xcxt->fg =
                    (BIT(sarev) & sc->attr) ? sc->bcrgb : sc->fcrgb;
     curon(win); /* show the cursor */
+
+    scnunlock(win);
 
 }
 
@@ -5093,13 +5307,17 @@ static void drag_expose(winptr ewin, pd_win* w, int x, int y, int wd, int ht)
            window's background color instead, as restore_rect does for its
            beyond-buffer region, to erase the trail live during the drag. The
            real content is regenerated by drag_repaint_full() on release. */
-        scnptr sc = ewin->screens[ewin->curdsp-1];
+        scnptr sc;
+
+        scnlock(ewin);
+        sc = ewin->screens[ewin->curdsp-1];
         sc->xcxt->fg =
                        (BIT(sarev) & sc->attr) ? sc->fcrgb : sc->bcrgb;
         pd_frect(pd_wincanvas(w), sc->xcxt, x, y, wd, ht);
         /* leave the pd_draw* foreground as the normal drawing color */
         sc->xcxt->fg =
                        (BIT(sarev) & sc->attr) ? sc->bcrgb : sc->fcrgb;
+        scnunlock(ewin);
 
     }
 
@@ -5113,6 +5331,7 @@ static void drag_repaint_full(winptr win)
 
 {
 
+    if (!win->xwhan) return; /* closed meanwhile: nothing to repaint */
     if (win->bufmod) restore(win);
     else {
 
@@ -5348,7 +5567,13 @@ static void disscn(winptr win, scnptr sc)
 
 {
 
-    /* need to do disposals here */
+    /* the canvas and the drawing context iniscn gave the screen; a screen
+       whose canvas was detached, as sizbufg detaches the display buffer's
+       to copy from, has none to free. This was a stub, and every buffer
+       resize, buffer off and window close leaked its canvases: the random
+       test grew to the memory limit in minutes. */
+    if (sc->xbuf) { pd_candel(sc->xbuf); sc->xbuf = NULL; }
+    if (sc->xcxt) { free(sc->xcxt); sc->xcxt = NULL; }
 
 }
 
@@ -5374,6 +5599,14 @@ static void opnwin(int fn, int pfn, ami_long wid, int subclient)
     pd_win*              pw;
 
     win = lfn2win(fn); /* get a pointer to the window */
+    /* Built under its own lock. The record is reachable before it is
+       complete: it is linked into the parent's child list at once, and it
+       is found by the event thread through its display handles as soon as
+       those are made, while its screen is set up only after. An expose for
+       a handle whose address a closed window just gave up reached a window
+       whose screen context was still uninitialized. The lock holds those
+       until the window is whole. Nothing here waits on the compositor. */
+    scnlock(win);
     /* find parent */
     win->parlfn = pfn; /* set parent logical number */
     win->wid = wid; /* set window id */
@@ -5384,8 +5617,10 @@ static void opnwin(int fn, int pfn, ami_long wid, int subclient)
     win->childlst = NULL; /* clear child member list pointer */
     if (pwin) { /* we have a parent, enter this child to the parent list */
 
+        chllock(pwin);
         win->childlst = pwin->childwin; /* push to parent's child list */
         pwin->childwin = win;
+        chlunlock(pwin);
 
     }
     win->mb1 = FALSE; /* set mouse as assumed no buttons down, at origin */
@@ -5497,6 +5732,7 @@ static void opnwin(int fn, int pfn, ami_long wid, int subclient)
     win->misoffx = win->gfhigh*MISOFFX; /* set offset x */
     win->misoffy = win->gfhigh*MISOFFY; /* set offset x */
     win->ftface = NULL; /* clear current font face */
+    win->gcache = NULL; /* its glyph cache is made at first use */
     setfnt(win); /* select font */
 
     /* set standard/reference font sizes */
@@ -5617,6 +5853,7 @@ static void opnwin(int fn, int pfn, ami_long wid, int subclient)
     iniscn(win, win->screens[0]); /* initalize screen buffer */
     restore(win); /* update to screen */
 
+    scnunlock(win); /* built: the event thread may have it now */
 }
 
 /*******************************************************************************
@@ -5634,9 +5871,12 @@ static void clswin(int fn)
     winptr win; /* window pointer */
 
     win = lfn2win(fn); /* get a pointer to the window */
-    /* destroy the window */
+    /* destroy the window, and mark it gone: an event still queued for it
+       finds no window to draw in */
     pd_windel(win->xwhan);
     pd_windel(win->xmwhan);
+    win->xwhan = NULL;
+    win->xmwhan = NULL;
 
 }
 
@@ -5692,6 +5932,7 @@ static void remchlwin(winptr par, winptr win)
     winptr l; /* pointer to last */
     winptr f; /* found entry */
 
+    chllock(par);
     p = par->childwin; /* index top of list */
     /* if top of list, link parent to next to gap it */
     if (p == win) par->childwin = p->childlst;
@@ -5717,6 +5958,7 @@ static void remchlwin(winptr par, winptr win)
         l->childlst = f->childlst; /* gap over entry */
 
     }
+    chlunlock(par);
 
 }
 
@@ -5733,13 +5975,19 @@ static void closewin(int ofn)
     wid = filwin[ofn]; /* get window id */
     ifn = opnfil[ofn]->inl; /* get the input file link */
     win = lfn2win(ofn); /* get a pointer to the window */
+    /* the display windows go under the screen lock: the event thread holds
+       it through the handling of an event on this window, so it is never
+       drawing into them as they go */
+    scnlock(win);
     clswin(ofn); /* close the window */
-    clsfil(ofn); /* flush and close output file */
-    /* if no remaining links exist, flush and close input file */
-    if (!inplnk(ifn)) clsfil(ifn);
     filwin[ofn] = -1; /* clear file to window translation */
     xltwin[wid+MAXFIL] = -1; /* clear window to file translation */
-    remquepawin(wid); /* remove any pending PA queue entries */
+    scnunlock(win);
+    /* Out of the parent's tree first, while the record is still this
+       window's. clsfil below releases the record to the pool, and another
+       thread's open can take and relink it at once; the removal that came
+       after it then walked a list with a foreign record in it, missed this
+       window, and failed the consistency check. */
     if (win->parwin) { /* is child window */
 
         if (win->focus) { /* child has focus */
@@ -5757,6 +6005,9 @@ static void closewin(int ofn)
         remchlwin(win->parwin, win);
 
     }
+    clsfil(ofn); /* flush and close output file: the record goes to the pool */
+    if (!inplnk(ifn)) clsfil(ifn);
+    remquepawin(wid); /* remove any pending PA queue entries */
 
 }
 
@@ -6238,6 +6489,7 @@ static void iclear(winptr win)
 
     scnptr sc;
 
+    scnlock(win); /* the screens */
     sc = win->screens[win->curupd-1]; /* index current update screen */
     sc->curx = 1; /* set cursor at home */
     sc->cury = 1;
@@ -6254,6 +6506,8 @@ static void iclear(winptr win)
         curon(win); /* show the cursor */
 
     }
+
+    scnunlock(win);
 
 }
 
@@ -6293,6 +6547,7 @@ static void iscrollg(winptr win, ami_long x, ami_long y)
     x = L2PDX(win, x);
     y = L2PDY(win, y);
 
+    scnlock(win); /* the screens */
     sc = win->screens[win->curupd-1]; /* index current screen */
     /* scroll would result in complete clear, do it */
     if (x <= -sc->maxxg || x >= sc->maxxg ||
@@ -6378,6 +6633,8 @@ static void iscrollg(winptr win, ami_long x, ami_long y)
     if (indisp(win) && win->bufmod)
         restore(win); /* move buffer to screen */
 
+    scnunlock(win);
+
 }
 
 /** ****************************************************************************
@@ -6394,6 +6651,7 @@ static void icursor(winptr win, ami_long x, ami_long y)
 
     scnptr sc;
 
+    scnlock(win); /* the screens */
     sc = win->screens[win->curupd-1]; /* index update screen */
     curoff(win); /* hide the cursor */
     sc->cury = y; /* set new position */
@@ -6401,6 +6659,8 @@ static void icursor(winptr win, ami_long x, ami_long y)
     sc->curxg = (x-1)*win->charspace+1;
     sc->curyg = (y-1)*win->linespace+1;
     curon(win); /* show the cursor */
+
+    scnunlock(win);
 
 }
 
@@ -6418,6 +6678,7 @@ static void icursorg(winptr win, ami_long x, ami_long y)
 
     scnptr sc;
 
+    scnlock(win); /* the screens */
     sc = win->screens[win->curupd-1]; /* index screen */
     curoff(win); /* hide the cursor */
     sc->curyg = y; /* set new position */
@@ -6425,6 +6686,8 @@ static void icursorg(winptr win, ami_long x, ami_long y)
     sc->curx = x/win->charspace+1;
     sc->cury = y/win->linespace+1;
     curon(win); /* show the cursor */
+
+    scnunlock(win);
 
 }
 
@@ -6442,6 +6705,7 @@ static void ihome(winptr win)
 
     scnptr sc;
 
+    scnlock(win); /* the screens */
     sc = win->screens[win->curupd-1]; /* index screen */
     curoff(win); /* hide the cursor */
     /* reset cursors */
@@ -6450,6 +6714,8 @@ static void ihome(winptr win)
     sc->curxg = 1;
     sc->curyg = 1;
     curon(win); /* show the cursor */
+
+    scnunlock(win);
 
 }
 
@@ -6470,6 +6736,7 @@ static void iup(winptr win)
 
     scnptr sc;
 
+    scnlock(win); /* the screens */
     sc = win->screens[win->curupd-1]; /* index screen */
     /* check not top of screen */
     if (sc->cury > 1) {
@@ -6491,6 +6758,8 @@ static void iup(winptr win)
 
     }
 
+    scnunlock(win);
+
 }
 
 /** ****************************************************************************
@@ -6510,6 +6779,7 @@ static void idown(winptr win)
 
     scnptr sc;
 
+    scnlock(win); /* the screens */
     sc = win->screens[win->curupd-1]; /* index screen */
     /* check not bottom of screen */
     if (sc->cury < sc->maxy) {
@@ -6530,6 +6800,8 @@ static void idown(winptr win)
 
     }
 
+    scnunlock(win);
+
 }
 
 /** ****************************************************************************
@@ -6548,6 +6820,7 @@ static void ileft(winptr win)
 
     scnptr sc;
 
+    scnlock(win); /* the screens */
     sc = win->screens[win->curupd-1]; /* index screen */
     /* check not at extreme left */
     if (sc->curx > 1) {
@@ -6564,7 +6837,9 @@ static void ileft(winptr win)
             iup(win); /* move cursor up one line */
             curoff(win); /* hide the cursor */
             sc->curx = sc->maxx; /* set cursor to extreme right */
-            sc->curxg = sc->maxxg-win->charspace;
+            /* the last column's cell: one past the width less a cell is
+               off the grid when the width is a whole number of cells */
+            sc->curxg = (sc->maxx-1)*win->charspace+1;
             curon(win); /* show the cursor */
 
         } else {
@@ -6583,6 +6858,8 @@ static void ileft(winptr win)
 
     }
 
+    scnunlock(win);
+
 }
 
 /** ****************************************************************************
@@ -6599,6 +6876,7 @@ static void iright(winptr win)
 
     scnptr sc;
 
+    scnlock(win); /* the screens */
     sc = win->screens[win->curupd-1]; /* index screen */
     /* check not at extreme right */
     if (sc->curx < sc->maxx) {
@@ -6634,6 +6912,8 @@ static void iright(winptr win)
 
     }
 
+    scnunlock(win);
+
 }
 
 /** ****************************************************************************
@@ -6654,6 +6934,7 @@ static void itab(winptr win)
     ami_long x;
     scnptr sc;
 
+    scnlock(win); /* the screens */
     sc = win->screens[win->curupd-1];
     curoff(win); /* hide the cursor */
     /* first, find if next tab even exists */
@@ -6669,6 +6950,8 @@ static void itab(winptr win)
 
     }
     curon(win); /* show the cursor */
+
+    scnunlock(win);
 
 }
 
@@ -6687,6 +6970,7 @@ static void isettabg(winptr win, ami_long t)
     int i, x; /* tab index */
     scncon* sc; /* screen context */
 
+    scnlock(win); /* the screens */
     sc = win->screens[win->curupd-1];
     if (sc->autof && (t-1)%win->charspace)
         error(eatotab); /* cannot perform with auto on */
@@ -6703,6 +6987,8 @@ static void isettabg(winptr win, ami_long t)
         sc->tab[i] = t; /* place tab in order */
 
     }
+
+    scnunlock(win);
 
 }
 
@@ -6722,6 +7008,7 @@ static void irestabg(winptr win, ami_long t)
     int     ft; /* found tab */
     scncon* sc; /* screen context */
 
+    scnlock(win); /* the screens */
     sc = win->screens[win->curupd-1];
     if (t < 1 || t > sc->maxxg) error(einvtab); /* bad tab position */
     /* search for that tab */
@@ -6734,6 +7021,8 @@ static void irestabg(winptr win, ami_long t)
        sc->tab[MAXTAB-1] = 0; /* clear any last tab */
 
     }
+
+    scnunlock(win);
 
 }
 
@@ -6768,6 +7057,7 @@ static void iauto(winptr win, ami_long e)
 
     scnptr sc;
 
+    scnlock(win); /* the screens */
     sc = win->screens[win->curupd-1];
     /* check we are transitioning to auto mode */
     if (e) {
@@ -6783,6 +7073,8 @@ static void iauto(winptr win, ami_long e)
     }
     sc->autof = e; /* set auto status */
     win->gauto = e;
+
+    scnunlock(win);
 
 }
 
@@ -6828,7 +7120,7 @@ static void drwchr90(winptr win, scnptr sc, int cs, int ce, pd_canvas* d, char c
 
             if (ce) /* character exists */
                 /* draw character */
-                ft_draw_char(d, sc->xcxt, win->ftface, win->gfhighx, win->gfhigh,
+                ft_draw_char(d, sc->xcxt, win, win->gfhighx, win->gfhigh,
                              px, py+pbo, c);
             else /* does not exist, draw missing character box */
                 pd_rect(d, sc->xcxt,
@@ -6849,7 +7141,7 @@ static void drwchr90(winptr win, scnptr sc, int cs, int ce, pd_canvas* d, char c
         sc->xcxt->mix = mod2fnc[sc->fmod];
         if (ce) /* character exists */
             /* draw character */
-            ft_draw_char(d, sc->xcxt, win->ftface, win->gfhighx, win->gfhigh,
+            ft_draw_char(d, sc->xcxt, win, win->gfhighx, win->gfhigh,
                          px, py+pbo, c);
         else /* does not exist, draw missing character box */
             pd_rect(d, sc->xcxt,
@@ -7046,7 +7338,7 @@ static void drwchr(winptr win, scnptr sc, int cs, int ce, pd_canvas* d, char c)
 
             if (ce) /* character exists */
                 /* draw character */
-                ft_draw_char_rotated(d, sc->xcxt, win->ftface, win->gfhighx, win->gfhigh,
+                ft_draw_char_rotated(d, sc->xcxt, win, win->gfhighx, win->gfhigh,
                                      RADIAN(sc->angle), xb, yb, c);
             else /* does not exist, draw missing character box */
                 drwrecta(d, sc, sc->angle,
@@ -7066,7 +7358,7 @@ static void drwchr(winptr win, scnptr sc, int cs, int ce, pd_canvas* d, char c)
         sc->xcxt->mix = mod2fnc[sc->fmod];
         if (ce) /* character exists */
             /* draw character */
-            ft_draw_char_rotated(d, sc->xcxt, win->ftface, win->gfhighx, win->gfhigh,
+            ft_draw_char_rotated(d, sc->xcxt, win, win->gfhighx, win->gfhigh,
                                  RADIAN(sc->angle), xb, yb, c);
         else /* does not exist, draw missing character box */
             drwrecta(d, sc, sc->angle,
@@ -7117,6 +7409,7 @@ static void plcchr(winptr win, char c)
     int    cs; /* character spacing */
     int    ce; /* character exists */
 
+    scnlock(win); /* the screens */
     sc = win->screens[win->curupd-1]; /* index current screen */
     if (!win->visible) winvis(win); /* make sure we are displayed */
     /* handle special character cases first */
@@ -7202,6 +7495,8 @@ static void plcchr(winptr win, char c)
 
     }
 
+    scnunlock(win);
+
 }
 
 /*******************************************************************************
@@ -7236,6 +7531,7 @@ static void readline(int fd)
 
             /* output file indexes our input file */
             win = lwn2win(er.winid); /* get the window from the id */
+            scnlock(win); /* the screens, for this key */
             sc = win->screens[win->curupd-1]; /* index current screen */
             if (win->inpptr < 0) { /* buffer is flagged empty */
 
@@ -7457,6 +7753,7 @@ static void readline(int fd)
 
             }
 
+            scnunlock(win);
         }
 
     } while (!lcmp); /* until line complete */
@@ -8112,6 +8409,7 @@ static void reverse_ivf(FILE* f, ami_long e)
     scnptr sc; /* screen pointer */
 
     win = txt2win(f); /* get window from file */
+    scnlock(win); /* the screens */
     sc = win->screens[win->curupd-1];
     if (e) { /* reverse on */
 
@@ -8128,6 +8426,8 @@ static void reverse_ivf(FILE* f, ami_long e)
         sc->xcxt->fg = sc->fcrgb;
 
     }
+
+    scnunlock(win);
 
 }
 
@@ -8152,6 +8452,7 @@ static void underline_ivf(FILE* f, ami_long e)
     scnptr sc;  /* screen pointer */
 
     win = txt2win(f); /* get window from file */
+    scnlock(win); /* the screens */
     sc = win->screens[win->curupd-1];
     if (e) { /* underline on */
 
@@ -8164,6 +8465,8 @@ static void underline_ivf(FILE* f, ami_long e)
         win->gattr &= ~BIT(saundl);
 
     }
+
+    scnunlock(win);
 
 }
 
@@ -8190,6 +8493,7 @@ static void superscript_ivf(FILE* f, ami_long e)
     scnptr sc;  /* screen pointer */
 
     win = txt2win(f); /* get window from file */
+    scnlock(win); /* the screens */
     sc = win->screens[win->curupd-1];
     if (e) { /* strikeout on */
 
@@ -8202,6 +8506,8 @@ static void superscript_ivf(FILE* f, ami_long e)
        win->gattr &= ~BIT(sasuper);
 
     }
+
+    scnunlock(win);
 
 }
 
@@ -8228,6 +8534,7 @@ static void subscript_ivf(FILE* f, ami_long e)
     scnptr sc;  /* screen pointer */
 
     win = txt2win(f); /* get window from file */
+    scnlock(win); /* the screens */
     sc = win->screens[win->curupd-1];
     if (e) { /* strikeout on */
 
@@ -8240,6 +8547,8 @@ static void subscript_ivf(FILE* f, ami_long e)
        win->gattr &= ~BIT(sasubs);
 
     }
+
+    scnunlock(win);
 
 }
 
@@ -8264,6 +8573,7 @@ static void italic_ivf(FILE* f, ami_long e)
     scnptr sc;  /* screen pointer */
 
     win = txt2win(f); /* get window from file */
+    scnlock(win); /* the screens */
     sc = win->screens[win->curupd-1];
     if (e) { /* strikeout on */
 
@@ -8281,6 +8591,8 @@ static void italic_ivf(FILE* f, ami_long e)
     curoff(win); /* remove cursor with old font characteristics */
     setfnt(win); /* select the font */
     curon(win); /* replace cursor with new font characteristics */
+
+    scnunlock(win);
 
 }
 
@@ -8305,6 +8617,7 @@ static void bold_ivf(FILE* f, ami_long e)
     scnptr sc;  /* screen pointer */
 
     win = txt2win(f); /* get window from file */
+    scnlock(win); /* the screens */
     sc = win->screens[win->curupd-1];
     if (e) { /* strikeout on */
 
@@ -8322,6 +8635,8 @@ static void bold_ivf(FILE* f, ami_long e)
     curoff(win); /* remove cursor with old font characteristics */
     setfnt(win); /* select the font */
     curon(win); /* replace cursor with new font characteristics */
+
+    scnunlock(win);
 
 }
 
@@ -8348,6 +8663,7 @@ static void strikeout_ivf(FILE* f, ami_long e)
     scnptr sc;  /* screen pointer */
 
     win = txt2win(f); /* get window from file */
+    scnlock(win); /* the screens */
     sc = win->screens[win->curupd-1];
     if (e) { /* strikeout on */
 
@@ -8360,6 +8676,8 @@ static void strikeout_ivf(FILE* f, ami_long e)
        win->gattr &= ~BIT(sastkout);
 
     }
+
+    scnunlock(win);
 
 }
 
@@ -8404,12 +8722,15 @@ static void fcolor_ivf(FILE* f, ami_color c)
     scnptr sc;  /* screen pointer */
 
     win = txt2win(f); /* get window from file */
+    scnlock(win); /* the screens */
     sc = win->screens[win->curupd-1]; /* index update screen */
     sc->fcrgb = colnum(c); /* set color status */
     win->gfcrgb = sc->fcrgb;
     /* set screen color according to reverse */
     if (BIT(sarev) & sc->attr) sc->xcxt->bg = sc->fcrgb;
     else sc->xcxt->fg = sc->fcrgb;
+
+    scnunlock(win);
 
 }
 
@@ -8433,12 +8754,15 @@ static void fcolorc_ivf(FILE* f, ami_long r, ami_long g, ami_long b)
     scnptr sc;  /* screen pointer */
 
     win = txt2win(f); /* get window from file */
+    scnlock(win); /* the screens */
     sc = win->screens[win->curupd-1]; /* index update screen */
     sc->fcrgb = rgb2xwin(r, g, b); /* set color status */
     win->gfcrgb = sc->fcrgb;
     /* set screen color according to reverse */
     if (BIT(sarev) & sc->attr) sc->xcxt->bg = sc->fcrgb;
     else sc->xcxt->fg = sc->fcrgb;
+
+    scnunlock(win);
 
 }
 
@@ -8467,12 +8791,15 @@ static void fcolorg_ivf(FILE* f, ami_long r, ami_long g, ami_long b)
     scnptr sc;  /* screen pointer */
 
     win = txt2win(f); /* get window from file */
+    scnlock(win); /* the screens */
     sc = win->screens[win->curupd-1]; /* index update screen */
     sc->fcrgb = rgb2xwin(r, g, b); /* set color status */
     win->gfcrgb = sc->fcrgb;
     /* set screen color according to reverse */
     if (BIT(sarev) & sc->attr) sc->xcxt->bg = sc->fcrgb;
     else sc->xcxt->fg = sc->fcrgb;
+
+    scnunlock(win);
 
 }
 
@@ -8496,12 +8823,15 @@ static void bcolor_ivf(FILE* f, ami_color c)
     scnptr sc;  /* screen pointer */
 
     win = txt2win(f); /* get window from file */
+    scnlock(win); /* the screens */
     sc = win->screens[win->curupd-1]; /* index update screen */
     sc->bcrgb = colnum(c); /* set color status */
     win->gbcrgb = sc->bcrgb;
     /* set screen color according to reverse */
     if (BIT(sarev) & sc->attr) sc->xcxt->fg = sc->bcrgb;
     else sc->xcxt->bg = sc->bcrgb;
+
+    scnunlock(win);
 
 }
 
@@ -8525,12 +8855,15 @@ static void bcolorc_ivf(FILE* f, ami_long r, ami_long g, ami_long b)
     scnptr sc;  /* screen pointer */
 
     win = txt2win(f); /* get window from file */
+    scnlock(win); /* the screens */
     sc = win->screens[win->curupd-1]; /* index update screen */
     sc->bcrgb = rgb2xwin(r, g, b); /* set color status */
     win->gbcrgb = sc->bcrgb;
     /* set screen color according to reverse */
     if (BIT(sarev) & sc->attr) sc->xcxt->bg = sc->bcrgb;
     else sc->xcxt->bg = sc->bcrgb;
+
+    scnunlock(win);
 
 }
 
@@ -8556,12 +8889,15 @@ static void bcolorg_ivf(FILE* f, ami_long r, ami_long g, ami_long b)
     scnptr sc;  /* screen pointer */
 
     win = txt2win(f); /* get window from file */
+    scnlock(win); /* the screens */
     sc = win->screens[win->curupd-1]; /* index update screen */
     sc->bcrgb = rgb2xwin(r, g, b); /* set color status */
     win->gbcrgb = sc->bcrgb; /* copy to master */
     /* set screen color according to reverse */
     if (BIT(sarev) & sc->attr) sc->xcxt->bg = sc->bcrgb;
     else sc->xcxt->bg = sc->bcrgb;
+
+    scnunlock(win);
 
 }
 
@@ -8581,11 +8917,15 @@ static ami_long curbnd_ivf(FILE* f)
 
 {
 
+    ami_long r;   /* result */
     winptr win; /* windows record pointer */
 
     win = txt2win(f); /* get window from file */
+    scnlock(win);
+    r = icurbnd(win->screens[win->curupd-1]);
+    scnunlock(win);
 
-    return (icurbnd(win->screens[win->curupd-1]));
+    return (r);
 
 }
 
@@ -8648,9 +8988,12 @@ static void curvis_ivf(FILE* f, ami_long e)
     winptr win; /* windows record pointer */
 
     win = txt2win(f); /* get window from file */
+    scnlock(win); /* the screens */
     win->screens[win->curupd-1]->curv = e; /* set cursor visible status */
     win->gcurv = e;
     cursts(win); /* process any cursor status change */
+
+    scnunlock(win);
 
 }
 
@@ -8670,11 +9013,15 @@ static ami_long curx_ivf(FILE* f)
 
 {
 
+    ami_long r;   /* result */
     winptr win; /* window record pointer */
 
     win = txt2win(f); /* get window from file */
+    scnlock(win);
+    r = win->screens[win->curupd-1]->curx; /* process */
+    scnunlock(win);
 
-    return (win->screens[win->curupd-1]->curx); /* process */
+    return (r);
 
 }
 
@@ -8694,11 +9041,15 @@ static ami_long cury_ivf(FILE* f)
 
 {
 
+    ami_long r;   /* result */
     winptr win; /* window record pointer */
 
     win = txt2win(f); /* get window from file */
+    scnlock(win);
+    r = win->screens[win->curupd-1]->cury; /* process */
+    scnunlock(win);
 
-    return (win->screens[win->curupd-1]->cury); /* process */
+    return (r);
 
 }
 
@@ -8718,11 +9069,15 @@ static ami_long curxg_ivf(FILE* f)
 
 {
 
+    ami_long r;   /* result */
     winptr win; /* window record pointer */
 
     win = txt2win(f); /* get window from file */
+    scnlock(win);
+    r = win->screens[win->curupd-1]->curxg; /* process */
+    scnunlock(win);
 
-    return (win->screens[win->curupd-1]->curxg); /* process */
+    return (r);
 
 }
 
@@ -8742,11 +9097,15 @@ static ami_long curyg_ivf(FILE* f)
 
 {
 
+    ami_long r;   /* result */
     winptr win; /* window record pointer */
 
     win = txt2win(f); /* get window from file */
+    scnlock(win);
+    r = win->screens[win->curupd-1]->curyg; /* return yg */
+    scnunlock(win);
 
-    return (win->screens[win->curupd-1]->curyg); /* return yg */
+    return (r);
 
 }
 
@@ -8776,11 +9135,13 @@ static void select_ivf(FILE* f, ami_long u, ami_long d)
     winptr win; /* window record pointer */
 
     win = txt2win(f); /* get window from file */
+    scnlock(win); /* the screens, from here: the state changes below */
     if (!win->bufmod) error(ebufoff); /* error */
     if (u < 1 || u > MAXCON || d < 1 || d > MAXCON)
         error(einvscn); /* invalid screen number */
     ld = win->curdsp; /* save the current display screen number */
     win->curupd = u; /* set the current update screen */
+
     if (!win->screens[win->curupd-1]) { /* no screen, create one */
 
         /* get a new screen context */
@@ -8807,6 +9168,8 @@ static void select_ivf(FILE* f, ami_long u, ami_long d)
         else restore(win);
 
     }
+
+    scnunlock(win);
 
 }
 
@@ -8848,8 +9211,8 @@ static void drwstr90(winptr win, scnptr sc, int tw, pd_canvas* d, char* s, int l
            destructive, and would require a combining buffer to perform */
         if (sc->bmod == mdxor)
             /* restore surface under text */
-            grx_ft_draw_string(d, sc->xcxt, win->ftface, win->gfhighx, win->gfhigh,
-                           px, py+pbo, s, l);
+            grx_ft_draw_string(d, sc->xcxt, win, win->gfhighx, win->gfhigh,
+                               px, py+pbo, s, l);
         /* restore colors */
         if (BIT(sarev) & sc->attr)
             sc->xcxt->fg = sc->bcrgb;
@@ -8863,8 +9226,8 @@ static void drwstr90(winptr win, scnptr sc, int tw, pd_canvas* d, char* s, int l
         /* set foreground function */
         sc->xcxt->mix = mod2fnc[sc->fmod];
         /* draw character */
-        grx_ft_draw_string(d, sc->xcxt, win->ftface, win->gfhighx, win->gfhigh,
-                       px, py+pbo, s, l);
+        grx_ft_draw_string(d, sc->xcxt, win, win->gfhighx, win->gfhigh,
+                           px, py+pbo, s, l);
         /* check draw underline */
         if (sc->attr & BIT(saundl)){
 
@@ -8936,6 +9299,7 @@ static void wrtstrn_ivf(FILE* f, char* s, ami_long l)
     char*  p;
 
     win = txt2win(f); /* get window from file */
+    scnlock(win); /* the screens */
     sc = win->screens[win->curupd-1];
     if (sc->autof) error(estrato); /* autowrap is on */
     if (!win->visible) winvis(win); /* make sure we are displayed */
@@ -8960,6 +9324,8 @@ static void wrtstrn_ivf(FILE* f, char* s, ami_long l)
     } else /* off angle */
         /* just pass each character on */
         for (p = s; *p && l; p++, l--) plcchr(win, *p);
+
+    scnunlock(win);
 
 }
 
@@ -9052,6 +9418,7 @@ static void line_ivf(FILE* f, ami_long x1, ami_long y1, ami_long x2, ami_long y2
     ami_long tx, ty; /* temps */
 
     win = txt2win(f); /* get window from file */
+    scnlock(win); /* the screens */
     sc = win->screens[win->curupd-1];
     /* rationalize the line to right/down */
     if (x1 > x2 || (x1 == x2 && y1 > y2)) { /* swap */
@@ -9088,6 +9455,8 @@ static void line_ivf(FILE* f, ami_long x1, ami_long y1, ami_long x2, ami_long y2
     /* reset foreground function */
     sc->xcxt->mix = mod2fnc[mdnorm];
 
+    scnunlock(win);
+
 }
 
 /** ****************************************************************************
@@ -9112,6 +9481,7 @@ static void rect_ivf(FILE* f, ami_long x1, ami_long y1, ami_long x2, ami_long y2
     ami_long tx, ty; /* temps */
 
     win = txt2win(f); /* get window from file */
+    scnlock(win); /* the screens */
     sc = win->screens[win->curupd-1];
     /* rationalize the rectangle to right/down */
     if (x1 > x2 || (x1 == x2 && y1 > y2)) { /* swap */
@@ -9148,6 +9518,8 @@ static void rect_ivf(FILE* f, ami_long x1, ami_long y1, ami_long x2, ami_long y2
     /* reset foreground function */
     sc->xcxt->mix = mod2fnc[mdnorm];
 
+    scnunlock(win);
+
 }
 
 /** ****************************************************************************
@@ -9172,6 +9544,7 @@ static void frect_ivf(FILE* f, ami_long x1, ami_long y1, ami_long x2, ami_long y
     ami_long tx, ty; /* temps */
 
     win = txt2win(f); /* get window from file */
+    scnlock(win); /* the screens */
     sc = win->screens[win->curupd-1];
     /* rationalize the rectangle to right/down */
     if (x1 > x2 || (x1 == x2 && y1 > y2)) { /* swap */
@@ -9208,6 +9581,8 @@ static void frect_ivf(FILE* f, ami_long x1, ami_long y1, ami_long x2, ami_long y
     /* reset foreground function */
     sc->xcxt->mix = mod2fnc[mdnorm];
 
+    scnunlock(win);
+
 }
 
 /** ****************************************************************************
@@ -9234,6 +9609,7 @@ static void rrect_ivf(FILE* f, ami_long x1, ami_long y1, ami_long x2, ami_long y
     ami_long tx, ty; /* temps */
 
     win = txt2win(f); /* get window from file */
+    scnlock(win); /* the screens */
     sc = win->screens[win->curupd-1];
     /* rationalize the rectangle to right/down */
     if (x1 > x2 || (x1 == x2 && y1 > y2)) { /* swap */
@@ -9303,6 +9679,8 @@ static void rrect_ivf(FILE* f, ami_long x1, ami_long y1, ami_long x2, ami_long y
     /* reset foreground function */
     sc->xcxt->mix = mod2fnc[mdnorm];
 
+    scnunlock(win);
+
 }
 
 /** ****************************************************************************
@@ -9338,6 +9716,7 @@ static void frrect_ivf(FILE* f, ami_long x1, ami_long y1, ami_long x2, ami_long 
     int hlr;    /* height of left/right rectangle */
 
     win = txt2win(f); /* get window from file */
+    scnlock(win); /* the screens */
     sc = win->screens[win->curupd-1];
     /* rationalize the rectangle to right/down */
     if (x1 > x2 || (x1 == x2 && y1 > y2)) { /* swap */
@@ -9497,6 +9876,8 @@ static void frrect_ivf(FILE* f, ami_long x1, ami_long y1, ami_long x2, ami_long 
     /* reset foreground function */
     sc->xcxt->mix = mod2fnc[mdnorm];
 
+    scnunlock(win);
+
 }
 
 /** ****************************************************************************
@@ -9521,6 +9902,7 @@ static void ellipse_ivf(FILE* f, ami_long x1, ami_long y1, ami_long x2, ami_long
     ami_long tx, ty; /* temps */
 
     win = txt2win(f); /* get window from file */
+    scnlock(win); /* the screens */
     sc = win->screens[win->curupd-1];
     /* rationalize the line to right/down */
     if (x1 > x2 || (x1 == x2 && y1 > y2)) { /* swap */
@@ -9559,6 +9941,8 @@ static void ellipse_ivf(FILE* f, ami_long x1, ami_long y1, ami_long x2, ami_long
     /* reset foreground function */
     sc->xcxt->mix = mod2fnc[mdnorm];
 
+    scnunlock(win);
+
 }
 
 /** ****************************************************************************
@@ -9583,6 +9967,7 @@ static void fellipse_ivf(FILE* f, ami_long x1, ami_long y1, ami_long x2, ami_lon
     ami_long tx, ty; /* temps */
 
     win = txt2win(f); /* get window from file */
+    scnlock(win); /* the screens */
     sc = win->screens[win->curupd-1];
     /* rationalize the line to right/down */
     if (x1 > x2 || (x1 == x2 && y1 > y2)) { /* swap */
@@ -9620,6 +10005,8 @@ static void fellipse_ivf(FILE* f, ami_long x1, ami_long y1, ami_long x2, ami_lon
     }
     /* reset foreground function */
     sc->xcxt->mix = mod2fnc[mdnorm];
+
+    scnunlock(win);
 
 }
 
@@ -9666,6 +10053,7 @@ static void arc_ivf(FILE* f, ami_long x1, ami_long y1, ami_long x2, ami_long y2,
     int a1, a2; /* XWindow angles */
 
     win = txt2win(f); /* get window from file */
+    scnlock(win); /* the screens */
     sc = win->screens[win->curupd-1];
     /* rationalize the line to right/down */
     if (x1 > x2 || (x1 == x2 && y1 > y2)) { /* swap */
@@ -9714,6 +10102,8 @@ static void arc_ivf(FILE* f, ami_long x1, ami_long y1, ami_long x2, ami_long y2,
 
     }
 
+    scnunlock(win);
+
 }
 
 /** ****************************************************************************
@@ -9743,6 +10133,7 @@ static void farc_ivf(FILE* f, ami_long x1, ami_long y1, ami_long x2, ami_long y2
     int a1, a2; /* XWindow angles */
 
     win = txt2win(f); /* get window from file */
+    scnlock(win); /* the screens */
     sc = win->screens[win->curupd-1];
     /* rationalize the line to right/down */
     if (x1 > x2 || (x1 == x2 && y1 > y2)) { /* swap */
@@ -9791,6 +10182,8 @@ static void farc_ivf(FILE* f, ami_long x1, ami_long y1, ami_long x2, ami_long y2
 
     }
 
+    scnunlock(win);
+
 }
 
 /** ****************************************************************************
@@ -9817,6 +10210,7 @@ static void fchord_ivf(FILE* f, ami_long x1, ami_long y1, ami_long x2, ami_long 
     int a1, a2; /* XWindow angles */
 
     win = txt2win(f); /* get window from file */
+    scnlock(win); /* the screens */
     sc = win->screens[win->curupd-1];
     /* rationalize the line to right/down */
     if (x1 > x2 || (x1 == x2 && y1 > y2)) { /* swap */
@@ -9861,6 +10255,8 @@ static void fchord_ivf(FILE* f, ami_long x1, ami_long y1, ami_long x2, ami_long 
 
     }
 
+    scnunlock(win);
+
 }
 
 /** ****************************************************************************
@@ -9885,6 +10281,7 @@ static void ftriangle_ivf(FILE* f, ami_long x1, ami_long y1, ami_long x2, ami_lo
     int pa[6]; /* triangle point pairs */
 
     win = txt2win(f); /* get window from file */
+    scnlock(win); /* the screens */
     sc = win->screens[win->curupd-1];
     /* place the triangle points in the array */
     pa[0] = L2PX(win, x1-1);  pa[1] = L2PY(win, y1-1);
@@ -9911,6 +10308,8 @@ static void ftriangle_ivf(FILE* f, ami_long x1, ami_long y1, ami_long x2, ami_lo
     /* reset foreground function */
     sc->xcxt->mix = mod2fnc[mdnorm];
 
+    scnunlock(win);
+
 }
 
 /** ****************************************************************************
@@ -9933,6 +10332,7 @@ static void setpixel_ivf(FILE* f, ami_long x, ami_long y)
     scnptr sc;  /* screen buffer */
 
     win = txt2win(f); /* get window from file */
+    scnlock(win); /* the screens */
     sc = win->screens[win->curupd-1];
     /* set foreground function */
     sc->xcxt->mix = mod2fnc[sc->fmod];
@@ -9958,6 +10358,8 @@ static void setpixel_ivf(FILE* f, ami_long x, ami_long y)
     /* reset foreground function */
     sc->xcxt->mix = mod2fnc[mdnorm];
 
+    scnunlock(win);
+
 }
 
 /** ****************************************************************************
@@ -9980,9 +10382,12 @@ static void fover_ivf(FILE* f)
     scnptr sc;  /* screen buffer */
 
     win = txt2win(f); /* get window from file */
+    scnlock(win); /* the screens */
     sc = win->screens[win->curupd-1];
     win->gfmod = mdnorm; /* set foreground mode overwrite */
     sc->fmod = mdnorm;
+
+    scnunlock(win);
 
 }
 
@@ -10006,9 +10411,12 @@ static void bover_ivf(FILE* f)
     scnptr sc;  /* screen buffer */
 
     win = txt2win(f); /* get window from file */
+    scnlock(win); /* the screens */
     sc = win->screens[win->curupd-1];
     win->gbmod = mdnorm; /* set background mode overwrite */
     sc->bmod = mdnorm;
+
+    scnunlock(win);
 
 }
 
@@ -10032,9 +10440,12 @@ static void finvis_ivf(FILE* f)
     scnptr sc;  /* screen buffer */
 
     win = txt2win(f); /* get window from file */
+    scnlock(win); /* the screens */
     sc = win->screens[win->curupd-1];
     win->gfmod = mdinvis; /* set foreground mode invisible */
     sc->fmod = mdinvis;
+
+    scnunlock(win);
 
 }
 
@@ -10058,9 +10469,12 @@ static void binvis_ivf(FILE* f)
     scnptr sc;  /* screen buffer */
 
     win = txt2win(f); /* get window from file */
+    scnlock(win); /* the screens */
     sc = win->screens[win->curupd-1];
     win->gbmod = mdinvis; /* set background mode invisible */
     sc->bmod = mdinvis;
+
+    scnunlock(win);
 
 }
 
@@ -10084,9 +10498,12 @@ static void fxor_ivf(FILE* f)
     scnptr sc;  /* screen buffer */
 
     win = txt2win(f); /* get window from file */
+    scnlock(win); /* the screens */
     sc = win->screens[win->curupd-1];
     win->gfmod = mdxor; /* set foreground mode xor */
     sc->fmod = mdxor;
+
+    scnunlock(win);
 
 }
 
@@ -10110,9 +10527,12 @@ static void bxor_ivf(FILE* f)
     scnptr sc;  /* screen buffer */
 
     win = txt2win(f); /* get window from file */
+    scnlock(win); /* the screens */
     sc = win->screens[win->curupd-1];
     win->gbmod = mdxor; /* set background mode xor */
     sc->bmod = mdxor;
+
+    scnunlock(win);
 
 }
 
@@ -10136,9 +10556,12 @@ static void fand_ivf(FILE* f)
     scnptr sc;  /* screen buffer */
 
     win = txt2win(f); /* get window from file */
+    scnlock(win); /* the screens */
     sc = win->screens[win->curupd-1];
     win->gfmod = mdand; /* set foreground mode and */
     sc->fmod = mdand;
+
+    scnunlock(win);
 
 }
 
@@ -10162,9 +10585,12 @@ static void band_ivf(FILE* f)
     scnptr sc;  /* screen buffer */
 
     win = txt2win(f); /* get window from file */
+    scnlock(win); /* the screens */
     sc = win->screens[win->curupd-1];
     win->gbmod = mdand; /* set background mode and */
     sc->bmod = mdand;
+
+    scnunlock(win);
 
 }
 
@@ -10188,9 +10614,12 @@ static void for_ivf(FILE* f)
     scnptr sc;  /* screen buffer */
 
     win = txt2win(f); /* get window from file */
+    scnlock(win); /* the screens */
     sc = win->screens[win->curupd-1];
     win->gfmod = mdor; /* set foreground mode or */
     sc->fmod = mdor;
+
+    scnunlock(win);
 
 }
 
@@ -10214,9 +10643,12 @@ static void bor_ivf(FILE* f)
     scnptr sc;  /* screen buffer */
 
     win = txt2win(f); /* get window from file */
+    scnlock(win); /* the screens */
     sc = win->screens[win->curupd-1];
     win->gbmod = mdor; /* set background mode or */
     sc->bmod = mdor;
+
+    scnunlock(win);
 
 }
 
@@ -10257,9 +10689,12 @@ static void linewidth_ivf(FILE* f, ami_long w)
     scnptr sc;  /* screen pointer */
 
     win = txt2win(f); /* get window from file */
+    scnlock(win); /* the screens */
     sc = win->screens[win->curupd-1]; /* index update screen */
     sc->lwidth = w; /* set the line width */
     applylineattrs(sc); /* push width + current style into X */
+
+    scnunlock(win);
 
 }
 
@@ -10286,9 +10721,12 @@ static void linestyle_ivf(FILE* f, ami_lstyle style)
     scnptr sc;  /* screen pointer */
 
     win = txt2win(f);
+    scnlock(win); /* the screens */
     sc = win->screens[win->curupd-1];
     sc->lstyle = style;
     applylineattrs(sc);
+
+    scnunlock(win);
 
 }
 
@@ -10310,13 +10748,17 @@ static ami_long chrsizx_ivf(FILE* f)
 
 {
 
+    ami_long r;   /* result */
     winptr win; /* windows record pointer */
     scnptr sc;  /* screen pointer */
 
     win = txt2win(f); /* get window from file */
+    scnlock(win);
     sc = win->screens[win->curupd-1]; /* index update screen */
+    r = win->charspace;
+    scnunlock(win);
 
-    return (win->charspace); /* return character spacing */
+    return (r); /* return character spacing */
 
 }
 
@@ -10336,13 +10778,17 @@ static ami_long chrsizy_ivf(FILE* f)
 
 {
 
+    ami_long r;   /* result */
     winptr win; /* windows record pointer */
     scnptr sc;  /* screen pointer */
 
     win = txt2win(f); /* get window from file */
+    scnlock(win);
     sc = win->screens[win->curupd-1]; /* index update screen */
+    r = win->linespace;
+    scnunlock(win);
 
-    return (win->linespace); /* return line spacing */
+    return (r); /* return line spacing */
 
 }
 
@@ -10387,6 +10833,7 @@ static void font_ivf(FILE* f, ami_long fc)
     scnptr  sc;  /* screen pointer */
 
     win = txt2win(f); /* get window from file */
+    scnlock(win); /* the screens */
     sc = win->screens[win->curupd-1]; /* index update screen */
     if (win->screens[win->curupd-1]->autof)
         error(eatoftc); /* cannot perform with auto on */
@@ -10406,6 +10853,8 @@ static void font_ivf(FILE* f, ami_long fc)
     win->gcfont = fp;
     setfnt(win); /* select the font */
     curon(win); /* replace cursor with new font characteristics */
+
+    scnunlock(win);
 
 }
 
@@ -10463,6 +10912,7 @@ static void fontsiz_ivf(FILE* f, ami_long s)
     winptr  win; /* windows record pointer */
 
     win = txt2win(f); /* get window from file */
+    scnlock(win); /* the screens */
     if (win->screens[win->curupd-1]->autof)
         error(eatoftc); /* cannot perform with auto on */
     curoff(win); /* remove cursor with old font characteristics */
@@ -10473,6 +10923,8 @@ static void fontsiz_ivf(FILE* f, ami_long s)
     win->misoffx = win->gfhigh*MISOFFX;
     win->misoffy = win->gfhigh*MISOFFY;
     curon(win);
+
+    scnunlock(win);
 
 }
 
@@ -10491,6 +10943,7 @@ static void setpoints_ivf(FILE* f, float ps)
     int    pixsiz, asc, dsc;
 
     win = txt2win(f);
+    scnlock(win); /* the screens */
     if (win->screens[win->curupd-1]->autof)
         error(eatoftc);
     curoff(win);
@@ -10499,7 +10952,7 @@ static void setpoints_ivf(FILE* f, float ps)
     /* apply the point size directly to the current face to measure the
        resulting cell height, then promote that to gfcellh so subsequent
        font changes preserve it */
-    if (!win->ftface) setfnt(win);
+    if (!win->ftface) setfnt(win); /* the face: under the window's lock, held */
     win->gfhigh_log = pixsiz;
     {
         int phys_y = (int)(pixsiz * win->vsy);
@@ -10522,6 +10975,8 @@ static void setpoints_ivf(FILE* f, float ps)
     win->misoffx = win->gfhigh*MISOFFX;
     win->misoffy = win->gfhigh*MISOFFY;
     curon(win);
+
+    scnunlock(win);
 
 }
 
@@ -10724,6 +11179,7 @@ static void writejust_ivf(FILE* f, const char* s, ami_long n)
     int    l;
 
     win = txt2win(f); /* get window pointer from text file */
+    scnlock(win); /* the screens */
     sc = win->screens[win->curupd-1]; /* index update screen */
     if (sc->autof) error(eatopos); /* cannot perform with auto on */
     l = strlen(s); /* find string length */
@@ -10746,7 +11202,8 @@ static void writejust_ivf(FILE* f, const char* s, ami_long n)
     /* if space provided is greater than the minimum, distribute the extra space
        amoung the existing spaces */
     ss = ns*MINJST; /* set minimum distribution of space */
-    if (n > sz) { spc = (n-cs)/ns; ss = n-cs; }
+    /* a string with no spaces has nothing to spread the space over */
+    if (n > sz && ns) { spc = (n-cs)/ns; ss = n-cs; }
     /* Output the string with our choosen spacing */
     for (i = 0; i < l; i++) {
 
@@ -10814,6 +11271,8 @@ static void writejust_ivf(FILE* f, const char* s, ami_long n)
 
     }
 
+    scnunlock(win);
+
 }
 
 /** ****************************************************************************
@@ -10850,6 +11309,7 @@ static ami_long justpos_ivf(FILE* f, const char* s, ami_long p, ami_long n)
     int    l;
 
     win = txt2win(f); /* get window pointer from text file */
+    scnlock(win); /* the screens */
     sc = win->screens[win->curupd-1]; /* index update screen */
     if (sc->autof) error(eatopos); /* cannot perform with auto on */
     l = strlen(s); /* find string length */
@@ -10873,7 +11333,8 @@ static ami_long justpos_ivf(FILE* f, const char* s, ami_long p, ami_long n)
     /* if space provided is greater than the minimum, distribute the extra space
        amoung the existing spaces */
     ss = ns*MINJST; /* set minimum distribution of space */
-    if (n > sz) { spc = (n-cs)/ns; ss = n-cs; }
+    /* a string with no spaces has nothing to spread the space over */
+    if (n > sz && ns) { spc = (n-cs)/ns; ss = n-cs; }
     cp = 0; /* set 0 offset to character */
     crp = 0; /* clear result position */
     /* Output the string with our choosen spacing */
@@ -10890,7 +11351,10 @@ static ami_long justpos_ivf(FILE* f, const char* s, ami_long p, ami_long n)
 
     }
 
+    scnunlock(win);
     return (crp); /* return result */
+
+    scnunlock(win);
 
 }
 
@@ -10919,6 +11383,7 @@ static void condensed_ivf(FILE* f, ami_long e)
     scnptr sc;  /* screen pointer */
 
     win = txt2win(f); /* get window from file */
+    scnlock(win); /* the screens */
     sc = win->screens[win->curupd-1];
     if (e) { /* strikeout on */
 
@@ -10936,6 +11401,8 @@ static void condensed_ivf(FILE* f, ami_long e)
     curoff(win); /* remove cursor with old font characteristics */
     setfnt(win); /* select the font */
     curon(win); /* replace cursor with new font characteristics */
+
+    scnunlock(win);
 
 }
 
@@ -10964,6 +11431,7 @@ static void extended_ivf(FILE* f, ami_long e)
     scnptr sc;  /* screen pointer */
 
     win = txt2win(f); /* get window from file */
+    scnlock(win); /* the screens */
     sc = win->screens[win->curupd-1];
     if (e) { /* strikeout on */
 
@@ -10981,6 +11449,8 @@ static void extended_ivf(FILE* f, ami_long e)
     curoff(win); /* remove cursor with old font characteristics */
     setfnt(win); /* select the font */
     curon(win); /* replace cursor with new font characteristics */
+
+    scnunlock(win);
 
 }
 
@@ -11009,6 +11479,7 @@ static void xlight_ivf(FILE* f, ami_long e)
     scnptr sc;  /* screen pointer */
 
     win = txt2win(f); /* get window from file */
+    scnlock(win); /* the screens */
     sc = win->screens[win->curupd-1];
     if (e) { /* strikeout on */
 
@@ -11026,6 +11497,8 @@ static void xlight_ivf(FILE* f, ami_long e)
     curoff(win); /* remove cursor with old font characteristics */
     setfnt(win); /* select the font */
     curon(win); /* replace cursor with new font characteristics */
+
+    scnunlock(win);
 
 }
 
@@ -11054,6 +11527,7 @@ static void light_ivf(FILE* f, ami_long e)
     scnptr sc;  /* screen pointer */
 
     win = txt2win(f); /* get window from file */
+    scnlock(win); /* the screens */
     sc = win->screens[win->curupd-1];
     if (e) { /* strikeout on */
 
@@ -11071,6 +11545,8 @@ static void light_ivf(FILE* f, ami_long e)
     curoff(win); /* remove cursor with old font characteristics */
     setfnt(win); /* select the font */
     curon(win); /* replace cursor with new font characteristics */
+
+    scnunlock(win);
 
 }
 
@@ -11099,6 +11575,7 @@ static void xbold_ivf(FILE* f, ami_long e)
     scnptr sc;  /* screen pointer */
 
     win = txt2win(f); /* get window from file */
+    scnlock(win); /* the screens */
     sc = win->screens[win->curupd-1];
     if (e) { /* strikeout on */
 
@@ -11116,6 +11593,8 @@ static void xbold_ivf(FILE* f, ami_long e)
     curoff(win); /* remove cursor with old font characteristics */
     setfnt(win); /* select the font */
     curon(win); /* replace cursor with new font characteristics */
+
+    scnunlock(win);
 
 }
 
@@ -11144,6 +11623,7 @@ static void hollow_ivf(FILE* f, ami_long e)
     scnptr sc;  /* screen pointer */
 
     win = txt2win(f); /* get window from file */
+    scnlock(win); /* the screens */
     sc = win->screens[win->curupd-1];
     if (e) { /* strikeout on */
 
@@ -11161,6 +11641,8 @@ static void hollow_ivf(FILE* f, ami_long e)
     curoff(win); /* remove cursor with old font characteristics */
     setfnt(win); /* select the font */
     curon(win); /* replace cursor with new font characteristics */
+
+    scnunlock(win);
 
 }
 
@@ -11189,6 +11671,7 @@ static void raised_ivf(FILE* f, ami_long e)
     scnptr sc;  /* screen pointer */
 
     win = txt2win(f); /* get window from file */
+    scnlock(win); /* the screens */
     sc = win->screens[win->curupd-1];
     if (e) { /* strikeout on */
 
@@ -11206,6 +11689,8 @@ static void raised_ivf(FILE* f, ami_long e)
     curoff(win); /* remove cursor with old font characteristics */
     setfnt(win); /* select the font */
     curon(win); /* replace cursor with new font characteristics */
+
+    scnunlock(win);
 
 }
 
@@ -11273,6 +11758,7 @@ static void blockcopyg_ivf(FILE* f, ami_long s, ami_long d, ami_long sx1, ami_lo
     if (s < 1 || s > MAXCON || d < 1 || d > MAXCON)
         error(einvscn); /* invalid screen number */
     /* create either buffer if it does not exist yet, as select() does */
+    scnlock(win); /* the screens */
     if (!win->screens[s-1]) {
 
         win->screens[s-1] = imalloc(sizeof(scncon));
@@ -11292,7 +11778,12 @@ static void blockcopyg_ivf(FILE* f, ami_long s, ami_long d, ami_long sx1, ami_lo
     ss = win->screens[s-1];
     ds = win->screens[d-1];
     cs = win->screens[win->curupd-1];
-    if (cs->fmod == mdinvis) return; /* invisible drops the copy whole */
+    if (cs->fmod == mdinvis) { /* invisible drops the copy whole */
+
+        scnunlock(win);
+        return;
+
+    }
     /* rationalize both rectangles to top left/bottom right */
     if (sx1 > sx2) { t = sx1; sx1 = sx2; sx2 = t; }
     if (sy1 > sy2) { t = sy1; sy1 = sy2; sy2 = t; }
@@ -11307,7 +11798,12 @@ static void blockcopyg_ivf(FILE* f, ami_long s, ami_long d, ami_long sx1, ami_lo
     pdy = L2PY(win, dy1-1);
     pdw = L2PW(win, dx2-dx1+1);
     pdh = L2PH(win, dy2-dy1+1);
-    if (psw < 1 || psh < 1 || pdw < 1 || pdh < 1) return; /* nothing to copy */
+    if (psw < 1 || psh < 1 || pdw < 1 || pdh < 1) { /* nothing to copy */
+
+        scnunlock(win);
+        return;
+
+    }
     fnc = mod2fnc[cs->fmod]; /* the current foreground write mode */
     if (psw == pdw && psh == pdh) { /* sizes match: copy direct */
 
@@ -11341,6 +11837,8 @@ static void blockcopyg_ivf(FILE* f, ami_long s, ami_long d, ami_long sx1, ami_lo
     /* the copy is a complete act: push the requests to the server, so the
        result is onscreen before the caller's next step */
     pd_flush(grx_padisplay);
+
+    scnunlock(win);
 
 }
 
@@ -11608,6 +12106,7 @@ static void picture_ivf(FILE* f, ami_long p, ami_long x1, ami_long y1, ami_long 
     picptr  pp, fp; /* picture entry pointers */
 
     win = txt2win(f); /* get window from file */
+    scnlock(win); /* the screens */
     sc = win->screens[win->curupd-1];
     if (p < 1 || p > MAXPIC) error(einvhan); /* bad picture handle */
     if (!win->pictbl[p-1]->xi) error(einvhan); /* bad picture handle */
@@ -11674,6 +12173,8 @@ static void picture_ivf(FILE* f, ami_long p, ami_long x1, ami_long y1, ami_long 
     }
     /* reset foreground function */
     sc->xcxt->mix = mod2fnc[mdnorm];
+
+    scnunlock(win);
 
 }
 
@@ -12157,8 +12658,15 @@ static winptr fndfocus(winptr win)
 {
 
     winptr fwin; /* focus window found */
+    winptr par;  /* the parent whose child list this is */
 
     fwin = NULL; /* set no focus window found */
+    if (!win) return (NULL);
+    /* the list walked is the parent's child list, and a worker opening or
+       closing a sibling relinks it: the walk is under the list's lock. A
+       root has no parent and no list to lock. */
+    par = win->parwin;
+    if (par) chllock(par);
     while (win && !fwin) {
 
         if (win->focus) fwin = win; /* found focus */
@@ -12167,6 +12675,7 @@ static winptr fndfocus(winptr win)
         win = win->childlst; /* link next child */
 
     }
+    if (par) chlunlock(par);
 
     return (fwin); /* exit with focus found */
 
@@ -12189,9 +12698,11 @@ static int remfocus(winptr win, winptr curwin)
         /* found the focus window */
         er.etype = ami_etnofocus; /* send defocus to parent */
         isendevent(win, &er); /* send it */
+        scnlock(win); /* another window's caret and focus flag: its lock */
         curoff(win); /* remove cursor */
         win->focus = FALSE; /* remove focus */
         curon(win); /* replace cursor */
+        scnunlock(win);
 
     }
 
@@ -12270,6 +12781,13 @@ static void xwinevt(winptr win, ami_evtrec* er, pd_evt* e, int* keep)
     winptr         fwin; /* focus window */
     ami_ulong      snc; /* serial of the provoking request */
 
+    scnlock(win); /* the screens, through the handling of this event */
+    if (!win->xwhan) { /* closed while the event waited: nothing to do */
+
+        scnunlock(win);
+        return;
+
+    }
     sc = win->screens[win->curdsp-1]; /* index screen */
 
     /* handle pd_etredraw on xmwhan for child-framed windows: repaint the frame */
@@ -12410,6 +12928,7 @@ static void xwinevt(winptr win, ami_evtrec* er, pd_evt* e, int* keep)
                 if (xwc.width != mwin->xmwr.w || xwc.height != mwin->xmwr.h) {
 
                     snc = 0;
+                    scnlock(mwin); /* its canvases are replaced: its lock */
                     pd_winsize(mwin->xmwhan, xwc.width, xwc.height);
                     /* The subclient with it. Only the master was being
                        configured, so the strip's own idea of how wide it
@@ -12418,6 +12937,7 @@ static void xwinevt(winptr win, ami_evtrec* er, pd_evt* e, int* keep)
                        edge and leaving what the widening exposed
                        unpainted. */
                     pd_winsize(mwin->xwhan, xwc.width, xwc.height);
+                    scnunlock(mwin); /* not across the wait below */
 #ifdef WAITWMR
                     /* wait for the next configure (any size -- the WM may
                        clamp the request); a child menu window configures
@@ -12431,10 +12951,12 @@ static void xwinevt(winptr win, ami_evtrec* er, pd_evt* e, int* keep)
                     }
 #endif
                     /* change saved size to match */
+                    scnlock(mwin);
                     mwin->xmwr.w = xwc.width;
                     mwin->xmwr.h = xwc.height;
                     mwin->xwr.w = xwc.width; /* the subclient's too */
                     mwin->xwr.h = xwc.height;
+                    scnunlock(mwin);
 
                 }
 
@@ -12715,6 +13237,7 @@ static void xwinevt(winptr win, ami_evtrec* er, pd_evt* e, int* keep)
                     pd_maximize(win->xmwhan,
                                     win->winstate != 1);
                 *keep = FALSE;
+                scnunlock(win);
                 return;
 
             } else if (hit == dechmin) {
@@ -12724,6 +13247,7 @@ static void xwinevt(winptr win, ami_evtrec* er, pd_evt* e, int* keep)
                 if (!win->parwin) pd_minimize(win->xmwhan);
                 else if (!win->minimized) childfrm_minimize(win);
                 *keep = FALSE;
+                scnunlock(win);
                 return;
 
             } else if (hit == dechtitle) {
@@ -12808,14 +13332,19 @@ static void xwinevt(winptr win, ami_evtrec* er, pd_evt* e, int* keep)
                    (its pd_etredraw events were consumed during the drag), so force it
                    to repaint via its own redraw handler; siblings are buffered */
                 if (win->parwin) {
-                    winptr sib;
+                    winptr sibs[MAXFIL];
+                    int    ns, si;
                     drag_repaint_full(win->parwin);
-                    for (sib = win->parwin->childwin; sib;
-                         sib = sib->childlst) {
-                        if (sib == win) continue;
-                        drag_repaint_full(sib);
-                        if (sib->childfrm) dec->frmdraw(sib, sib->xmwr.w, sib->xmwr.h);
+                    ns = siblings(win, sibs, MAXFIL);
+                    winhold();
+                    for (si = 0; si < ns; si++) {
+                        scnlock(sibs[si]); /* its canvases: its lock, not ours */
+                        drag_repaint_full(sibs[si]);
+                        if (sibs[si]->childfrm && sibs[si]->xmwhan)
+                            dec->frmdraw(sibs[si], sibs[si]->xmwr.w, sibs[si]->xmwr.h);
+                        scnunlock(sibs[si]);
                     }
+                    winrelease();
                 }
 
             } else if (!win->minimized && onedge) {
@@ -12914,14 +13443,19 @@ static void xwinevt(winptr win, ami_evtrec* er, pd_evt* e, int* keep)
                         /* if the child shrank, repaint the parent and
                            sibling children where this child used to be */
                         if (shrunk && win->parwin) {
-                            winptr sib;
+                            winptr sibs[MAXFIL];
+                            int    ns, si;
                             restore(win->parwin);
-                            for (sib = win->parwin->childwin; sib;
-                                 sib = sib->childlst) {
-                                if (sib == win) continue;
-                                restore(sib);
-                                if (sib->childfrm) dec->frmdraw(sib, sib->xmwr.w, sib->xmwr.h);
+                            ns = siblings(win, sibs, MAXFIL);
+                            winhold();
+                            for (si = 0; si < ns; si++) {
+                                scnlock(sibs[si]); /* its canvases: its lock, not ours */
+                                restore(sibs[si]);
+                                if (sibs[si]->childfrm && sibs[si]->xmwhan)
+                                    dec->frmdraw(sibs[si], sibs[si]->xmwr.w, sibs[si]->xmwr.h);
+                                scnunlock(sibs[si]);
                             }
+                            winrelease();
                         }
 
                     } else if (de.etype == pd_etbtnup) {
@@ -12950,14 +13484,19 @@ static void xwinevt(winptr win, ami_evtrec* er, pd_evt* e, int* keep)
                    pd_etredraw events consumed during the resize, so force it to
                    repaint via its own redraw handler; siblings are buffered */
                 if (win->parwin) {
-                    winptr sib;
+                    winptr sibs[MAXFIL];
+                    int    ns, si;
                     drag_repaint_full(win->parwin);
-                    for (sib = win->parwin->childwin; sib;
-                         sib = sib->childlst) {
-                        if (sib == win) continue;
-                        drag_repaint_full(sib);
-                        if (sib->childfrm) dec->frmdraw(sib, sib->xmwr.w, sib->xmwr.h);
+                    ns = siblings(win, sibs, MAXFIL);
+                    winhold();
+                    for (si = 0; si < ns; si++) {
+                        scnlock(sibs[si]); /* its canvases: its lock, not ours */
+                        drag_repaint_full(sibs[si]);
+                        if (sibs[si]->childfrm && sibs[si]->xmwhan)
+                            dec->frmdraw(sibs[si], sibs[si]->xmwr.w, sibs[si]->xmwr.h);
+                        scnunlock(sibs[si]);
                     }
+                    winrelease();
                 }
 
                 /* send resize event to the client */
@@ -13089,6 +13628,8 @@ static void xwinevt(winptr win, ami_evtrec* er, pd_evt* e, int* keep)
                e->etype == pd_etrestore)
         /* process window shell state messages */
         winstat(win, er, e, keep);
+
+    scnunlock(win);
 
 }
 
@@ -13293,9 +13834,7 @@ static void event_ivf(FILE* f, ami_evtrec* er)
 
     windefer* dp;
 
-    pthread_mutex_lock(&winfrelock);
-    evtbusy++; /* window disposals defer from here */
-    pthread_mutex_unlock(&winfrelock);
+    winhold(); /* window disposals defer from here */
     do { /* loop handling via event vectors and queuing */
 
         /* check input PA queue; if empty, get an event */
@@ -13318,17 +13857,7 @@ static void event_ivf(FILE* f, ami_evtrec* er)
 
     } while (er->handled);
     /* event not handled, return it to the caller */
-    pthread_mutex_lock(&winfrelock);
-    if (!--evtbusy) while (windeflst) {
-
-        /* the disposals that waited on this pass */
-        dp = windeflst;
-        windeflst = dp->next;
-        dispwin(dp->win);
-        ifree(dp);
-
-    }
-    pthread_mutex_unlock(&winfrelock);
+    winrelease();
 
 }
 
@@ -13788,7 +14317,10 @@ static void clrtab_ivf(FILE* f)
     winptr win; /* window pointer */
 
     win = txt2win(f); /* get window pointer from text file */
+    scnlock(win); /* the screens */
     for (i = 0; i < MAXTAB; i++) win->screens[win->curupd-1]->tab[i] = 0;
+
+    scnunlock(win);
 
 }
 
@@ -13835,10 +14367,15 @@ static void title_ivf(FILE* f, char* ts)
     win = txt2win(f); /* get window from file */
     if (win->childfrm) {
 
-        /* Ami-drawn child frame: store title and repaint frame */
+        /* Ami-drawn child frame: store title and repaint frame. The title
+           string and the frame draw are under the window's lock: the event
+           thread reads win->wintitle when it draws the frame, and would
+           read this freed string without it. */
+        scnlock(win);
         if (win->wintitle) free(win->wintitle);
         win->wintitle = strdup(ts);
-        dec->frmdraw(win, win->xmwr.w, win->xmwr.h);
+        if (win->xmwhan) dec->frmdraw(win, win->xmwr.w, win->xmwr.h);
+        scnunlock(win);
 
     } else {
 
@@ -14007,6 +14544,7 @@ static void sizbufg_ivf(FILE* f, ami_long x, ami_long y)
     if (!win->bufmod) error(ebufoff); /* error */
 
     /* save old buffer info from the current display screen */
+    scnlock(win); /* the screens */
     sc = win->screens[win->curdsp-1];
     oldbuf = sc->xbuf;
     oldw = sc->maxxg;
@@ -14085,6 +14623,8 @@ static void sizbufg_ivf(FILE* f, ami_long x, ami_long y)
 
     }
 
+    scnunlock(win);
+
 }
 
 /** ****************************************************************************
@@ -14135,6 +14675,7 @@ static void buffer_ivf(FILE* f, ami_long e)
     ami_ulong         snc; /* serial of the provoking request */
 
     win = txt2win(f); /* get window context */
+    scnlock(win); /* the screens, through the change of mode */
     if (e) { /* perform buffer on actions */
 
         win->bufmod = TRUE; /* turn buffer mode on */
@@ -14243,6 +14784,8 @@ static void buffer_ivf(FILE* f, ami_long e)
         enquexevt(&xe); /* the internal queue orders it behind the resize */
 
     }
+
+    scnunlock(win);
 
 }
 
@@ -14391,6 +14934,7 @@ static void menu_resize(FILE* f, winptr win, int menuon)
                   BIT(ami_wmframe)*win->frame|BIT(ami_wmsize)*win->size|
                   BIT(ami_wmsysbar)*win->sysbar);
     ami_setsizg(f, wx, wy);
+    scnlock(win); /* the subclient canvas it replaces */
     /* seat the subclient below the frame and menu bar; the size resets
        too, as setsizg computed it before the menu state settled */
     snc = 0;
@@ -14404,6 +14948,7 @@ static void menu_resize(FILE* f, winptr win, int menuon)
     (void)snc; (void)e;
     restore(win);
 
+    scnunlock(win);
 }
 
 void _pa_menu_ovr(ami_menu_t nfp, ami_menu_t* ofp)
@@ -14869,7 +15414,11 @@ static void setsizg_ivf(FILE* f, ami_long x, ami_long y)
        ignoring such sets. */
     if (xwc.width != win->xmwr.w || xwc.height != win->xmwr.h) {
 
-        /* reconfigure window */
+        /* reconfigure window. The display windows and the geometry the
+           event thread draws the frame by change under the window's
+           lock, and the lock drops before the wait on the compositor
+           below. */
+        scnlock(win);
         snc = 0;
         if (win->childfrm) {
 
@@ -14896,6 +15445,7 @@ static void setsizg_ivf(FILE* f, ami_long x, ami_long y)
         }
 
         if (win->childfrm) dec->frmdraw(win, win->xmwr.w, win->xmwr.h);
+        scnunlock(win);
 
 #ifdef WAITWMR
         /* wait for the next configure for this window (top-level only;
@@ -14921,6 +15471,7 @@ static void setsizg_ivf(FILE* f, ami_long x, ami_long y)
 
         /* because this event may not reach ami_event() for some time, we have to
            set the dimensions now */
+        scnlock(win);
         if (!win->bufmod) {
 
             /* reset tracking sizes. Child-framed windows resize synchronously
@@ -14944,6 +15495,7 @@ static void setsizg_ivf(FILE* f, ami_long x, ami_long y)
             win->gmaxy = win->gmaxyg/win->linespace;
 
         }
+        scnunlock(win);
 
     }
 
@@ -15019,7 +15571,10 @@ static void setposg_ivf(FILE* f, ami_long x, ami_long y)
 
         /* reconfigure window; if child, apply parent's viewport scale. A
            master child (menu component) positions within the parent
-           master, whose Ami frame offsets the coordinate origin */
+           master, whose Ami frame offsets the coordinate origin. The move
+           is under the window's lock, the wait on the compositor below is
+           not. */
+        scnlock(win);
         snc = 0;
         if (win->parwin) {
 
@@ -15036,6 +15591,7 @@ static void setposg_ivf(FILE* f, ami_long x, ami_long y)
 
         } else
             pd_winmove(win->xmwhan, x-1, y-1);
+        scnunlock(win);
 
 #ifdef WAITWMR
         /* wait for the configure response; a child moves synchronously
@@ -15045,8 +15601,10 @@ static void setposg_ivf(FILE* f, ami_long x, ami_long y)
 #endif
 
         /* set origin for next time */
+        scnlock(win);
         win->xmwr.x = x-1;
         win->xmwr.y = y-1;
+        scnunlock(win);
 
     }
 
@@ -15160,13 +15718,19 @@ void ami_dragwin(FILE* f)
     /* final repaint after release: an unbuffered parent had its pd_etredraw events
        consumed during the drag, so force it to repaint via its redraw handler */
     if (win->parwin) {
-        winptr sib;
+        winptr sibs[MAXFIL];
+        int    ns, si;
         drag_repaint_full(win->parwin);
-        for (sib = win->parwin->childwin; sib; sib = sib->childlst) {
-            if (sib == win) continue;
-            drag_repaint_full(sib);
-            if (sib->childfrm) dec->frmdraw(sib, sib->xmwr.w, sib->xmwr.h);
+        ns = siblings(win, sibs, MAXFIL);
+        winhold();
+        for (si = 0; si < ns; si++) {
+            scnlock(sibs[si]); /* its canvases: its lock, not ours */
+            drag_repaint_full(sibs[si]);
+            if (sibs[si]->childfrm && sibs[si]->xmwhan)
+                dec->frmdraw(sibs[si], sibs[si]->xmwr.w, sibs[si]->xmwr.h);
+            scnunlock(sibs[si]);
         }
+        winrelease();
     }
 
 }
@@ -15440,6 +16004,7 @@ static void frame_ivf(FILE* f, ami_long e)
     int chg;            /* geometry change */
 
     win = txt2win(f); /* get window context */
+    scnlock(win); /* the geometry and the canvases it replaces, against the event thread drawing in them */
     chg = win->frame != !!e; /* set frame has changed */
     win->frame = FALSE; /* turn off all frame configures */
     win->size = FALSE;
@@ -15519,6 +16084,7 @@ static void frame_ivf(FILE* f, ami_long e)
 
     }
 
+    scnunlock(win);
 }
 
 /** ****************************************************************************
@@ -15546,6 +16112,7 @@ static void sizable_ivf(FILE* f, ami_long e)
     int chg;            /* geometry change */
 
     win = txt2win(f); /* get window context */
+    scnlock(win); /* the geometry and the canvases it replaces */
     chg = win->size != !!e; /* set size has changed */
     win->frame = FALSE; /* turn off all frame configures */
     win->size = FALSE;
@@ -15559,6 +16126,7 @@ static void sizable_ivf(FILE* f, ami_long e)
            sizing is governed by the limits enbxsiz pins */
         win->frame = TRUE;
         win->sysbar = TRUE;
+        scnunlock(win);
         return;
 
     }
@@ -15597,6 +16165,7 @@ static void sizable_ivf(FILE* f, ami_long e)
 
     }
 
+    scnunlock(win);
 }
 
 /** ****************************************************************************
@@ -15623,6 +16192,7 @@ static void sysbar_ivf(FILE* f, ami_long e)
     int chg;            /* geometry change */
 
     win = txt2win(f); /* get window context */
+    scnlock(win); /* the geometry and the canvases it replaces */
     chg = win->sysbar != !!e; /* set sysbar has changed */
     win->frame = FALSE; /* turn off all frame configures */
     win->size = FALSE;
@@ -15662,6 +16232,7 @@ static void sysbar_ivf(FILE* f, ami_long e)
 
         }
 
+        scnunlock(win);
         return;
 
     }
@@ -15700,6 +16271,7 @@ static void sysbar_ivf(FILE* f, ami_long e)
 
     }
 
+    scnunlock(win);
 }
 
 /** ****************************************************************************
@@ -15756,9 +16328,12 @@ static void path_ivf(FILE* f, ami_long a)
     scnptr sc;  /* screen buffer */
 
     win = txt2win(f); /* get window context */
+    scnlock(win); /* the screens */
     sc = win->screens[win->curupd-1];
     if (sc->autof) error(eangato); /* autowrap is on */
     sc->angle = a; /* set drawing angle */
+
+    scnunlock(win);
 
 }
 
@@ -17174,12 +17749,13 @@ static void ami_deinit_graphics()
     /* shutdown FreeType and fontconfig.
        Note: we clear the glyph cache (freeing X pixmaps) but do NOT call
        FT_Done_FreeType() or FcFini(). Individual FT_Done_Face() calls have
-       already been made during window close, and FT_Done_FreeType() would try
+       already been made as each window closed, and FT_Done_FreeType() would try
        to free them again (double-free → segfault). FcFini() has the same
        problem under a statically linked fontconfig: it tears down fontconfig's
        internal config, which double-frees at exit ("double free or corruption").
        The process is exiting, so the OS reclaims all heap memory regardless. */
-    ft_cache_clear();
+    /* the windows' caches went with the windows; the dialog's is here */
+    if (dlg_cache) { ft_cache_free(dlg_cache); free(dlg_cache); dlg_cache = NULL; }
     /* FT_Done_FreeType(ftlibrary); — skipped, see above */
     /* FcFini(); — skipped, see above */
 

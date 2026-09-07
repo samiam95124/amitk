@@ -19,6 +19,16 @@
 * synthesizer. Every parameter is random within the range the window or        *
 * buffer allows.                                                               *
 *                                                                              *
+* A window has modes, and the API refuses some calls in some modes: the fonts  *
+* and justified text cannot change with auto on, the buffer cannot be sized    *
+* or switched with buffering off. Those refusals are correct, so the test      *
+* never makes them. A thread keeps the modes of the windows it owns and picks  *
+* only tests its current modes allow. By default each worker thread owns a     *
+* toplevel window of its own, and every test is open to it there. With -w the  *
+* workers share the main window, and then their tests are one group of the     *
+* mode groups below, whose members never change a mode and never need one      *
+* another does not: the shared window's modes are set once for the group.      *
+*                                                                              *
 * Each thread has a random stream of its own, seeded from the run's seed and   *
 * the thread's number, so a run is reproduced from its seed alone, thread by   *
 * thread; the interleaving between threads is the system's and is the thing    *
@@ -32,23 +42,48 @@
 
 Usage:
 
-    random_test [-t threads] [-s] [-v] [seed]
+    random_test [-t threads] [-w] [-m group] [-s] [-v] [-p] [seed]
 
     -t     The number of worker threads, 4 by default; 1 runs single
            threaded.
+    -w     The workers share the main window, instead of each owning a
+           toplevel window of its own. The tests are then one mode group.
+    -m     The mode group, for -w (the default group is draw):
+             draw    text, attributes, colors, cursor motion, scrolling,
+                     tabs, the figures, child windows: what the default
+                     modes, auto on and buffer on, allow, and nothing that
+                     changes a mode or the window's geometry
+             font    the fonts, font sizes and justified text, with the
+                     drawing, auto off for the run
+             buffer  the buffer sizing, switching and block copies, with
+                     the drawing
+             window  child windows, with the drawing; the children are
+                     each thread's own, and take every test
+             all     everything, modes included: only for windows that
+                     are one thread's own, which is the default
     -s     Include the synthesizer: random notes and instruments on the
            first synthesizer output. Off unless asked for, since it plays.
     -v     Narrate: each thread names each test on the error channel as it
            starts it, so the last line names the test a fault was in.
+    -p     Report the count on the error channel every ten seconds, for a
+           run watched from a script.
+    -n     Stop after about this many tests, for a bounded run (a leak
+           check under a sanitizer); 0, the default, runs until cancelled.
+    -P     The message echo server's port, 4919 by default. Two runs on one
+           machine need different ports.
     seed   The seed. Left off, or 0, one is taken from the clock. The seed
            is always reported on the error channel, so any run can be
            replayed.
 
-The run ends on the terminate event: close the window, or control-c in it.
+The run ends on the terminate event: close a window, or control-c in one.
+A library error goes where the configuration sends it, the error dialog by
+default; dialogerr 0 in a petit_ami.cfg of the current directory sends it
+to the error channel instead, which a scripted run wants.
 
 *******************************************************************************/
 
 #include <stdio.h>
+#include <unistd.h>
 #include <stdlib.h>
 #include <string.h>
 #include <time.h>
@@ -63,11 +98,14 @@ The run ends on the terminate event: close the window, or control-c in it.
 #define MAXTHREADS 32   /* worker threads at most */
 #define MAXDEPTH   3    /* child windows within child windows */
 #define MAXCHILD   30   /* tests run in a child window at most */
-#define NETPORT    4919 /* the message echo server's port */
+#define NETPORT    4919 /* the message echo server's port, by default */
 #define MAXMSG     1000 /* longest message exchanged */
 #define MAXSTR     80   /* longest string written */
 #define MAXBUF     2000 /* largest buffer dimension asked for, in pixels */
 #define STATTIM    10   /* the timer the count runs on */
+#define STATTIME   10000 /* its period, a second */
+#define STALLSECS 120 /* seconds without a completed test that is a stall */
+#define MAXWID     100  /* the highest window id the library takes */
 
 /* the tests: one case each */
 typedef enum {
@@ -77,8 +115,8 @@ typedef enum {
     tcurvis, twrtstr, tjust,
     tline, tlinewidth, tlinestyle, trect, tfrect, trrect, tfrrect, tellipse,
     tfellipse, tarc, tfarc, tfchord, ttriangle, tpixel, tmode,
-    tselect, tsizbuf, tsizbufg, tbuffer, tchild, tchildpos, tchildsiz,
-    tchildorder, tchildframe, ttitle, tview,
+    tselect, tsizbuf, tsizbufg, tblockcopy, tbuffer, tchild, tchildpos,
+    tchildsiz, tchildorder, tchildframe, ttitle, tview,
     tnet, tsound,
     tmax /* the count */
 
@@ -91,9 +129,65 @@ static const char* testnam[] = {
     "scrollg", "auto", "curvis", "wrtstr", "just",
     "line", "linewidth", "linestyle", "rect", "frect", "rrect", "frrect",
     "ellipse", "fellipse", "arc", "farc", "fchord", "triangle", "pixel", "mode",
-    "select", "sizbuf", "sizbufg", "buffer", "child", "childpos", "childsiz",
-    "childorder", "childframe", "title", "view",
+    "select", "sizbuf", "sizbufg", "blockcopy", "buffer", "child", "childpos",
+    "childsiz", "childorder", "childframe", "title", "view",
     "net", "sound"
+
+};
+
+/* The mode groups a test belongs to, as bits, and what a test needs of the
+   window's modes. A test that changes a mode belongs to no shared group. */
+#define GDRAW   1  /* draw: nothing modal about it */
+#define GFONT   2  /* font: needs auto off */
+#define GBUF    4  /* buffer: needs buffering on */
+#define GWIN    8  /* window: child windows and their controls */
+#define GALL    (GDRAW|GFONT|GBUF|GWIN)
+#define NAUTOFF 16 /* the window's auto must be off */
+#define NBUFON  32 /* the window's buffer must be on */
+#define NCHILD  64 /* the window must be a child window */
+#define NMODAL  128 /* changes a mode: only on a window that is one's own */
+
+static const int testgrp[tmax] = {
+
+    /* char string cursor cursorg home move del newline clear */
+    GDRAW, GDRAW, GDRAW, GDRAW, GDRAW, GDRAW, GDRAW, GDRAW, GDRAW,
+    /* attr color colorg */
+    GDRAW, GDRAW, GDRAW,
+    /* font fontsiz: auto off */
+    GFONT|NAUTOFF, GFONT|NAUTOFF,
+    /* tab: buffer on, since unbuffered the buffer follows the window, on
+       the event thread's time, and a tab is judged against it */
+    GDRAW|NBUFON,
+    /* scroll scrollg */
+    GDRAW, GDRAW,
+    /* auto: a mode; and buffered only, since unbuffered the screen follows
+       the window on the event thread's time, and auto coming back checks
+       the cursor against it */
+    NMODAL|NBUFON,
+    /* curvis */
+    GDRAW,
+    /* wrtstr: auto off */
+    GFONT|NAUTOFF,
+    /* just: auto off */
+    GFONT|NAUTOFF,
+    /* line linewidth linestyle rect frect rrect frrect ellipse fellipse */
+    GDRAW, GDRAW, GDRAW, GDRAW, GDRAW, GDRAW, GDRAW, GDRAW, GDRAW,
+    /* arc farc fchord triangle pixel mode */
+    GDRAW, GDRAW, GDRAW, GDRAW, GDRAW, GDRAW,
+    /* select sizbuf sizbufg blockcopy: buffer on, and the buffer group's
+       own: they change the window's geometry under the other threads,
+       which is a mode of its own */
+    GBUF|NBUFON, GBUF|NBUFON, GBUF|NBUFON, GBUF|NBUFON,
+    /* buffer: a mode */
+    NMODAL,
+    /* child */
+    GDRAW|GWIN,
+    /* childpos childsiz childorder childframe: on a child */
+    GWIN|NCHILD, GWIN|NCHILD, GWIN|NCHILD, GWIN|NCHILD,
+    /* title view */
+    GDRAW, GDRAW,
+    /* net sound */
+    GDRAW, GDRAW
 
 };
 
@@ -103,17 +197,27 @@ typedef struct {
     int                thread; /* thread number, 1-n */
     unsigned long long rs;     /* random stream state */
     FILE*              f;      /* the window under test */
-    int                depth;  /* child window depth, 0 on the main window */
+    int                depth;  /* child window depth, 0 on a toplevel */
     int                child;  /* the window is a child, this thread's own */
+    int                own;    /* the window is this thread's own: its
+                                  modes are the thread's to change */
+    int                groups; /* the mode groups the tests come from */
+    int                autoon; /* the update buffer's auto mode is on */
     int                bufon;  /* the window's buffer is on */
+    ami_long           fsiz0;  /* the window's font size as opened */
     unsigned long long count;  /* tests run */
 
 } ctx;
 
 /* the run's settings */
 static int                threads = 4;    /* worker threads */
+static int                shared = FALSE; /* the workers share the main window */
+static int                groups = GALL;  /* the mode groups, for a shared window */
 static int                sound = FALSE;  /* the synthesizer is included */
 static int                verbose = FALSE; /* narrate each test */
+static int                progress = FALSE; /* the count on the error channel */
+static unsigned long long limit = 0; /* stop after this many tests, 0 = never */
+static int                netport = NETPORT; /* the echo server's port: -P lets two runs coexist */
 static unsigned long long seed;           /* the run's seed */
 
 /* the run's state */
@@ -123,7 +227,7 @@ static ami_long      sigid;         /* a worker stopped */
 static int           running;       /* workers still running */
 static int           started;       /* workers started, under the lock */
 static ctx           ctxs[MAXTHREADS]; /* the threads' states */
-static ami_long      nextwid = 2;   /* next window id, under the lock */
+static char          widused[MAXWID+1]; /* window ids in use, under the lock */
 static ami_ulong     netaddr;       /* the loopback address */
 static int           netok;         /* the echo server is up */
 
@@ -211,7 +315,7 @@ static void echoserver(void)
     ami_long fn, len;
     char     buf[MAXMSG];
 
-    fn = ami_waitmsg(NETPORT, FALSE);
+    fn = ami_waitmsg(netport, FALSE);
     for (;;) {
 
         while (!ami_rdymsg(fn, 100000)) ; /* until a message is there */
@@ -232,20 +336,55 @@ Each takes the thread's state and does one random thing to its window.
 
 static void runtests(ctx* c, int n); /* forward */
 
+/* a window id of the run's own, unique across the threads: the library
+   allows ids up to MAXWID, so they are reused as windows close; 1 is the
+   main window's */
+static ami_long newwid(void)
+
+{
+
+    ami_long wid;
+
+    ami_lock(lockid);
+    for (wid = 2; wid <= MAXWID && widused[wid]; wid++) ;
+    if (wid > MAXWID) {
+
+        ami_unlock(lockid);
+        fprintf(stderr, "random_test: out of window ids\n");
+        exit(1);
+
+    }
+    widused[wid] = 1;
+    ami_unlock(lockid);
+
+    return (wid);
+
+}
+
+static void freewid(ami_long wid)
+
+{
+
+    ami_lock(lockid);
+    widused[wid] = 0;
+    ami_unlock(lockid);
+
+}
+
 /* a child window of the current window: opened at a random place and size,
-   a random number of tests run in it, and closed */
+   a random number of tests run in it, and closed. The child is the thread's
+   own whatever the parent is, so its modes are the thread's to change and
+   every test is open in it. */
 static void childtest(ctx* c)
 
 {
 
     ctx      cc;
     FILE*    win;
-    ami_long wid, px, py, w, h;
+    ami_long px, py, w, h, wid;
 
     if (c->depth >= MAXDEPTH) return;
-    ami_lock(lockid);
-    wid = nextwid++;
-    ami_unlock(lockid);
+    wid = newwid();
     ami_openwin(&stdin, &win, c->f, wid);
     /* somewhere on the parent, some size that fits it */
     px = rndr(c, 1, ami_maxxg(c->f)/2);
@@ -258,11 +397,16 @@ static void childtest(ctx* c)
     cc.f = win;
     cc.depth = c->depth+1;
     cc.child = TRUE;
+    cc.own = TRUE;
+    cc.groups = GALL;
+    cc.autoon = TRUE;
     cc.bufon = TRUE;
+    cc.fsiz0 = ami_chrsizy(win);
     runtests(&cc, (int)rndr(c, 1, MAXCHILD));
     c->rs = cc.rs; /* the stream went on in the child */
     c->count = cc.count;
     fclose(win);
+    freewid(wid);
 
 }
 
@@ -279,7 +423,7 @@ static void nettest(ctx* c)
     len = rndr(c, 1, MAXMSG);
     for (i = 0; i < len; i++) buf[i] = (char)rnd(c, 256);
     ami_lock(lockid);
-    fn = ami_openmsg(netaddr, NETPORT, FALSE);
+    fn = ami_openmsg(netaddr, netport, FALSE);
     ami_wrmsg(fn, buf, len);
     ami_rdmsg(fn, buf, MAXMSG);
     ami_clsmsg(fn);
@@ -305,6 +449,38 @@ static void soundtest(ctx* c)
 
 }
 
+/* The screens were remade, or another selected. Auto is a mode of each
+   screen, a remade screen taking the window's last setting and the others
+   keeping theirs, and a screen made before a resize keeps its size: rather
+   than model that, the test puts the update screen into a known state, auto
+   off, which every mode allows, and lets the auto test bring it back. */
+static void knownscreen(ctx* c)
+
+{
+
+    ami_auto(c->f, FALSE);
+    c->autoon = FALSE;
+
+}
+
+/* is the test open on this window, in its modes, in this run */
+static int allowed(ctx* c, testcod t)
+
+{
+
+    int g = testgrp[t];
+
+    if (t == tsound && !sound) return (FALSE);
+    if ((g & NMODAL) && !c->own) return (FALSE); /* a mode change: on one's own window */
+    if (!(g & c->groups)) return (FALSE); /* not this run's group */
+    if ((g & NAUTOFF) && c->autoon) return (FALSE);
+    if ((g & NBUFON) && !c->bufon) return (FALSE);
+    if ((g & NCHILD) && !c->child) return (FALSE);
+
+    return (TRUE);
+
+}
+
 /* one random test */
 static void test(ctx* c)
 
@@ -315,16 +491,7 @@ static void test(ctx* c)
     char     s[MAXSTR+1];
     ami_long x1, y1, x2, y2, x3, y3, xs, ys;
 
-    do {
-
-        t = (testcod)rnd(c, tmax);
-        /* the tests that are not for this window or this run come up again */
-        if (t == tsound && !sound) t = tmax;
-        else if ((t == tsizbuf || t == tsizbufg) && !c->bufon) t = tmax;
-        else if ((t == tbuffer || t == tchildpos || t == tchildsiz ||
-                  t == tchildorder || t == tchildframe) && !c->child) t = tmax;
-
-    } while (t == tmax);
+    do t = (testcod)rnd(c, tmax); while (!allowed(c, t));
     c->count++;
     if (verbose) {
 
@@ -387,8 +554,11 @@ static void test(ctx* c)
         case tfontsiz:  ami_fontsiz(f, rndr(c, 6, 48)); break;
         case ttab:      switch (rnd(c, 4)) {
 
-                            case 0: ami_settab(f, rndr(c, 1, ami_maxx(f))); break;
-                            case 1: ami_restab(f, rndr(c, 1, ami_maxx(f))); break;
+                            /* the columns the font now makes of the
+                               buffer: the character width reported
+                               stays as the buffer was made */
+                            case 0: ami_settab(f, rndr(c, 1, (ami_maxxg(f)-1)/ami_chrsizx(f)+1)); break;
+                            case 1: ami_restab(f, rndr(c, 1, (ami_maxxg(f)-1)/ami_chrsizx(f)+1)); break;
                             case 2: ami_clrtab(f); break;
                             case 3: fputc('\t', f); break;
 
@@ -396,7 +566,23 @@ static void test(ctx* c)
                         break;
         case tscroll:   ami_scroll(f, rndr(c, -3, 3), rndr(c, -3, 3)); break;
         case tscrollg:  ami_scrollg(f, rndr(c, -20, 20), rndr(c, -20, 20)); break;
-        case tauto:     ami_auto(f, rnd(c, 2)); break;
+        case tauto:     x1 = rnd(c, 2);
+                        if (x1 == c->autoon) break; /* no change: nothing to do */
+                        if (x1 && !c->autoon) {
+
+                            /* auto comes back only on the standard grid:
+                               the terminal font at the size the window
+                               opened with, the cursor on the screen */
+                            ami_viewscale(f, 1.0f, 1.0f);
+                            ami_viewoffg(f, 0, 0);
+                            ami_font(f, AMI_FONT_TERM);
+                            ami_fontsiz(f, c->fsiz0);
+                            ami_home(f);
+
+                        }
+                        ami_auto(f, x1);
+                        c->autoon = (int)x1;
+                        break;
         case tcurvis:   ami_curvis(f, rnd(c, 2)); break;
         case twrtstr:   rndstr(c, s, MAXSTR);
                         if (rnd(c, 2)) ami_wrtstr(f, s);
@@ -405,8 +591,9 @@ static void test(ctx* c)
         case tjust:     rndstr(c, s, MAXSTR);
                         x1 = ami_strsiz(f, s);
                         ami_writejust(f, s, rndr(c, x1, x1*2+1));
-                        ami_justpos(f, s, rndr(c, 1, (ami_long)strlen(s)), x1*2);
-                        ami_chrpos(f, s, rndr(c, 1, (ami_long)strlen(s)));
+                        /* the positions count from zero, before the last */
+                        ami_justpos(f, s, rndr(c, 0, (ami_long)strlen(s)-1), x1*2);
+                        ami_chrpos(f, s, rndr(c, 0, (ami_long)strlen(s)-1));
                         break;
 
         /* figures */
@@ -455,14 +642,28 @@ static void test(ctx* c)
                         break;
 
         /* buffers and windows */
-        case tselect:   ami_select(f, rndr(c, 1, 4), rndr(c, 1, 4)); break;
+        case tselect:   ami_select(f, rndr(c, 1, 4), rndr(c, 1, 4));
+                        /* the screen selected may date from before a
+                           resize: bring it to the window's size */
+                        ami_sizbufg(f, ami_maxxg(f), ami_maxyg(f));
+                        knownscreen(c);
+                        break;
         case tsizbuf:   ami_sizbuf(f, rndr(c, 1, MAXBUF/ami_chrsizx(f)),
                                    rndr(c, 1, MAXBUF/ami_chrsizy(f)));
+                        knownscreen(c);
                         break;
         case tsizbufg:  ami_sizbufg(f, rndr(c, ami_chrsizx(f), MAXBUF),
                                     rndr(c, ami_chrsizy(f), MAXBUF));
+                        knownscreen(c);
                         break;
-        case tbuffer:   c->bufon = (int)rnd(c, 2); ami_buffer(f, c->bufon); break;
+        case tblockcopy: x1 = rndx(c); y1 = rndy(c); x2 = rndx(c); y2 = rndy(c);
+                        ami_blockcopyg(f, rndr(c, 1, 4), rndr(c, 1, 4),
+                                       x1, y1, x2, y2, rndx(c), rndy(c),
+                                       rndx(c), rndy(c));
+                        break;
+        case tbuffer:   c->bufon = (int)rnd(c, 2); ami_buffer(f, c->bufon);
+                        knownscreen(c);
+                        break;
         case tchild:    childtest(c); break;
         case tchildpos: ami_setposg(f, rndr(c, 1, MAXBUF), rndr(c, 1, MAXBUF)); break;
         case tchildsiz: ami_setsizg(f, rndr(c, ami_chrsizx(f)*2, MAXBUF),
@@ -513,8 +714,8 @@ static void runtests(ctx* c, int n)
 
 The worker thread
 
-Takes the next thread's state, runs tests on the main window until the stop,
-and reports itself stopped.
+Takes the next thread's state, opens its window unless the run shares the
+main one, runs tests until the stop, and reports itself stopped.
 
 *******************************************************************************/
 
@@ -522,12 +723,26 @@ static void worker(void)
 
 {
 
-    ctx* c;
+    ctx*  c;
+    FILE* win = NULL;
+    char  title[40];
 
     ami_lock(lockid);
     c = &ctxs[started++];
     ami_unlock(lockid);
+    if (!shared) {
+
+        /* a toplevel window of this thread's own */
+        ami_openwin(&stdin, &win, NULL, newwid());
+        /* its id is held for the run: the window lives as long */
+        sprintf(title, "random_test thread %d", c->thread);
+        ami_title(win, title);
+        c->f = win;
+
+    }
+    c->fsiz0 = ami_chrsizy(c->f);
     while (!stop) test(c);
+    if (win) fclose(win);
     ami_lock(lockid);
     running--;
     ami_sendsig(sigid);
@@ -545,10 +760,13 @@ int main(int argc, char* argv[])
 
 {
 
-    int                i;
+    int                i, secs = 0;
+    unsigned long long lasttot = 0; /* the count at the last second */
+    int                stall = 0;   /* seconds without a test completing */
     ami_evtrec         er;
     unsigned long long total;
     char               title[80];
+    const char*        groupnam = "draw";
 
     for (i = 1; i < argc; i++) {
 
@@ -558,15 +776,37 @@ int main(int argc, char* argv[])
             if (threads < 1) threads = 1;
             if (threads > MAXTHREADS) threads = MAXTHREADS;
 
-        } else if (!strcmp(argv[i], "-s")) sound = TRUE;
+        } else if (!strcmp(argv[i], "-w")) shared = TRUE;
+        else if (!strcmp(argv[i], "-m") && i+1 < argc) groupnam = argv[++i];
+        else if (!strcmp(argv[i], "-s")) sound = TRUE;
         else if (!strcmp(argv[i], "-v")) verbose = TRUE;
+        else if (!strcmp(argv[i], "-p")) progress = TRUE;
+        else if (!strcmp(argv[i], "-n") && i+1 < argc) limit = strtoull(argv[++i], NULL, 10);
+        else if (!strcmp(argv[i], "-P") && i+1 < argc) netport = atoi(argv[++i]);
         else seed = strtoull(argv[i], NULL, 10);
+
+    }
+    if (shared) {
+
+        if (!strcmp(groupnam, "draw")) groups = GDRAW;
+        else if (!strcmp(groupnam, "font")) groups = GFONT;
+        else if (!strcmp(groupnam, "buffer")) groups = GBUF;
+        else if (!strcmp(groupnam, "window")) groups = GWIN;
+        else if (!strcmp(groupnam, "all")) groups = GALL;
+        else {
+
+            fprintf(stderr, "random_test: no such mode group: %s\n", groupnam);
+            return (1);
+
+        }
 
     }
     if (!seed) seed = (unsigned long long)time(NULL)*2654435761ULL+
                       (unsigned long long)ami_clock();
-    fprintf(stderr, "random_test: seed %llu, %d thread%s%s\n", seed, threads,
-            threads == 1? "": "s", sound? ", with sound": "");
+    fprintf(stderr, "random_test: seed %llu, %d thread%s, %s%s%s\n", seed,
+            threads, threads == 1? "": "s",
+            shared? "the main window shared, group ": "a window each",
+            shared? groupnam: "", sound? ", with sound": "");
     fflush(stderr);
 
     ami_autohold(FALSE); /* the run ends on the terminate event, not on its own */
@@ -592,15 +832,22 @@ int main(int argc, char* argv[])
 
     }
 
+    /* the shared window's modes are the group's, set once here: the font
+       group needs auto off, and stays off */
+    if (shared && groups == GFONT) ami_auto(stdout, FALSE);
+
     /* the workers: each with a stream of its own from the seed */
     for (i = 0; i < threads; i++) {
 
         ctxs[i].thread = i+1;
         ctxs[i].rs = seed ^ ((unsigned long long)(i+1)*0x9E3779B97F4A7C15ULL);
         if (!ctxs[i].rs) ctxs[i].rs = 1; /* xorshift must not start at zero */
-        ctxs[i].f = stdout;
+        ctxs[i].f = stdout; /* the worker opens its own unless shared */
         ctxs[i].depth = 0;
         ctxs[i].child = FALSE;
+        ctxs[i].own = !shared;
+        ctxs[i].groups = shared? groups: GALL;
+        ctxs[i].autoon = !(shared && groups == GFONT);
         ctxs[i].bufon = TRUE;
         ctxs[i].count = 0;
 
@@ -610,7 +857,7 @@ int main(int argc, char* argv[])
 
     /* the event loop: the count in the title once a second, until the
        terminate event */
-    ami_timer(stdout, STATTIM, 10000, TRUE);
+    ami_timer(stdout, STATTIM, STATTIME, TRUE);
     do {
 
         ami_event(stdin, &er);
@@ -620,10 +867,35 @@ int main(int argc, char* argv[])
             for (i = 0; i < threads; i++) total += ctxs[i].count;
             sprintf(title, "random_test: %llu tests", total);
             ami_title(stdout, title);
+            /* a stall: no thread has completed a test in a while. A hang in
+               the library looks like a quiet run otherwise; say so, in the
+               title and on the error channel, and leave the process running
+               for a debugger to attach to */
+            if (total == lasttot) {
+
+                if (++stall == STALLSECS) {
+
+                    fprintf(stderr, "random_test: STALLED: no test completed in %d "
+                                    "seconds at %llu tests, seed %llu, pid %d; "
+                                    "left running for a debugger\n",
+                            STALLSECS, total, (unsigned long long)seed, (int)getpid());
+                    sprintf(title, "random_test: STALLED at %llu tests", total);
+                    ami_title(stdout, title);
+
+                }
+
+            } else { stall = 0; lasttot = total; }
+            if (limit && total >= limit) break; /* the bounded run for leak checks */
+            if (progress && ++secs%10 == 0) {
+
+                fprintf(stderr, "random_test: %llu tests\n", total);
+                fflush(stderr);
+
+            }
 
         }
 
-    } while (er.etype != ami_etterm);
+    } while (er.etype != ami_etterm && !(limit && ({ unsigned long long tt = 0; for (i = 0; i < threads; i++) tt += ctxs[i].count; tt; }) >= limit));
 
     /* stop the workers, and wait for them to finish what they were in */
     stop = TRUE;

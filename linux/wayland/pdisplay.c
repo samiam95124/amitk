@@ -100,6 +100,7 @@ typedef struct wltop {
     int    dmg;             /* damage accumulated */
     int    dx1, dy1, dx2, dy2;
     struct wl_callback* fcb; /* outstanding frame callback */
+#define PACEMS 15               /* a refresh, less a little: the compose pace while it is outstanding */
     int64_t fcbtime;        /* when it was armed */
     int    commitpend;      /* damage waiting on frame callback */
     int    applying;        /* a compositor resize is being applied: hold
@@ -1991,6 +1992,17 @@ static void compose(pd_display* d, pd_win* win)
 
     t = win->top;
     if (!t || !t->configured || !win->mapped || !t->dmg) return;
+    /* pace to the frame callback, for one refresh: while a callback is
+       outstanding and younger than a refresh, the frame in flight is as
+       fresh as the screen can show; the damage waits, and the callback
+       composes it (framedone). Past a refresh with no callback the
+       mailbox behavior below stands, a late frame replaced by a fresher
+       one. Without this, a window the compositor is not showing, whose
+       buffers come straight back and whose callbacks never come, was
+       recomposed in full on every poll of the display, by every thread,
+       under the display's lock: eight windows drawn by eight threads
+       starved each other and the event loop to a standstill. */
+    if (t->fcb && nowms()-t->fcbtime < PACEMS) { t->commitpend = 1; return; }
     /* a resize mid-application holds its commit; the bailout keeps a
        caller that never finishes from freezing the window */
     if (t->applying) {
