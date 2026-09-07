@@ -42,13 +42,17 @@
 
 Usage:
 
-    random_test [-t threads] [-w] [-m group] [-s] [-v] [-p] [seed]
+    random_test [-t threads] [-w] [-m group] [-s|-S] [-v] [-p] [-n count]
+                [-P port] [seed]
 
     -t     The number of worker threads, 4 by default; 1 runs single
            threaded.
     -w     The workers share the main window, instead of each owning a
-           toplevel window of its own. The tests are then one mode group.
-    -m     The mode group, for -w (the default group is draw):
+           toplevel window of its own. Auto is off for the run: one
+           thread's character writes at graphical positions would fail
+           against another's auto mode. The tests are every one that
+           changes no mode, or the group given with -m.
+    -m     The mode group, for -w (the default is all):
              draw    text, attributes, colors, cursor motion, scrolling,
                      tabs, the figures, child windows: what the default
                      modes, auto on and buffer on, allow, and nothing that
@@ -59,10 +63,18 @@ Usage:
                      the drawing
              window  child windows, with the drawing; the children are
                      each thread's own, and take every test
-             all     everything, modes included: only for windows that
-                     are one thread's own, which is the default
+             all     every group; the tests that change a mode, auto and
+                     buffer, run only on a window that is one thread's
+                     own, which is what each has without -w
     -s     Include the synthesizer: random notes and instruments on the
            first synthesizer output. Off unless asked for, since it plays.
+           The notes are random on and off, on random channels, so few
+           note ons meet their own note off, and the synthesizer fills
+           with ringing notes: a torture of the sound path.
+    -S     Include the synthesizer, notes paired: every note on is followed
+           in time by its own note off, a thread holding a few notes at
+           once, and instruments change on every channel but the
+           percussion channel. What a program normally does.
     -v     Narrate: each thread names each test on the error channel as it
            starts it, so the last line names the test a fault was in.
     -p     Report the count on the error channel every ten seconds, for a
@@ -96,6 +108,7 @@ to the error channel instead, which a scripted run wants.
 #include <graphics.h>
 
 #define MAXTHREADS 32   /* worker threads at most */
+#define MAXNOTES   8    /* notes a thread holds on at once, paired sound */
 #define MAXDEPTH   3    /* child windows within child windows */
 #define MAXCHILD   30   /* tests run in a child window at most */
 #define NETPORT    4919 /* the message echo server's port, by default */
@@ -146,6 +159,9 @@ static const char* testnam[] = {
 #define NBUFON  32 /* the window's buffer must be on */
 #define NCHILD  64 /* the window must be a child window */
 #define NMODAL  128 /* changes a mode: only on a window that is one's own */
+#define NGEOM   256 /* judged against the window's geometry, its buffer and
+                       character widths, which another thread's buffer or
+                       font test changes: only on a window that is one's own */
 
 static const int testgrp[tmax] = {
 
@@ -156,8 +172,9 @@ static const int testgrp[tmax] = {
     /* font fontsiz: auto off */
     GFONT|NAUTOFF, GFONT|NAUTOFF,
     /* tab: buffer on, since unbuffered the buffer follows the window, on
-       the event thread's time, and a tab is judged against it */
-    GDRAW|NBUFON,
+       the event thread's time, and a tab is judged against it; and on a
+       window of one's own, the judgment being against its geometry */
+    GDRAW|NBUFON|NGEOM,
     /* scroll scrollg */
     GDRAW, GDRAW,
     /* auto: a mode; and buffered only, since unbuffered the screen follows
@@ -206,6 +223,8 @@ typedef struct {
     int                bufon;  /* the window's buffer is on */
     ami_long           fsiz0;  /* the window's font size as opened */
     unsigned long long count;  /* tests run */
+    int                notes[MAXNOTES]; /* the notes held on: channel<<8|note */
+    int                held;   /* how many */
 
 } ctx;
 
@@ -214,6 +233,7 @@ static int                threads = 4;    /* worker threads */
 static int                shared = FALSE; /* the workers share the main window */
 static int                groups = GALL;  /* the mode groups, for a shared window */
 static int                sound = FALSE;  /* the synthesizer is included */
+static int                paired = FALSE; /* its notes on and off paired */
 static int                verbose = FALSE; /* narrate each test */
 static int                progress = FALSE; /* the count on the error channel */
 static unsigned long long limit = 0; /* stop after this many tests, 0 = never */
@@ -405,6 +425,10 @@ static void childtest(ctx* c)
     runtests(&cc, (int)rndr(c, 1, MAXCHILD));
     c->rs = cc.rs; /* the stream went on in the child */
     c->count = cc.count;
+    /* the notes held on went on in the child too: left in the copy, they
+       were never turned off */
+    c->held = cc.held;
+    memcpy(c->notes, cc.notes, sizeof(c->notes));
     fclose(win);
     freewid(wid);
 
@@ -438,12 +462,48 @@ static void soundtest(ctx* c)
 {
 
     ami_long ch = rndr(c, 1, 16);
+    int      i, n;
 
-    switch (rnd(c, 3)) {
+    if (paired) {
+
+        /* every note on meets its own note off: a note on while there is
+           room, else a note off of one held, the choice even between them
+           once some are held; instruments change on every channel but the
+           percussion channel, whose programs are drum kits */
+        if (c->held < MAXNOTES && (!c->held || rnd(c, 2))) {
+
+            n = (int)rndr(c, 1, 128);
+            ami_noteon(1, 0, ch, n, rndratio(c));
+            c->notes[c->held++] = (int)(ch<<8|n);
+
+        } else if (c->held) {
+
+            i = (int)rnd(c, c->held);
+            ami_noteoff(1, 0, c->notes[i]>>8, c->notes[i]&0xff, rndratio(c));
+            c->notes[i] = c->notes[--c->held];
+
+        }
+        if (!rnd(c, 4) && ch != 10) ami_instchange(1, 0, ch, rndr(c, 1, 128));
+
+    } else switch (rnd(c, 3)) {
 
         case 0: ami_noteon(1, 0, ch, rndr(c, 1, 128), rndratio(c)); break;
         case 1: ami_noteoff(1, 0, ch, rndr(c, 1, 128), rndratio(c)); break;
         case 2: ami_instchange(1, 0, ch, rndr(c, 1, 128)); break;
+
+    }
+
+}
+
+/* a thread's held notes off, at its end */
+static void notesoff(ctx* c)
+
+{
+
+    while (c->held) {
+
+        c->held--;
+        ami_noteoff(1, 0, c->notes[c->held]>>8, c->notes[c->held]&0xff, 1.0);
 
     }
 
@@ -472,6 +532,7 @@ static int allowed(ctx* c, testcod t)
 
     if (t == tsound && !sound) return (FALSE);
     if ((g & NMODAL) && !c->own) return (FALSE); /* a mode change: on one's own window */
+    if ((g & NGEOM) && !c->own) return (FALSE); /* judged against geometry others change */
     if (!(g & c->groups)) return (FALSE); /* not this run's group */
     if ((g & NAUTOFF) && c->autoon) return (FALSE);
     if ((g & NBUFON) && !c->bufon) return (FALSE);
@@ -742,6 +803,7 @@ static void worker(void)
     }
     c->fsiz0 = ami_chrsizy(c->f);
     while (!stop) test(c);
+    if (sound && paired) notesoff(c);
     if (win) fclose(win);
     ami_lock(lockid);
     running--;
@@ -766,7 +828,7 @@ int main(int argc, char* argv[])
     ami_evtrec         er;
     unsigned long long total;
     char               title[80];
-    const char*        groupnam = "draw";
+    const char*        groupnam = "all";
 
     for (i = 1; i < argc; i++) {
 
@@ -779,6 +841,7 @@ int main(int argc, char* argv[])
         } else if (!strcmp(argv[i], "-w")) shared = TRUE;
         else if (!strcmp(argv[i], "-m") && i+1 < argc) groupnam = argv[++i];
         else if (!strcmp(argv[i], "-s")) sound = TRUE;
+        else if (!strcmp(argv[i], "-S")) { sound = TRUE; paired = TRUE; }
         else if (!strcmp(argv[i], "-v")) verbose = TRUE;
         else if (!strcmp(argv[i], "-p")) progress = TRUE;
         else if (!strcmp(argv[i], "-n") && i+1 < argc) limit = strtoull(argv[++i], NULL, 10);
@@ -806,7 +869,8 @@ int main(int argc, char* argv[])
     fprintf(stderr, "random_test: seed %llu, %d thread%s, %s%s%s\n", seed,
             threads, threads == 1? "": "s",
             shared? "the main window shared, group ": "a window each",
-            shared? groupnam: "", sound? ", with sound": "");
+            shared? groupnam: "",
+            sound? (paired? ", with sound, notes paired": ", with sound"): "");
     fflush(stderr);
 
     ami_autohold(FALSE); /* the run ends on the terminate event, not on its own */
@@ -832,9 +896,11 @@ int main(int argc, char* argv[])
 
     }
 
-    /* the shared window's modes are the group's, set once here: the font
-       group needs auto off, and stays off */
-    if (shared && groups == GFONT) ami_auto(stdout, FALSE);
+    /* the shared window's modes are set once here and stay: auto off, since
+       a thread's character writes at graphical positions would fail against
+       another thread's auto mode, and no test on a shared window changes a
+       mode */
+    if (shared) ami_auto(stdout, FALSE);
 
     /* the workers: each with a stream of its own from the seed */
     for (i = 0; i < threads; i++) {
@@ -847,9 +913,10 @@ int main(int argc, char* argv[])
         ctxs[i].child = FALSE;
         ctxs[i].own = !shared;
         ctxs[i].groups = shared? groups: GALL;
-        ctxs[i].autoon = !(shared && groups == GFONT);
+        ctxs[i].autoon = !shared;
         ctxs[i].bufon = TRUE;
         ctxs[i].count = 0;
+        ctxs[i].held = 0;
 
     }
     running = threads;
