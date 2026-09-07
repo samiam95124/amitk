@@ -326,6 +326,32 @@ static void enq(pd_display* d, pd_evt* e)
     if (write(d->evfd, &one, 8) < 0) { /* wake is advisory */ }
 }
 
+/* the queued events of a window leaving: delivered after its record is
+   freed, they carry a dangling handle to the reader */
+static void purgewin(pd_display* d, pd_win* w)
+{
+    evq** pp;
+    evq*  p;
+
+    QLK();
+    pp = &d->eqh;
+    while (*pp) {
+
+        if ((*pp)->e.win == w) {
+
+            p = *pp;
+            *pp = p->next;
+            p->next = d->eqf;
+            d->eqf = p;
+
+        } else pp = &(*pp)->next;
+
+    }
+    d->eqt = NULL;
+    for (p = d->eqh; p; p = p->next) d->eqt = p;
+    QULK();
+}
+
 static int deq(pd_display* d, pd_evt* e)
 {
     evq* p;
@@ -1649,6 +1675,7 @@ void pd_windel(pd_win* win)
     unlinkchild(win);
     TREEUN();
     if (win->can) { canlk(win->can); canulk(win->can); } /* a use in flight ends */
+    purgewin(d, win); /* its queued events: a handle about to be freed */
     freecanvas(win->can);
     free(win->title);
     free(win);

@@ -2005,6 +2005,9 @@ window managers that don't advertise the atom.
    only sticks once that has settled, i.e. when the resulting pd_etnofocus arrives.
    wmactivate() arms this; the pd_etnofocus handler fires the retry. */
 static pd_win* refocuswin = 0;
+static pthread_mutex_t refocuslk = PTHREAD_MUTEX_INITIALIZER; /* its lock: armed
+                                 by a worker's decoration change, cleared by a
+                                 close and by the event thread's map */
 
 static void wmactivate(pd_win* w, int arm)
 
@@ -2014,7 +2017,13 @@ static void wmactivate(pd_win* w, int arm)
        the retry armed here fires from the pd_etnofocus handler */
     pd_winraise(w);
     pd_flush(grx_padisplay);
-    if (arm) refocuswin = w;
+    if (arm) {
+
+        pthread_mutex_lock(&refocuslk);
+        refocuswin = w;
+        pthread_mutex_unlock(&refocuslk);
+
+    }
 
 }
 
@@ -4259,6 +4268,40 @@ Remove pd_evt from input queue
 
 *******************************************************************************/
 
+/* the saved events of a window's handles, at their destruction: a saved
+   event delivered after the handle is freed, or after its address is a
+   new window's, reaches the wrong record or none */
+static void remquexwin(pd_win* w)
+{
+    xevtque* p;
+    xevtque* start;
+    xevtque* found;
+
+    pthread_mutex_lock(&xevtlock);
+    while (evtque) {
+
+        p = evtque; start = evtque; found = NULL;
+        do {
+
+            if (p->evt.win == w) { found = p; break; }
+            p = p->next;
+
+        } while (p != start);
+        if (!found) break;
+        if (found->next == found) evtque = NULL; /* the only one */
+        else {
+
+            found->last->next = found->next;
+            found->next->last = found->last;
+            if (evtque == found) evtque = found->next;
+
+        }
+        putxevt(found);
+
+    }
+    pthread_mutex_unlock(&xevtlock);
+}
+
 static int dequexevt(pd_evt* e)
 
 {
@@ -5931,6 +5974,12 @@ static void clswin(int fn)
     win = lfn2win(fn); /* get a pointer to the window */
     /* destroy the window, and mark it gone: an event still queued for it
        finds no window to draw in */
+    remquexwin(win->xwhan); /* the saved events of the handles first */
+    remquexwin(win->xmwhan);
+    pthread_mutex_lock(&refocuslk);
+    if (refocuswin == win->xwhan || refocuswin == win->xmwhan)
+        refocuswin = 0; /* a refocus armed on it is off: the handle goes */
+    pthread_mutex_unlock(&refocuslk);
     pd_windel(win->xwhan);
     pd_windel(win->xmwhan);
     win->xwhan = NULL;
@@ -12863,22 +12912,26 @@ static void xwinevt(winptr win, ami_evtrec* er, pd_evt* e, int* keep)
     winptr         fwin; /* focus window */
     ami_ulong      snc; /* serial of the provoking request */
 
-    scnlock(win); /* the screens, through the handling of this event */
-    if (!win->xwhan) { /* closed while the event waited: nothing to do */
-
-        scnunlock(win);
-        return;
-
-    }
-    sc = win->screens[win->curdsp-1]; /* index screen */
+    /* The lock is each branch's own, taken for the accesses it makes and
+       checked against a close while the event waited; the branches that
+       only translate an event, the keys, map, enter, leave and close,
+       take none. The record itself is held against disposal by the
+       caller's hold. */
 
     /* handle pd_etredraw on xmwhan for child-framed windows: repaint the frame */
     if (e->etype == pd_etredraw && win->childfrm &&
         win->xmwhan == e->win) {
+        scnlock(win); /* the branch's own span */
+        if (win->xwhan) { /* not closed while the event waited */
 
         dec->frmdraw(win, win->xmwr.w, win->xmwr.h);
 
+        }
+        scnunlock(win);
     } else if (e->etype == pd_etredraw && win->xmwhan != e->win) {
+        scnlock(win); /* the branch's own span */
+        if (win->xwhan) { /* not closed while the event waited */
+        sc = win->screens[win->curdsp-1]; /* index screen */
 
         if (win->bufmod) { /* use buffer to satisfy event */
 
@@ -12952,7 +13005,11 @@ static void xwinevt(winptr win, ami_evtrec* er, pd_evt* e, int* keep)
 
         }
 
+        }
+        scnunlock(win);
     } else if (e->etype == pd_etresize) {
+        scnlock(win); /* the branch's own span */
+        if (win->xwhan) { /* not closed while the event waited */
 
         if (win->xmwhan == e->win) { /* it's the master window */
 
@@ -13088,6 +13145,8 @@ static void xwinevt(winptr win, ami_evtrec* er, pd_evt* e, int* keep)
 
         }
 
+        }
+        scnunlock(win);
     } else if (e->etype == pd_etkeydown) {
 
         ks = e->keysym; /* the layer translates through xkb */
@@ -13253,6 +13312,8 @@ static void xwinevt(winptr win, ami_evtrec* er, pd_evt* e, int* keep)
     } else if (win->childfrm && win->xmwhan == e->win &&
                (e->etype == pd_etbtndown || e->etype == pd_etbtnup ||
                 e->etype == pd_etmouse)) {
+        scnlock(win); /* the branch's own span */
+        if (win->xwhan) { /* not closed while the event waited */
 
         /* update cursor shape based on hover position */
         if (e->etype == pd_etmouse) {
@@ -13593,8 +13654,12 @@ static void xwinevt(winptr win, ami_evtrec* er, pd_evt* e, int* keep)
 
         }
 
+        }
+        scnunlock(win);
     } else if ((e->etype == pd_etmouse || e->etype == pd_etbtndown ||
                e->etype == pd_etbtnup) && mouseenb) {
+        scnlock(win); /* the branch's own span */
+        if (win->xwhan) { /* not closed while the event waited */
 
         mouseevent(win, e); /* process mouse event */
         /* check any mouse details need processing */
@@ -13636,7 +13701,11 @@ static void xwinevt(winptr win, ami_evtrec* er, pd_evt* e, int* keep)
         }
 #endif
 
+        }
+        scnunlock(win);
     } else if (e->etype == pd_etnofocus) {
+        scnlock(win); /* the branch's own span */
+        if (win->xwhan) { /* not closed while the event waited */
 
         remfocus(root(win), NULL); /* remove focus from child window if it has it */
         curoff(win); /* remove cursor */
@@ -13646,10 +13715,16 @@ static void xwinevt(winptr win, ami_evtrec* er, pd_evt* e, int* keep)
         er->etype = ami_etnofocus; /* set no focus event */
         *keep = TRUE; /* set found */
 
+        }
+        scnunlock(win);
     } else if (e->etype == pd_etfocus) {
+        scnlock(win); /* the branch's own span */
+        if (win->xwhan) { /* not closed while the event waited */
 
         /* window has focus again -- cancel any pending decoration-change retry */
+        pthread_mutex_lock(&refocuslk);
         if (refocuswin == e->win) refocuswin = 0;
+        pthread_mutex_unlock(&refocuslk);
 
         remfocus(root(win), win); /* remove focus from child window if it has it */
         curoff(win); /* remove cursor */
@@ -13659,6 +13734,8 @@ static void xwinevt(winptr win, ami_evtrec* er, pd_evt* e, int* keep)
         er->etype = ami_etfocus; /* set focus event */
         *keep = TRUE; /* set found */
 
+        }
+        scnunlock(win);
     } else if (e->etype == pd_etmap) {
 
         /* Turning decorations back on (ami_frame/sysbar/sizable) makes Mutter
@@ -13667,15 +13744,23 @@ static void xwinevt(winptr win, ami_evtrec* er, pd_evt* e, int* keep)
            our focus. The window has settled by this pd_etmap, so re-assert
            focus here. Doing it at the earlier pd_etnofocus loses the race to the
            unmap/remap that follows. Armed only for decorations-on changes. */
-        if (refocuswin && e->win == refocuswin) {
+        scnlock(win); /* the window stays, and its handle with it */
+        if (win->xwhan && e->win == win->xmwhan) {
 
-            pd_win* rw = refocuswin;
-            refocuswin = 0; /* one-shot */
-            wmactivate(rw, 0);
+            int go;
+
+            pthread_mutex_lock(&refocuslk);
+            go = refocuswin == e->win;
+            if (go) refocuswin = 0; /* one-shot */
+            pthread_mutex_unlock(&refocuslk);
+            if (go) wmactivate(win->xmwhan, 0);
 
         }
+        scnunlock(win);
 
     } else if (e->etype == pd_etframe) {
+        scnlock(win); /* the branch's own span */
+        if (win->xwhan) { /* not closed while the event waited */
 
         /* The compositor's frame callback: the display's own refresh
            beat for this surface, delivered while the compositor is
@@ -13689,6 +13774,8 @@ static void xwinevt(winptr win, ami_evtrec* er, pd_evt* e, int* keep)
 
         }
 
+        }
+        scnunlock(win);
     } else if (e->etype == pd_etenter) {
 
         er->etype = ami_ethover; /* set hover event */
@@ -13709,9 +13796,8 @@ static void xwinevt(winptr win, ami_evtrec* er, pd_evt* e, int* keep)
     } else if (e->etype == pd_etmin || e->etype == pd_etmax ||
                e->etype == pd_etrestore)
         /* process window shell state messages */
-        winstat(win, er, e, keep);
+    { scnlock(win); if (win->xwhan) winstat(win, er, e, keep); scnunlock(win); }
 
-    scnunlock(win);
 
 }
 

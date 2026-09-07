@@ -19,6 +19,7 @@
 *******************************************************************************/
 
 #include <stdlib.h>
+#include <pthread.h>
 #include <string.h>
 #include <limits.h>
 #include <unistd.h>
@@ -97,6 +98,10 @@ static const frmpal brzdark  = { 0x31363b, 0xeff0f1, 0x7f8c8d,
 
 static frmpal brzpal;         /* the palette in force */
 static int   brzread;         /* the palette has been read */
+static pthread_mutex_t brzlk = PTHREAD_MUTEX_INITIALIZER; /* the palette's
+                                 lock: it is read from the desktop's file on
+                                 first use, by whichever thread draws the
+                                 first frame, and again on a theme change */
 static int   brzdrk;          /* the scheme in force is a dark one */
 static int   brzpin = -1;     /* config pinned scheme, -1 for none */
 
@@ -211,7 +216,9 @@ static const frmpal* framepal(void)
 
 {
 
+    pthread_mutex_lock(&brzlk);
     if (!brzread) readpal();
+    pthread_mutex_unlock(&brzlk);
 
     return (&brzpal);
 
@@ -652,8 +659,10 @@ static int pl_themechg(int fd)
 
     }
     if (!ours) return (FALSE);
+    pthread_mutex_lock(&brzlk);
     old = brzpal;
     readpal(); /* take the colors again */
+    pthread_mutex_unlock(&brzlk);
 
     return (memcmp(&old, &brzpal, sizeof(frmpal)) != 0);
 
