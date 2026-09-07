@@ -4442,7 +4442,7 @@ Should have timeouts.
    the mapper waits on this data, locked only for the touch, per the rule
    that a lock encompasses just the data it locks. */
 
-#define NOTERING 32
+#define NOTERING 1024 /* noted events kept for waiters; eight threads' traffic overran 32 before a waiter looked, and each wait then ran to its bound holding its window's lock */
 static pd_evt          notering[NOTERING]; /* awaitable notifies seen */
 static int             notein;
 static pthread_mutex_t notelock = PTHREAD_MUTEX_INITIALIZER;
@@ -5434,7 +5434,7 @@ static void winvis(winptr win)
             pd_winmove(win->xmwhan, win->xmwr.x+ox, win->xmwr.y+oy);
 
         }
-        pd_flush(grx_padisplay);
+        pd_winflush(win->xmwhan); /* this window's toplevel alone */
 
         /* wait for the window to be displayed */
         waitxmap(win->xmwhan, snc);
@@ -5442,7 +5442,7 @@ static void winvis(winptr win)
         /* present the subclient window onscreen */
         snc = 0;
         pd_winmap(win->xwhan, 1);
-        pd_flush(grx_padisplay);
+        pd_winflush(win->xmwhan); /* this window's toplevel alone */
 
         /* wait for the window to be displayed */
         waitxmap(win->xwhan, snc);
@@ -5966,6 +5966,7 @@ static void closewin(int ofn)
 
 {
 
+    int       si;   /* screen index */
     int       ifn;  /* input file id */
     ami_long  wid;  /* window id */
     winptr    win;  /* window data structure */
@@ -5982,6 +5983,30 @@ static void closewin(int ofn)
     clswin(ofn); /* close the window */
     filwin[ofn] = -1; /* clear file to window translation */
     xltwin[wid+MAXFIL] = -1; /* clear window to file translation */
+    /* The screens go now, under the lock, not with the record's deferred
+       disposal. The record waits for the event thread's idle point, and
+       under load that thread falls behind: closed windows then kept their
+       screens, up to ten canvases of tens of megabytes each, until memory
+       ran out. Every event thread path takes this lock and leaves on the
+       cleared display handle before it touches a screen. */
+    for (si = 0; si < MAXCON; si++)
+        if (win->screens[si]) {
+
+            disscn(win, win->screens[si]);
+            ifree(win->screens[si]);
+            win->screens[si] = NULL;
+
+        }
+    /* the face and its glyph cache likewise: a face is a few hundred
+       kilobytes, and nothing draws through a closed window's */
+    if (win->ftface) { ft_done_face(win->ftface); win->ftface = NULL; }
+    if (win->gcache) {
+
+        ft_cache_free(win->gcache);
+        free(win->gcache);
+        win->gcache = NULL;
+
+    }
     scnunlock(win);
     /* Out of the parent's tree first, while the record is still this
        window's. clsfil below releases the record to the pool, and another
@@ -11836,7 +11861,7 @@ static void blockcopyg_ivf(FILE* f, ami_long s, ami_long d, ami_long sx1, ami_lo
     }
     /* the copy is a complete act: push the requests to the server, so the
        result is onscreen before the caller's next step */
-    pd_flush(grx_padisplay);
+    pd_winflush(win->xmwhan); /* this window's toplevel alone */
 
     scnunlock(win);
 
@@ -12836,7 +12861,7 @@ static void xwinevt(winptr win, ami_evtrec* er, pd_evt* e, int* keep)
                     else sc->xcxt->fg = sc->fcrgb;
                     /* we shouldn't need to do this, but I have seen unpainted
                        of the window if not while resizing */
-                    pd_flush(grx_padisplay);
+                    pd_winflush(win->xmwhan); /* this window's toplevel alone */
 
                 }
 
@@ -12854,7 +12879,7 @@ static void xwinevt(winptr win, ami_evtrec* er, pd_evt* e, int* keep)
                 if (BIT(sarev) & sc->attr)
                     sc->xcxt->fg = sc->bcrgb;
                 else sc->xcxt->fg = sc->fcrgb;
-                pd_flush(grx_padisplay);
+                pd_winflush(win->xmwhan); /* this window's toplevel alone */
 
             }
             curon(win); /* replace cursor */

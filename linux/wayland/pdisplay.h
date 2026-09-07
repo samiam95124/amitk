@@ -309,6 +309,8 @@ compositor holds it.
 
 void pd_present(pd_win* w, int x, int y, int width, int height);
 void pd_flush(pd_display* d);
+/* one window's toplevel flushed alone: what a frame draw wants */
+void pd_winflush(pd_win* w);
 void pd_sync(pd_display* d);
 
 /*******************************************************************************
