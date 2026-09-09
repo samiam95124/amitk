@@ -4484,7 +4484,50 @@ ami_long parseday(const char* s)
 
 }
 
-/* any word of the list is in the text */
+/* Does the text hold the word where a word begins: at its start, or
+   after anything that is not a letter or a digit? A search for "ali"
+   wants Ali and alice@, and was finding the personalized in a Quora
+   digest's address. */
+static int wordstart(const char* hay, const char* w)
+
+{
+
+    ami_long n = strlen(w);
+    const char* p;
+
+    if (!n) return (FALSE);
+    for (p = hay; *p; p++)
+        if ((p == hay || !isalnum((unsigned char)p[-1])) &&
+            !strncasecmp(p, w, n)) return (TRUE);
+
+    return (FALSE);
+
+}
+
+/* every word of the term begins a word somewhere in the text */
+static int hasterm(const char* text, const char* term)
+
+{
+
+    char w[MAXSTR];
+    const char* p = term;
+    int n, any = FALSE;
+
+    while (*p) {
+
+        while (*p == ' ') p++;
+        n = 0;
+        while (*p && *p != ' ' && n < (int)sizeof(w)-1) w[n++] = *p++;
+        w[n] = 0;
+        if (n) { if (!wordstart(text, w)) return (FALSE); any = TRUE; }
+
+    }
+
+    return (any);
+
+}
+
+/* any word of the list begins a word in the text */
 static int hasaword(const char* text, const char* words)
 
 {
@@ -4499,7 +4542,7 @@ static int hasaword(const char* text, const char* words)
         n = 0;
         while (*p && *p != ' ' && n < (int)sizeof(w)-1) w[n++] = *p++;
         w[n] = 0;
-        if (n && holds(text, w)) return (TRUE);
+        if (n && wordstart(text, w)) return (TRUE);
 
     }
 
@@ -4519,9 +4562,9 @@ static int srcmatch(ami_long fold, const msgrec* m, const srcrec* a)
     int   ok = TRUE;
 
     /* what the index answers */
-    if (*a->from && !holds(m->from, a->from) && !holds(m->addr, a->from))
+    if (*a->from && !hasterm(m->from, a->from) && !hasterm(m->addr, a->from))
         return (FALSE);
-    if (*a->subject && !holds(m->subject, a->subject)) return (FALSE);
+    if (*a->subject && !hasterm(m->subject, a->subject)) return (FALSE);
     if (a->sizeop == 1 && m->len <= a->sizeval) return (FALSE);
     if (a->sizeop == 2 && m->len >= a->sizeval) return (FALSE);
     if (a->within && (m->date < a->date-a->within ||
@@ -4531,7 +4574,7 @@ static int srcmatch(ami_long fold, const msgrec* m, const srcrec* a)
     raw = getmsgin(fold, m);
     if (!raw) return (FALSE);
     if (!findheader(raw, "To", to, sizeof(to))) *to = 0;
-    if (*a->to && !holds(to, a->to)) ok = FALSE;
+    if (*a->to && !hasterm(to, a->to)) ok = FALSE;
     if (ok && a->attach && !hasattach(raw, strlen(raw))) ok = FALSE;
     if (ok && (*a->words || *a->nowords)) {
 
@@ -4552,7 +4595,7 @@ static int srcmatch(ami_long fold, const msgrec* m, const srcrec* a)
                 n = 0;
                 while (*p && *p != ' ' && n < (int)sizeof(w)-1) w[n++] = *p++;
                 w[n] = 0;
-                if (n && !holds(all, w) && !holds(text, w)) ok = FALSE;
+                if (n && !wordstart(all, w) && !wordstart(text, w)) ok = FALSE;
 
             }
 
