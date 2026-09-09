@@ -75,7 +75,7 @@
 
 Usage:
 
-    terminal_test [auto [file]] [first [last]]
+    terminal_test [auto [file]] [events] [first [last]]
 
     auto   Walk every screen with no input at all, and exit at the end:
            this is how the regression runs it. Each screen is captured
@@ -186,6 +186,15 @@ static ami_long      sn;       /* thread stop signal */
 static ami_long      etn;      /* event thread number */
 static ami_long      esn;      /* event thread stop signal */
 static volatile int  ethdstp;  /* event thread stop flag */
+/* An automatic run takes the show in lock step, so its captures are the
+   same every run: the main thread's tick lets the second thread draw, the
+   second thread reports drawn, the capture is taken, and both clear. The
+   flags are the state, under the show's lock; the signal is the wake. An
+   interactive run leaves the two threads on their own timers. */
+static ami_long      stepsig;  /* the lock step's signal */
+static volatile int  stepgo;   /* the second thread may draw */
+static volatile int  stepdrawn; /* it has drawn */
+static volatile int  stepclear; /* it may clear */
 static ami_long      timeout1; /* first timer fires */
 static ami_long      timeout2; /* second timer fires */
 
@@ -214,21 +223,45 @@ static jmp_buf terminate_buf;
 static ami_pevthan oldtermevent;
 
 /* wait time in 100 microseconds */
-static void waittime(int n, int t)
+static void frmstep(void);
+
+/* The timed pause of an animation. A return ends the wait early and is
+   reported, so an animation that offers it can stop on a return; the
+   timer is taken down so its tick does not land in a later wait. */
+static int waittime(int n, int t)
 {
-
     ami_evtrec er; /* event record */
-
-    if (framenum+1 < tstlo) return; /* pauses skip outside the range */
+    if (framenum < tstlo) return (FALSE); /* pauses skip outside the range */
     ami_timer(stdout, n, t, 0);
-    do { ami_event(stdin, &er);
+    do {
+        ami_event(stdin, &er);
+        if (er.etype == ami_etenter) { ami_killtimer(stdout, n); return (TRUE); }
     } while (er.etype != ami_ettim);
+    /* an automatic run captures the step: the animated patterns, the
+       sidewinder, the scrolls and the screen switches, are judged on
+       every step and not on their last screen alone */
+    if (autorun) frmstep();
+    return (FALSE);
 
 }
 
 
 extern void screen_capture(void);
 extern void screen_capture_name(const char* fn);
+extern void auto_event_name(const char* fn);
+extern void auto_event_beside(const char* capfile, const char* name);
+extern void auto_event_frame(int frame, int step);
+extern int  auto_event_ready(void);
+extern void auto_event(FILE* f, ami_evtrec* er);
+extern ami_long auto_mouse(FILE* f);
+extern ami_long auto_mousebutton(FILE* f, ami_long m);
+extern ami_long auto_joystick(FILE* f);
+extern ami_long auto_joybutton(FILE* f, ami_long j);
+extern ami_long auto_joyaxis(FILE* f, ami_long j);
+
+#define EVENTNAME "terminal_test.evt"  /* the events of the automatic run */
+#define EVENTFILE "tests/" EVENTNAME    /* where they are from the repository */
+#define LABELW    12 /* the frame label's field: "frame 18.192" */
 
 #define AUTOTIM  3          /* the timer an automatic pause runs on */
 #define AUTOPAUS (SECOND/2) /* an automatic pause, in place of a return */
@@ -247,24 +280,74 @@ static void autopause(void)
 
 }
 
-/* Mark the pattern just drawn: the next frame number stamped centered
-   on the top line, and the capture. The cursor goes back where it was,
-   and colors and attributes are left alone, so the label prints in the
-   pattern's own. Before the selected range the mark is the count
-   alone; past it the test is over. */
+/* Go on to the next frame. Each pattern is a frame, and the frame number
+   is advanced at the start of the pattern, so the steps of an animation
+   within it and the capture at its end carry the same number. Past the
+   selected range the test is over. */
+static int stepnum; /* the step within the frame being drawn */
+
+static void frmnext(void)
+{
+
+    framenum++;
+    stepnum = 0; /* the frame's steps count from one */
+    if (tsthi && framenum > tsthi) longjmp(terminate_buf, 1);
+    auto_event_frame(framenum, 0);
+
+}
+
+/* A step of an animation, in an automatic run: stamped as the frame mark
+   is, with the number of the frame being drawn and the step within it as
+   a fraction, frame 18.1, 18.2 and so on, so the frame count itself and
+   the frame range a run selects are untouched. The frame's own mark ends
+   the run of steps. Outside the selected range nothing is captured. */
+static int curupd = 1; /* the update buffer selected, as the test knows it */
+static int curdsp = 1; /* the display buffer selected */
+
+static void frmstep(void)
+{
+
+    char lbl[40], buf[40];
+    ami_long cx, cy;
+
+    if (framenum < tstlo) return; /* not in range */
+    stepnum++;
+    sprintf(lbl, "frame %d.%d", framenum, stepnum);
+    sprintf(buf, "%*s", LABELW, lbl); /* right in its field */
+    /* the stamp goes to the buffer on display: the buffer switching test
+       updates one while it shows another, and a stamp in the update buffer
+       is not seen on the page captured */
+    if (curdsp != curupd) ami_select(stdout, curdsp, curdsp);
+    cx = ami_curx(stdout);
+    cy = ami_cury(stdout);
+    ami_cursor(stdout, ami_maxx(stdout)-5-LABELW+1, 1);
+    printf("%s", buf);
+    ami_cursor(stdout, cx, cy);
+    if (curdsp != curupd) ami_select(stdout, curupd, curdsp);
+    screen_capture();
+    auto_event_frame(framenum, stepnum);
+
+}
+
+/* Mark and capture the pattern just drawn: the frame number stamped on the
+   top line at the right, five columns in from the edge, in a field wide
+   enough to cover a step's label, out of the way of what the patterns write
+   there, and the capture. The cursor goes back
+   where it was, and colors and attributes are left alone, so the label
+   prints in the pattern's own. Before the selected range nothing is
+   captured. */
 static void frmmark(void)
 {
 
-    char buf[40];
+    char lbl[40], buf[40];
     ami_long cx, cy;
 
-    framenum++;
-    if (tsthi && framenum > tsthi) longjmp(terminate_buf, 1);
-    if (framenum < tstlo) return; /* not in range: count alone */
-    sprintf(buf, "frame %d", framenum);
+    if (framenum < tstlo) return; /* not in range */
+    sprintf(lbl, "frame %d", framenum);
+    sprintf(buf, "%*s", LABELW, lbl); /* right in its field, over a step's */
     cx = ami_curx(stdout);
     cy = ami_cury(stdout);
-    ami_cursor(stdout, ami_maxx(stdout)/2-(ami_long)strlen(buf)/2, 1);
+    ami_cursor(stdout, ami_maxx(stdout)-5-LABELW+1, 1);
     printf("%s", buf);
     ami_cursor(stdout, cx, cy);
     screen_capture();
@@ -277,10 +360,9 @@ static void waitnext(void)
 
     ami_evtrec er; /* event record */
 
-    frmmark(); /* number, label and capture the pattern */
-    if (framenum < tstlo) return; /* before the range: pass at once */
-    if (autorun) return; /* the capture was the point: pass */
-    do {
+    frmmark(); /* label and capture the pattern */
+    /* before the range, and in an automatic run, pass at once */
+    if (framenum >= tstlo && !autorun) do {
 
         ami_event(stdin, &er);
         /* the window can be resized while we wait; track the size reported
@@ -288,6 +370,7 @@ static void waitnext(void)
         if (er.etype == ami_etresize) { winx = er.rszx; winy = er.rszy; }
 
     } while (er.etype != ami_etenter);
+    frmnext(); /* on to the next pattern */
 
 }
 
@@ -336,7 +419,7 @@ static void timetest(void)
     ami_long total;
     ami_evtrec er;
 
-    if (framenum+1 < tstlo) return; /* the timed runs skip outside the range */
+    if (framenum < tstlo) return; /* the timed runs skip outside the range */
     printf("Timer test, measuring minimum timer resolution, 100 samples\n\n");
     max = 0;
     min = LONG_MAX;
@@ -345,7 +428,7 @@ static void timetest(void)
 
         t = ami_clock();
         ami_timer(stdout, 1, 1, 0);
-        do { putchar('*'); ami_event(stdin, &er); } while (er.etype != ami_ettim);
+        do { putchar('*'); ami_event(stdin, &er); if (er.etype == ami_etenter) { ami_killtimer(stdout, 1); return; } /* a return ends the test */ } while (er.etype != ami_ettim);
         et = ami_elapsed(t);
         total += ami_elapsed(t);
         if (et > max) max = et;
@@ -361,7 +444,7 @@ static void timetest(void)
     printf(" frames per second\n");
     t = ami_clock();
     ami_timer(stdout, 1, 10000, 0);
-    do { ami_event(stdin, &er); } while (er.etype != ami_ettim);
+    do { ami_event(stdin, &er); if (er.etype == ami_etenter) { ami_killtimer(stdout, 1); return; } /* a return ends the test */ } while (er.etype != ami_ettim);
     printf("1 second time, was: %lld00 Microseconds\n", AMI_LONG_CAST(ami_elapsed(t)));
     printf("\n");
     printf("30 seconds of 1 second ticks:\n");
@@ -369,7 +452,7 @@ static void timetest(void)
     for (i = 1; i <= 30; i++) {
 
         ami_timer(stdout, 1, 10000, 0);
-        do { ami_event(stdin, &er);
+        do { ami_event(stdin, &er); if (er.etype == ami_etenter) { ami_killtimer(stdout, 1); return; } /* a return ends the test */
         } while (er.etype != ami_ettim);
         putchar('.');
 
@@ -387,7 +470,7 @@ static void frametest(void)
     ami_long total;
     ami_evtrec er;
 
-    if (framenum+1 < tstlo) return; /* the timed runs skip outside the range */
+    if (framenum < tstlo) return; /* the timed runs skip outside the range */
     printf("Framing timer test, measuring 10 occurances of the framing timer\n\n");
     ami_frametimer(stdout, TRUE);
         max = 0;
@@ -545,9 +628,27 @@ void thread(void)
         for (i = 0; i < 10; i++) {
 
             ami_lock(ln);
-            box(x-i, y-i, x+i, y+i, '*');
-            ami_waitsig(ln, timeout2);
-            box(x-i, y-i, x+i, y+i, ' ');
+            if (autorun) {
+
+                /* the lock step: draw on the go, report, clear on the word */
+                while (!stepgo && !thdstp) ami_waitsig(ln, stepsig);
+                if (thdstp) { ami_unlock(ln); break; }
+                box(x-i, y-i, x+i, y+i, '*');
+                stepgo = FALSE;
+                stepdrawn = TRUE;
+                ami_sendsig(stepsig);
+                while (!stepclear && !thdstp) ami_waitsig(ln, stepsig);
+                box(x-i, y-i, x+i, y+i, ' ');
+                stepclear = FALSE;
+                ami_sendsig(stepsig);
+
+            } else {
+
+                box(x-i, y-i, x+i, y+i, '*');
+                ami_waitsig(ln, timeout2);
+                box(x-i, y-i, x+i, y+i, ' ');
+
+            }
             ami_unlock(ln);
             i++;
 
@@ -593,18 +694,31 @@ int main(int argc, char *argv[])
 
             autorun = TRUE;
             ami_autohold(FALSE);
+            auto_event_name(EVENTFILE);
+
+        } else if (!strcmp(argv[i], "events")) {
+
+            auto_event_name(EVENTFILE); /* the file in an interactive run */
 
         } else if (argv[i][0] >= '0' && argv[i][0] <= '9') {
 
             if (!tstlo) tstlo = atoi(argv[i]);
             else tsthi = atoi(argv[i]);
 
-        } else if (autorun) screen_capture_name(argv[i]);
+        } else if (autorun) {
+
+            /* the capture file, and the event file beside it */
+            screen_capture_name(argv[i]);
+            auto_event_beside(argv[i], EVENTNAME);
+
+        }
 
     }
     if (tstlo < 1) tstlo = 1;
+    frmnext(); /* the first frame */
 
     ami_select(stdout, 2, 2);   /* move off the display buffer */
+    curupd = 2; curdsp = 2;
     /* the window and the buffer start out the same size; resize events seen
        while waiting keep this current */
     winx = ami_maxx(stdout);
@@ -636,23 +750,23 @@ int main(int argc, char *argv[])
 
     printf("\f");   /* clear screen */
     printf("Screen size: x -> %lld y -> %lld\n\n", AMI_LONG_CAST(ami_maxx(stdout)), AMI_LONG_CAST(ami_maxy(stdout)));
-    printf("Number of joysticks: %lld\n", AMI_LONG_CAST(ami_joystick(stdout)));
-    for (i = 1; i <= ami_joystick(stdout); i++) {
+    printf("Number of joysticks: %lld\n", AMI_LONG_CAST(auto_joystick(stdout)));
+    for (i = 1; i <= auto_joystick(stdout); i++) {
 
         printf("\n");
         printf("Number of axes on joystick: %d is: %lld\n", i,
-            AMI_LONG_CAST(ami_joyaxis(stdout, i)));
+            AMI_LONG_CAST(auto_joyaxis(stdout, i)));
         printf("Number of buttons on joystick: %d is: %lld\n", i,
-            AMI_LONG_CAST(ami_joybutton(stdout, i)));
+            AMI_LONG_CAST(auto_joybutton(stdout, i)));
 
     }
     printf("\n");
-    printf("Number of mice: %lld\n", AMI_LONG_CAST(ami_mouse(stdout)));
-    for (i = 1; i <= ami_mouse(stdout); i++) {
+    printf("Number of mice: %lld\n", AMI_LONG_CAST(auto_mouse(stdout)));
+    for (i = 1; i <= auto_mouse(stdout); i++) {
 
         printf("\n");
         printf("Number of buttons on mouse: %d is: %lld\n", i,
-            AMI_LONG_CAST(ami_mousebutton(stdout, i)));
+            AMI_LONG_CAST(auto_mousebutton(stdout, i)));
 
     }
     prtcen(ami_maxy(stdout), "Press return to continue");
@@ -704,7 +818,7 @@ int main(int argc, char *argv[])
         strcpy(line, "the quick brown fox jumps over the lazy dog");
         printf("%s", line);
 
-    } else if (framenum+1 >= tstlo) do { /* before the range: nothing is typed */
+    } else if (framenum >= tstlo) do { /* before the range: nothing is typed */
 
         c = getchar();
         if (c != EOF && c != '\n') line[i++] = c;
@@ -737,7 +851,7 @@ int main(int argc, char *argv[])
         strcpy(line, "the quick brown fox jumps over the lazy dog");
         printf("%s", line);
 
-    } else if (framenum+1 >= tstlo) do { /* before the range: nothing is typed */
+    } else if (framenum >= tstlo) do { /* before the range: nothing is typed */
 
         c = getchar();
         if (c != EOF && c != '\n') line[i++] = c;
@@ -1023,7 +1137,7 @@ int main(int argc, char *argv[])
 
         ami_cursor(stdout, x, y);   /* place character */
         putchar('*');
-        waittime(1, 100); /* wait for display, otherwise cannot see */
+        if (waittime(1, 100)) break; /* wait for display; a return ends the show */
         ami_cursor(stdout, lx, ly);   /* place character */
         putchar(' ');
         lx = x;   /* set last */
@@ -1037,7 +1151,7 @@ int main(int argc, char *argv[])
         if (y == 1 || ty == ami_maxy(stdout))   /* find new dir y */
         dy = -dy;
         /* slow this down */
-        waittime(1, 100);
+        if (waittime(1, 100)) break;
 
     }
     prtcen(ami_maxy(stdout)-1, "                    ");
@@ -1386,14 +1500,20 @@ int main(int argc, char *argv[])
     for (b = 2; b <= 10; b++) {  /* prepare buffers */
 
         ami_select(stdout, b, 2);   /* select buffer */
+        curupd = b; curdsp = 2;
         /* write a shinking box pattern */
         box(b - 1, b-1, ami_maxx(stdout)-(b- 2), ami_maxy(stdout)-(b-2), '*');
         prtcen(ami_maxy(stdout), "Buffer switching test");
 
     }
     for (i = 1; i <= 30; i++) /* flip buffers */
-        for (b = 2; b <= 10; b++) { waittime(1, 300); ami_select(stdout, 2, b); }
+        for (b = 2; b <= 10; b++) {
+            waittime(1, 300);
+            ami_select(stdout, 2, b);
+            curupd = 2; curdsp = b;
+        }
     ami_select(stdout, 2, 2);   /* restore buffer select */
+    curupd = 2; curdsp = 2;
 
     /* **************************** Writethrough test ************************** */
 
@@ -1454,7 +1574,6 @@ int main(int argc, char *argv[])
     printf("Resize the window, the frame should follow the window\n");
     x = ami_maxx(stdout);
     y = ami_maxy(stdout);
-    frmmark(); /* the interactive screens number and capture here */
     if (framenum >= tstlo && !autorun) do {
 
         ami_event(stdin, &er);
@@ -1474,6 +1593,8 @@ int main(int argc, char *argv[])
         }
 
     } while (er.etype != ami_etenter);
+    frmmark(); /* capture the frame as followed */
+    frmnext();
     ami_auto(stdout, TRUE);
     ami_curvis(stdout, FALSE);
 
@@ -1497,7 +1618,6 @@ int main(int argc, char *argv[])
     box(40, 10, 60, 14, '#');
     ami_cursor(stdout, 47, 12);
     printf("hover");
-    frmmark(); /* the interactive screens number and capture here */
     if (framenum >= tstlo && !autorun) do {
 
         ami_event(stdin, &er);
@@ -1507,6 +1627,8 @@ int main(int argc, char *argv[])
         else if (er.etype == ami_etnohover) box(40, 10, 60, 14, '*');
 
     } while (er.etype != ami_etenter);
+    frmmark(); /* capture the focus and hover as left */
+    frmnext();
     ami_curvis(stdout, TRUE);
 
     /* ******************************* Threading test ************************** */
@@ -1516,7 +1638,7 @@ int main(int argc, char *argv[])
     printf("\f");
     printf("The left and right figures are run on different threads\n");
     prtcen(ami_maxy(stdout), "Threading test");
-    if (framenum+1 >= tstlo) { /* the half minute show skips outside the range */
+    if (framenum >= tstlo) { /* the half minute show skips outside the range */
     thdstp = FALSE;
     ethdstp = FALSE;
     ln = ami_initlock();
@@ -1524,6 +1646,8 @@ int main(int argc, char *argv[])
     esn = ami_initsig();
     timeout1 = ami_initsig();
     timeout2 = ami_initsig();
+    stepsig = ami_initsig();
+    stepgo = stepdrawn = stepclear = FALSE;
     tn = ami_newthread(thread);
     etn = ami_newthread(eventthread);
     ami_timer(stdout, 1, SECOND/10, TRUE);
@@ -1538,6 +1662,20 @@ int main(int argc, char *argv[])
             ami_lock(ln);
             box(x-i, y-i, x+i, y+i, '*');
             ami_waitsig(ln, timeout1);
+            if (autorun) {
+
+                /* the lock step: the second thread draws, the capture is
+                   taken with both figures standing, then it clears */
+                stepgo = TRUE;
+                ami_sendsig(stepsig);
+                while (!stepdrawn) ami_waitsig(ln, stepsig);
+                stepdrawn = FALSE;
+                frmstep();
+                stepclear = TRUE;
+                ami_sendsig(stepsig);
+                while (stepclear) ami_waitsig(ln, stepsig);
+
+            }
             box(x-i, y-i, x+i, y+i, ' ');
             ami_unlock(ln);
             i++;
@@ -1548,6 +1686,7 @@ int main(int argc, char *argv[])
     /* stop subthread */
     ami_lock(ln);
     thdstp = TRUE;
+    ami_sendsig(stepsig); /* a thread in the lock step's wait sees the stop */
     ami_waitsig(ln, sn);
     ami_unlock(ln);
     /* stop event thread */
@@ -1567,17 +1706,20 @@ int main(int argc, char *argv[])
 
     /* ****************************** Joystick test **************************** */
 
-    if (ami_joystick(stdout) > 0) {  /* joystick test */
+    /* the joystick count is the event file's where it sets one */
+    if (auto_joystick(stdout) > 0) {  /* joystick test */
 
         printf("\f");
         ami_curvis(stdout, FALSE);
         prtcen(2, "Move the joystick(s) X, Y and Z, and hit buttons");
         prtcen(ami_maxy(stdout), "Joystick test");
-        frmmark(); /* the interactive screens number and capture here */
-        if (framenum >= tstlo && !autorun) do {   /* gather joystick events */
+        /* the user works the joystick, or the event file does: an automatic
+           run goes through the loop only while the file has events for it,
+           and captures a step for each */
+        if ((!autorun || auto_event_ready()) && framenum >= tstlo) do {
 
             /* we do up to 4 joysticks */
-            ami_event(stdin, &er);
+            auto_event(stdin, &er);
             if (er.etype == ami_etjoymov) {  /* joystick movement */
 
                 ami_cursor(stdout, 1, 3);
@@ -1649,15 +1791,18 @@ int main(int argc, char *argv[])
                 }
 
             }
+            if (autorun && er.etype != ami_etenter) frmstep(); /* the report */
 
-        } while (er.etype != ami_etenter);
+        } while (er.etype != ami_etenter && (!autorun || auto_event_ready()));
+        frmmark(); /* capture the joystick as reported */
+        frmnext();
         ami_curvis(stdout, TRUE);
 
     }
 
     /* **************************** Mouse test ********************************* */
 
-    if (ami_mouse(stdin) > 0) {  /* mouse test */
+    if (auto_mouse(stdin) > 0) {  /* mouse test */
 
         x = 1;
         y = 1;
@@ -1666,11 +1811,13 @@ int main(int argc, char *argv[])
         ami_curvis(stdout, FALSE);
         prtcen(2, "Move the mouse, and hit buttons");
         prtcen(ami_maxy(stdout), "Mouse test");
-        frmmark(); /* the interactive screens number and capture here */
-        if (framenum >= tstlo && !autorun) do { /* gather mouse events */
+        /* the user works the mouse, or the event file does: an automatic run
+           goes through the loop only while the file has events for it, and
+           captures a step for each */
+        if ((!autorun || auto_event_ready()) && framenum >= tstlo) do {
 
             /* we only one mouse, all mice equate to that (multiple controls) */
-            ami_event(stdin, &er);
+            auto_event(stdin, &er);
             if (er.etype == ami_etmoumov) {
 
                 ami_cursor(stdout, x, y);
@@ -1704,8 +1851,11 @@ int main(int argc, char *argv[])
                 prtcen(ami_maxy(stdout), "Mouse test");
 
             }
+            if (autorun && er.etype != ami_etenter) frmstep(); /* the report */
 
-        } while (er.etype != ami_etenter);
+        } while (er.etype != ami_etenter && (!autorun || auto_event_ready()));
+        frmmark(); /* capture what the mouse did */
+        frmnext();
         ami_home(stdout);
         ami_auto(stdout, TRUE);
         ami_curvis(stdout, TRUE);
@@ -1829,6 +1979,7 @@ int main(int argc, char *argv[])
     for (b = 2; b <= 10; b++) {  /* prepare buffers */
 
         ami_select(stdout, b, 2);   /* select buffer */
+        curupd = b; curdsp = 2;
         /* write a shinking box pattern */
         box(b - 1, b - 1, ami_maxx(stdout) - b + 2, ami_maxy(stdout) - b + 2, '*');
 
@@ -1839,6 +1990,7 @@ int main(int argc, char *argv[])
     for (b = 2; b <= 10; b++) {
 
         ami_select(stdout, 2, b);
+        curupd = 2; curdsp = b;
         cnt++;
 
     }
@@ -1846,6 +1998,7 @@ int main(int argc, char *argv[])
     benchtab[bnbuffer].iter = cnt;
     benchtab[bnbuffer].time = clk;
     ami_select(stdout, 2, 2);   /* restore buffer select */
+    curupd = 2; curdsp = 2;
     printf("\f");
     printf("Buffer switch speed: %f average seconds per switch %f\n",
            (float)clk*0.0001, (float)clk/cnt*0.0001);
@@ -1855,6 +2008,7 @@ terminate: /* terminate */
 
     /* test complete */
     ami_select(stdout, 1, 1); /* back to display buffer */
+    curupd = 1; curdsp = 1;
     ami_curvis(stdout, 1);     /* restore cursor */
     ami_auto(stdout, 1);   /* enable automatic screen wrap */
     if (tf != NULL) fclose(tf);

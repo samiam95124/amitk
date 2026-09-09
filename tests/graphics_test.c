@@ -322,11 +322,15 @@
 
 Usage:
 
-    graphics_test [auto [file]] [first [last]]
+    graphics_test [auto [file]] [events] [first [last]]
 
     auto   Walks every pattern with no input and exits after them: the
            regression mode. A following non-numeric argument names the
-           file the screens are captured to.
+           file the screens are captured to. The patterns driven by the
+           user take their events from tests/graphics_test.evt (see
+           doc/auto_events.md).
+    events Takes the events of tests/graphics_test.evt in an interactive
+           run as well, where the file has them for the frame at hand.
     first  The first frame to stop on. The patterns before it pass
            without a stop or capture.
     last   The last frame; the run ends after it. Left off, the run
@@ -359,6 +363,15 @@ through 8 alone.
 /* externals */
 extern void screen_capture(void);
 extern void screen_capture_name(const char* fn);
+extern void screen_capture_label(const char* s);
+extern void auto_event_name(const char* fn);
+extern void auto_event_beside(const char* capfile, const char* name);
+extern void auto_event_frame(int frame, int step);
+extern int  auto_event_ready(void);
+extern void auto_event(FILE* f, ami_evtrec* er);
+
+#define EVENTNAME "graphics_test.evt"  /* the events of the automatic run */
+#define EVENTFILE "tests/" EVENTNAME    /* where they are from the repository */
 
 /*
  * Debug print system
@@ -392,6 +405,8 @@ static enum { /* debug levels */
 #define S5     "Invisible body text"
 #define S6     "Example text"
 #define COLDIV 6 /* number of color divisions */
+#define AUTOSTEP 8 /* pixels the moving string steps per frame in automatic runs;
+                      1 is the interactive pace, and about 1100 captured steps */
 #define COLSQR 20 /* size of color square */
 #define OFF    FALSE
 #define ON     TRUE
@@ -427,6 +442,7 @@ static jmp_buf   terminate_buf;
 static int       framenum = 0;
 static int       tstlo = 1;      /* first frame in the selected range */
 static int       tsthi = 0;      /* last frame, 0 for no limit */
+static int       stepnum = 0;    /* animation step within the frame */
 /* "auto" on the command line: walk every pattern without waiting for a
    keypress, so the run can be compared against a standard by the
    regression harness. Every wait for the user answers at once, the
@@ -441,6 +457,7 @@ static int       i;
 static int       dx, dy;
 static int       ln;
 static int       term;
+static int       bright, bbot;   /* the moving string has bounced right, bottom */
 static int       w;
 static int       l;
 static ami_long  a;
@@ -502,7 +519,7 @@ static void waitchar(ami_long t, int* st)
 
     ami_evtrec er;
 
-    if (autorun || framenum+1 < tstlo)
+    if (autorun || framenum < tstlo)
         { *st = TRUE; return; } /* end the pattern at once */
     *st = FALSE; /* set no space terminate */
     ami_timer(stdout, 1, t, FALSE);
@@ -515,7 +532,34 @@ static void waitchar(ami_long t, int* st)
 
 }
 
-/* wait return to be pressed, or handle terminate */
+/* Go on to the next frame. Each pattern is a frame, and the frame number
+   is advanced at the start of the pattern, so the title while it draws, the
+   steps of an animation within it, and the capture at its end all carry the
+   same number. Past the selected range the test is over. */
+
+static void frmnext(void)
+
+{
+
+    char buf[80];
+
+    framenum++;
+    stepnum = 0; /* the steps count within the frame */
+    if (tsthi && framenum > tsthi) longjmp(terminate_buf, 1);
+    auto_event_frame(framenum, 0);
+    if (framenum < tstlo) return; /* not in range: count alone */
+    sprintf(buf, "graphics_test: frame %d", framenum);
+    ami_title(stdout, buf);
+
+}
+
+/* Mark and capture the pattern just drawn: the frame number on the title
+   and on the top line at the right, a tenth of the width in from the edge,
+   out of the way of what the patterns write there, and the capture. The label draws in xor
+   with no background, so it reads on any field and can be taken off again,
+   and the states touched (foreground mode and color, background mode) are
+   left at the test's steady defaults: overwrite, black, invisible. Before
+   the selected range nothing is captured. */
 
 static void frmmark(void)
 
@@ -523,30 +567,59 @@ static void frmmark(void)
 
     char buf[80];
 
-    /* Mark the pattern just drawn: the next frame number, on the title
-       and in the upper right corner of the screen, and the capture. The
-       label draws in xor, so it reads on any field, and the states
-       touched are left at the test's steady defaults. Before the
-       selected range the mark is the count alone; past it the test is
-       over. */
-    framenum++;
-    if (tsthi && framenum > tsthi) longjmp(terminate_buf, 1);
-    if (framenum < tstlo) return; /* not in range: count alone */
+    if (framenum < tstlo) return; /* not in range */
     sprintf(buf, "graphics_test: frame %d", framenum);
     ami_title(stdout, buf);
     /* the label centered on the top line, in the current font as the
        rest of the surface's writing, xor so it reads on any field */
     sprintf(buf, "frame %d", framenum);
+    ami_binvis(stdout);
     ami_fxor(stdout);
     ami_fcolor(stdout, ami_white);
-    ami_cursor(stdout, (ami_maxx(stdout)/2)-((ami_long)strlen(buf)/2), 1);
+    ami_cursor(stdout, ami_maxx(stdout)-ami_maxx(stdout)/10-(ami_long)strlen(buf)+1, 1);
     printf("%s", buf);
     ami_cursor(stdout, 1, 1); /* leave the cursor on a safe place */
     ami_fover(stdout);
     ami_fcolor(stdout, ami_black);
 
-    /* capture test screens */
+    /* capture test screens, the label as the picture's title */
+    screen_capture_label(buf);
     screen_capture();
+
+}
+
+/* Mark and capture one step of an animation within the frame being built.
+
+   The step is numbered "frame N.s" after the frame, so the whole frame
+   count, and the frame selection on the command line, are unchanged by the
+   animation length. The label goes in the title and on the displayed
+   surface where the frame mark goes, in xor, and is
+   taken off again after the capture so the animation's own drawing is left
+   as it was. Used in automatic runs only. */
+static void frmstep(void)
+{
+    char buf[80];
+    int  i;
+
+    if (framenum < tstlo) return; /* not in range */
+    stepnum++;
+    sprintf(buf, "graphics_test: frame %d.%d", framenum, stepnum);
+    ami_title(stdout, buf);
+    sprintf(buf, "frame %d.%d", framenum, stepnum);
+    ami_binvis(stdout);
+    ami_fxor(stdout);
+    ami_fcolor(stdout, ami_white);
+    for (i = 0; i < 2; i++) { /* the label on, capture, the label off */
+
+        ami_cursor(stdout, ami_maxx(stdout)-ami_maxx(stdout)/10-(ami_long)strlen(buf)+1, 1);
+        printf("%s", buf);
+        if (!i) { screen_capture_label(buf); screen_capture(); }
+
+    }
+    ami_cursor(stdout, 1, 1); /* leave the cursor on a safe place */
+    ami_fover(stdout);
+    ami_fcolor(stdout, ami_black);
+    auto_event_frame(framenum, stepnum);
 
 }
 
@@ -556,12 +629,16 @@ static void waitnext(void)
 
     ami_evtrec er; /* event record */
 
-    frmmark(); /* number, label and capture the pattern */
+    frmmark(); /* label and capture the pattern */
     /* automatic runs and the frames before the range pass at once */
-    if (autorun || framenum < tstlo) return;
-    do { ami_event(stdin, &er); }
-    while (er.etype != ami_etenter && er.etype != ami_etterm);
-    if (er.etype == ami_etterm) longjmp(terminate_buf, 1);
+    if (!autorun && framenum >= tstlo) {
+
+        do { ami_event(stdin, &er); }
+        while (er.etype != ami_etenter && er.etype != ami_etterm);
+        if (er.etype == ami_etterm) longjmp(terminate_buf, 1);
+
+    }
+    frmnext(); /* on to the next pattern */
 
 }
 
@@ -750,6 +827,7 @@ static void edge(void)
 /* This is the square2 program */
 #define MAXSQUARE  (10)
 #define REPRATE    (2) /* number of moves per frame, should be low */
+#define ANISTEPS   (100) /* steps of the animation in automatic runs */
 
 typedef struct { /* square data record */
 
@@ -772,7 +850,7 @@ static int chkbrk(void)
     ami_evtrec er; /* event record */
     int done;
 
-    if (autorun || framenum+1 < tstlo)
+    if (autorun || framenum < tstlo)
         return (TRUE); /* one frame of it is enough */
     done = FALSE;
     do { ami_event(stdin, &er); }
@@ -821,9 +899,11 @@ static void squares(void)
     int     i; /* index for table */
     int     rc; /* repetition counter */
     int     done; /* done flag */
+    int     steps; /* steps run, automatic */
     balrec* bt;
 
     squaresize = ami_maxyg(stdout)/5;
+    steps = 0;
     halfsquare = squaresize/2;
     /* initalize square data */
     for (i = 0; i < MAXSQUARE; i++) {
@@ -848,6 +928,14 @@ static void squares(void)
 
         /* select display and update surfaces */
         ami_select(stdout, !cd+1, cd+1);
+        if (autorun && framenum >= tstlo) {
+
+            /* automatic: capture the step, labeled in the displayed surface */
+            ami_select(stdout, cd+1, cd+1);
+            frmstep();
+            ami_select(stdout, !cd+1, cd+1);
+
+        }
         putchar('\f');
         ami_fover(stdout);
         ami_fcolor(stdout, ami_black);
@@ -867,12 +955,15 @@ static void squares(void)
         for (i = 0; i < MAXSQUARE; i++)
             drawsquare(baltbl[i].c, baltbl[i].x, baltbl[i].y);
         cd = !cd; /* flip display and update surfaces */
-        done = chkbrk(); /* check complete */
+        /* automatic: run for a while, at once if the frame is not selected */
+        if (autorun) done = framenum < tstlo || ++steps >= ANISTEPS;
+        else done = chkbrk(); /* check complete */
 
     }
     ami_select(stdout, 1, 1); /* restore buffer surfaces */
     ami_fover(stdout); /* restore foreground overwrite */
-    frmmark(); /* number and capture where the squares got to */
+    frmmark(); /* capture where the squares got to */
+    frmnext();
 
 }
 
@@ -1417,6 +1508,223 @@ static void fpictnsspeed(int w, int t, ami_long* s)
 
 }
 
+
+/* Block copy tests: ami_blockcopyg moves a block of pixels from one buffer
+   to another, or elsewhere in the same buffer, stretched to the destination
+   box and placed with the write mode of the update buffer. Six patterns:
+   simple figures moved and resized within the display buffer; a picture,
+   parts of it moved and enlarged; a picture and figures drawn in a hidden
+   buffer and moved into the display; then the write modes, which make
+   stencils: an and copy shows the block only in the white parts of a black
+   and white stencil, an or copy only in the black parts, and an xor copy
+   reverses the colors, twice over giving them back. */
+
+static void blockcopy(void)
+
+{
+
+    char fn[100];
+    ami_long p;  /* the panel: a square, a third of the height */
+    ami_long m;  /* the margin between panels */
+    ami_long cx, cy; /* the center of the right panel */
+    ami_long q, g;   /* a quarter enlarged, and the gap between quarters */
+    ami_long ox, oy; /* the top left of the quarters set out */
+    ami_long x, y, x2, y2;
+    ami_long fsiz;
+
+    p = ami_maxyg(stdout)/3;
+    m = (ami_maxxg(stdout)-3*p)/4;
+    y = ami_maxyg(stdout)/2-p/2;
+    y2 = y+p-1;
+    cx = m+2*(p+m)+p/2;
+    cy = ami_maxyg(stdout)/2;
+
+    /* ********************* Block copy within a buffer ******************** */
+
+    putchar('\f');
+    grid();
+    /* three figures in the left panel */
+    x = m;
+    x2 = x+p-1;
+    ami_fcolor(stdout, ami_red);
+    ami_fellipse(stdout, x+p/8, y+p/8, x+p/2, y+p/2);
+    ami_fcolor(stdout, ami_blue);
+    ami_frect(stdout, x+p/2, y+p/2, x+p-p/8, y+p-p/8);
+    ami_fcolor(stdout, ami_green);
+    ami_ftriangle(stdout, x+p/2+p/4, y+p/8, x+p/2, y+p/2-p/8, x+p-p/8, y+p/2-p/8);
+    ami_fcolor(stdout, ami_black);
+    ami_rect(stdout, x, y, x2, y2);
+    /* the same size in the middle, half again as large at the right, and
+       the top left quarter at half size below that */
+    ami_blockcopyg(stdout, 1, 1, x, y, x2, y2, x+p+m, y, x2+p+m, y2);
+    ami_blockcopyg(stdout, 1, 1, x, y, x2, y2,
+                   cx-3*p/4, y-p/4, cx+3*p/4-1, y2+p/4);
+    ami_blockcopyg(stdout, 1, 1, x, y, x+p/2-1, y+p/2-1,
+                   cx-p/8, y2+p/4+m/4, cx+p/8-1, y2+p/4+m/4+p/4-1);
+    prtcen(2, "The figures at the left are copied to the middle, half again");
+    prtcen(3, "as large at the right, and their top left quarter halved below that");
+    prtcen(ami_maxy(stdout), "Block copy within a buffer test");
+    waitnext();
+
+    /* ********************* Block copy of a picture ******************** */
+
+    putchar('\f');
+    grid();
+    ami_maknam(fn, 100, "tests", "mypic", "");
+    ami_loadpict(stdout, 1, fn);
+    x = m;
+    x2 = x+p-1;
+    ami_picture(stdout, 1, x, y, x2, y2);
+    ami_delpict(stdout, 1);
+    /* the whole in the middle, then its four quarters enlarged and set out
+       around the right panel's center */
+    ami_blockcopyg(stdout, 1, 1, x, y, x2, y2, x+p+m, y, x2+p+m, y2);
+    q = 3*p/4;
+    g = m/2;
+    ox = cx-(2*q+g)/2;
+    oy = cy-(2*q+g)/2;
+    ami_blockcopyg(stdout, 1, 1, x, y, x+p/2-1, y+p/2-1,
+                   ox, oy, ox+q-1, oy+q-1);
+    ami_blockcopyg(stdout, 1, 1, x+p/2, y, x2, y+p/2-1,
+                   ox+q+g, oy, ox+2*q+g-1, oy+q-1);
+    ami_blockcopyg(stdout, 1, 1, x, y+p/2, x+p/2-1, y2,
+                   ox, oy+q+g, ox+q-1, oy+2*q+g-1);
+    ami_blockcopyg(stdout, 1, 1, x+p/2, y+p/2, x2, y2,
+                   ox+q+g, oy+q+g, ox+2*q+g-1, oy+2*q+g-1);
+    prtcen(2, "The picture at the left is copied to the middle, and its");
+    prtcen(3, "quarters are enlarged and set apart at the right");
+    prtcen(ami_maxy(stdout), "Block copy of a picture test");
+    waitnext();
+
+    /* ******************** Block copy between buffers ******************* */
+
+    /* the picture and the figures are drawn in buffer 2 and shown there
+       first, the source; then buffer 1 is shown again, empty but for the
+       grid, and they are moved into it, the destination */
+    putchar('\f');
+    grid();
+    ami_select(stdout, 2, 2); /* draw in 2, and show it */
+    putchar('\f');
+    ami_maknam(fn, 100, "tests", "mypic1", "bmp");
+    ami_loadpict(stdout, 1, fn);
+    x = m;
+    x2 = x+p-1;
+    ami_picture(stdout, 1, x, y, x2, y2);
+    ami_delpict(stdout, 1);
+    ami_fcolor(stdout, ami_magenta);
+    ami_fellipse(stdout, x+p+m, y, x2+p+m, y2);
+    ami_fcolor(stdout, ami_cyan);
+    ami_frect(stdout, x+p+m+p/4, y+p/4, x2+p+m-p/4, y2-p/4);
+    ami_fcolor(stdout, ami_black);
+    prtcen(2, "A picture and figures drawn in buffer 2, on display: the source");
+    prtcen(3, "of the copy on the next screen, which shows buffer 1");
+    prtcen(ami_maxy(stdout), "Block copy between buffers source test");
+    waitnext();
+    ami_select(stdout, 1, 1); /* back to the display buffer, with the grid */
+    ami_blockcopyg(stdout, 2, 1, x, y, x2+p+m, y2, x, y, x2+p+m, y2);
+    ami_blockcopyg(stdout, 2, 1, x, y, x2, y2,
+                   x+2*(p+m), y+p/4, x2+2*(p+m)-p/2, y2-p/4);
+    prtcen(2, "Buffer 1, with the picture and figures moved into it from buffer 2,");
+    prtcen(3, "whole at the left, and the picture narrowed at the right");
+    prtcen(ami_maxy(stdout), "Block copy between buffers destination test");
+    waitnext();
+
+    /* ********************** Block copy and stencil ********************** */
+
+    /* the display holds a stencil, white figures on black; the picture in
+       buffer 2 is copied over it with and, and shows in the white alone */
+    fsiz = ami_chrsizy(stdout); /* save character size to restore */
+    putchar('\f');
+    ami_select(stdout, 2, 1); /* the picture in 2, across the three panels */
+    putchar('\f');
+    ami_maknam(fn, 100, "tests", "mypic", "");
+    ami_loadpict(stdout, 1, fn);
+    x = m;
+    x2 = m+3*p+2*m-1;
+    ami_picture(stdout, 1, x, y, x2, y2);
+    ami_delpict(stdout, 1);
+    ami_select(stdout, 1, 1);
+    /* the stencil */
+    ami_fcolor(stdout, ami_black);
+    ami_frect(stdout, x, y, x2, y2);
+    ami_fcolor(stdout, ami_white);
+    ami_fellipse(stdout, x+p/8, y+p/8, x+p-p/8, y2-p/8);
+    ami_frect(stdout, x+p+m+p/8, y+p/8, x+2*p+m-p/8, y2-p/8);
+    ami_font(stdout, AMI_FONT_SIGN);
+    ami_fontsiz(stdout, p/2);
+    ami_cursorg(stdout, x+2*(p+m)+p/2-ami_strsiz(stdout, "Ami")/2, y+p/2-p/4);
+    ami_binvis(stdout);
+    printf("Ami");
+    ami_fontsiz(stdout, fsiz);
+    ami_font(stdout, AMI_FONT_TERM);
+    ami_fcolor(stdout, ami_black);
+    /* the copy, with and */
+    ami_fand(stdout);
+    ami_blockcopyg(stdout, 2, 1, x, y, x2, y2, x, y, x2, y2);
+    ami_fover(stdout);
+    prtcen(2, "A picture copied with and over a stencil of white figures on");
+    prtcen(3, "black: it shows in the white parts alone");
+    prtcen(ami_maxy(stdout), "Block copy and stencil test");
+    waitnext();
+
+    /* *********************** Block copy or stencil ********************** */
+
+    /* the stencil reversed, black figures on white, and the copy with or:
+       the picture shows in the black alone */
+    putchar('\f');
+    ami_fcolor(stdout, ami_black);
+    ami_fellipse(stdout, x+p/8, y+p/8, x+p-p/8, y2-p/8);
+    ami_frect(stdout, x+p+m+p/8, y+p/8, x+2*p+m-p/8, y2-p/8);
+    ami_font(stdout, AMI_FONT_SIGN);
+    ami_fontsiz(stdout, p/2);
+    ami_cursorg(stdout, x+2*(p+m)+p/2-ami_strsiz(stdout, "Ami")/2, y+p/2-p/4);
+    printf("Ami");
+    ami_fontsiz(stdout, fsiz);
+    ami_font(stdout, AMI_FONT_TERM);
+    ami_rect(stdout, x, y, x2, y2);
+    ami_for(stdout);
+    ami_blockcopyg(stdout, 2, 1, x, y, x2, y2, x, y, x2, y2);
+    ami_fover(stdout);
+    prtcen(2, "The same picture copied with or over the stencil reversed,");
+    prtcen(3, "black figures on white: it shows in the black parts alone");
+    prtcen(ami_maxy(stdout), "Block copy or stencil test");
+    waitnext();
+
+    /* ************************** Block copy xor ************************** */
+
+    /* the picture at the left; copied with xor onto white in the middle it
+       comes out reversed; the middle copied with xor onto white at the right
+       comes out reversed again, the picture itself */
+    putchar('\f');
+    grid();
+    ami_select(stdout, 2, 1);
+    putchar('\f');
+    ami_select(stdout, 1, 1);
+    ami_maknam(fn, 100, "tests", "mypic1", "bmp");
+    ami_loadpict(stdout, 1, fn);
+    x = m;
+    x2 = x+p-1;
+    ami_picture(stdout, 1, x, y, x2, y2);
+    ami_delpict(stdout, 1);
+    ami_fcolor(stdout, ami_white);
+    ami_frect(stdout, x+p+m, y, x2+2*(p+m), y2); /* white to copy onto */
+    ami_fcolor(stdout, ami_black);
+    ami_fxor(stdout);
+    ami_blockcopyg(stdout, 1, 1, x, y, x2, y2, x+p+m, y, x2+p+m, y2);
+    ami_blockcopyg(stdout, 1, 1, x+p+m, y, x2+p+m, y2,
+                   x+2*(p+m), y, x2+2*(p+m), y2);
+    ami_fover(stdout);
+    ami_rect(stdout, x, y, x2, y2);
+    ami_rect(stdout, x+p+m, y, x2+p+m, y2);
+    ami_rect(stdout, x+2*(p+m), y, x2+2*(p+m), y2);
+    prtcen(2, "The picture at the left copied with xor onto white is reversed");
+    prtcen(3, "in the middle, and the middle copied the same way is the picture again");
+    prtcen(ami_maxy(stdout), "Block copy xor test");
+    waitnext();
+    ami_binvis(stdout);
+
+}
+
 int main(int argc, char* argv[])
 
 {
@@ -1449,14 +1757,24 @@ int main(int argc, char* argv[])
 
         autorun = TRUE;
         ami_autohold(FALSE); /* end when the patterns end */
+        auto_event_name(EVENTFILE);
         argi++;
         /* a non-numeric argument names the capture file */
-        if (argc > argi && (argv[argi][0] < '0' || argv[argi][0] > '9')) {
+        if (argc > argi && (argv[argi][0] < '0' || argv[argi][0] > '9') &&
+            strcmp(argv[argi], "events")) {
 
             screen_capture_name(argv[argi]);
+            auto_event_beside(argv[argi], EVENTNAME); /* the events beside it */
             argi++;
 
         }
+
+    }
+    /* "graphics_test events" plays the event file in an interactive run */
+    if (argc > argi && !strcmp(argv[argi], "events")) {
+
+        auto_event_name(EVENTFILE);
+        argi++;
 
     }
     /* "graphics_test [auto [file]] first [last]" runs the numbered
@@ -1471,6 +1789,7 @@ int main(int argc, char* argv[])
 
     }
     if (argc > argi) tsthi = atoi(argv[argi]);
+    frmnext(); /* the first frame */
     printf("Graphics screen test vs. 0.1\n");
     printf("\n");
     printf("Screen size in characters: x -> %lld y -> %lld\n", AMI_LONG_CAST(ami_maxx(stdout)),
@@ -1607,8 +1926,11 @@ int main(int argc, char* argv[])
     i = 10000;
     dx = +1;
     dy = +1;
+    if (autorun) { dx = AUTOSTEP; dy = AUTOSTEP; } /* automatic: a fair pace */
     ln = ami_strsiz(stdout, S1);
     term = FALSE;
+    bright = FALSE; /* no bounces yet */
+    bbot = FALSE;
     while (!term) {
 
         ami_cursorg(stdout, x, y);
@@ -1621,21 +1943,36 @@ int main(int argc, char* argv[])
 
             x = xs;
             dx = -dx;
+            if (dx < 0) bright = TRUE; /* bounced off the right side */
 
         }
         if (y < 1 || y+ami_chrsizy(stdout)*2 > ami_maxyg(stdout)) {
 
             y = ys;
             dy = -dy;
+            if (dy < 0) bbot = TRUE; /* bounced off the bottom */
 
         }
-        waitchar(100, &term);
-        ami_cursorg(stdout, xs, ys);
-        ami_fcolor(stdout, ami_white);
-        printf("%s", S1);
-        ami_fcolor(stdout, ami_black);
+        if (autorun && framenum >= tstlo) {
+
+            /* automatic: capture each step, and run until the string has
+               bounced off both the bottom and the right side */
+            frmstep();
+            term = bright && bbot;
+
+        } else waitchar(100, &term);
+        if (!term) { /* take the string off for the next step */
+
+            ami_cursorg(stdout, xs, ys);
+            ami_fcolor(stdout, ami_white);
+            printf("%s", S1);
+            ami_fcolor(stdout, ami_black);
+
+        }
 
     }
+    frmmark(); /* capture where the string stopped */
+    frmnext();
 
     /* ************************** Horizontal lines test ************************ */
 
@@ -3372,17 +3709,22 @@ int main(int argc, char* argv[])
     prtcen(4, "Note that edges will clear to green as screen moves");
     prtcen(ami_maxy(stdout), "Graphical scrolling test");
     ami_bcolor(stdout, ami_green);
-    frmmark();
-    if (!autorun && framenum >= tstlo) do {
+    /* the user scrolls with the arrows, or the event file does: an automatic
+       run goes through the loop only while the file has events for it, and
+       captures a step for each */
+    if ((!autorun || auto_event_ready()) && framenum >= tstlo) do {
 
-        ami_event(stdin, &er);
+        auto_event(stdin, &er);
         if (er.etype == ami_etup) ami_scrollg(stdout, 0, -1);
         if (er.etype == ami_etdown) ami_scrollg(stdout, 0, 1);
         if (er.etype == ami_etright) ami_scrollg(stdout, 1, 0);
         if (er.etype == ami_etleft) ami_scrollg(stdout, -1, 0);
         if (er.etype == ami_etterm) longjmp(terminate_buf, 1);
+        if (autorun && er.etype != ami_etenter) frmstep();
 
-    } while (er.etype != ami_etenter);
+    } while (er.etype != ami_etenter && (!autorun || auto_event_ready()));
+    frmmark(); /* capture where the scrolling left it */
+    frmnext();
     ami_bover(stdout);
     ami_bcolor(stdout, ami_white);
 
@@ -3394,10 +3736,12 @@ int main(int argc, char* argv[])
     prtcen(ami_maxy(stdout), "Graphical mouse movement test");
     x = -1;
     y = -1;
-    frmmark();
-    if (!autorun && framenum >= tstlo) do {
+    /* the user moves the mouse, or the event file does: an automatic run
+       goes through the loop only while the file has events for it, and
+       captures a step for each */
+    if ((!autorun || auto_event_ready()) && framenum >= tstlo) do {
 
-        ami_event(stdin, &er);
+        auto_event(stdin, &er);
         if (er.etype == ami_etmoumovg) {
 
             if (x > 0 && y > 0) ami_line(stdout, x, y, er.moupxg, er.moupyg);
@@ -3406,8 +3750,11 @@ int main(int argc, char* argv[])
 
         }
         if (er.etype == ami_etterm) longjmp(terminate_buf, 1);
+        if (autorun && er.etype != ami_etenter) frmstep();
 
-    } while (er.etype != ami_etenter);
+    } while (er.etype != ami_etenter && (!autorun || auto_event_ready()));
+    frmmark(); /* capture what the mouse drew */
+    frmnext();
 
     /* ************************** Animation test **************************** */
 
@@ -3471,7 +3818,7 @@ int main(int argc, char* argv[])
         int vox = 0, voy = 0;
         ami_evtrec er;
         int done = 0;
-        int first = 1;
+        int applied = 0; /* a key was applied: the redraw is a step */
 
         /* initial offset: center the drawing */
         vox = (int)(ww/2 - (cx-1) * vsx);
@@ -3532,13 +3879,15 @@ int main(int argc, char* argv[])
                 prtcen(2, sb);
             }
             prtcen(ami_maxy(stdout), "View drawing scale test");
-            if (first) { frmmark(); first = 0; }
+            if (autorun && applied) frmstep(); /* the view after the key */
             /* restore the current scale for next redraw */
             ami_viewscale(stdout, vsx, vsy);
             ami_viewoffg(stdout, vox, voy);
-            /* wait for key */
-            if (autorun || framenum < tstlo) { done = 1; continue; }
-            do { ami_event(stdin, &er); } while (er.etype != ami_etenter &&
+            /* wait for key: the user's, or the event file's; an automatic
+               run goes on only while the file has one for it */
+            if ((autorun && !auto_event_ready()) || framenum < tstlo)
+                { done = 1; continue; }
+            do { auto_event(stdin, &er); } while (er.etype != ami_etenter &&
                 er.etype != ami_etterm && er.etype != ami_etpagu &&
                 er.etype != ami_etpagd && er.etype != ami_etup &&
                 er.etype != ami_etdown && er.etype != ami_etleft &&
@@ -3546,7 +3895,8 @@ int main(int argc, char* argv[])
                 er.etype != ami_etendl);
             if (er.etype == ami_etterm) longjmp(terminate_buf, 1);
             else if (er.etype == ami_etenter) done = 1;
-            else if (er.etype == ami_etpagu) {
+            applied = !done;
+            if (er.etype == ami_etpagu) {
 
                 vsx *= 1.25f;
                 vsy *= 1.25f;
@@ -3604,12 +3954,18 @@ int main(int argc, char* argv[])
             }
 
         }
-        /* reset to identity */
+        /* reset to identity: the label of the capture draws unscaled */
         ami_viewscale(stdout, 1.0f, 1.0f);
         ami_viewoffg(stdout, 0, 0);
+        frmmark(); /* capture the view as left */
+        frmnext();
         ami_curvis(stdout, FALSE); /* turn off cursor */
 
     }
+
+    /* ************************* Block copy tests ************************ */
+
+    blockcopy();
 
     /* ************************** Benchmarks **************************** */
 

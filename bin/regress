@@ -67,8 +67,9 @@
 # with --update. Windows and Mac OS X draw one look each:
 # tests/windows_compare/<test>.cmp, tests/macosx_compare/<test>.cmp.
 #
-# A picture run that fails is kept as tests/<test>.fail-<stamp>.lst, so the
-# screens that differed survive the re-run that overwrites the .lst.
+# The picture tests write their screens, a stream of PNGs, to tests/<test>.img;
+# a picture run that fails is kept as tests/<test>.fail-<stamp>.img, so the
+# screens that differed survive the re-run that overwrites the .img.
 #
 # The _testr tests are the same picture tests run remotely: the client links
 # graph_client and draws through a graph_server this script starts on this
@@ -148,12 +149,15 @@ binof()
 }
 
 # The test's output file: the listing, except for the document, which takes
-# the name a reader opens.
+# the name a reader opens, and the picture tests, whose output is a stream of
+# screens, not text, and is named for what it is.
 outof()
 {
 
     case "$1" in
     pdftest) echo "tests/$1.pdf" ;;
+    graphics_test|window_test|widget_test|graphics_testr|window_testr|widget_testr)
+             echo "tests/$1.img" ;;
     *)       echo "tests/$1.lst" ;;
     esac
 
@@ -357,8 +361,8 @@ runtest()
         # capture module appends each to the file named after it, and that
         # file is the listing they are judged on. Each test is given its
         # own, so two runs beside each other do not write over one another.
-        rm -f "tests/$1.lst"
-        timeout 300 "$(binof "$1")" auto "tests/$1.lst" < /dev/null \
+        rm -f "$(outof "$1")"
+        timeout 300 "$(binof "$1")" auto "$(outof "$1")" < /dev/null \
             > "tests/$1.out" 2>&1
         ;;
 
@@ -456,9 +460,10 @@ for t in $tests; do
 
         # a stream of PNGs: compared whole, since a picture has no fields
         # that vary from run to run to be masked
-        if [ ! -f "tests/$t.lst" ]; then
+        out="$(outof "$t")"
+        if [ ! -f "$out" ]; then
 
-            echo "$t: *** fail *** (no test_images produced)"
+            echo "$t: *** fail *** (no screens produced)"
             fails=$((fails+1))
             continue
 
@@ -466,7 +471,7 @@ for t in $tests; do
         std="$cmpdir/$t$desk.cmp"
         if [ "$update" = "1" ]; then
 
-            cp "tests/$t.lst" "$std"
+            cp "$out" "$std"
             echo "$t: $std regenerated, please review with bin/testviewer"
 
         elif [ ! -f "$std" ]; then
@@ -478,7 +483,7 @@ for t in $tests; do
             echo "$t: *** fail *** (see tests/$t.dif)"
             fails=$((fails+1))
 
-        elif cmp -s "tests/$t.lst" "$std"; then
+        elif cmp -s "$out" "$std"; then
 
             rm -f "tests/$t.dif"
             echo "$t: pass"
@@ -486,16 +491,16 @@ for t in $tests; do
         else
 
             # the run is kept aside, so the screens that differed survive
-            # the re-run that overwrites the .lst
-            keep="tests/$t.fail-$(date +%Y%m%d-%H%M%S).lst"
-            cp "tests/$t.lst" "$keep"
+            # the re-run that overwrites the .img
+            keep="tests/$t.fail-$(date +%Y%m%d-%H%M%S).img"
+            cp "$out" "$keep"
             {
                 echo "screens differ from $std"
                 echo "standard: $(wc -c < "$std") bytes,\
  $(grep -a -o "$pngsig" "$std" | wc -l) screens"
-                echo "this run: $(wc -c < "tests/$t.lst") bytes,\
- $(grep -a -o "$pngsig" "tests/$t.lst" | wc -l) screens"
-                cmp "$std" "tests/$t.lst" 2>&1
+                echo "this run: $(wc -c < "$out") bytes,\
+ $(grep -a -o "$pngsig" "$out" | wc -l) screens"
+                cmp "$std" "$out" 2>&1
                 echo "this run kept as $keep"
                 echo "view either with: bin/testviewer <file>"
             } > "tests/$t.dif"

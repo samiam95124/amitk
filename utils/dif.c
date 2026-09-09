@@ -36,7 +36,8 @@
 #include <stdlib.h>
 #include <string.h>
 
-#define MAXLINES   50000 /* maximum number of lines per file */
+#define MAXLINES   500000 /* maximum number of lines per file: a terminal
+                            standard with every animation step is 70,000 */
 #define MAXLINELEN 1000  /* maximum length of a single line */
 
 /* edit operation type */

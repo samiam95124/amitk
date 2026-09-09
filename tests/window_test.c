@@ -122,6 +122,15 @@ static enum { /* debug levels */
 
 extern void screen_capture(void);
 extern void screen_capture_name(const char* fn);
+extern void screen_capture_label(const char* s);
+extern void auto_event_name(const char* fn);
+extern void auto_event_beside(const char* capfile, const char* name);
+extern void auto_event_frame(int frame, int step);
+extern int  auto_event_ready(void);
+extern void auto_event(FILE* f, ami_evtrec* er);
+
+#define EVENTNAME "window_test.evt"    /* the events of the automatic run */
+#define EVENTFILE "tests/" EVENTNAME   /* where they are from the repository */
 /* the manager's composition hold, where the display has one: the fast
    forward to a selected frame passes its frames unseen */
 extern void wg_hold(ami_long on) __attribute__((weak));
@@ -177,6 +186,8 @@ static void nextevt(ami_evtrec* er)
     }
     if (autorun) {
 
+        /* the event file's events, while it has them for this frame */
+        if (auto_event_ready()) { auto_event(stdin, er); return; }
         autosettle();
         /* the return the screen waits for, from the main window: a wait
            that takes only its own window's return must see one */
@@ -186,7 +197,75 @@ static void nextevt(ami_evtrec* er)
         return;
 
     }
-    ami_event(stdin, er);
+    auto_event(stdin, er); /* the user's, or the file's where it has them */
+
+}
+
+/* Go on to the next frame. Each pattern is a frame, and the frame number
+   is advanced at the start of the pattern, so the title while it draws, the
+   steps of an animation within it and the capture at its end all carry the
+   same number. Past the selected range the test is over. */
+
+static int stepnum; /* the step within the frame being drawn */
+
+static void frmnext(void)
+
+{
+
+    framenum++;
+    stepnum = 0; /* the frame's steps count from one */
+    if (tsthi && framenum > tsthi) longjmp(terminate_buf, 1);
+    auto_event_frame(framenum, 0);
+
+}
+
+/* Mark and capture the pattern just drawn: the frame number stamped into
+   the title bar, unless the caller is testing ami_title itself (keeptitle
+   preserves the title under test), the label as the picture's title, and
+   the capture. Before the selected range nothing is captured. */
+
+static void frmmark(int keeptitle)
+
+{
+
+    char titlebuf[80];
+
+    if (framenum < tstlo) return; /* not in range */
+    if (wg_hold) wg_hold(0); /* arriving: the display composes again */
+    if (!keeptitle) {
+
+        sprintf(titlebuf, "window_test: frame %d", framenum);
+        ami_title(tw, titlebuf);
+
+    }
+    if (autorun) autosettle(); /* let the screen finish before it is taken */
+    sprintf(titlebuf, "frame %d", framenum);
+    screen_capture_label(titlebuf);
+    screen_capture();
+    if (grx_glassdiff) grx_glassdiff(); /* the canvas-against-glass check */
+
+}
+
+/* Mark and capture one step of a pattern driven by events, in an automatic
+   run: stamped as the frame mark is, with the step as a fraction, frame 17.1,
+   17.2 and so on, so the frame count itself and the frame range a run
+   selects are untouched. Outside the selected range nothing is captured. */
+
+static void frmstep(void)
+
+{
+
+    char titlebuf[80];
+
+    if (framenum < tstlo) return; /* not in range */
+    stepnum++;
+    sprintf(titlebuf, "window_test: frame %d.%d", framenum, stepnum);
+    ami_title(tw, titlebuf);
+    autosettle();
+    sprintf(titlebuf, "frame %d.%d", framenum, stepnum);
+    screen_capture_label(titlebuf);
+    screen_capture();
+    auto_event_frame(framenum, stepnum);
 
 }
 
@@ -197,26 +276,8 @@ static void waitnextt(int keeptitle)
 {
 
     ami_evtrec er; /* event record */
-    char titlebuf[80];
 
-    framenum++;
-    if (tsthi && framenum > tsthi) longjmp(terminate_buf, 1);
-    if (framenum < tstlo) return; /* before the range: the count alone */
-    if (wg_hold) wg_hold(0); /* arriving: the display composes again */
-    /* Stamp the frame number into the title bar, unless the caller is testing
-       ami_title itself: keeptitle=TRUE preserves the title under test instead
-       of clobbering it. */
-    if (!keeptitle) {
-
-        sprintf(titlebuf, "window_test: frame %d", framenum);
-        ami_title(tw, titlebuf);
-
-    }
-
-    if (autorun) autosettle(); /* let the screen finish before it is taken */
-    screen_capture();
-    if (grx_glassdiff) grx_glassdiff(); /* the canvas-against-glass check */
-
+    frmmark(keeptitle); /* label and capture the pattern */
     do {
 
         nextevt(&er);
@@ -225,6 +286,7 @@ static void waitnextt(int keeptitle)
 
     } while (er.etype != ami_etenter && er.etype != ami_etterm);
     if (er.etype == ami_etterm) longjmp(terminate_buf, 1);
+    frmnext(); /* on to the next pattern */
 
 }
 
@@ -281,7 +343,7 @@ static void waittime(int t)
 
     ami_evtrec er;
 
-    if (framenum+1 < tstlo) return; /* pauses skip outside the range */
+    if (framenum < tstlo) return; /* pauses skip outside the range */
     ami_timer(tw, 1, t, FALSE);
     do { ami_event(stdin, &er);
     } while (er.etype != ami_ettim && er.etype != ami_etterm);
@@ -376,6 +438,9 @@ static void frameinside(const string s, ami_long x, ami_long y)
 
 }
 
+static void frmmark(int keeptitle);
+static void frmnext(void);
+
 static void frametest(const string s)
 
 {
@@ -386,6 +451,7 @@ static void frametest(const string s)
     x = ami_maxxg(tw); /* set size */
     y = ami_maxyg(tw);
     frameinside(s, x, y);
+    frmmark(FALSE); /* a frame of its own, as the buffered patterns have */
     do {
 
         nextevt(&er); /* get next event */
@@ -401,6 +467,7 @@ static void frametest(const string s)
         if (er.etype == ami_etterm) longjmp(terminate_buf, 1);
 
     } while (er.etype != ami_etenter);
+    frmnext(); /* on to the next pattern */
 
 }
 
@@ -449,6 +516,11 @@ int main(int argc, char* argv[])
 
             autorun = TRUE;
             ami_autohold(FALSE);
+            auto_event_name(EVENTFILE);
+
+        } else if (!strcmp(argv[i], "events")) {
+
+            auto_event_name(EVENTFILE); /* the file in an interactive run */
 
         } else if (argv[i][0] >= '0' && argv[i][0] <= '9') {
 
@@ -459,10 +531,17 @@ int main(int argc, char* argv[])
             if (!tstlo) tstlo = atoi(argv[i]);
             else tsthi = atoi(argv[i]);
 
-        } else if (autorun) screen_capture_name(argv[i]);
+        } else if (autorun) {
+
+            /* the capture file, and the event file beside it */
+            screen_capture_name(argv[i]);
+            auto_event_beside(argv[i], EVENTNAME);
+
+        }
 
     }
     if (tstlo < 1) tstlo = 1;
+    frmnext(); /* the first frame */
 
     /* a selected start frame arrives directly: the frames before it
        pass with composition held, where the manager offers the hold */
@@ -915,10 +994,13 @@ int main(int argc, char* argv[])
                          ami_menusel(tw, 10, sblue); break;
 
             }
+            if (autorun) frmstep(); /* the selection as reported */
 
         }
 
     } while (er.etype != ami_etenter && er.etype != ami_etterm);
+    frmmark(FALSE); /* capture the menu as left */
+    frmnext();
     ami_menu(tw, NULL);
 
     /* ****************************** Standard menu test ******************** */
@@ -983,10 +1065,13 @@ int main(int argc, char* argv[])
                 case AMI_SMMAX+3:     fprintf(tw, "three\n"); break;
 
             }
+            if (autorun) frmstep(); /* the selection as reported */
 
         }
 
     } while (er.etype != ami_etenter && er.etype != ami_etterm);
+    frmmark(FALSE); /* capture the menu as left */
+    frmnext();
     ami_menu(tw, NULL);
 
     /* ************************* Child windows test character ****************** */

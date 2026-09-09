@@ -1,0 +1,56 @@
+# Events for the automatic run of window_test: see doc/auto_events.md.
+
+# The real keyboard, mouse and joystick are set aside for the run
+keyboardoff
+mouseoff
+joystickoff
+
+# Menu test: each item of the sample menu that can be selected, and of its
+# sublist: 'Walk' is disabled, and the on/off items are taken twice, on and
+# off again; a menu event reaches the program as the menu would send it
+sync 25
+menus 1
+menus 2
+menus 4
+menus 5
+menus 6
+menus 7
+menus 5
+menus 8
+menus 9
+menus 10
+menus 8
+menus 9
+menus 10
+enter
+
+# Standard menu test: every standard entry, then the program's own three
+sync 26
+menus 1   # new
+menus 2   # open
+menus 3   # close
+menus 4   # save
+menus 5   # saveas
+menus 6   # pageset
+menus 7   # print
+menus 8   # exit
+menus 9   # undo
+menus 10   # cut
+menus 11   # paste
+menus 12   # delete
+menus 13   # find
+menus 14   # findnext
+menus 15   # replace
+menus 16   # goto
+menus 17   # selectall
+menus 18   # newwindow
+menus 19   # tilehoriz
+menus 20   # tilevert
+menus 21   # cascade
+menus 22   # closeall
+menus 23   # helptopic
+menus 24   # about
+menus 25  # one
+menus 26  # two
+menus 27  # three
+enter

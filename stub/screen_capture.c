@@ -9,3 +9,4 @@
 
 void screen_capture(void) {}
 void screen_capture_name(const char* fn) { (void)fn; }
+void screen_capture_label(const char* s) { (void)s; }
