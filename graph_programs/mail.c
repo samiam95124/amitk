@@ -2651,6 +2651,12 @@ static void closeread(void)
     int i;
 
     if (!readwf) return;
+    /* The widget first. A window closed over a live widget leaves the
+       widget's record, and the widget's own window, pointing at a file
+       that is gone -- and the record for that file is taken again by
+       the next window opened. Resizing the window that got it then
+       resized the widget's window too, through the stale record. */
+    ami_killwidget(readwf, SBREAD);
     fclose(readwf);
     readwf = NULL;
     for (i = 0; i < readlines; i++) free(readline[i]);
@@ -2855,7 +2861,12 @@ static void srvclose(void)
 
 {
 
-    if (srvwf) { fclose(srvwf); srvwf = NULL; }
+    int i;
+
+    if (!srvwf) return;
+    for (i = SRVIMAP; i <= SRVSEND; i++) ami_killwidget(srvwf, i); /* first: see closeread */
+    fclose(srvwf);
+    srvwf = NULL;
 
 }
 
@@ -3777,6 +3788,9 @@ static void helpclose(void)
     int i;
 
     if (!helpwf) return;
+    ami_killwidget(helpwf, HELPFIND); /* the widgets first: see closeread */
+    if (helplistup) ami_killwidget(helpwf, HELPLIST);
+    ami_killwidget(helpwf, HELPCLOSE);
     fclose(helpwf);
     helpwf = NULL;
     helplistup = FALSE;
@@ -4224,7 +4238,10 @@ static void srcclose(void)
 
 {
 
+    int i;
+
     if (!srcwf) return;
+    for (i = SRCFROM; i <= SRCSB; i++) ami_killwidget(srcwf, i); /* first: see closeread */
     fclose(srcwf);
     srcwf = NULL;
     srclistup = FALSE;
