@@ -1010,8 +1010,15 @@ static int chkrad(
 
 {
 
-    /* convert character 0 based number */
-    if (isdigit(c)) c -= '0'; else c = tolower(c)-'a'+10;
+    /* convert character 0 based number. Only a letter stands for a digit
+       above nine: anything else worked out to a value all the same, and
+       for the six characters between 'Z' and 'a' that value lay under
+       ten, so a decimal conversion took '[' as the digit 4 -- and a
+       folder called [Gmail]/Sent Mail, read back with %lld first, lost
+       its bracket and could not be found on the server again. */
+    if (isdigit(c)) c -= '0';
+    else if (isalpha(c)) c = tolower(c)-'a'+10;
+    else return (0);
 
     /* check bounded by radix and return that status */
     return (c >= 0 && c < r);
