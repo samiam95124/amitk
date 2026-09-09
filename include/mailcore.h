@@ -164,6 +164,7 @@ extern ami_long wrkdone;         /* it finished, and nobody has noticed yet */
 extern ami_long wrkrelist;       /* this fetch is to ask what folders there are */
 extern ami_long wrkcount;        /* and this one is only to read the store */
 extern ami_long wrkstart;        /* the thread has been made */
+extern ami_long srcstart;        /* and the search thread */
 extern ami_long fetching;        /* a fetch is under way */
 extern ami_long timerrun;        /* the timer that watches it is going */
 extern ami_long idxwant;         /* the folder the display wants read */
@@ -182,7 +183,7 @@ extern char sentsaid[MAXSTR]; /* and what went right */
 The search
 
 What the search form asks for, and what the worker found. The front end
-fills the ask and sets srcwant; the worker takes it, reads whatever
+fills the ask and sets srcwant; the search thread takes it, reads whatever
 folders it has to, and leaves the messages found, copies of their
 records with the folder each is in, under srcdone. The cheap tests, the
 sender, the subject, the size and the date, are made on the index; the
@@ -213,6 +214,11 @@ extern ami_long  srcdone;    /* and finished, for the front end to show */
 extern msgrec*   srcres;     /* the messages found, copies of their records */
 extern ami_long* srcfold;    /* and the folder each is in */
 extern ami_long  srcct;      /* how many were found */
+extern char      srcwhat[];  /* what the search is doing, for the strip */
+extern ami_long  srcpos;     /* how far into it */
+extern ami_long  srcmax;
+extern char      srcmissed[]; /* the folders it could not look in, not yet
+                                 indexed; empty when it looked in them all */
 
 /*******************************************************************************
 
@@ -249,6 +255,7 @@ void  sendmail(const char* to, const char* cc, const char* subject,
 void  servesend(void);
 void  serveindex(void);
 void  servesearch(void);
+void  searchwork(void);       /* the search thread's whole life */
 char* getmsgin(ami_long fold, const msgrec* m);
 int   hasattach(const char* msg, ami_long len);
 ami_long parseday(const char* s);

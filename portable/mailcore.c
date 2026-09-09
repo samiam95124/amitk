@@ -2703,6 +2703,7 @@ void dunlock(void)
 }
 
 ami_long wrkstart;  /* the thread has been made */
+ami_long srcstart;  /* and the search thread */
 ami_long timerrun;  /* the timer that watches it is going */
 ami_long wrkdone;   /* it finished, and nobody has noticed yet */
 ami_long wrkrelist; /* this fetch is to ask what folders there are */
@@ -4309,7 +4310,6 @@ void mailwork(void)
         wrkbusy = TRUE;
         servesend();
         serveindex();
-        servesearch();
         if (wrkgo) {
 
             wrkdone = FALSE;
@@ -4369,6 +4369,10 @@ ami_long  srcdone;
 msgrec*   srcres;
 ami_long* srcfold;
 ami_long  srcct;
+char      srcwhat[MAXSTR];   /* what the search is doing */
+ami_long  srcpos;            /* how far into it */
+ami_long  srcmax;
+char      srcmissed[MAXSTR*2]; /* the folders it could not look in */
 
 /* read one message back out of a folder, whole, wherever the folder is:
    the record says where in the file it lies */
@@ -4569,8 +4573,21 @@ static int srcmatch(ami_long fold, const msgrec* m, const srcrec* a)
 
 }
 
-/* The search, from the worker: the folders asked, read if need be, and
-   every message of them tried. The result is published whole at the end. */
+/* The search, on its own thread: the folders asked and every message of
+   them tried, and the result published whole at the end.
+
+   The index is the one thing it shares with the fetch, which grows a
+   folder's index while this reads it -- and growing can move the array.
+   So a folder's entries are copied under the lock and the copy is
+   searched. INBOX is the biggest at some tens of megabytes of entries,
+   a few milliseconds against a scan that reads messages from the disc.
+   A message is read from its mailbox by offset, and a mailbox only ever
+   grows, so an entry copied before the fetch appends more is still
+   right.
+
+   A folder with no index yet is not read here: indexing is the worker's,
+   and a search that took to reading a four gigabyte mailbox would be the
+   wait it was made to avoid. Its name is kept for the front end to say. */
 void servesearch(void)
 
 {
@@ -4581,36 +4598,44 @@ void servesearch(void)
     ami_long ct = 0, max = 0;
     ami_long f, i;
     ami_long f0, f1;
+    char     show[MAXSTR];
 
     if (!srcwant) return;
     dlock(); /* the ask is copied under the lock the form wrote it under */
     a = srcask;
     srcwant = FALSE;
     srcbusy = TRUE;
-    dunlock();
+    srcmissed[0] = 0;
     if (a.fold >= 0 && a.fold < foldct) { f0 = a.fold; f1 = a.fold+1; }
     else { f0 = 0; f1 = foldct; }
+    dunlock();
     for (f = f0; f < f1 && !wrkstop && !srcwant; f++) {
 
+        msgrec*  snap;
+        ami_long n;
+
+        dlock();
+        if (f >= foldct) { dunlock(); break; } /* the table was rebuilt under us */
+        copystr(show, folders[f].show, sizeof(show));
         if (!folders[f].idxok) {
 
-            snprintf(wrkwhat, sizeof(wrkwhat), "Reading %.400s",
-                     folders[f].show);
-            wrkpos = 0;
-            wrkmax = 0;
-            idxdoing = f;
-            indexfolder(f);
-            idxdoing = -1;
-            wrklist = TRUE;
+            dunlock();
+            if (*srcmissed) strncat(srcmissed, ", ", sizeof(srcmissed)-strlen(srcmissed)-1);
+            strncat(srcmissed, show, sizeof(srcmissed)-strlen(srcmissed)-1);
+            continue;
 
         }
-        snprintf(wrkwhat, sizeof(wrkwhat), "Searching %.400s",
-                 folders[f].show);
-        wrkmax = folders[f].idxct;
-        for (i = 0; i < folders[f].idxct && !wrkstop && !srcwant; i++) {
+        n = folders[f].idxct;
+        snap = malloc((n? n: 1)*sizeof(msgrec));
+        if (!snap) { fprintf(stderr, "Out of memory\n"); exit(1); }
+        if (n) memcpy(snap, folders[f].idx, n*sizeof(msgrec));
+        dunlock();
+        snprintf(srcwhat, sizeof(srcwhat), "Searching %.400s", show);
+        srcmax = n;
+        for (i = 0; i < n && !wrkstop && !srcwant; i++) {
 
-            wrkpos = i+1;
-            if (srcmatch(f, &folders[f].idx[i], &a)) {
+            srcpos = i+1;
+            if (srcmatch(f, &snap[i], &a)) {
 
                 if (ct >= max) {
 
@@ -4620,18 +4645,19 @@ void servesearch(void)
                     if (!res || !rfold) { fprintf(stderr, "Out of memory\n"); exit(1); }
 
                 }
-                res[ct] = folders[f].idx[i];
+                res[ct] = snap[i];
                 rfold[ct] = f;
                 ct++;
 
             }
 
         }
+        free(snap);
 
     }
-    wrkwhat[0] = 0;
-    wrkpos = 0;
-    wrkmax = 0;
+    srcwhat[0] = 0;
+    srcpos = 0;
+    srcmax = 0;
     if (srcwant || wrkstop) { /* asked again before this was done: this one is dropped */
 
         free(res);
@@ -4651,6 +4677,22 @@ void servesearch(void)
     srcbusy = FALSE;
     srcdone = TRUE;
     dunlock();
+
+}
+
+/* The search thread's whole life: a search when one is asked, and a
+   nap between looks. It is not the worker's thread, so a search asked
+   in the middle of an hour's fetch answers in a second or two. */
+void searchwork(void)
+
+{
+
+    while (!wrkstop) {
+
+        if (srcwant) servesearch();
+        usleep(50000); /* a twentieth of a second, unnoticeable at a start */
+
+    }
 
 }
 

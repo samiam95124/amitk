@@ -3651,7 +3651,14 @@ static void srcfill(void)
     if (!srcct) copystr(t, "Nothing found", sizeof(t));
     else if (srcct == 1) copystr(t, "1 message found", sizeof(t));
     else snprintf(t, sizeof(t), "%lld messages found", AMI_LONG_CAST(srcct));
-    srcstatus(t);
+    if (*srcmissed) { /* the folders not yet read, which it could not look in */
+
+        char m[MAXSTR*3];
+
+        snprintf(m, sizeof(m), "%s (not yet read: %s)", t, srcmissed);
+        srcstatus(m);
+
+    } else srcstatus(t);
 
 }
 
@@ -3934,18 +3941,18 @@ static void srcpick(void)
         srcdone = FALSE;
         if (srcwf) srcfill();
 
-    } else if (srcbusy && srcwf && *wrkwhat) {
+    } else if (srcbusy && srcwf && *srcwhat) {
 
         char t[MAXSTR*2];
         char a[40], b[40];
 
-        if (wrkmax > 0) {
+        if (srcmax > 0) {
 
-            commas(wrkpos, a, sizeof(a));
-            commas(wrkmax, b, sizeof(b));
-            snprintf(t, sizeof(t), "%s - %s of %s", wrkwhat, a, b);
+            commas(srcpos, a, sizeof(a));
+            commas(srcmax, b, sizeof(b));
+            snprintf(t, sizeof(t), "%s - %s of %s", srcwhat, a, b);
 
-        } else copystr(t, wrkwhat, sizeof(t));
+        } else copystr(t, srcwhat, sizeof(t));
         srcstatus(t);
 
     }
@@ -4027,6 +4034,7 @@ static void kickworker(void)
 {
 
     if (!wrkstart) { ami_newthread(mailwork); wrkstart = TRUE; }
+    if (!srcstart) { ami_newthread(searchwork); srcstart = TRUE; }
     /* Ten times a second, to pick up what the worker has done and draw
        it. Faster than the eye and slower than the flicker that drawing
        per message would be. */
