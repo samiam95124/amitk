@@ -786,7 +786,8 @@ all: dumpmidi dif css2theme play playg keyboard keyboardg playmidi playmidig pla
      prtcertnet prtcertnetg prtcertmsg prtcertmsgg listcertnet listcertnetg \
      prtconfig prtconfigg pixel ball1 ball2 ball3 ball4 ball5 ball6 line1 \
      line2 line4 line5 clock calc txttest pdftest \
-     graph_server graphics_testr window_testr widget_testr
+     graph_server graphics_testr window_testr widget_testr \
+     mail mailc mailcg
     
 endif 
 

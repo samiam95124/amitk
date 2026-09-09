@@ -131,6 +131,33 @@ encoded subject lines, quoted printable, base64, multipart gone into for
 the plain text part, and html with the tags taken out where plain text
 is not on offer.
 
+# Searching
+
+Search, on the menu bar, opens a form modelled on the one behind the
+search box in Gmail: who the message is from, who it is to, what the
+subject holds, words it has, words it must not have, its size, when it
+came, and which folder to look in. Fill in what you know and leave the
+rest blank; a message is found when it fits everything given. Return in
+any field searches, as the Search button does.
+
+Size takes a number, in megabytes, kilobytes or bytes as the box beside
+it says. The date is a day, written as 2026-09-09 or 9/9/2026, and the
+period beside it is how far either side of that day to look. The folder
+box offers every folder or all of them, and the box below asks for
+messages that carry an attachment.
+
+The sender, subject, size and date are answered from the index, which
+is quick. To, the words and the attachment are answered from the
+messages themselves, which are read from the store one by one; the line
+under the buttons says which folder is being read and how far it has
+got. A search that is asked again before it is done drops what it was
+doing and starts over.
+
+What is found is listed under the form, newest first: when it came,
+who from, and the subject. Click one to read it; the arrows, the page
+keys and the scroll bar move through the list. In the terminal, the /
+key opens the form.
+
 # The second mouse button
 
 On a message, three things, all of them local:

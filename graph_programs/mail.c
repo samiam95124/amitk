@@ -101,6 +101,7 @@
 #define HELPWIN   7 /* the help window */
 #define BANWIN    8 /* the banner across the top */
 #define CMPWIN    9 /* the compose window */
+#define SRCWIN   10 /* the search window */
 #define BANPIC    1 /* the picture in it */
 
 /* its widgets, numbered within it */
@@ -142,6 +143,24 @@
 #define CMPCAN    5 /* and think better of it */
 #define CMPSB     6 /* the bar down the side of the body */
 
+/* the search form */
+#define SRCFROM   1 /* the sender holds */
+#define SRCTO     2 /* the To line holds */
+#define SRCSUBJ   3 /* the subject holds */
+#define SRCWORDS  4 /* it has the words */
+#define SRCNOT    5 /* and not these */
+#define SRCSIZEOP 6 /* greater or less than */
+#define SRCSIZE   7 /* this many */
+#define SRCUNIT   8 /* of these */
+#define SRCWITHIN 9 /* dated within this */
+#define SRCDATE  10 /* of this day */
+#define SRCFOLD  11 /* the folder searched */
+#define SRCATT   12 /* it has an attachment */
+#define SRCGO    13 /* search */
+#define SRCCLR   14 /* clear the form */
+#define SRCCLOSE 15 /* close it */
+#define SRCSB    16 /* the bar beside what was found */
+
 static void newmenu(ami_menuptr* mp, int onoff, int bar, int select,
                     int id, char* face);
 static void appendmenu(ami_menuptr* list, ami_menuptr m);
@@ -157,6 +176,7 @@ static void kickworker(void);
 #define MENUFOLD  (AMI_SMMAX+3) /* fetch the folder list again */
 #define MENUCHECK (AMI_SMMAX+4) /* check that mail could be sent */
 #define MENUSRV   (AMI_SMMAX+5) /* the server form */
+#define MENUSEARCH (AMI_SMMAX+10) /* the search form */
 
 /* What a notch of the wheel moves. One message, because a message is a
    thing and a notch is a step, and the list is read by stepping through
@@ -214,9 +234,15 @@ static int   rowh;              /* the height of a message line */
 #define MAXPOINT  36.0
 static float pointsz = BASEPOINT;
 static int   foldw;             /* the width of the folder pane */
+static int   listw;             /* and of the message list */
+static int   banw;              /* and of the banner, as last laid out */
+static int   banpart;           /* the banner's right strip is drawn already */
+static int   listpart;          /* and the list's */
 static ami_long sbw;               /* scroll bar thickness */
 static int   listrows;          /* message lines the list holds */
 static int   foldy[MAXFOLDER];  /* where each folder was drawn, for clicks */
+static int   foldon[MAXFOLDER]; /* and whether it is drawn at all */
+static int   foldcnt[MAXFOLDER]; /* the count each line shows */
 static int   listx, listy;      /* where the list pane sits on the window */
 static int   fromx;             /* where the sender column ends */
 static int   catx;              /* and where the category column ends */
@@ -237,7 +263,7 @@ static void drawlist(void);     /* forward */
 static void drawfolders(void);
 static void showfolder(int i);
 static void drawread(void);
-static void layout(void);
+static void layout(int whole);
 static void drawfolders(void);
 static void drawlist(void);
 
@@ -252,15 +278,19 @@ Odds and ends
    The library takes each part as a fraction of the whole range of a
    long, not as a byte: 245 out of LONG_MAX is not a light grey, it is
    black, and every "quiet grey" in this program was black until this
-   was noticed. Written once, here, so it cannot be got wrong twice. */
-static int rgb(int c)
+   was noticed. Written once, here, so it cannot be got wrong twice.
+
+   It answers an ami_long, which is what the colour calls take: answered
+   as an int it was cut to the low bits of the long, and the banner and
+   the status strip were black again. */
+static ami_long rgb(int c)
 
 {
 
     if (c < 0) c = 0;
     if (c > 255) c = 255;
 
-    return (c*(LONG_MAX/255));
+    return ((ami_long)c*(LONG_MAX/255));
 
 }
 
@@ -1209,30 +1239,59 @@ static void banmeasure(void)
 
 
 
-static void drawbanner(void)
+/* The banner, or the part of it from x0 to the right edge. A resize
+   moves the picture, which keeps to the right edge, and nothing else:
+   the name stays where it is, so from the picture's old place or its
+   new one, whichever is further left, to the edge is what is cleared
+   and drawn again. Asked from 0 it is drawn whole. */
+static void drawbanner(int x0)
 
 {
 
     int y;
 
     if (!banwf) return;
-    ami_bcolorc(banwf, rgb(255), rgb(255), rgb(255));
-    fprintf(banwf, "\f");
-    /* the name, at the left, set in the middle of the band */
-    ami_fcolorc(banwf, rgb(40), rgb(40), rgb(60));
-    ami_cursorg(banwf, 16, (banh-ami_chrsizy(banwf))/2);
-    {   /* it keeps to the room the picture leaves it: at a large point
-           size in a small window the name is wider than the band, and it
-           ran in under the cat */
+    if (x0 > 0) {
 
         char nm[MAXSTR];
 
+        /* the name runs under the picture only when the band is too
+           narrow for both; then it is all drawn again */
         copystr(nm, "Ami Mail", sizeof(nm));
-        clipstr(banwf, nm, ami_maxxg(banwf)-(havepic? picdw+16: 0)-32);
-        fprintf(banwf, "%s", nm);
+        if (16+ami_strsiz(banwf, nm) > x0) x0 = 0;
 
     }
-    ami_fcolor(banwf, ami_black);
+    if (x0 > 0) {
+
+        ami_fcolor(banwf, ami_white);
+        ami_frect(banwf, x0, 0, ami_maxxg(banwf), banh);
+        ami_fcolor(banwf, ami_black);
+
+    } else {
+
+        ami_bcolorc(banwf, rgb(255), rgb(255), rgb(255));
+        fprintf(banwf, "\f");
+
+    }
+    /* the name, at the left, set in the middle of the band */
+    if (!x0) {
+
+        ami_fcolorc(banwf, rgb(40), rgb(40), rgb(60));
+        ami_cursorg(banwf, 16, (banh-ami_chrsizy(banwf))/2);
+        {   /* it keeps to the room the picture leaves it: at a large
+               point size in a small window the name is wider than the
+               band, and it ran in under the cat */
+
+            char nm[MAXSTR];
+
+            copystr(nm, "Ami Mail", sizeof(nm));
+            clipstr(banwf, nm, ami_maxxg(banwf)-(havepic? picdw+16: 0)-32);
+            fprintf(banwf, "%s", nm);
+
+        }
+        ami_fcolor(banwf, ami_black);
+
+    }
     /* and the picture at the right, at the size the display is drawn at */
     if (havepic)
         ami_picture(banwf, BANPIC, ami_maxxg(banwf)-picdw-16, (banh-picdh)/2,
@@ -1242,8 +1301,8 @@ static void drawbanner(void)
     y = banh-4;
     ami_fcolorc(banwf, rgb(120), rgb(120), rgb(140));
     ami_linewidth(banwf, 2);
-    ami_line(banwf, 1, y, ami_maxxg(banwf), y);
-    ami_line(banwf, 1, y+4, ami_maxxg(banwf), y+4);
+    ami_line(banwf, x0? x0: 1, y, ami_maxxg(banwf), y);
+    ami_line(banwf, x0? x0: 1, y+4, ami_maxxg(banwf), y+4);
     ami_linewidth(banwf, 1);
     ami_fcolor(banwf, ami_black);
 
@@ -1487,20 +1546,75 @@ static void clipstr(FILE* f, char* s, int w)
 
 }
 
-static void drawfolders(void)
+/* One folder's line: its ground, its name and its count. Drawn by the
+   pane, and again on its own when its count changes. */
+static void drawfoldline(int i, int y, int w)
+
+{
+
+    char     nm[MAXSTR];
+    char     cnt[40];
+    ami_long cw;
+
+    /* its own ground: the mark if it is the one being read, white if it
+       is not */
+    ami_fcolor(foldwf, i == foldsel? ami_cyan: ami_white);
+    ami_frect(foldwf, 2, y-2, w-2, y+chrh);
+    ami_fcolor(foldwf, ami_black);
+    copystr(nm, folders[i].show, MAXSTR);
+    cnt[0] = 0;
+    if (folders[i].msgs > 0) commas(folders[i].msgs, cnt, sizeof(cnt));
+    foldcnt[i] = folders[i].msgs;
+    cw = *cnt? ami_strsiz(foldwf, cnt)+8: 0;
+    ami_bold(foldwf, i == foldsel);
+    clipstr(foldwf, nm, w-16-cw);
+    ami_cursorg(foldwf, 8, y);
+    fprintf(foldwf, "%s", nm);
+    if (*cnt) {
+
+        ami_cursorg(foldwf, w-8-ami_strsiz(foldwf, cnt), y);
+        fprintf(foldwf, "%s", cnt);
+
+    }
+    ami_bold(foldwf, FALSE);
+
+}
+
+/* The counts that changed since the pane was drawn: those lines and no
+   others. A fetch changes one count at a time, and one line drawn again
+   twice a second is a flicker the eye cannot find; the pane drawn again
+   for each was one it could not miss. */
+static void drawcounts(void)
+
+{
+
+    int i;
+
+    if (!foldwf) return;
+    for (i = 0; i < foldct && i < MAXFOLDER; i++)
+        if (foldon[i] && folders[i].msgs != foldcnt[i])
+            drawfoldline(i, foldy[i], ami_maxxg(foldwf));
+
+}
+
+/* The folder pane, or the band of it between two heights: a rule, a
+   heading or a folder line is drawn when it lies in the band and passed
+   over when it does not. The whole pane is the band from top to bottom;
+   a resize that made the pane taller asks only for the band it exposed,
+   and the rest of the pane is not touched. */
+static void drawfoldrect(int y1, int y2)
 
 {
 
     int i;
     int y = 4;
-    ami_long cw;
     int sec;
     int w;
-    char cnt[40];
     char head[120];
 
     if (!foldwf) return;
     w = ami_maxxg(foldwf);
+    for (i = 0; i < MAXFOLDER; i++) foldon[i] = FALSE;
     /* No clearing of the pane first. Every line paints its own ground
        before its text, so a clear only puts up a blank that the drawing
        covers again -- and a pane that goes blank and comes back is a
@@ -1519,70 +1633,62 @@ static void drawfolders(void)
         if (sec) { /* a rule between the sections */
 
             y += chrh/2;
-            ami_fcolor(foldwf, ami_white);
-            ami_frect(foldwf, 0, y-2, w, y+2);
-            ami_fcolor(foldwf, ami_black);
-            divider(foldwf, 6, y, w-8, y);
+            if (y+2 >= y1 && y-2 <= y2) {
+
+                ami_fcolor(foldwf, ami_white);
+                ami_frect(foldwf, 0, y-2, w, y+2);
+                ami_fcolor(foldwf, ami_black);
+                divider(foldwf, 6, y, w-8, y);
+
+            }
             y += chrh;
 
         }
-        if (srv >= 0) snprintf(head, sizeof(head), "%s Server Folders",
-                               servers[srv].name);
-        else copystr(head, "Local Folders", sizeof(head));
-        clipstr(foldwf, head, w-12);
-        ami_fcolor(foldwf, ami_white);
-        ami_frect(foldwf, 0, y-2, w, y+chrh+2);
-        ami_fcolor(foldwf, ami_black);
-        ami_bold(foldwf, TRUE);
-        ami_cursorg(foldwf, 6, y);
-        fprintf(foldwf, "%s", head);
-        ami_bold(foldwf, FALSE);
+        if (y+chrh+2 >= y1 && y-2 <= y2) {
+
+            if (srv >= 0) snprintf(head, sizeof(head), "%s Server Folders",
+                                   servers[srv].name);
+            else copystr(head, "Local Folders", sizeof(head));
+            clipstr(foldwf, head, w-12);
+            ami_fcolor(foldwf, ami_white);
+            ami_frect(foldwf, 0, y-2, w, y+chrh+2);
+            ami_fcolor(foldwf, ami_black);
+            ami_bold(foldwf, TRUE);
+            ami_cursorg(foldwf, 6, y);
+            fprintf(foldwf, "%s", head);
+            ami_bold(foldwf, FALSE);
+
+        }
         y += chrh*2;
         for (i = 0; i < foldct; i++) {
-
-            char nm[MAXSTR];
 
             if (folders[i].srv != srv) continue;
             if (folders[i].local != (srv < 0)) continue;
             shown++;
             foldy[i] = y; /* where it landed, for the click to find */
-            /* its own ground: the mark if it is the one being read,
-               white if it is not */
-            ami_fcolor(foldwf, i == foldsel? ami_cyan: ami_white);
-            ami_frect(foldwf, 2, y-2, w-2, y+chrh);
-            ami_fcolor(foldwf, ami_black);
-            copystr(nm, folders[i].show, MAXSTR);
-            cnt[0] = 0;
-            if (folders[i].msgs > 0) commas(folders[i].msgs, cnt,
-                                            sizeof(cnt));
-            cw = *cnt? ami_strsiz(foldwf, cnt)+8: 0;
-            ami_bold(foldwf, i == foldsel);
-            clipstr(foldwf, nm, w-16-cw);
-            ami_cursorg(foldwf, 8, y);
-            fprintf(foldwf, "%s", nm);
-            if (*cnt) {
-
-                ami_cursorg(foldwf, w-8-ami_strsiz(foldwf, cnt), y);
-                fprintf(foldwf, "%s", cnt);
-
-            }
-            ami_bold(foldwf, FALSE);
+            foldon[i] = TRUE;
+            if (y+chrh >= y1 && y-2 <= y2) drawfoldline(i, y, w);
             y += chrh+4;
 
         }
         if (!shown) { /* say so rather than leave a gap */
 
-            ami_fcolor(foldwf, ami_white);
-            ami_frect(foldwf, 0, y-2, w, y+chrh);
-            ami_fcolorc(foldwf, rgb(130), rgb(130), rgb(130));
-            ami_cursorg(foldwf, 8, y);
-            fprintf(foldwf, "%s", srv >= 0? "(not fetched)": "(none yet)");
-            ami_fcolor(foldwf, ami_black);
+            if (y+chrh >= y1 && y-2 <= y2) {
+
+                ami_fcolor(foldwf, ami_white);
+                ami_frect(foldwf, 0, y-2, w, y+chrh);
+                ami_fcolorc(foldwf, rgb(130), rgb(130), rgb(130));
+                ami_cursorg(foldwf, 8, y);
+                fprintf(foldwf, "%s", srv >= 0? "(not fetched)": "(none yet)");
+                ami_fcolor(foldwf, ami_black);
+
+            }
             y += chrh+4;
 
         }
 
     }
+    if (y < y1) y = y1;
     if (y < ami_maxyg(foldwf)) { /* the room the sections did not fill */
 
         ami_fcolor(foldwf, ami_white);
@@ -1593,21 +1699,68 @@ static void drawfolders(void)
 
 }
 
+static void drawfolders(void)
+
+{
+
+    if (foldwf) drawfoldrect(0, ami_maxyg(foldwf));
+
+}
+
 
 /* One line of the message list: who it is from, then the subject, then
    as much of the message as is left over, then when it came. This is the
    layout the web readers use and it is the right one: the eye runs down
    the senders, and the subject and the start of the text read as one
    sentence. */
+/* The subject and the start of the message as the row shows them: what
+   is drawn where, in which weight, worked out from where the date
+   column begins. Worked out here for the row drawn whole and for the
+   row's tail drawn after a resize, so the two agree to the pixel. */
+typedef struct {
+
+    int  x;    /* where the piece starts */
+    int  bold;
+    char s[MAXSTR+SNIPPET];
+
+} rowpiece;
+
+static int rowpieces(const msgrec* m, int dx, rowpiece* pc)
+
+{
+
+    int n = 0;
+    int x = catx+8;
+
+    ami_bold(listwf, TRUE);
+    pc[n].x = x;
+    pc[n].bold = TRUE;
+    copystr(pc[n].s, m->subject, MAXSTR);
+    clipstr(listwf, pc[n].s, dx-x-8);
+    x += ami_strsiz(listwf, pc[n].s);
+    n++;
+    ami_bold(listwf, FALSE);
+    if (*m->snip && x < dx-ami_strsiz(listwf, "  ")) {
+
+        pc[n].x = x;
+        pc[n].bold = FALSE;
+        snprintf(pc[n].s, sizeof(pc[n].s), " - %s", m->snip);
+        clipstr(listwf, pc[n].s, dx-x-8);
+        n++;
+
+    }
+
+    return (n);
+
+}
+
 static void drawmsg(int i, int y)
 
 {
 
     msgrec* m = &msgs[i];
     ami_long w = ami_maxxg(listwf)-sbw;
-    int     x;
     char    s[MAXSTR+SNIPPET];
-    int     subw;
 
     if (i == msgsel) {
 
@@ -1633,25 +1786,26 @@ static void drawmsg(int i, int y)
     fprintf(listwf, "%s", s);
     ami_fcolor(listwf, ami_black);
     /* the subject, then the start of the message after it */
-    x = catx+8;
-    subw = datex-x-8;
-    copystr(s, m->subject, MAXSTR);
-    clipstr(listwf, s, subw);
-    ami_cursorg(listwf, x, y);
-    fprintf(listwf, "%s", s);
-    x += ami_strsiz(listwf, s);
-    ami_bold(listwf, FALSE);
-    if (*m->snip && x < datex-ami_strsiz(listwf, "  ")) {
+    {
 
-        snprintf(s, sizeof(s), " - %s", m->snip);
-        clipstr(listwf, s, datex-x-8);
-        ami_fcolor(listwf, ami_black);
-        ami_cursorg(listwf, x, y);
-        fprintf(listwf, "%s", s);
+        rowpiece pc[2];
+        int      n = rowpieces(m, datex, pc);
+        int      k;
+
+        for (k = 0; k < n; k++) {
+
+            ami_bold(listwf, pc[k].bold);
+            ami_cursorg(listwf, pc[k].x, y);
+            fprintf(listwf, "%s", pc[k].s);
+
+        }
+        ami_bold(listwf, FALSE);
 
     }
-    /* the date, against the right */
-    copystr(s, m->when, sizeof(m->when));
+    /* the date, against the right, asked again from the date: the index
+       keeps the string as it was when the message was indexed */
+    if (m->date) whenof(m->date, s, sizeof(s));
+    else copystr(s, m->when, sizeof(m->when));
     ami_cursorg(listwf, w-ami_strsiz(listwf, s)-8, y);
     fprintf(listwf, "%s", s);
     /* This row's piece of the column dividers. Drawn with the row so
@@ -1661,6 +1815,121 @@ static void drawmsg(int i, int y)
     divider(listwf, fromx, y-2, fromx, y+rowh-4);
     divider(listwf, catx, y-2, catx, y+rowh-4);
     divider(listwf, datex-8, y-2, datex-8, y+rowh-4);
+
+}
+
+static void setlistbar(void);   /* forward */
+
+/* A row after the width changed: only what the width moved. The sender
+   and the kind stand where they were, and the subject and the snippet
+   read the same up to the point where the old cut and the new one part;
+   from there to the right edge the row is cleared and drawn again --
+   the rest of the text, the date at its new place, the divider before
+   it. On a window pulled in a little that is the date and a character
+   or two, and the rest of the row is not touched, so it does not
+   flash. */
+static void drawtail(int i, int y, int olddx)
+
+{
+
+    msgrec*  m = &msgs[i];
+    ami_long w = ami_maxxg(listwf)-sbw;
+    rowpiece op[2], np[2];
+    int      on, nn, k, x0;
+    char     s[MAXSTR];
+
+    on = rowpieces(m, olddx, op);
+    nn = rowpieces(m, datex, np);
+    /* where the two drawings part: a piece one has and the other has
+       not, or the first character that differs; alike throughout, the
+       divider before the date is the first thing that moved */
+    x0 = (datex < olddx? datex: olddx)-8;
+    for (k = 0; k < on || k < nn; k++) {
+
+        int c;
+
+        if (k >= on) { x0 = np[k].x; break; }
+        if (k >= nn) { x0 = op[k].x; break; }
+        if (op[k].x != np[k].x) { x0 = op[k].x < np[k].x? op[k].x: np[k].x; break; }
+        for (c = 0; op[k].s[c] && op[k].s[c] == np[k].s[c]; c++);
+        if (op[k].s[c] || np[k].s[c]) {
+
+            memcpy(s, np[k].s, c);
+            s[c] = 0;
+            ami_bold(listwf, np[k].bold);
+            x0 = np[k].x+ami_strsiz(listwf, s);
+            ami_bold(listwf, FALSE);
+            break;
+
+        }
+
+    }
+    if (x0 < 0) x0 = 0;
+    ami_fcolor(listwf, i == msgsel? ami_cyan: ami_white);
+    ami_frect(listwf, x0, y-2, w, y+rowh-4);
+    ami_fcolor(listwf, ami_black);
+    for (k = 0; k < nn; k++) {
+
+        const char* p = np[k].s;
+        int         c = 0;
+
+        ami_bold(listwf, np[k].bold);
+        if (np[k].x < x0) { /* the part of it from x0 on */
+
+            while (p[c]) {
+
+                memcpy(s, p, c+1);
+                s[c+1] = 0;
+                if (np[k].x+ami_strsiz(listwf, s) > x0) break;
+                c++;
+
+            }
+            if (!p[c]) continue; /* all of it stands to the left */
+
+        }
+        ami_cursorg(listwf, x0 > np[k].x? x0: np[k].x, y);
+        fprintf(listwf, "%s", p+c);
+
+    }
+    ami_bold(listwf, FALSE);
+    if (m->date) whenof(m->date, s, sizeof(s));
+    else copystr(s, m->when, sizeof(m->when));
+    ami_cursorg(listwf, w-ami_strsiz(listwf, s)-8, y);
+    fprintf(listwf, "%s", s);
+    divider(listwf, datex-8, y-2, datex-8, y+rowh-4);
+    ami_fcolor(listwf, ami_white);
+    ami_line(listwf, x0, y+rowh-3, w, y+rowh-3);
+    ami_fcolor(listwf, ami_black);
+
+}
+
+/* every row on the screen, after the date column moved */
+static void listtails(int olddx)
+
+{
+
+    int i;
+    int y = 4;
+    int x0 = (datex < olddx? datex: olddx)-9;
+
+    if (!listwf) return;
+    if (foldsel < 0 || !msgct) { drawlist(); return; }
+    for (i = msgtop; i < msgct && y+rowh <= ami_maxyg(listwf); i++) {
+
+        drawtail(i, y, olddx);
+        y += rowh;
+
+    }
+    if (y < ami_maxyg(listwf)) { /* the divider down the empty part */
+
+        if (x0 < 0) x0 = 0;
+        ami_fcolor(listwf, ami_white);
+        ami_frect(listwf, x0, y, ami_maxxg(listwf), ami_maxyg(listwf));
+        ami_fcolor(listwf, ami_black);
+        divider(listwf, datex-8, y, datex-8, ami_maxyg(listwf));
+
+    }
+    setlistbar();
 
 }
 
@@ -1723,8 +1992,6 @@ static void listclamp(void)
     if (msgtop < 0) msgtop = 0;
 
 }
-
-static void setlistbar(void);   /* forward */
 
 /* Draw only the rows a redraw rectangle touches, and the dividers down
    it. A resize brings two of these -- the strip down the right and the
@@ -2252,7 +2519,7 @@ static void answer(int what)
 
 }
 
-static void openmsg(int i)
+static void openmsgin(ami_long fold, const msgrec* m)
 
 {
 
@@ -2265,7 +2532,7 @@ static void openmsg(int i)
     struct timespec t0, t1, t2, t3, t4;
 
     if (diag) clock_gettime(CLOCK_MONOTONIC, &t0);
-    raw = getmsg(foldsel, i);
+    raw = getmsgin(fold, m);
     if (!raw) { fail("The message could not be read back"); return; }
     if (diag) clock_gettime(CLOCK_MONOTONIC, &t1);
     findheader(raw, "From", from, sizeof(from));
@@ -2357,7 +2624,7 @@ static void openmsg(int i)
 
         clock_gettime(CLOCK_MONOTONIC, &t4);
         fprintf(stderr, "open: %d bytes, read %.0fms decode %.0fms "
-                        "wrap %.0fms (%d lines) draw %.0fms\n", msgs[i].len,
+                        "wrap %.0fms (%d lines) draw %.0fms\n", (int)m->len,
                 (t1.tv_sec-t0.tv_sec)*1e3+(t1.tv_nsec-t0.tv_nsec)/1e6,
                 (t2.tv_sec-t1.tv_sec)*1e3+(t2.tv_nsec-t1.tv_nsec)/1e6,
                 (t3.tv_sec-t2.tv_sec)*1e3+(t3.tv_nsec-t2.tv_nsec)/1e6,
@@ -2368,6 +2635,15 @@ static void openmsg(int i)
 
 }
 
+/* open the message at that place in the list being shown */
+static void openmsg(int i)
+
+{
+
+    if (i >= 0 && i < msgct) openmsgin(foldsel, &msgs[i]);
+
+}
+
 static void closeread(void)
 
 {
@@ -2375,6 +2651,12 @@ static void closeread(void)
     int i;
 
     if (!readwf) return;
+    /* The widget first. A window closed over a live widget leaves the
+       widget's record, and the widget's own window, pointing at a file
+       that is gone -- and the record for that file is taken again by
+       the next window opened. Resizing the window that got it then
+       resized the widget's window too, through the stale record. */
+    ami_killwidget(readwf, SBREAD);
     fclose(readwf);
     readwf = NULL;
     for (i = 0; i < readlines; i++) free(readline[i]);
@@ -2579,7 +2861,12 @@ static void srvclose(void)
 
 {
 
-    if (srvwf) { fclose(srvwf); srvwf = NULL; }
+    int i;
+
+    if (!srvwf) return;
+    for (i = SRVIMAP; i <= SRVSEND; i++) ami_killwidget(srvwf, i); /* first: see closeread */
+    fclose(srvwf);
+    srvwf = NULL;
 
 }
 
@@ -2719,28 +3006,44 @@ folder list that grows with the window is wasted space.
 
 *******************************************************************************/
 
-static void layout(void)
+/* Lay the window out, whole or after a resize.
+
+   Whole -- at the start, at a change of point size, and when the folder
+   pane's width changed, which moves everything -- clears the panes and
+   draws them all. After a resize it draws what the resize moved and no
+   more: the buffers keep what was drawn, so the folder pane needs
+   nothing, the message list needs the tail of each row from where the
+   date column was to where it is, the banner needs the picture at its
+   new place and the strip needs drawing at its new height. What a
+   taller window exposed below arrives as a redraw of the exposed band.
+   Drawn whole, every resize flashed the lot. */
+static void layout(int whole)
 
 {
 
     int top = 1+banh; /* under the banner, which is under the menu */
     int h = ami_maxyg(stdout)-top-stath; /* the strip has the foot of it */
+    int w = ami_maxxg(stdout);
+    int oldfoldw = foldw, olddatex = datex, oldfromx = fromx, oldcatx = catx;
+    int oldlistw = listw, oldbanw = banw;
+    static int laid;
 
+    if (!laid) { whole = TRUE; laid = TRUE; }
     /* The banner is as wide as the window and stays where it is put. */
     ami_setposg(banwf, 1, 1);
-    ami_setsizg(banwf, ami_maxxg(stdout), banh);
-    ami_sizbufg(banwf, ami_maxxg(stdout), banh);
+    ami_setsizg(banwf, w, banh);
+    ami_sizbufg(banwf, w, banh);
 
     if (diag) fprintf(stderr, "layout: buf %lldx%lld stath %d progh %d "
                       "panes %d tall\n", AMI_LONG_CAST(ami_maxxg(stdout)), AMI_LONG_CAST(ami_maxyg(stdout)),
                       stath, progh, h);
 
+    foldw = ami_strsiz(stdout, "0")*22;
+    if (foldw > w/2) foldw = w/2;
+    if (foldw != oldfoldw) whole = TRUE;
     /* the main window shows between and around the panes, so it is
        cleared here rather than left as whatever was under it */
-    fprintf(stdout, "\f");
-
-    foldw = ami_strsiz(stdout, "0")*22;
-    if (foldw > ami_maxxg(stdout)/2) foldw = ami_maxxg(stdout)/2;
+    if (whole) fprintf(stdout, "\f");
     ami_setposg(foldwf, 1, top);
     /* The buffer follows the window. Sizing the window alone leaves the
        buffer the size it was, and a buffered window answers with its
@@ -2751,9 +3054,23 @@ static void layout(void)
     /* the gap between the panes holds the divider between the sections */
     listx = foldw+8;
     listy = top;
+    listw = w-foldw-8;
     ami_setposg(listwf, listx, listy);
-    ami_setsizg(listwf, ami_maxxg(stdout)-foldw-8, h);
-    ami_sizbufg(listwf, ami_maxxg(stdout)-foldw-8, h);
+    ami_setsizg(listwf, listw, h);
+    ami_sizbufg(listwf, listw, h);
+    if (!whole) {
+
+        /* The gap between the panes is the main window's, and it keeps
+           what was there: the strip's band, where the window was
+           shorter. Painted out with a line, as the strip is: a filled
+           rectangle does not paint in this window. */
+        ami_fcolor(stdout, ami_white);
+        ami_linewidth(stdout, 8);
+        ami_line(stdout, foldw+4, top, foldw+4, top+h);
+        ami_linewidth(stdout, 1);
+        ami_fcolor(stdout, ami_black);
+
+    }
     divider(stdout, foldw+4, top, foldw+4, top+h);
     /* The columns of the list, kept here so the rows and their dividers
        agree on where the columns are. They adapt to the width there is,
@@ -2773,9 +3090,15 @@ static void layout(void)
         fromx = unit*18;
         if (datex-8-(fromx+catw) < unit*12) { /* the subject is starving */
 
-            fromx = datex*2/5;
+            /* In steps of two characters' width, so that a resize of a
+               few pixels leaves the columns where they are: every row
+               is drawn again when the columns move, and only the tail
+               of each when the date column alone does. */
+            ami_long step = unit*2;
+
+            fromx = datex*2/5/step*step;
             if (fromx < unit*8) fromx = unit*8;
-            catw = datex/6;
+            catw = datex/6/step*step;
             if (catw > ami_strsiz(listwf, "promotions  "))
                 catw = ami_strsiz(listwf, "promotions  ");
             if (catw < unit*4) catw = unit*4;
@@ -2800,17 +3123,36 @@ static void layout(void)
     ami_sizwidgetg(listwf, SBLIST, sbw, ami_maxyg(listwf));
     listrows = ami_maxyg(listwf)/rowh;
     if (listrows < 1) listrows = 1;
-    /* The panes are cleared and drawn again, since this is the one thing
-       that moves what is in them: a pane that has changed height has the
-       old rows where the new ones are not, and a buffer keeps whatever
-       nothing has drawn over. Once per layout, which is once per resize
-       -- not once per redraw, which is what made a resize flash. */
-    fprintf(foldwf, "\f");
-    fprintf(listwf, "\f");
-    drawfolders();
-    drawlist();
-    drawstatus();
-    drawbanner();
+    if (whole) {
+
+        fprintf(foldwf, "\f");
+        fprintf(listwf, "\f");
+        drawfolders();
+        drawlist();
+        drawstatus();
+        drawbanner(0);
+        banw = w;
+
+        return;
+
+    }
+    /* a resize: what it moved, and only that */
+    drawstatus(); /* at its new height, whole */
+    if (havepic && w != oldbanw) {
+
+        /* the picture at its new place, from the leftmost of the two */
+        int oc = oldbanw-picdw-16;
+        int nc = w-picdw-16;
+
+        drawbanner(oc < nc? oc: nc);
+        /* a wider banner is told of its right strip too; that is drawn */
+        if (w > oldbanw) banpart = TRUE;
+
+    }
+    banw = w;
+    if (fromx != oldfromx || catx != oldcatx) drawlist(); /* the columns moved */
+    else if (datex != olddatex) listtails(olddatex); /* the date column alone */
+    if (listw > oldlistw) listpart = TRUE;
 
 }
 
@@ -2843,7 +3185,7 @@ static void setzoom(float d)
     chrh = ami_chrsizy(stdout);
     rowh = chrh+8;
     banmeasure(); /* the banner and its picture follow the size too */
-    layout();
+    layout(TRUE);
     /* a message being read is wrapped again at the size it is now */
     if (readwf) {
 
@@ -3446,6 +3788,9 @@ static void helpclose(void)
     int i;
 
     if (!helpwf) return;
+    ami_killwidget(helpwf, HELPFIND); /* the widgets first: see closeread */
+    if (helplistup) ami_killwidget(helpwf, HELPLIST);
+    ami_killwidget(helpwf, HELPCLOSE);
     fclose(helpwf);
     helpwf = NULL;
     helplistup = FALSE;
@@ -3539,6 +3884,554 @@ static void helpevent(ami_evtrec* er)
 /*******************************************************************************
 /*******************************************************************************
 
+The search form
+
+Modelled on the search form of Gmail: who it is from and to, what the
+subject and the message hold and do not hold, how big it is, when it was
+sent, and which folder to look in. Search hands the ask to the worker,
+which reads the folders and tries every message (see the core), and what
+it finds is listed under the form, newest first, each line the date, the
+sender and the subject. A line clicked opens the message in the reader,
+from whatever folder it lies in. The form is a fixed size: its fields are
+made where they stand and only the labels are drawn again.
+
+*******************************************************************************/
+
+static FILE*    srcwf;        /* the search window, NULL when closed */
+static int      srclistup;    /* there are results to show */
+static ami_long srcx0, srcy0, srcx1, srcy1; /* the list's rectangle */
+static ami_long srcsbw;       /* the width of the bar beside it */
+static int      srcrowh;      /* the height of a row of it */
+static int      srctop;       /* the first row on show */
+static int      srcsel;       /* the row picked, or -1 */
+static ami_long srcmx, srcmy; /* where the mouse is */
+
+static void srcdraw(void);
+static ami_long srcsty;       /* where the status line is written */
+static ami_long srcsizesel = 1;   /* the dropboxes' picks, 1 based */
+static ami_long srcunitsel = 1;
+static ami_long srcwithinsel = 1;
+static ami_long srcfoldsel = 1;
+static int      srcatt;       /* the attachment box is checked */
+static char     srcsaid[MAXSTR]; /* what the status line says */
+
+static const char* srcsizeops[] = { "greater than", "less than" };
+static const char* srcunits[] = { "MB", "KB", "bytes" };
+static const ami_long srcunitval[] = { 1024*1024, 1024, 1 };
+static const char* srcwithins[] = { "1 day", "3 days", "1 week", "2 weeks",
+                                    "1 month", "2 months", "6 months",
+                                    "1 year" };
+static const ami_long srcwithinsec[] = { 86400L, 3*86400L, 7*86400L,
+                                         14*86400L, 30*86400L, 61*86400L,
+                                         183*86400L, 365*86400L };
+
+/* a string list for a widget, from an array of strings; the widget
+   copies it, so it is freed after */
+static ami_strptr strlist(const char* const* items, int n)
+
+{
+
+    ami_strptr sl = NULL, lp = NULL, sp;
+    int i;
+
+    for (i = 0; i < n; i++) {
+
+        sp = malloc(sizeof(ami_strrec));
+        if (!sp) { ami_alert("Mail", "Out of memory"); exit(1); }
+        sp->str = strdup(items[i]);
+        if (!sp->str) { ami_alert("Mail", "Out of memory"); exit(1); }
+        sp->next = NULL;
+        if (lp) lp->next = sp; else sl = sp;
+        lp = sp;
+
+    }
+
+    return (sl);
+
+}
+
+static void freelist(ami_strptr sl)
+
+{
+
+    ami_strptr sp;
+
+    while (sl) { sp = sl->next; free(sl->str); free(sl); sl = sp; }
+
+}
+
+/* the status line under the form: what the search is doing or found */
+static void srcstatus(const char* s)
+
+{
+
+    if (!srcwf) return;
+    copystr(srcsaid, s, sizeof(srcsaid));
+    ami_fcolor(srcwf, ami_white);
+    ami_frect(srcwf, 1, srcsty, ami_maxxg(srcwf), srcsty+chrh-1);
+    ami_fcolor(srcwf, ami_black);
+    ami_cursorg(srcwf, ami_strsiz(srcwf, "0")*2, srcsty);
+    fprintf(srcwf, "%s", srcsaid);
+
+}
+
+/* the labels, drawn again on every redraw; the widgets keep themselves */
+static void srclay(void)
+
+{
+
+    static const char* labels[] = { "From", "To", "Subject", "Has the words",
+                                    "Doesn't have", "Size", "Date within",
+                                    "Search" };
+    ami_long chrw = ami_strsiz(srcwf, "0");
+    ami_long ew, eh, cw, ch, ow, oh, rowh, y;
+    ami_strptr sl;
+    int i;
+
+    ami_editboxsizg(srcwf, "0", &ew, &eh);
+    sl = strlist(srcsizeops, 2);
+    ami_dropboxsizg(srcwf, sl, &cw, &ch, &ow, &oh);
+    freelist(sl);
+    rowh = (eh > ch? eh: ch)+chrh/2;
+    fprintf(srcwf, "\f");
+    ami_fcolor(srcwf, ami_black);
+    y = chrh;
+    for (i = 0; i < 8; i++) {
+
+        ami_cursorg(srcwf, chrw*2, y+(rowh-chrh/2-chrh)/2);
+        fprintf(srcwf, "%s", labels[i]);
+        y += rowh;
+
+    }
+    srcstatus(srcsaid);
+    srcdraw();
+
+}
+
+/* how many rows of what was found fit */
+static int srcvis(void)
+
+{
+
+    int n = (srcy1-srcy0-4)/srcrowh;
+
+    return (n < 1? 1: n);
+
+}
+
+/* keep the top of the list inside the list */
+static void srcclamp(void)
+
+{
+
+    if (srctop > srcct-srcvis()) srctop = srcct-srcvis();
+    if (srctop < 0) srctop = 0;
+
+}
+
+static void srcbar(void)
+
+{
+
+    int max = srcct-srcvis();
+
+    if (max < 1) max = 1;
+    if (srcct > srcvis()) ami_scrollsiz(srcwf, SRCSB, fullscale(srcvis(), srcct));
+    else ami_scrollsiz(srcwf, SRCSB, INT_MAX);
+    ami_scrollpos(srcwf, SRCSB, fullscale(srctop, max));
+
+}
+
+/* What was found, drawn as the message list draws its rows -- when it
+   came, who from, what about -- in columns, since the font is not fixed
+   pitch and a list box cannot line them up. Newest first, as the message
+   list is. */
+static void srcdraw(void)
+
+{
+
+    ami_long w = srcx1-srcsbw-srcx0;
+    ami_long datew = ami_strsiz(srcwf, "Sep 30, 2026")+16;
+    ami_long fromw = ami_strsiz(srcwf, "0")*22;
+    ami_long x, y;
+    char     s[MAXSTR];
+    int      i;
+
+    if (!srcwf) return;
+    ami_fcolor(srcwf, ami_white);
+    ami_frect(srcwf, srcx0, srcy0, srcx1-srcsbw, srcy1);
+    ami_fcolor(srcwf, ami_black);
+    ami_rect(srcwf, srcx0, srcy0, srcx1-srcsbw, srcy1);
+    if (!srclistup) return;
+    if (!srcct) {
+
+        ami_cursorg(srcwf, srcx0+8, srcy0+4);
+        fprintf(srcwf, "Nothing found");
+        return;
+
+    }
+    srcclamp();
+    y = srcy0+4;
+    for (i = srctop; i < srcct && y+srcrowh <= srcy1-2; i++) {
+
+        const msgrec* m = &srcres[i];
+
+        if (i == srcsel) {
+
+            ami_fcolor(srcwf, ami_cyan);
+            ami_frect(srcwf, srcx0+1, y-2, srcx1-srcsbw-1, y+srcrowh-4);
+            ami_fcolor(srcwf, ami_black);
+
+        }
+        x = srcx0+8;
+        if (m->date) whenof(m->date, s, sizeof(s));
+        else copystr(s, m->when, sizeof(s));
+        ami_cursorg(srcwf, x, y);
+        fprintf(srcwf, "%s", s);
+        x += datew;
+        ami_bold(srcwf, TRUE);
+        copystr(s, m->from, sizeof(s));
+        clipstr(srcwf, s, fromw-8);
+        ami_cursorg(srcwf, x, y);
+        fprintf(srcwf, "%s", s);
+        ami_bold(srcwf, FALSE);
+        x += fromw;
+        copystr(s, m->subject, sizeof(s));
+        clipstr(srcwf, s, srcx0+w-x-8);
+        ami_cursorg(srcwf, x, y);
+        fprintf(srcwf, "%s", s);
+        y += srcrowh;
+
+    }
+    srcbar();
+
+}
+
+/* the search is done: its results on show, and how many */
+static void srcfill(void)
+
+{
+
+    char t[MAXSTR];
+
+    srclistup = TRUE;
+    srctop = 0;
+    srcsel = -1;
+    srcdraw();
+    if (!srcct) copystr(t, "Nothing found", sizeof(t));
+    else if (srcct == 1) copystr(t, "1 message found", sizeof(t));
+    else snprintf(t, sizeof(t), "%lld messages found", AMI_LONG_CAST(srcct));
+    if (*srcmissed) { /* the folders not yet read, which it could not look in */
+
+        char m[MAXSTR*3];
+
+        snprintf(m, sizeof(m), "%s (not yet read: %s)", t, srcmissed);
+        srcstatus(m);
+
+    } else srcstatus(t);
+
+}
+
+/* the list moved: drawn again from its new top */
+static void srcscroll(int top)
+
+{
+
+    srctop = top;
+    srcclamp();
+    srcdraw();
+
+}
+
+/* a row picked: shown as picked, and the message read */
+static void srcpickrow(int i)
+
+{
+
+    if (i < 0 || i >= srcct) return;
+    srcsel = i;
+    if (i < srctop) srctop = i;
+    if (i >= srctop+srcvis()) srctop = i-srcvis()+1;
+    srcdraw();
+    openmsgin(srcfold[i], &srcres[i]);
+
+}
+
+/* Search: the form into the ask, and the worker set going. What it
+   finds is picked up by the tick and listed. */
+static void srcgo(void)
+
+{
+
+    char s[MAXSTR];
+    double v;
+
+    ami_getwidgettext(srcwf, SRCFROM, srcask.from, sizeof(srcask.from));
+    trim(srcask.from);
+    ami_getwidgettext(srcwf, SRCTO, srcask.to, sizeof(srcask.to));
+    trim(srcask.to);
+    ami_getwidgettext(srcwf, SRCSUBJ, srcask.subject, sizeof(srcask.subject));
+    trim(srcask.subject);
+    ami_getwidgettext(srcwf, SRCWORDS, srcask.words, sizeof(srcask.words));
+    trim(srcask.words);
+    ami_getwidgettext(srcwf, SRCNOT, srcask.nowords, sizeof(srcask.nowords));
+    trim(srcask.nowords);
+    /* the size, when a number is given */
+    ami_getwidgettext(srcwf, SRCSIZE, s, sizeof(s));
+    trim(s);
+    srcask.sizeop = 0;
+    srcask.sizeval = 0;
+    if (*s && sscanf(s, "%lf", &v) == 1) {
+
+        srcask.sizeop = srcsizesel;
+        srcask.sizeval = (ami_long)(v*srcunitval[srcunitsel-1]);
+
+    }
+    /* the date, when a day is given */
+    ami_getwidgettext(srcwf, SRCDATE, s, sizeof(s));
+    trim(s);
+    srcask.within = 0;
+    srcask.date = 0;
+    if (*s) {
+
+        srcask.date = parseday(s);
+        if (!srcask.date) {
+
+            srcstatus("The date is not understood: write it as 2026-09-09");
+            return;
+
+        }
+        srcask.within = srcwithinsec[srcwithinsel-1];
+
+    }
+    srcask.fold = srcfoldsel-2; /* the first entry is all of them */
+    srcask.attach = srcatt;
+    if (srcbusy) srcstatus("Searching again...");
+    else srcstatus("Searching...");
+    srcwant = TRUE;
+    kickworker();
+
+}
+
+/* the form emptied, ready for another search */
+static void srcclear(void)
+
+{
+
+    ami_putwidgettext(srcwf, SRCFROM, "");
+    ami_putwidgettext(srcwf, SRCTO, "");
+    ami_putwidgettext(srcwf, SRCSUBJ, "");
+    ami_putwidgettext(srcwf, SRCWORDS, "");
+    ami_putwidgettext(srcwf, SRCNOT, "");
+    ami_putwidgettext(srcwf, SRCSIZE, "");
+    ami_putwidgettext(srcwf, SRCDATE, "");
+    srcatt = FALSE;
+    ami_selectwidget(srcwf, SRCATT, FALSE);
+    srclistup = FALSE;
+    srcdraw();
+    srcstatus("");
+
+}
+
+/* close the search window, if it is open */
+static void srcclose(void)
+
+{
+
+    int i;
+
+    if (!srcwf) return;
+    for (i = SRCFROM; i <= SRCSB; i++) ami_killwidget(srcwf, i); /* first: see closeread */
+    fclose(srcwf);
+    srcwf = NULL;
+    srclistup = FALSE;
+
+}
+
+/* Open the search window. A second open brings the one already up to
+   the front. The fields are made where they stand, the form being of a
+   fixed size; the list is made when there is something to list. */
+static void srcopen(void)
+
+{
+
+    static const char* labels[] = { "From", "To", "Subject", "Has the words",
+                                    "Doesn't have", "Size", "Date within",
+                                    "Search" };
+    static const int   edits[] = { SRCFROM, SRCTO, SRCSUBJ, SRCWORDS, SRCNOT };
+    ami_long wx, wy;
+    ami_long chrw, labw, ew, eh, cw, ch, ow, oh, bw, bh, rowh, y, x, fw;
+    ami_strptr sl;
+    const char* folds[MAXFOLDER+1];
+    int i;
+
+    if (srcwf) { ami_front(srcwf); return; }
+    ami_openwin(&stdin, &srcwf, NULL, SRCWIN);
+    ami_title(srcwf, "Search mail");
+    ami_buffer(srcwf, FALSE);
+    ami_auto(srcwf, FALSE);
+    ami_curvis(srcwf, FALSE);
+    ami_font(srcwf, AMI_FONT_SIGN);
+    ami_setpoints(srcwf, pointsz);
+    ami_binvis(srcwf);
+    chrw = ami_strsiz(srcwf, "0");
+    labw = ami_strsiz(srcwf, "Has the words  ");
+    ami_editboxsizg(srcwf, "0", &ew, &eh);
+    ami_buttonsizg(srcwf, "Search", &bw, &bh);
+    sl = strlist(srcsizeops, 2);
+    ami_dropboxsizg(srcwf, sl, &cw, &ch, &ow, &oh);
+    freelist(sl);
+    rowh = (eh > ch? eh: ch)+chrh/2;
+    fw = chrw*60; /* the fields' width */
+    ami_winclientg(srcwf, chrw*2+labw+fw+chrw*2, rowh*9+bh+chrh*2+chrh*16,
+                   &wx, &wy, BIT(ami_wmframe) | BIT(ami_wmsysbar));
+    ami_setsizg(srcwf, wx, wy);
+    ami_setposg(srcwf, 160, 100);
+    x = chrw*2+labw;
+    y = chrh;
+    for (i = 0; i < 5; i++) { /* the text fields */
+
+        ami_editboxg(srcwf, x, y, x+fw, y+eh, edits[i]);
+        y += rowh;
+
+    }
+    /* the size: greater or less than, how much, of what */
+    sl = strlist(srcsizeops, 2);
+    ami_dropboxsizg(srcwf, sl, &cw, &ch, &ow, &oh);
+    ami_dropboxg(srcwf, x, y, x+ow, y+oh, sl, SRCSIZEOP);
+    freelist(sl);
+    ami_editboxg(srcwf, x+ow+chrw*2, y, x+ow+chrw*12, y+eh, SRCSIZE);
+    sl = strlist(srcunits, 3);
+    ami_dropboxsizg(srcwf, sl, &cw, &ch, &ow, &oh);
+    ami_dropboxg(srcwf, x+fw-ow, y, x+fw, y+oh, sl, SRCUNIT);
+    freelist(sl);
+    y += rowh;
+    /* the date: within this of that day */
+    sl = strlist(srcwithins, 8);
+    ami_dropboxsizg(srcwf, sl, &cw, &ch, &ow, &oh);
+    ami_dropboxg(srcwf, x, y, x+ow, y+oh, sl, SRCWITHIN);
+    freelist(sl);
+    ami_editboxg(srcwf, x+ow+chrw*2, y, x+ow+chrw*16, y+eh, SRCDATE);
+    y += rowh;
+    /* the folder: all of them, or one */
+    folds[0] = "All Mail";
+    for (i = 0; i < foldct && i < MAXFOLDER; i++) folds[i+1] = folders[i].show;
+    sl = strlist(folds, foldct+1);
+    ami_dropboxsizg(srcwf, sl, &cw, &ch, &ow, &oh);
+    ami_dropboxg(srcwf, x, y, x+ow, y+oh, sl, SRCFOLD);
+    freelist(sl);
+    y += rowh;
+    ami_checkboxg(srcwf, x, y, x+chrw*24, y+eh, "Has attachment", SRCATT);
+    y += rowh;
+    /* the buttons, and the status line beside them */
+    ami_buttong(srcwf, x+fw-bw, y, x+fw, y+bh, "Search", SRCGO);
+    ami_buttong(srcwf, x+fw-bw*2-chrw*2, y, x+fw-bw-chrw*2, y+bh, "Clear",
+                SRCCLR);
+    ami_buttong(srcwf, x+fw-bw*3-chrw*4, y, x+fw-bw*2-chrw*4, y+bh, "Close",
+                SRCCLOSE);
+    y += bh+chrh;
+    srcsty = y;
+    y += chrh+chrh/2;
+    /* what is found goes below, to the bottom */
+    srcx0 = chrw*2;
+    srcy0 = y;
+    srcx1 = ami_maxxg(srcwf)-chrw*2;
+    srcy1 = ami_maxyg(srcwf)-chrh;
+    srcrowh = chrh+8;
+    ami_scrollvertsizg(srcwf, &srcsbw, &eh);
+    ami_scrollvertg(srcwf, srcx1-srcsbw, srcy0, srcx1, srcy1, SRCSB);
+    srctop = 0;
+    srcsel = -1;
+    srcsizesel = 1;
+    srcunitsel = 1;
+    srcwithinsel = 1;
+    srcfoldsel = 1;
+    srcatt = FALSE;
+    *srcsaid = 0;
+    srclay();
+    (void)labels;
+
+}
+
+/* an event with the search window's id on it */
+static void srcevent(ami_evtrec* er)
+
+{
+
+    switch (er->etype) {
+
+        case ami_etterm: srcclose(); break; /* the window closed, not the program */
+        case ami_etresize:
+        case ami_etredraw: srclay(); break;
+        case ami_etbutton:
+            if (er->butid == SRCGO) srcgo();
+            else if (er->butid == SRCCLR) srcclear();
+            else srcclose();
+            break;
+        case ami_etedtbox: srcgo(); break; /* return in a field searches */
+        case ami_etdrpbox: /* a pick, remembered for the search */
+            if (er->drpbid == SRCSIZEOP) srcsizesel = er->drpbsl;
+            else if (er->drpbid == SRCUNIT) srcunitsel = er->drpbsl;
+            else if (er->drpbid == SRCWITHIN) srcwithinsel = er->drpbsl;
+            else if (er->drpbid == SRCFOLD) srcfoldsel = er->drpbsl;
+            break;
+        case ami_etchkbox:
+            srcatt = !srcatt;
+            ami_selectwidget(srcwf, SRCATT, srcatt);
+            break;
+        /* the list of what was found: the bar beside it, the keys, and a
+           click on a row */
+        case ami_etsclull: srcscroll(srctop-1); break;
+        case ami_etscldrl: srcscroll(srctop+1); break;
+        case ami_etsclulp: srcscroll(srctop-(srcvis()-1)); break;
+        case ami_etscldrp: srcscroll(srctop+(srcvis()-1)); break;
+        case ami_etsclpos: srcscroll(scaleback(er->sclpos, srcct-srcvis())); break;
+        case ami_etup: if (srcsel > 0) srcpickrow(srcsel-1); break;
+        case ami_etdown: if (srcsel+1 < srcct) srcpickrow(srcsel+1); break;
+        case ami_etpagu: srcscroll(srctop-(srcvis()-1)); break;
+        case ami_etpagd: srcscroll(srctop+(srcvis()-1)); break;
+        case ami_etmoumovg: srcmx = er->moupxg; srcmy = er->moupyg; break;
+        case ami_etmouba:
+            if (er->amoubn == 1 && srclistup && srcmx >= srcx0 &&
+                srcmx < srcx1-srcsbw && srcmy >= srcy0+4 && srcmy < srcy1)
+                srcpickrow(srctop+(srcmy-srcy0-4)/srcrowh);
+            break;
+        default: break;
+
+    }
+
+}
+
+/* what the worker found, on the tick that picks up its work */
+static void srcpick(void)
+
+{
+
+    if (srcdone) {
+
+        srcdone = FALSE;
+        if (srcwf) srcfill();
+
+    } else if (srcbusy && srcwf && *srcwhat) {
+
+        char t[MAXSTR*2];
+        char a[40], b[40];
+
+        if (srcmax > 0) {
+
+            commas(srcpos, a, sizeof(a));
+            commas(srcmax, b, sizeof(b));
+            snprintf(t, sizeof(t), "%s - %s of %s", srcwhat, a, b);
+
+        } else copystr(t, srcwhat, sizeof(t));
+        srcstatus(t);
+
+    }
+
+}
+
+/*******************************************************************************
+
 The menu
 
 *******************************************************************************/
@@ -3590,6 +4483,8 @@ static void setupmenu(void)
     appendmenu(&ml, mp);
     newmenu(&mp, FALSE, FALSE, OFF, MENUFETCH, "Get Mail");
     appendmenu(&ml, mp);
+    newmenu(&mp, FALSE, FALSE, OFF, MENUSEARCH, "Search");
+    appendmenu(&ml, mp);
     newmenu(&ma, FALSE, FALSE, OFF, MENUMAIL, "Config");
     appendmenu(&ml, ma);
     ami_stdmenu(BIT(AMI_SMHELPTOPIC) | BIT(AMI_SMABOUT), &sm, ml);
@@ -3610,6 +4505,7 @@ static void kickworker(void)
 {
 
     if (!wrkstart) { ami_newthread(mailwork); wrkstart = TRUE; }
+    if (!srcstart) { ami_newthread(searchwork); srcstart = TRUE; }
     /* Ten times a second, to pick up what the worker has done and draw
        it. Faster than the eye and slower than the flicker that drawing
        per message would be. */
@@ -3692,12 +4588,17 @@ static void fetchpick(void)
 {
 
     int folds = wrkfolds;
+    int counts = wrkcounts;
     int list  = wrklist;
     int done  = wrkdone && !wrkgo;
 
+    srcpick(); /* a search finished, or how far one has got */
+
     wrkfolds = FALSE;
+    wrkcounts = FALSE;
     wrklist = FALSE;
     if (folds) drawfolders();
+    else if (counts) drawcounts();
     if (*wrkwhat) { /* what it is doing, and how far into it */
 
         char t[MAXSTR*2];
@@ -3775,7 +4676,8 @@ static void fetchpick(void)
        at, and a message that never left looked exactly like one that
        did. */
     if (timerrun && !fetching && !wrkgo && !wrkbusy && idxwant < 0 &&
-        !sendwant && !failwait && !*sentsaid && !*wrkwhat) {
+        !sendwant && !srcwant && !srcbusy && !srcdone &&
+        !failwait && !*sentsaid && !*wrkwhat) {
 
         ami_killtimer(stdout, TIMFETCH);
         timerrun = FALSE;
@@ -3954,7 +4856,7 @@ int main(int argc, char* argv[])
     stath = chrh+8;
     ami_scrollvertsizg(listwf, &sbw, &wy);
     ami_scrollvertg(listwf, 1, 1, sbw, chrh*10, SBLIST); /* moved by layout */
-    layout();
+    layout(TRUE);
     /* Start from the store, not from the server. Whatever was fetched
        before can be read without a network at all, which is the point of
        keeping it in files, and starting this way means the program comes
@@ -4012,6 +4914,7 @@ int main(int argc, char* argv[])
            window of its own and the panes are windows of their own, so
            this one loop serves them all. */
         if (er.winid == HELPWIN) { helpevent(&er); continue; }
+        if (er.winid == SRCWIN) { srcevent(&er); continue; }
         if (er.winid == CMPWIN) { cmpevent(&er); continue; }
         if (er.winid == SRVWIN) { srvevent(&er); continue; }
         if (er.winid == READWIN) {
@@ -4059,9 +4962,15 @@ int main(int argc, char* argv[])
         }
         if (er.winid == BANWIN) {
 
-            if (er.etype == ami_etredraw) drawbanner();
-            else if (er.etype == ami_etresize)
-                { ami_sizbufg(banwf, er.rszxg, er.rszyg); drawbanner(); }
+            /* Sized by the layout, which draws what the sizing moved; a
+               redraw is drawn from its left edge, except the right strip
+               a wider banner is told of after the layout drew it. */
+            if (er.etype == ami_etredraw) {
+
+                if (er.rsx > 0 && banpart) banpart = FALSE;
+                else drawbanner(er.rsx);
+
+            }
 
             continue;
 
@@ -4087,10 +4996,8 @@ int main(int argc, char* argv[])
                     break;
 
                 }
-                case ami_etredraw: drawfolders(); break;
-                case ami_etresize:
-                    ami_sizbufg(foldwf, er.rszxg, er.rszyg);
-                    drawfolders();
+                case ami_etredraw: drawfoldrect(er.rsy, er.rey); break;
+                case ami_etresize: /* sized by the layout, which drew it */
                     break;
                 default: break;
 
@@ -4197,28 +5104,15 @@ int main(int argc, char* argv[])
                     fromdrag = FALSE;
                     break;
                 case ami_etredraw: /* only what was exposed */
-                    if (foldsel >= 0 && msgct) listrect(er.rsy, er.rey);
+                    /* the right strip a wider pane is told of was drawn
+                       by the layout, with the rows' tails */
+                    if (er.rsx > 0 && listpart) listpart = FALSE;
+                    else if (foldsel >= 0 && msgct) listrect(er.rsy, er.rey);
                     else drawlist();
                     break;
 
-                case ami_etresize: {
-
-                    /* The columns are measured from the right edge, so a
-                       change of width moves all of them and the rows
-                       have to be laid again. A change of height moves
-                       nothing: the rows that come into view arrive as a
-                       redraw of their own. */
-                    static int prevw;
-
-                    ami_sizbufg(listwf, er.rszxg, er.rszyg);
-                    datex = er.rszxg-sbw-ami_strsiz(listwf, "Sep 30, 2025 ");
-                    listrows = er.rszyg/rowh;
-                    if (listrows < 1) listrows = 1;
-                    if (er.rszxg != prevw) drawlist();
-                    prevw = er.rszxg;
-                    break;
-
-                }
+                case ami_etresize: break; /* sized by the layout, which
+                                             drew what the sizing moved */
                 default: break;
 
             }
@@ -4234,7 +5128,7 @@ int main(int argc, char* argv[])
                    is drawn here: the redraws that follow say what the
                    resize exposed, and the panes report their own. */
                 ami_sizbufg(stdout, er.rszxg, er.rszyg);
-                layout();
+                layout(FALSE);
                 break;
 
             case ami_etredraw:
@@ -4273,6 +5167,7 @@ int main(int argc, char* argv[])
                         if (!haveaccount()) { srvopen(); break; }
                         cmpopen("", "", "", "", "", "");
                         break;
+                    case MENUSEARCH: srcopen(); break;
 
                     case MENUFETCH:
                         if (!haveaccount()) {
@@ -4347,7 +5242,7 @@ int main(int argc, char* argv[])
     /* a terminate for the reader closed the reader, not the program */
     } while (er.etype != ami_etterm || er.winid == READWIN ||
              er.winid == SRVWIN || er.winid == HELPWIN ||
-             er.winid == CMPWIN);
+             er.winid == CMPWIN || er.winid == SRCWIN);
     done:
     /* The lock is held here, so the worker is not in the middle of
        writing a message: what is in the store is whole. It is told to
@@ -4361,6 +5256,7 @@ int main(int argc, char* argv[])
     if (fetching) ami_killtimer(stdout, TIMFETCH);
     popclose();
     helpclose();
+    srcclose();
     srvclose();
     closeread();
     cmpclose();

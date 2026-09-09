@@ -90,6 +90,12 @@ typedef enum {
     /** window stopped being hovered */ ami_etnohover,  
     /** terminate program */            ami_etterm,
     /** frame sync */                   ami_etframe,
+    /** graphical mouse move: the graphics library's, never sent by a
+        terminal. It stands here so the two enumerations agree: a
+        terminal program built on the graphics library is handed its
+        events by number, and without this entry every code after it was
+        one off -- a button press arrived as a checkbox click. */
+    ami_etmoumovg,
     /** window redraw */                ami_etredraw,   
     /** window minimized */             ami_etmin,      
     /** window maximized */             ami_etmax,      
@@ -110,6 +116,10 @@ typedef enum {
     /** drop edit box done */           ami_etdrebox,
     /** slider position */              ami_etsldpos,
     /** tab bar select */               ami_ettabbar,
+    /** enlarge what is displayed: the graphics library's */
+    ami_etusize,
+    /** reduce what is displayed: the graphics library's */
+    ami_etdsize,
 
     /* Reserved extra code areas, these are module defined. */
     ami_etsys    = 0x1000, /* start of base system reserved codes */

@@ -203,6 +203,8 @@ struct pd_display {
     int    dumpseq;
     int    injfd;           /* rig input injection stream, -1 if none */
     int64_t livems;         /* last draw-path publish, for the live beat */
+    int64_t burstms;        /* when the drawing since the last flush began,
+                               0 when the program is back in its event loop */
 
 };
 
@@ -535,7 +537,20 @@ static void windmg(pd_win* p, int x, int y, int w, int h)
         pd_display* d = &thedpy;
         int64_t now = nowms();
 
-        if (now-d->livems >= 33 && !rigenv("PD_NOBEAT", "AMI_WL_NOBEAT"))
+        /* Only once the program has been drawing for a beat without
+           returning to its event loop, which is the tight loop this is
+           for. Fired on the first draw after a quiet spell, it published
+           a frame from inside the first call of an ordinary redraw -- a
+           status line's fresh ground went out before its text, and the
+           line blanked for a frame on every update through a fetch.
+           A redraw that returns to the loop within three beats is
+           published whole by the flush there: a list of thirty rows
+           measured and drawn takes longer than one, and was shown half
+           drawn. The burst mark is written by the flush without a lock;
+           a stale read costs one early beat */
+        if (!d->burstms) d->burstms = now;
+        if (now-d->burstms >= 100 && now-d->livems >= 33 &&
+            !rigenv("PD_NOBEAT", "AMI_WL_NOBEAT"))
             { d->livems = now; beatpump(d); }
     }
 }
@@ -3622,6 +3637,7 @@ void pd_flush(pd_display* d)
         if (c->top) { toplk(c->top); c->top->applying = 0; topulk(c->top); }
     TREEUN();
     flushtops(d);
+    d->burstms = 0; /* back in the event loop: no burst in progress */
 }
 
 void pd_sync(pd_display* d)
