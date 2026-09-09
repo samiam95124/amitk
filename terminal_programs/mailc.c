@@ -228,6 +228,8 @@ static int   foldw;             /* the width of the folder pane */
 static ami_long sbw;               /* scroll bar thickness */
 static int   listrows;          /* message lines the list holds */
 static int   foldy[MAXFOLDER];  /* where each folder was drawn, for clicks */
+static int   foldon[MAXFOLDER]; /* and whether it is drawn at all */
+static int   foldcnt[MAXFOLDER]; /* the count each line shows */
 static int   listx, listy;      /* where the list pane sits on the window */
 static int   fromx;             /* where the sender column ends */
 static int   catx;              /* and where the category column ends */
@@ -1429,20 +1431,69 @@ static void clipstr(FILE* f, char* s, int w)
 
 }
 
+/* One folder's line: its name and its count on a line of its own,
+   written whole. Drawn by the pane, and again on its own when its count
+   changes. */
+static void drawfoldline(int i, int y, int w)
+
+{
+
+    char nm[MAXSTR];
+    char cnt[40];
+    int  cw;
+    int  k;
+
+    copystr(nm, folders[i].show, MAXSTR);
+    cnt[0] = 0;
+    if (folders[i].msgs > 0) commas(folders[i].msgs, cnt, sizeof(cnt));
+    foldcnt[i] = folders[i].msgs;
+    cw = *cnt? (int)strlen(cnt)+2: 0;
+    /* the one being read stands in reverse video, which is what a
+       terminal has instead of a coloured bar */
+    ami_reverse(foldwf, i == foldsel);
+    ami_cursor(foldwf, 1, y);
+    for (k = 0; k < w; k++) fputc(' ', foldwf);
+    clipstr(foldwf, nm, w-2-cw);
+    ami_cursor(foldwf, 2, y);
+    fprintf(foldwf, "%s", nm);
+    if (*cnt) {
+
+        ami_cursor(foldwf, w-(int)strlen(cnt), y);
+        fprintf(foldwf, "%s", cnt);
+
+    }
+    ami_reverse(foldwf, FALSE);
+
+}
+
+/* The counts that changed since the pane was drawn: those lines and no
+   others, since a fetch changes one count at a time. */
+static void drawcounts(void)
+
+{
+
+    int i;
+
+    if (!foldwf) return;
+    for (i = 0; i < foldct && i < MAXFOLDER; i++)
+        if (foldon[i] && folders[i].msgs != foldcnt[i])
+            drawfoldline(i, foldy[i], ami_maxx(foldwf));
+
+}
+
 static void drawfolders(void)
 
 {
 
     int i;
     int y = 1;
-    ami_long cw;
     int sec;
     int w;
-    char cnt[40];
     char head[120];
 
     if (!foldwf) return;
     w = ami_maxx(foldwf);
+    for (i = 0; i < MAXFOLDER; i++) foldon[i] = FALSE;
     /* Every row prints its own whole line, spaces and all, so nothing
        has to be cleared first and nothing blinks: what was there is
        simply written over. */
@@ -1474,38 +1525,12 @@ static void drawfolders(void)
         y++;
         for (i = 0; i < foldct; i++) {
 
-            char nm[MAXSTR];
-
             if (folders[i].srv != srv) continue;
             if (folders[i].local != (srv < 0)) continue;
             shown++;
             foldy[i] = y; /* where it landed, for the click to find */
-            copystr(nm, folders[i].show, MAXSTR);
-            cnt[0] = 0;
-            if (folders[i].msgs > 0) commas(folders[i].msgs, cnt,
-                                            sizeof(cnt));
-            cw = *cnt? (int)strlen(cnt)+2: 0;
-            /* the one being read stands in reverse video, which is what
-               a terminal has instead of a coloured bar */
-            ami_reverse(foldwf, i == foldsel);
-            ami_cursor(foldwf, 1, y);
-            {
-
-                int k;
-
-                for (k = 0; k < w; k++) fputc(' ', foldwf);
-
-            }
-            clipstr(foldwf, nm, w-2-cw);
-            ami_cursor(foldwf, 2, y);
-            fprintf(foldwf, "%s", nm);
-            if (*cnt) {
-
-                ami_cursor(foldwf, w-(int)strlen(cnt), y);
-                fprintf(foldwf, "%s", cnt);
-
-            }
-            ami_reverse(foldwf, FALSE);
+            foldon[i] = TRUE;
+            drawfoldline(i, y, w);
             y++;
 
         }
@@ -4117,13 +4142,16 @@ static void fetchpick(void)
 {
 
     int folds = wrkfolds;
+    int counts = wrkcounts;
     int list  = wrklist;
     int done  = wrkdone && !wrkgo;
 
     srcpick(); /* a search finished, or how far one has got */
     wrkfolds = FALSE;
+    wrkcounts = FALSE;
     wrklist = FALSE;
     if (folds) drawfolders();
+    else if (counts) drawcounts();
     if (*wrkwhat) { /* what it is doing, and how far into it */
 
         char t[MAXSTR*2];

@@ -237,6 +237,8 @@ static int   foldw;             /* the width of the folder pane */
 static ami_long sbw;               /* scroll bar thickness */
 static int   listrows;          /* message lines the list holds */
 static int   foldy[MAXFOLDER];  /* where each folder was drawn, for clicks */
+static int   foldon[MAXFOLDER]; /* and whether it is drawn at all */
+static int   foldcnt[MAXFOLDER]; /* the count each line shows */
 static int   listx, listy;      /* where the list pane sits on the window */
 static int   fromx;             /* where the sender column ends */
 static int   catx;              /* and where the category column ends */
@@ -1511,20 +1513,70 @@ static void clipstr(FILE* f, char* s, int w)
 
 }
 
+/* One folder's line: its ground, its name and its count. Drawn by the
+   pane, and again on its own when its count changes. */
+static void drawfoldline(int i, int y, int w)
+
+{
+
+    char     nm[MAXSTR];
+    char     cnt[40];
+    ami_long cw;
+
+    /* its own ground: the mark if it is the one being read, white if it
+       is not */
+    ami_fcolor(foldwf, i == foldsel? ami_cyan: ami_white);
+    ami_frect(foldwf, 2, y-2, w-2, y+chrh);
+    ami_fcolor(foldwf, ami_black);
+    copystr(nm, folders[i].show, MAXSTR);
+    cnt[0] = 0;
+    if (folders[i].msgs > 0) commas(folders[i].msgs, cnt, sizeof(cnt));
+    foldcnt[i] = folders[i].msgs;
+    cw = *cnt? ami_strsiz(foldwf, cnt)+8: 0;
+    ami_bold(foldwf, i == foldsel);
+    clipstr(foldwf, nm, w-16-cw);
+    ami_cursorg(foldwf, 8, y);
+    fprintf(foldwf, "%s", nm);
+    if (*cnt) {
+
+        ami_cursorg(foldwf, w-8-ami_strsiz(foldwf, cnt), y);
+        fprintf(foldwf, "%s", cnt);
+
+    }
+    ami_bold(foldwf, FALSE);
+
+}
+
+/* The counts that changed since the pane was drawn: those lines and no
+   others. A fetch changes one count at a time, and one line drawn again
+   twice a second is a flicker the eye cannot find; the pane drawn again
+   for each was one it could not miss. */
+static void drawcounts(void)
+
+{
+
+    int i;
+
+    if (!foldwf) return;
+    for (i = 0; i < foldct && i < MAXFOLDER; i++)
+        if (foldon[i] && folders[i].msgs != foldcnt[i])
+            drawfoldline(i, foldy[i], ami_maxxg(foldwf));
+
+}
+
 static void drawfolders(void)
 
 {
 
     int i;
     int y = 4;
-    ami_long cw;
     int sec;
     int w;
-    char cnt[40];
     char head[120];
 
     if (!foldwf) return;
     w = ami_maxxg(foldwf);
+    for (i = 0; i < MAXFOLDER; i++) foldon[i] = FALSE;
     /* No clearing of the pane first. Every line paints its own ground
        before its text, so a clear only puts up a blank that the drawing
        covers again -- and a pane that goes blank and comes back is a
@@ -1564,33 +1616,12 @@ static void drawfolders(void)
         y += chrh*2;
         for (i = 0; i < foldct; i++) {
 
-            char nm[MAXSTR];
-
             if (folders[i].srv != srv) continue;
             if (folders[i].local != (srv < 0)) continue;
             shown++;
             foldy[i] = y; /* where it landed, for the click to find */
-            /* its own ground: the mark if it is the one being read,
-               white if it is not */
-            ami_fcolor(foldwf, i == foldsel? ami_cyan: ami_white);
-            ami_frect(foldwf, 2, y-2, w-2, y+chrh);
-            ami_fcolor(foldwf, ami_black);
-            copystr(nm, folders[i].show, MAXSTR);
-            cnt[0] = 0;
-            if (folders[i].msgs > 0) commas(folders[i].msgs, cnt,
-                                            sizeof(cnt));
-            cw = *cnt? ami_strsiz(foldwf, cnt)+8: 0;
-            ami_bold(foldwf, i == foldsel);
-            clipstr(foldwf, nm, w-16-cw);
-            ami_cursorg(foldwf, 8, y);
-            fprintf(foldwf, "%s", nm);
-            if (*cnt) {
-
-                ami_cursorg(foldwf, w-8-ami_strsiz(foldwf, cnt), y);
-                fprintf(foldwf, "%s", cnt);
-
-            }
-            ami_bold(foldwf, FALSE);
+            foldon[i] = TRUE;
+            drawfoldline(i, y, w);
             y += chrh+4;
 
         }
@@ -4275,14 +4306,17 @@ static void fetchpick(void)
 {
 
     int folds = wrkfolds;
+    int counts = wrkcounts;
     int list  = wrklist;
     int done  = wrkdone && !wrkgo;
 
     srcpick(); /* a search finished, or how far one has got */
 
     wrkfolds = FALSE;
+    wrkcounts = FALSE;
     wrklist = FALSE;
     if (folds) drawfolders();
+    else if (counts) drawcounts();
     if (*wrkwhat) { /* what it is doing, and how far into it */
 
         char t[MAXSTR*2];

@@ -156,6 +156,7 @@ extern char wrkwhat[MAXSTR]; /* what is being worked on */
 extern ami_long wrkpos;          /* how far into it */
 extern ami_long wrkmax;          /* and how big it is */
 extern ami_long wrkfolds;        /* the folder pane wants redrawing */
+extern ami_long wrkcounts;       /* a folder's count changed: its line wants redrawing */
 extern ami_long wrklist;         /* and so does the message list */
 extern ami_long wrkstop;         /* drop what you are doing */
 extern ami_long wrkbusy;         /* it has something in hand just now */
@@ -268,7 +269,6 @@ void  fetchend(void);
 void  fetchstep(void);
 void  fetchrun(void);
 int   serverquiet(ami_long srv);
-void  fetchsay(void);
 
 /* the pieces a message is made of */
 int   findheader(const char* msg, const char* name, char* d, ami_long dl);

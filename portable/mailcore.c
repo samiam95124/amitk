@@ -2029,6 +2029,7 @@ char wrkwhat[MAXSTR]; /* what is being worked on */
 ami_long wrkpos;          /* how far into it */
 ami_long wrkmax;          /* and how big it is */
 ami_long wrkfolds;        /* the folder pane wants redrawing */
+ami_long wrkcounts;       /* a folder's count changed: its line wants redrawing */
 ami_long wrklist;         /* and so does the message list */
 ami_long wrkstop;         /* drop what you are doing */
 ami_long wrkbusy;         /* it has something in hand just now */
@@ -3846,18 +3847,6 @@ int serverquiet(ami_long srv)
 
 }
 
-/* say where the fetch has got to */
-/* The folder pane is the progress display, its counts climbing as the
-   messages land. The worker does not draw it -- it says that it wants
-   drawing, and the main thread does it on the next tick. */
-void fetchsay(void)
-
-{
-
-    wrkfolds = TRUE;
-
-}
-
 /* Move to the next folder worth reading, and ask it what it holds.
    Gives FALSE when there are no folders left. */
 /* The order the folders are fetched in: the accounts take turns, one
@@ -3942,7 +3931,6 @@ static int fetchnext(void)
         }
         fetchi = 0;
         uidct = 0;
-        fetchsay();
         snprintf(wrkwhat, sizeof(wrkwhat), "%.60s: %.400s",
                  fetchsrv >= 0? servers[fetchsrv].name: "", folders[fold].show);
         wrkpos = 0;
@@ -4037,7 +4025,7 @@ void fetchstep(void)
        far, which is exactly what asking for more of a folder is for. */
     if (fetchlow && uid >= fetchlow && uid <= fetchseen)
         { if (!fetchnewlow || uid < fetchnewlow) fetchnewlow = uid;
-          fetchsay(); return; }
+          return; }
     imsend(tag, sizeof(tag), "UID FETCH %lld (BODY.PEEK[])", AMI_LONG_CAST(uid));
     /* the reply is a line ending in a literal, then the message itself,
        then the rest of the reply and the tagged answer */
@@ -4079,7 +4067,6 @@ void fetchstep(void)
             if (uid > fetchlast) fetchlast = uid;
             if (!fetchnewlow || uid < fetchnewlow) fetchnewlow = uid;
             fetchdup++;
-            fetchsay();
 
             return;
 
@@ -4106,6 +4093,15 @@ void fetchstep(void)
                 idxappend(fetchcur, m);
                 folders[fetchcur].msgs = folders[fetchcur].idxct;
                 folders[fetchcur].dirty = TRUE;
+                /* The folder pane is the progress display, its counts
+                   climbing as the messages land. The worker does not
+                   draw it: it says that a count changed, and the main
+                   thread draws that line on the next tick -- that line,
+                   not the pane. The pane was drawn
+                   whole for every message looked at, stored or not, and
+                   a frame shown between a line's white ground and its
+                   text made the whole pane blink through every fetch. */
+                wrkcounts = TRUE;
                 useidx(); /* the array may have moved as it grew */
 
             }
@@ -4119,7 +4115,6 @@ void fetchstep(void)
     imwait(tag, NULL); /* the ) and the answer */
     if (uid > fetchlast) fetchlast = uid;
     if (!fetchnewlow || uid < fetchnewlow) fetchnewlow = uid;
-    fetchsay();
 
 }
 
