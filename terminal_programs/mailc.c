@@ -3805,9 +3805,74 @@ static void srcclose(void)
 
 }
 
+/* Place the form for the window's size: the fields stretch with the
+   width, the buttons and the unit box keep to the right edge, and the
+   list of what was found takes the rest of the height. At the open,
+   and again when the window is resized. */
+static void srcplace(void)
+
+{
+
+    static const int edits[] = { SRCFROM, SRCTO, SRCSUBJ, SRCWORDS, SRCNOT };
+    ami_long labw = (ami_long)strlen("Has the words  ");
+    ami_long w = ami_maxx(srcwf);
+    ami_long ew, eh, cw, ch, ow, oh, bw, bh, rowh, y, x, fw;
+    ami_strptr sl;
+    int i;
+
+    ami_editboxsiz(srcwf, "0", &ew, &eh);
+    ami_buttonsiz(srcwf, "Search", &bw, &bh);
+    sl = strlist(srcsizeops, 2);
+    ami_dropboxsiz(srcwf, sl, &cw, &ch, &ow, &oh);
+    freelist(sl);
+    rowh = eh > ch? eh: ch;
+    x = 3+labw;
+    fw = w-x-1; /* the fields' width: what the window gives */
+    if (fw < 24) fw = 24;
+    y = 2;
+    for (i = 0; i < 5; i++) { /* the text fields */
+
+        ami_poswidget(srcwf, edits[i], x, y);
+        ami_sizwidget(srcwf, edits[i], fw, eh);
+        y += rowh;
+
+    }
+    ami_poswidget(srcwf, SRCSIZEOP, x, y);
+    ami_poswidget(srcwf, SRCSIZE, x+ow+2, y);
+    sl = strlist(srcunits, 3);
+    ami_dropboxsiz(srcwf, sl, &cw, &ch, &ow, &oh);
+    freelist(sl);
+    ami_poswidget(srcwf, SRCUNIT, x+fw-ow, y);
+    y += rowh;
+    sl = strlist(srcwithins, 8);
+    ami_dropboxsiz(srcwf, sl, &cw, &ch, &ow, &oh);
+    freelist(sl);
+    ami_poswidget(srcwf, SRCWITHIN, x, y);
+    ami_poswidget(srcwf, SRCDATE, x+ow+2, y);
+    y += rowh;
+    ami_poswidget(srcwf, SRCFOLD, x, y);
+    y += rowh;
+    ami_poswidget(srcwf, SRCATT, x, y);
+    y += rowh;
+    ami_poswidget(srcwf, SRCGO, x+fw-bw, y);
+    ami_poswidget(srcwf, SRCCLR, x+fw-bw*2-2, y);
+    ami_poswidget(srcwf, SRCCLOSE, x+fw-bw*3-4, y);
+    y += bh;
+    srcsty = y;
+    y += 1;
+    srcx0 = 3;
+    srcy0 = y;
+    srcx1 = w;
+    srcy1 = ami_maxy(srcwf);
+    if (srcy1 < srcy0) srcy1 = srcy0;
+    ami_poswidget(srcwf, SRCSB, srcx1-srcsbw+1, srcy0);
+    ami_sizwidget(srcwf, SRCSB, srcsbw, srcy1-srcy0+1);
+
+}
+
 /* Open the search window. A second open brings the one already up to
-   the front. The fields are made where they stand, the form being of a
-   fixed size; what is found is drawn below them. */
+   the front. The widgets are made here and placed by srcplace, which
+   places them again when the window is resized. */
 static void srcopen(void)
 
 {
@@ -3837,7 +3902,7 @@ static void srcopen(void)
        cut to the screen when the screen is smaller than that */
     ami_scnsiz(srcwf, &sx, &sy);
     ami_winclient(srcwf, 2+labw+fw+2, rowh*8+bh+2+14, &wx, &wy,
-                  BIT(ami_wmframe) | BIT(ami_wmsysbar));
+                  BIT(ami_wmframe) | BIT(ami_wmsysbar) | BIT(ami_wmsize));
     if (wx > sx-4) wx = sx-4;
     if (wy > sy-2) wy = sy-2;
     ami_setsiz(srcwf, wx, wy);
@@ -3893,6 +3958,7 @@ static void srcopen(void)
     if (srcy1 < srcy0) srcy1 = srcy0;
     ami_scrollvertsiz(srcwf, &srcsbw, &eh);
     ami_scrollvert(srcwf, srcx1-srcsbw+1, srcy0, srcx1, srcy1, SRCSB);
+    srcplace();
     srctop = 0;
     srcsel = -1;
     srcsizesel = 1;
@@ -3913,7 +3979,7 @@ static void srcevent(ami_evtrec* er)
     switch (er->etype) {
 
         case ami_etterm: srcclose(); break; /* the window closed, not the program */
-        case ami_etresize:
+        case ami_etresize: srcplace(); srclay(); break;
         case ami_etredraw: srclay(); break;
         case ami_etbutton:
             if (er->butid == SRCGO) srcgo();
@@ -3944,8 +4010,8 @@ static void srcevent(ami_evtrec* er)
         case ami_etpagd: srcscroll(srctop+(srcvis()-1)); break;
         case ami_etmoumov: srcmx = er->moupx; srcmy = er->moupy; break;
         case ami_etmouba:
-            if (er->amoubn == 4) srcscroll(srctop-WHEELROWS);
-            else if (er->amoubn == 5) srcscroll(srctop+WHEELROWS);
+            if (er->amoubn == 4) srcscroll(srctop-1); /* a row a notch */
+            else if (er->amoubn == 5) srcscroll(srctop+1);
             else if (er->amoubn == 1 && srclistup && srcmx >= srcx0 &&
                      srcmx <= srcx1-srcsbw && srcmy >= srcy0 && srcmy <= srcy1)
                 srcpickrow(srctop+(srcmy-srcy0));

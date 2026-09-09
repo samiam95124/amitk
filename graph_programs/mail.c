@@ -4248,9 +4248,79 @@ static void srcclose(void)
 
 }
 
+/* Place the form for the window's size: the fields stretch with the
+   width, the buttons and the unit box keep to the right edge, and the
+   list of what was found takes the rest of the height. At the open,
+   and again when the window is resized. */
+static void srcplace(void)
+
+{
+
+    static const int edits[] = { SRCFROM, SRCTO, SRCSUBJ, SRCWORDS, SRCNOT };
+    ami_long chrw = ami_strsiz(srcwf, "0");
+    ami_long labw = ami_strsiz(srcwf, "Has the words  ");
+    ami_long w = ami_maxxg(srcwf);
+    ami_long ew, eh, cw, ch, ow, oh, bw, bh, rowh, y, x, fw;
+    ami_strptr sl;
+    int i;
+
+    ami_editboxsizg(srcwf, "0", &ew, &eh);
+    ami_buttonsizg(srcwf, "Search", &bw, &bh);
+    sl = strlist(srcsizeops, 2);
+    ami_dropboxsizg(srcwf, sl, &cw, &ch, &ow, &oh);
+    freelist(sl);
+    rowh = (eh > ch? eh: ch)+chrh/2;
+    x = chrw*2+labw;
+    fw = w-x-chrw*2; /* the fields' width: what the window gives */
+    if (fw < chrw*24) fw = chrw*24;
+    y = chrh;
+    for (i = 0; i < 5; i++) { /* the text fields */
+
+        ami_poswidgetg(srcwf, edits[i], x, y);
+        ami_sizwidgetg(srcwf, edits[i], fw, eh);
+        y += rowh;
+
+    }
+    /* the size: greater or less than, how much, of what */
+    ami_poswidgetg(srcwf, SRCSIZEOP, x, y);
+    ami_poswidgetg(srcwf, SRCSIZE, x+ow+chrw*2, y);
+    sl = strlist(srcunits, 3);
+    ami_dropboxsizg(srcwf, sl, &cw, &ch, &ow, &oh);
+    freelist(sl);
+    ami_poswidgetg(srcwf, SRCUNIT, x+fw-ow, y);
+    y += rowh;
+    /* the date: within this of that day */
+    sl = strlist(srcwithins, 8);
+    ami_dropboxsizg(srcwf, sl, &cw, &ch, &ow, &oh);
+    freelist(sl);
+    ami_poswidgetg(srcwf, SRCWITHIN, x, y);
+    ami_poswidgetg(srcwf, SRCDATE, x+ow+chrw*2, y);
+    y += rowh;
+    ami_poswidgetg(srcwf, SRCFOLD, x, y);
+    y += rowh;
+    ami_poswidgetg(srcwf, SRCATT, x, y);
+    y += rowh;
+    /* the buttons, against the right */
+    ami_poswidgetg(srcwf, SRCGO, x+fw-bw, y);
+    ami_poswidgetg(srcwf, SRCCLR, x+fw-bw*2-chrw*2, y);
+    ami_poswidgetg(srcwf, SRCCLOSE, x+fw-bw*3-chrw*4, y);
+    y += bh+chrh;
+    srcsty = y;
+    y += chrh+chrh/2;
+    /* what is found goes below, to the bottom */
+    srcx0 = chrw*2;
+    srcy0 = y;
+    srcx1 = w-chrw*2;
+    srcy1 = ami_maxyg(srcwf)-chrh;
+    if (srcy1 < srcy0+srcrowh) srcy1 = srcy0+srcrowh;
+    ami_poswidgetg(srcwf, SRCSB, srcx1-srcsbw, srcy0);
+    ami_sizwidgetg(srcwf, SRCSB, srcsbw, srcy1-srcy0);
+
+}
+
 /* Open the search window. A second open brings the one already up to
-   the front. The fields are made where they stand, the form being of a
-   fixed size; the list is made when there is something to list. */
+   the front. The widgets are made here and placed by srcplace, which
+   places them again when the window is resized. */
 static void srcopen(void)
 
 {
@@ -4284,7 +4354,8 @@ static void srcopen(void)
     rowh = (eh > ch? eh: ch)+chrh/2;
     fw = chrw*60; /* the fields' width */
     ami_winclientg(srcwf, chrw*2+labw+fw+chrw*2, rowh*9+bh+chrh*2+chrh*16,
-                   &wx, &wy, BIT(ami_wmframe) | BIT(ami_wmsysbar));
+                   &wx, &wy, BIT(ami_wmframe) | BIT(ami_wmsysbar) |
+                             BIT(ami_wmsize));
     ami_setsizg(srcwf, wx, wy);
     ami_setposg(srcwf, 160, 100);
     x = chrw*2+labw;
@@ -4340,6 +4411,7 @@ static void srcopen(void)
     srcrowh = chrh+8;
     ami_scrollvertsizg(srcwf, &srcsbw, &eh);
     ami_scrollvertg(srcwf, srcx1-srcsbw, srcy0, srcx1, srcy1, SRCSB);
+    srcplace();
     srctop = 0;
     srcsel = -1;
     srcsizesel = 1;
@@ -4361,7 +4433,7 @@ static void srcevent(ami_evtrec* er)
     switch (er->etype) {
 
         case ami_etterm: srcclose(); break; /* the window closed, not the program */
-        case ami_etresize:
+        case ami_etresize: srcplace(); srclay(); break;
         case ami_etredraw: srclay(); break;
         case ami_etbutton:
             if (er->butid == SRCGO) srcgo();
@@ -4391,8 +4463,10 @@ static void srcevent(ami_evtrec* er)
         case ami_etpagu: srcscroll(srctop-(srcvis()-1)); break;
         case ami_etpagd: srcscroll(srctop+(srcvis()-1)); break;
         case ami_etmoumovg: srcmx = er->moupxg; srcmy = er->moupyg; break;
-        case ami_etmouba:
-            if (er->amoubn == 1 && srclistup && srcmx >= srcx0 &&
+        case ami_etmouba: /* the wheel, as buttons 4 and 5: a row a notch */
+            if (er->amoubn == 4) srcscroll(srctop-1);
+            else if (er->amoubn == 5) srcscroll(srctop+1);
+            else if (er->amoubn == 1 && srclistup && srcmx >= srcx0 &&
                 srcmx < srcx1-srcsbw && srcmy >= srcy0+4 && srcmy < srcy1)
                 srcpickrow(srctop+(srcmy-srcy0-4)/srcrowh);
             break;
