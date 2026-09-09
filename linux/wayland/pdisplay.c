@@ -543,11 +543,13 @@ static void windmg(pd_win* p, int x, int y, int w, int h)
            a frame from inside the first call of an ordinary redraw -- a
            status line's fresh ground went out before its text, and the
            line blanked for a frame on every update through a fetch.
-           A redraw that returns to the loop within a beat is published
-           whole by the flush there. The burst mark is written by the
-           flush without a lock; a stale read costs one early beat */
+           A redraw that returns to the loop within three beats is
+           published whole by the flush there: a list of thirty rows
+           measured and drawn takes longer than one, and was shown half
+           drawn. The burst mark is written by the flush without a lock;
+           a stale read costs one early beat */
         if (!d->burstms) d->burstms = now;
-        if (now-d->burstms >= 33 && now-d->livems >= 33 &&
+        if (now-d->burstms >= 100 && now-d->livems >= 33 &&
             !rigenv("PD_NOBEAT", "AMI_WL_NOBEAT"))
             { d->livems = now; beatpump(d); }
     }

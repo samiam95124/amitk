@@ -234,6 +234,10 @@ static int   rowh;              /* the height of a message line */
 #define MAXPOINT  36.0
 static float pointsz = BASEPOINT;
 static int   foldw;             /* the width of the folder pane */
+static int   listw;             /* and of the message list */
+static int   banw;              /* and of the banner, as last laid out */
+static int   banpart;           /* the banner's right strip is drawn already */
+static int   listpart;          /* and the list's */
 static ami_long sbw;               /* scroll bar thickness */
 static int   listrows;          /* message lines the list holds */
 static int   foldy[MAXFOLDER];  /* where each folder was drawn, for clicks */
@@ -259,7 +263,7 @@ static void drawlist(void);     /* forward */
 static void drawfolders(void);
 static void showfolder(int i);
 static void drawread(void);
-static void layout(void);
+static void layout(int whole);
 static void drawfolders(void);
 static void drawlist(void);
 
@@ -1235,30 +1239,59 @@ static void banmeasure(void)
 
 
 
-static void drawbanner(void)
+/* The banner, or the part of it from x0 to the right edge. A resize
+   moves the picture, which keeps to the right edge, and nothing else:
+   the name stays where it is, so from the picture's old place or its
+   new one, whichever is further left, to the edge is what is cleared
+   and drawn again. Asked from 0 it is drawn whole. */
+static void drawbanner(int x0)
 
 {
 
     int y;
 
     if (!banwf) return;
-    ami_bcolorc(banwf, rgb(255), rgb(255), rgb(255));
-    fprintf(banwf, "\f");
-    /* the name, at the left, set in the middle of the band */
-    ami_fcolorc(banwf, rgb(40), rgb(40), rgb(60));
-    ami_cursorg(banwf, 16, (banh-ami_chrsizy(banwf))/2);
-    {   /* it keeps to the room the picture leaves it: at a large point
-           size in a small window the name is wider than the band, and it
-           ran in under the cat */
+    if (x0 > 0) {
 
         char nm[MAXSTR];
 
+        /* the name runs under the picture only when the band is too
+           narrow for both; then it is all drawn again */
         copystr(nm, "Ami Mail", sizeof(nm));
-        clipstr(banwf, nm, ami_maxxg(banwf)-(havepic? picdw+16: 0)-32);
-        fprintf(banwf, "%s", nm);
+        if (16+ami_strsiz(banwf, nm) > x0) x0 = 0;
 
     }
-    ami_fcolor(banwf, ami_black);
+    if (x0 > 0) {
+
+        ami_fcolor(banwf, ami_white);
+        ami_frect(banwf, x0, 0, ami_maxxg(banwf), banh);
+        ami_fcolor(banwf, ami_black);
+
+    } else {
+
+        ami_bcolorc(banwf, rgb(255), rgb(255), rgb(255));
+        fprintf(banwf, "\f");
+
+    }
+    /* the name, at the left, set in the middle of the band */
+    if (!x0) {
+
+        ami_fcolorc(banwf, rgb(40), rgb(40), rgb(60));
+        ami_cursorg(banwf, 16, (banh-ami_chrsizy(banwf))/2);
+        {   /* it keeps to the room the picture leaves it: at a large
+               point size in a small window the name is wider than the
+               band, and it ran in under the cat */
+
+            char nm[MAXSTR];
+
+            copystr(nm, "Ami Mail", sizeof(nm));
+            clipstr(banwf, nm, ami_maxxg(banwf)-(havepic? picdw+16: 0)-32);
+            fprintf(banwf, "%s", nm);
+
+        }
+        ami_fcolor(banwf, ami_black);
+
+    }
     /* and the picture at the right, at the size the display is drawn at */
     if (havepic)
         ami_picture(banwf, BANPIC, ami_maxxg(banwf)-picdw-16, (banh-picdh)/2,
@@ -1268,8 +1301,8 @@ static void drawbanner(void)
     y = banh-4;
     ami_fcolorc(banwf, rgb(120), rgb(120), rgb(140));
     ami_linewidth(banwf, 2);
-    ami_line(banwf, 1, y, ami_maxxg(banwf), y);
-    ami_line(banwf, 1, y+4, ami_maxxg(banwf), y+4);
+    ami_line(banwf, x0? x0: 1, y, ami_maxxg(banwf), y);
+    ami_line(banwf, x0? x0: 1, y+4, ami_maxxg(banwf), y+4);
     ami_linewidth(banwf, 1);
     ami_fcolor(banwf, ami_black);
 
@@ -1564,7 +1597,12 @@ static void drawcounts(void)
 
 }
 
-static void drawfolders(void)
+/* The folder pane, or the band of it between two heights: a rule, a
+   heading or a folder line is drawn when it lies in the band and passed
+   over when it does not. The whole pane is the band from top to bottom;
+   a resize that made the pane taller asks only for the band it exposed,
+   and the rest of the pane is not touched. */
+static void drawfoldrect(int y1, int y2)
 
 {
 
@@ -1595,24 +1633,32 @@ static void drawfolders(void)
         if (sec) { /* a rule between the sections */
 
             y += chrh/2;
-            ami_fcolor(foldwf, ami_white);
-            ami_frect(foldwf, 0, y-2, w, y+2);
-            ami_fcolor(foldwf, ami_black);
-            divider(foldwf, 6, y, w-8, y);
+            if (y+2 >= y1 && y-2 <= y2) {
+
+                ami_fcolor(foldwf, ami_white);
+                ami_frect(foldwf, 0, y-2, w, y+2);
+                ami_fcolor(foldwf, ami_black);
+                divider(foldwf, 6, y, w-8, y);
+
+            }
             y += chrh;
 
         }
-        if (srv >= 0) snprintf(head, sizeof(head), "%s Server Folders",
-                               servers[srv].name);
-        else copystr(head, "Local Folders", sizeof(head));
-        clipstr(foldwf, head, w-12);
-        ami_fcolor(foldwf, ami_white);
-        ami_frect(foldwf, 0, y-2, w, y+chrh+2);
-        ami_fcolor(foldwf, ami_black);
-        ami_bold(foldwf, TRUE);
-        ami_cursorg(foldwf, 6, y);
-        fprintf(foldwf, "%s", head);
-        ami_bold(foldwf, FALSE);
+        if (y+chrh+2 >= y1 && y-2 <= y2) {
+
+            if (srv >= 0) snprintf(head, sizeof(head), "%s Server Folders",
+                                   servers[srv].name);
+            else copystr(head, "Local Folders", sizeof(head));
+            clipstr(foldwf, head, w-12);
+            ami_fcolor(foldwf, ami_white);
+            ami_frect(foldwf, 0, y-2, w, y+chrh+2);
+            ami_fcolor(foldwf, ami_black);
+            ami_bold(foldwf, TRUE);
+            ami_cursorg(foldwf, 6, y);
+            fprintf(foldwf, "%s", head);
+            ami_bold(foldwf, FALSE);
+
+        }
         y += chrh*2;
         for (i = 0; i < foldct; i++) {
 
@@ -1621,23 +1667,28 @@ static void drawfolders(void)
             shown++;
             foldy[i] = y; /* where it landed, for the click to find */
             foldon[i] = TRUE;
-            drawfoldline(i, y, w);
+            if (y+chrh >= y1 && y-2 <= y2) drawfoldline(i, y, w);
             y += chrh+4;
 
         }
         if (!shown) { /* say so rather than leave a gap */
 
-            ami_fcolor(foldwf, ami_white);
-            ami_frect(foldwf, 0, y-2, w, y+chrh);
-            ami_fcolorc(foldwf, rgb(130), rgb(130), rgb(130));
-            ami_cursorg(foldwf, 8, y);
-            fprintf(foldwf, "%s", srv >= 0? "(not fetched)": "(none yet)");
-            ami_fcolor(foldwf, ami_black);
+            if (y+chrh >= y1 && y-2 <= y2) {
+
+                ami_fcolor(foldwf, ami_white);
+                ami_frect(foldwf, 0, y-2, w, y+chrh);
+                ami_fcolorc(foldwf, rgb(130), rgb(130), rgb(130));
+                ami_cursorg(foldwf, 8, y);
+                fprintf(foldwf, "%s", srv >= 0? "(not fetched)": "(none yet)");
+                ami_fcolor(foldwf, ami_black);
+
+            }
             y += chrh+4;
 
         }
 
     }
+    if (y < y1) y = y1;
     if (y < ami_maxyg(foldwf)) { /* the room the sections did not fill */
 
         ami_fcolor(foldwf, ami_white);
@@ -1648,21 +1699,68 @@ static void drawfolders(void)
 
 }
 
+static void drawfolders(void)
+
+{
+
+    if (foldwf) drawfoldrect(0, ami_maxyg(foldwf));
+
+}
+
 
 /* One line of the message list: who it is from, then the subject, then
    as much of the message as is left over, then when it came. This is the
    layout the web readers use and it is the right one: the eye runs down
    the senders, and the subject and the start of the text read as one
    sentence. */
+/* The subject and the start of the message as the row shows them: what
+   is drawn where, in which weight, worked out from where the date
+   column begins. Worked out here for the row drawn whole and for the
+   row's tail drawn after a resize, so the two agree to the pixel. */
+typedef struct {
+
+    int  x;    /* where the piece starts */
+    int  bold;
+    char s[MAXSTR+SNIPPET];
+
+} rowpiece;
+
+static int rowpieces(const msgrec* m, int dx, rowpiece* pc)
+
+{
+
+    int n = 0;
+    int x = catx+8;
+
+    ami_bold(listwf, TRUE);
+    pc[n].x = x;
+    pc[n].bold = TRUE;
+    copystr(pc[n].s, m->subject, MAXSTR);
+    clipstr(listwf, pc[n].s, dx-x-8);
+    x += ami_strsiz(listwf, pc[n].s);
+    n++;
+    ami_bold(listwf, FALSE);
+    if (*m->snip && x < dx-ami_strsiz(listwf, "  ")) {
+
+        pc[n].x = x;
+        pc[n].bold = FALSE;
+        snprintf(pc[n].s, sizeof(pc[n].s), " - %s", m->snip);
+        clipstr(listwf, pc[n].s, dx-x-8);
+        n++;
+
+    }
+
+    return (n);
+
+}
+
 static void drawmsg(int i, int y)
 
 {
 
     msgrec* m = &msgs[i];
     ami_long w = ami_maxxg(listwf)-sbw;
-    int     x;
     char    s[MAXSTR+SNIPPET];
-    int     subw;
 
     if (i == msgsel) {
 
@@ -1688,21 +1786,20 @@ static void drawmsg(int i, int y)
     fprintf(listwf, "%s", s);
     ami_fcolor(listwf, ami_black);
     /* the subject, then the start of the message after it */
-    x = catx+8;
-    subw = datex-x-8;
-    copystr(s, m->subject, MAXSTR);
-    clipstr(listwf, s, subw);
-    ami_cursorg(listwf, x, y);
-    fprintf(listwf, "%s", s);
-    x += ami_strsiz(listwf, s);
-    ami_bold(listwf, FALSE);
-    if (*m->snip && x < datex-ami_strsiz(listwf, "  ")) {
+    {
 
-        snprintf(s, sizeof(s), " - %s", m->snip);
-        clipstr(listwf, s, datex-x-8);
-        ami_fcolor(listwf, ami_black);
-        ami_cursorg(listwf, x, y);
-        fprintf(listwf, "%s", s);
+        rowpiece pc[2];
+        int      n = rowpieces(m, datex, pc);
+        int      k;
+
+        for (k = 0; k < n; k++) {
+
+            ami_bold(listwf, pc[k].bold);
+            ami_cursorg(listwf, pc[k].x, y);
+            fprintf(listwf, "%s", pc[k].s);
+
+        }
+        ami_bold(listwf, FALSE);
 
     }
     /* the date, against the right, asked again from the date: the index
@@ -1718,6 +1815,121 @@ static void drawmsg(int i, int y)
     divider(listwf, fromx, y-2, fromx, y+rowh-4);
     divider(listwf, catx, y-2, catx, y+rowh-4);
     divider(listwf, datex-8, y-2, datex-8, y+rowh-4);
+
+}
+
+static void setlistbar(void);   /* forward */
+
+/* A row after the width changed: only what the width moved. The sender
+   and the kind stand where they were, and the subject and the snippet
+   read the same up to the point where the old cut and the new one part;
+   from there to the right edge the row is cleared and drawn again --
+   the rest of the text, the date at its new place, the divider before
+   it. On a window pulled in a little that is the date and a character
+   or two, and the rest of the row is not touched, so it does not
+   flash. */
+static void drawtail(int i, int y, int olddx)
+
+{
+
+    msgrec*  m = &msgs[i];
+    ami_long w = ami_maxxg(listwf)-sbw;
+    rowpiece op[2], np[2];
+    int      on, nn, k, x0;
+    char     s[MAXSTR];
+
+    on = rowpieces(m, olddx, op);
+    nn = rowpieces(m, datex, np);
+    /* where the two drawings part: a piece one has and the other has
+       not, or the first character that differs; alike throughout, the
+       divider before the date is the first thing that moved */
+    x0 = (datex < olddx? datex: olddx)-8;
+    for (k = 0; k < on || k < nn; k++) {
+
+        int c;
+
+        if (k >= on) { x0 = np[k].x; break; }
+        if (k >= nn) { x0 = op[k].x; break; }
+        if (op[k].x != np[k].x) { x0 = op[k].x < np[k].x? op[k].x: np[k].x; break; }
+        for (c = 0; op[k].s[c] && op[k].s[c] == np[k].s[c]; c++);
+        if (op[k].s[c] || np[k].s[c]) {
+
+            memcpy(s, np[k].s, c);
+            s[c] = 0;
+            ami_bold(listwf, np[k].bold);
+            x0 = np[k].x+ami_strsiz(listwf, s);
+            ami_bold(listwf, FALSE);
+            break;
+
+        }
+
+    }
+    if (x0 < 0) x0 = 0;
+    ami_fcolor(listwf, i == msgsel? ami_cyan: ami_white);
+    ami_frect(listwf, x0, y-2, w, y+rowh-4);
+    ami_fcolor(listwf, ami_black);
+    for (k = 0; k < nn; k++) {
+
+        const char* p = np[k].s;
+        int         c = 0;
+
+        ami_bold(listwf, np[k].bold);
+        if (np[k].x < x0) { /* the part of it from x0 on */
+
+            while (p[c]) {
+
+                memcpy(s, p, c+1);
+                s[c+1] = 0;
+                if (np[k].x+ami_strsiz(listwf, s) > x0) break;
+                c++;
+
+            }
+            if (!p[c]) continue; /* all of it stands to the left */
+
+        }
+        ami_cursorg(listwf, x0 > np[k].x? x0: np[k].x, y);
+        fprintf(listwf, "%s", p+c);
+
+    }
+    ami_bold(listwf, FALSE);
+    if (m->date) whenof(m->date, s, sizeof(s));
+    else copystr(s, m->when, sizeof(m->when));
+    ami_cursorg(listwf, w-ami_strsiz(listwf, s)-8, y);
+    fprintf(listwf, "%s", s);
+    divider(listwf, datex-8, y-2, datex-8, y+rowh-4);
+    ami_fcolor(listwf, ami_white);
+    ami_line(listwf, x0, y+rowh-3, w, y+rowh-3);
+    ami_fcolor(listwf, ami_black);
+
+}
+
+/* every row on the screen, after the date column moved */
+static void listtails(int olddx)
+
+{
+
+    int i;
+    int y = 4;
+    int x0 = (datex < olddx? datex: olddx)-9;
+
+    if (!listwf) return;
+    if (foldsel < 0 || !msgct) { drawlist(); return; }
+    for (i = msgtop; i < msgct && y+rowh <= ami_maxyg(listwf); i++) {
+
+        drawtail(i, y, olddx);
+        y += rowh;
+
+    }
+    if (y < ami_maxyg(listwf)) { /* the divider down the empty part */
+
+        if (x0 < 0) x0 = 0;
+        ami_fcolor(listwf, ami_white);
+        ami_frect(listwf, x0, y, ami_maxxg(listwf), ami_maxyg(listwf));
+        ami_fcolor(listwf, ami_black);
+        divider(listwf, datex-8, y, datex-8, ami_maxyg(listwf));
+
+    }
+    setlistbar();
 
 }
 
@@ -1780,8 +1992,6 @@ static void listclamp(void)
     if (msgtop < 0) msgtop = 0;
 
 }
-
-static void setlistbar(void);   /* forward */
 
 /* Draw only the rows a redraw rectangle touches, and the dividers down
    it. A resize brings two of these -- the strip down the right and the
@@ -2785,28 +2995,44 @@ folder list that grows with the window is wasted space.
 
 *******************************************************************************/
 
-static void layout(void)
+/* Lay the window out, whole or after a resize.
+
+   Whole -- at the start, at a change of point size, and when the folder
+   pane's width changed, which moves everything -- clears the panes and
+   draws them all. After a resize it draws what the resize moved and no
+   more: the buffers keep what was drawn, so the folder pane needs
+   nothing, the message list needs the tail of each row from where the
+   date column was to where it is, the banner needs the picture at its
+   new place and the strip needs drawing at its new height. What a
+   taller window exposed below arrives as a redraw of the exposed band.
+   Drawn whole, every resize flashed the lot. */
+static void layout(int whole)
 
 {
 
     int top = 1+banh; /* under the banner, which is under the menu */
     int h = ami_maxyg(stdout)-top-stath; /* the strip has the foot of it */
+    int w = ami_maxxg(stdout);
+    int oldfoldw = foldw, olddatex = datex, oldfromx = fromx, oldcatx = catx;
+    int oldlistw = listw, oldbanw = banw;
+    static int laid;
 
+    if (!laid) { whole = TRUE; laid = TRUE; }
     /* The banner is as wide as the window and stays where it is put. */
     ami_setposg(banwf, 1, 1);
-    ami_setsizg(banwf, ami_maxxg(stdout), banh);
-    ami_sizbufg(banwf, ami_maxxg(stdout), banh);
+    ami_setsizg(banwf, w, banh);
+    ami_sizbufg(banwf, w, banh);
 
     if (diag) fprintf(stderr, "layout: buf %lldx%lld stath %d progh %d "
                       "panes %d tall\n", AMI_LONG_CAST(ami_maxxg(stdout)), AMI_LONG_CAST(ami_maxyg(stdout)),
                       stath, progh, h);
 
+    foldw = ami_strsiz(stdout, "0")*22;
+    if (foldw > w/2) foldw = w/2;
+    if (foldw != oldfoldw) whole = TRUE;
     /* the main window shows between and around the panes, so it is
        cleared here rather than left as whatever was under it */
-    fprintf(stdout, "\f");
-
-    foldw = ami_strsiz(stdout, "0")*22;
-    if (foldw > ami_maxxg(stdout)/2) foldw = ami_maxxg(stdout)/2;
+    if (whole) fprintf(stdout, "\f");
     ami_setposg(foldwf, 1, top);
     /* The buffer follows the window. Sizing the window alone leaves the
        buffer the size it was, and a buffered window answers with its
@@ -2817,9 +3043,23 @@ static void layout(void)
     /* the gap between the panes holds the divider between the sections */
     listx = foldw+8;
     listy = top;
+    listw = w-foldw-8;
     ami_setposg(listwf, listx, listy);
-    ami_setsizg(listwf, ami_maxxg(stdout)-foldw-8, h);
-    ami_sizbufg(listwf, ami_maxxg(stdout)-foldw-8, h);
+    ami_setsizg(listwf, listw, h);
+    ami_sizbufg(listwf, listw, h);
+    if (!whole) {
+
+        /* The gap between the panes is the main window's, and it keeps
+           what was there: the strip's band, where the window was
+           shorter. Painted out with a line, as the strip is: a filled
+           rectangle does not paint in this window. */
+        ami_fcolor(stdout, ami_white);
+        ami_linewidth(stdout, 8);
+        ami_line(stdout, foldw+4, top, foldw+4, top+h);
+        ami_linewidth(stdout, 1);
+        ami_fcolor(stdout, ami_black);
+
+    }
     divider(stdout, foldw+4, top, foldw+4, top+h);
     /* The columns of the list, kept here so the rows and their dividers
        agree on where the columns are. They adapt to the width there is,
@@ -2839,9 +3079,15 @@ static void layout(void)
         fromx = unit*18;
         if (datex-8-(fromx+catw) < unit*12) { /* the subject is starving */
 
-            fromx = datex*2/5;
+            /* In steps of two characters' width, so that a resize of a
+               few pixels leaves the columns where they are: every row
+               is drawn again when the columns move, and only the tail
+               of each when the date column alone does. */
+            ami_long step = unit*2;
+
+            fromx = datex*2/5/step*step;
             if (fromx < unit*8) fromx = unit*8;
-            catw = datex/6;
+            catw = datex/6/step*step;
             if (catw > ami_strsiz(listwf, "promotions  "))
                 catw = ami_strsiz(listwf, "promotions  ");
             if (catw < unit*4) catw = unit*4;
@@ -2866,17 +3112,36 @@ static void layout(void)
     ami_sizwidgetg(listwf, SBLIST, sbw, ami_maxyg(listwf));
     listrows = ami_maxyg(listwf)/rowh;
     if (listrows < 1) listrows = 1;
-    /* The panes are cleared and drawn again, since this is the one thing
-       that moves what is in them: a pane that has changed height has the
-       old rows where the new ones are not, and a buffer keeps whatever
-       nothing has drawn over. Once per layout, which is once per resize
-       -- not once per redraw, which is what made a resize flash. */
-    fprintf(foldwf, "\f");
-    fprintf(listwf, "\f");
-    drawfolders();
-    drawlist();
-    drawstatus();
-    drawbanner();
+    if (whole) {
+
+        fprintf(foldwf, "\f");
+        fprintf(listwf, "\f");
+        drawfolders();
+        drawlist();
+        drawstatus();
+        drawbanner(0);
+        banw = w;
+
+        return;
+
+    }
+    /* a resize: what it moved, and only that */
+    drawstatus(); /* at its new height, whole */
+    if (havepic && w != oldbanw) {
+
+        /* the picture at its new place, from the leftmost of the two */
+        int oc = oldbanw-picdw-16;
+        int nc = w-picdw-16;
+
+        drawbanner(oc < nc? oc: nc);
+        /* a wider banner is told of its right strip too; that is drawn */
+        if (w > oldbanw) banpart = TRUE;
+
+    }
+    banw = w;
+    if (fromx != oldfromx || catx != oldcatx) drawlist(); /* the columns moved */
+    else if (datex != olddatex) listtails(olddatex); /* the date column alone */
+    if (listw > oldlistw) listpart = TRUE;
 
 }
 
@@ -2909,7 +3174,7 @@ static void setzoom(float d)
     chrh = ami_chrsizy(stdout);
     rowh = chrh+8;
     banmeasure(); /* the banner and its picture follow the size too */
-    layout();
+    layout(TRUE);
     /* a message being read is wrapped again at the size it is now */
     if (readwf) {
 
@@ -4574,7 +4839,7 @@ int main(int argc, char* argv[])
     stath = chrh+8;
     ami_scrollvertsizg(listwf, &sbw, &wy);
     ami_scrollvertg(listwf, 1, 1, sbw, chrh*10, SBLIST); /* moved by layout */
-    layout();
+    layout(TRUE);
     /* Start from the store, not from the server. Whatever was fetched
        before can be read without a network at all, which is the point of
        keeping it in files, and starting this way means the program comes
@@ -4680,9 +4945,15 @@ int main(int argc, char* argv[])
         }
         if (er.winid == BANWIN) {
 
-            if (er.etype == ami_etredraw) drawbanner();
-            else if (er.etype == ami_etresize)
-                { ami_sizbufg(banwf, er.rszxg, er.rszyg); drawbanner(); }
+            /* Sized by the layout, which draws what the sizing moved; a
+               redraw is drawn from its left edge, except the right strip
+               a wider banner is told of after the layout drew it. */
+            if (er.etype == ami_etredraw) {
+
+                if (er.rsx > 0 && banpart) banpart = FALSE;
+                else drawbanner(er.rsx);
+
+            }
 
             continue;
 
@@ -4708,10 +4979,8 @@ int main(int argc, char* argv[])
                     break;
 
                 }
-                case ami_etredraw: drawfolders(); break;
-                case ami_etresize:
-                    ami_sizbufg(foldwf, er.rszxg, er.rszyg);
-                    drawfolders();
+                case ami_etredraw: drawfoldrect(er.rsy, er.rey); break;
+                case ami_etresize: /* sized by the layout, which drew it */
                     break;
                 default: break;
 
@@ -4818,28 +5087,15 @@ int main(int argc, char* argv[])
                     fromdrag = FALSE;
                     break;
                 case ami_etredraw: /* only what was exposed */
-                    if (foldsel >= 0 && msgct) listrect(er.rsy, er.rey);
+                    /* the right strip a wider pane is told of was drawn
+                       by the layout, with the rows' tails */
+                    if (er.rsx > 0 && listpart) listpart = FALSE;
+                    else if (foldsel >= 0 && msgct) listrect(er.rsy, er.rey);
                     else drawlist();
                     break;
 
-                case ami_etresize: {
-
-                    /* The columns are measured from the right edge, so a
-                       change of width moves all of them and the rows
-                       have to be laid again. A change of height moves
-                       nothing: the rows that come into view arrive as a
-                       redraw of their own. */
-                    static int prevw;
-
-                    ami_sizbufg(listwf, er.rszxg, er.rszyg);
-                    datex = er.rszxg-sbw-ami_strsiz(listwf, "Sep 30, 2025 ");
-                    listrows = er.rszyg/rowh;
-                    if (listrows < 1) listrows = 1;
-                    if (er.rszxg != prevw) drawlist();
-                    prevw = er.rszxg;
-                    break;
-
-                }
+                case ami_etresize: break; /* sized by the layout, which
+                                             drew what the sizing moved */
                 default: break;
 
             }
@@ -4855,7 +5111,7 @@ int main(int argc, char* argv[])
                    is drawn here: the redraws that follow say what the
                    resize exposed, and the panes report their own. */
                 ami_sizbufg(stdout, er.rszxg, er.rszyg);
-                layout();
+                layout(FALSE);
                 break;
 
             case ami_etredraw:
