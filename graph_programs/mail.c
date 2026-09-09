@@ -160,6 +160,7 @@
 #define SRCCLR   14 /* clear the form */
 #define SRCCLOSE 15 /* close it */
 #define SRCSB    16 /* the bar beside what was found */
+#define SRCWILD  17 /* * and ? in the terms stand for anything */
 
 static void newmenu(ami_menuptr* mp, int onoff, int bar, int select,
                     int id, char* face);
@@ -3913,6 +3914,7 @@ static ami_long srcunitsel = 1;
 static ami_long srcwithinsel = 1;
 static ami_long srcfoldsel = 1;
 static int      srcatt;       /* the attachment box is checked */
+static int      srcwild = TRUE; /* and the wildcard box, which starts so */
 static char     srcsaid[MAXSTR]; /* what the status line says */
 
 static const char* srcsizeops[] = { "greater than", "less than" };
@@ -4206,6 +4208,7 @@ static void srcgo(void)
     }
     srcask.fold = srcfoldsel-2; /* the first entry is all of them */
     srcask.attach = srcatt;
+    srcask.wild = srcwild;
     if (srcbusy) srcstatus("Searching again...");
     else srcstatus("Searching...");
     srcwant = TRUE;
@@ -4241,7 +4244,7 @@ static void srcclose(void)
     int i;
 
     if (!srcwf) return;
-    for (i = SRCFROM; i <= SRCSB; i++) ami_killwidget(srcwf, i); /* first: see closeread */
+    for (i = SRCFROM; i <= SRCWILD; i++) ami_killwidget(srcwf, i); /* first: see closeread */
     fclose(srcwf);
     srcwf = NULL;
     srclistup = FALSE;
@@ -4299,6 +4302,7 @@ static void srcplace(void)
     ami_poswidgetg(srcwf, SRCFOLD, x, y);
     y += rowh;
     ami_poswidgetg(srcwf, SRCATT, x, y);
+    ami_poswidgetg(srcwf, SRCWILD, x+chrw*26, y);
     y += rowh;
     /* the buttons, against the right */
     ami_poswidgetg(srcwf, SRCGO, x+fw-bw, y);
@@ -4393,6 +4397,9 @@ static void srcopen(void)
     freelist(sl);
     y += rowh;
     ami_checkboxg(srcwf, x, y, x+chrw*24, y+eh, "Has attachment", SRCATT);
+    ami_checkboxg(srcwf, x+chrw*26, y, x+chrw*52, y+eh, "Allow wildcards",
+                  SRCWILD);
+    ami_selectwidget(srcwf, SRCWILD, srcwild);
     y += rowh;
     /* the buttons, and the status line beside them */
     ami_buttong(srcwf, x+fw-bw, y, x+fw, y+bh, "Search", SRCGO);
@@ -4448,8 +4455,17 @@ static void srcevent(ami_evtrec* er)
             else if (er->drpbid == SRCFOLD) srcfoldsel = er->drpbsl;
             break;
         case ami_etchkbox:
-            srcatt = !srcatt;
-            ami_selectwidget(srcwf, SRCATT, srcatt);
+            if (er->ckbxid == SRCWILD) {
+
+                srcwild = !srcwild;
+                ami_selectwidget(srcwf, SRCWILD, srcwild);
+
+            } else {
+
+                srcatt = !srcatt;
+                ami_selectwidget(srcwf, SRCATT, srcatt);
+
+            }
             break;
         /* the list of what was found: the bar beside it, the keys, and a
            click on a row */

@@ -176,6 +176,7 @@ static void kickworker(void);
 #define SRCCLR   14 /* clear the form */
 #define SRCCLOSE 15 /* close it */
 #define SRCSB    16 /* the bar beside what was found */
+#define SRCWILD  17 /* * and ? in the terms stand for anything */
 
 /* What a notch of the wheel moves. One message, because a message is a
    thing and a notch is a step, and the list is read by stepping through
@@ -3477,6 +3478,7 @@ static int      srcunitsel;   /* which unit */
 static int      srcwithinsel; /* which period */
 static int      srcfoldsel;   /* which folder, the first being all */
 static int      srcatt;       /* the attachment box is ticked */
+static int      srcwild = TRUE; /* and the wildcard box, which starts so */
 static char     srcsaid[MAXSTR*2]; /* the status line, kept for redraws */
 
 static void srcdraw(void);
@@ -3761,6 +3763,7 @@ static void srcgo(void)
     }
     srcask.fold = srcfoldsel-2; /* the first entry is all of them */
     srcask.attach = srcatt;
+    srcask.wild = srcwild;
     if (srcbusy) srcstatus("Searching again...");
     else srcstatus("Searching...");
     srcwant = TRUE;
@@ -3798,7 +3801,7 @@ static void srcclose(void)
     int i;
 
     if (!srcwf) return;
-    for (i = SRCFROM; i <= SRCSB; i++) ami_killwidget(srcwf, i);
+    for (i = SRCFROM; i <= SRCWILD; i++) ami_killwidget(srcwf, i);
     fclose(srcwf);
     srcwf = NULL;
     srclistup = FALSE;
@@ -3853,6 +3856,7 @@ static void srcplace(void)
     ami_poswidget(srcwf, SRCFOLD, x, y);
     y += rowh;
     ami_poswidget(srcwf, SRCATT, x, y);
+    ami_poswidget(srcwf, SRCWILD, x+24, y);
     y += rowh;
     ami_poswidget(srcwf, SRCGO, x+fw-bw, y);
     ami_poswidget(srcwf, SRCCLR, x+fw-bw*2-2, y);
@@ -3942,6 +3946,8 @@ static void srcopen(void)
     freelist(sl);
     y += rowh;
     ami_checkbox(srcwf, x, y, x+22, y+eh-1, "Has attachment", SRCATT);
+    ami_checkbox(srcwf, x+24, y, x+46, y+eh-1, "Allow wildcards", SRCWILD);
+    ami_selectwidget(srcwf, SRCWILD, srcwild);
     y += rowh;
     /* the buttons, and the status line under them */
     ami_button(srcwf, x+fw-bw, y, x+fw-1, y+bh-1, "Search", SRCGO);
@@ -3994,8 +4000,17 @@ static void srcevent(ami_evtrec* er)
             else if (er->drpbid == SRCFOLD) srcfoldsel = er->drpbsl;
             break;
         case ami_etchkbox:
-            srcatt = !srcatt;
-            ami_selectwidget(srcwf, SRCATT, srcatt);
+            if (er->ckbxid == SRCWILD) {
+
+                srcwild = !srcwild;
+                ami_selectwidget(srcwf, SRCWILD, srcwild);
+
+            } else {
+
+                srcatt = !srcatt;
+                ami_selectwidget(srcwf, SRCATT, srcatt);
+
+            }
             break;
         /* the list of what was found: the bar beside it, the keys, and a
            click on a row */

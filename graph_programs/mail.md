@@ -140,6 +140,17 @@ came, and which folder to look in. Fill in what you know and leave the
 rest blank; a message is found when it fits everything given. Return in
 any field searches, as the Search button does.
 
+A term matches whole, in any case: From "ali" finds Ali and not
+AliExpress, and a subject is matched against the whole subject line.
+With Allow wildcards ticked, which it is to begin with, a * in a term
+stands for any run of characters and a ? for any one: "ali*" finds
+both, "*@quora.com" finds every Quora digest, and "*stock*" finds every
+subject with stock in it. Unticked, the two are characters like any
+other. From is matched against the sender's name and address, To
+against each name and address on the To line. The words fields are
+lists of words set apart by spaces; each is matched against the words
+of the message and its headers, with wildcards in it if they are on.
+
 Size takes a number, in megabytes, kilobytes or bytes as the box beside
 it says. The date is a day, written as 2026-09-09 or 9/9/2026, and the
 period beside it is how far either side of that day to look. The folder

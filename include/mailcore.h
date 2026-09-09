@@ -205,6 +205,8 @@ typedef struct {
     ami_long date;            /* of this time */
     ami_long fold;            /* the folder to search, -1 for all of them */
     ami_long attach;          /* it has an attachment */
+    ami_long wild;            /* * and ? in a term stand for anything; off,
+                                 a term must match whole */
 
 } srcrec;
 

@@ -4484,57 +4484,108 @@ ami_long parseday(const char* s)
 
 }
 
-/* Does the text hold the word where a word begins: at its start, or
-   after anything that is not a letter or a digit? A search for "ali"
-   wants Ali and alice@, and was finding the personalized in a Quora
-   digest's address. */
-static int wordstart(const char* hay, const char* w)
+/* Does the text match the term? Whole, in any case: "ali" is Ali and
+   not AliExpress, and not the personalized in a Quora digest's address.
+   With the wildcards on, * in the term stands for any run of characters
+   and ? for any one, so "ali*" is both and "*@quora.com" is every
+   digest. Off, the two are characters like any other. */
+static int termeq(const char* term, const char* text, int wild)
 
 {
 
-    ami_long n = strlen(w);
-    const char* p;
+    if (!wild) return (!strcasecmp(term, text));
+    while (*term) {
 
-    if (!n) return (FALSE);
-    for (p = hay; *p; p++)
-        if ((p == hay || !isalnum((unsigned char)p[-1])) &&
-            !strncasecmp(p, w, n)) return (TRUE);
+        if (*term == '*') {
+
+            while (*term == '*') term++;
+            if (!*term) return (TRUE); /* a star at the end takes the rest */
+            for (; *text; text++) if (termeq(term, text, wild)) return (TRUE);
+
+            return (FALSE);
+
+        }
+        if (!*text) return (FALSE);
+        if (*term != '?' && tolower((unsigned char)*term) !=
+                            tolower((unsigned char)*text)) return (FALSE);
+        term++;
+        text++;
+
+    }
+
+    return (!*text);
+
+}
+
+/* Does any word of the text match the term? The words are what spaces
+   set apart: a comma or a stop stays on its word, and a term that wants
+   the word with or without it says so with a star. */
+static int wordeq(const char* term, const char* text, int wild)
+
+{
+
+    char w[MAXSTR];
+    const char* p = text;
+    int n;
+
+    while (*p) {
+
+        while (*p && isspace((unsigned char)*p)) p++;
+        n = 0;
+        while (*p && !isspace((unsigned char)*p)) {
+
+            if (n < (int)sizeof(w)-1) w[n++] = *p;
+            p++;
+
+        }
+        w[n] = 0;
+        if (n && termeq(term, w, wild)) return (TRUE);
+
+    }
 
     return (FALSE);
 
 }
 
-/* every word of the term begins a word somewhere in the text */
-static int hasterm(const char* text, const char* term)
+/* Does the term match the name or the address of any of the people on
+   the line? A To line names several; each is tried whole, then as its
+   address and its name alone. */
+static int personeq(const char* term, const char* line, int wild)
 
 {
 
-    char w[MAXSTR];
-    const char* p = term;
-    int n, any = FALSE;
+    char one[MAXSTR], part[MAXSTR];
+    const char* p = line;
+    int n;
 
     while (*p) {
 
-        while (*p == ' ') p++;
+        while (*p == ' ' || *p == ',') p++;
         n = 0;
-        while (*p && *p != ' ' && n < (int)sizeof(w)-1) w[n++] = *p++;
-        w[n] = 0;
-        if (n) { if (!wordstart(text, w)) return (FALSE); any = TRUE; }
+        while (*p && *p != ',') { if (n < (int)sizeof(one)-1) one[n++] = *p; p++; }
+        one[n] = 0;
+        trim(one);
+        if (!*one) continue;
+        if (termeq(term, one, wild)) return (TRUE);
+        addrof(one, part, sizeof(part));
+        if (*part && termeq(term, part, wild)) return (TRUE);
+        nameof(one, part, sizeof(part));
+        if (*part && termeq(term, part, wild)) return (TRUE);
 
     }
 
-    return (any);
+    return (FALSE);
 
 }
 
-/* any word of the list begins a word in the text */
-static int hasaword(const char* text, const char* words)
+/* every word of the list is a word of the text (all) or none is (any) */
+static int wordsin(const char* words, const char* text, int wild, int all)
 
 {
 
     char w[MAXSTR];
     const char* p = words;
-    int n;
+    int n, found = FALSE;
 
     while (*p) {
 
@@ -4542,11 +4593,14 @@ static int hasaword(const char* text, const char* words)
         n = 0;
         while (*p && *p != ' ' && n < (int)sizeof(w)-1) w[n++] = *p++;
         w[n] = 0;
-        if (n && wordstart(text, w)) return (TRUE);
+        if (!n) continue;
+        found = wordeq(w, text, wild);
+        if (all && !found) return (FALSE);
+        if (!all && found) return (TRUE);
 
     }
 
-    return (FALSE);
+    return (all);
 
 }
 
@@ -4562,9 +4616,9 @@ static int srcmatch(ami_long fold, const msgrec* m, const srcrec* a)
     int   ok = TRUE;
 
     /* what the index answers */
-    if (*a->from && !hasterm(m->from, a->from) && !hasterm(m->addr, a->from))
-        return (FALSE);
-    if (*a->subject && !hasterm(m->subject, a->subject)) return (FALSE);
+    if (*a->from && !termeq(a->from, m->from, a->wild) &&
+        !termeq(a->from, m->addr, a->wild)) return (FALSE);
+    if (*a->subject && !termeq(a->subject, m->subject, a->wild)) return (FALSE);
     if (a->sizeop == 1 && m->len <= a->sizeval) return (FALSE);
     if (a->sizeop == 2 && m->len >= a->sizeval) return (FALSE);
     if (a->within && (m->date < a->date-a->within ||
@@ -4574,17 +4628,17 @@ static int srcmatch(ami_long fold, const msgrec* m, const srcrec* a)
     raw = getmsgin(fold, m);
     if (!raw) return (FALSE);
     if (!findheader(raw, "To", to, sizeof(to))) *to = 0;
-    if (*a->to && !hasterm(to, a->to)) ok = FALSE;
+    if (*a->to && !personeq(a->to, to, a->wild)) ok = FALSE;
     if (ok && a->attach && !hasattach(raw, strlen(raw))) ok = FALSE;
     if (ok && (*a->words || *a->nowords)) {
 
-        /* the words are looked for in the heads and the text alike */
+        /* the words are looked for in the heads and the text alike:
+           every word of the one list somewhere, no word of the other */
         text = textof(raw, strlen(raw), 0);
         snprintf(all, sizeof(all), "%s\n%s\n%s\n%s\n", m->from, m->addr, to,
                  m->subject);
         if (*a->words) {
 
-            /* every word must be somewhere, in the heads or the text */
             char w[MAXSTR];
             const char* p = a->words;
             int n;
@@ -4595,13 +4649,15 @@ static int srcmatch(ami_long fold, const msgrec* m, const srcrec* a)
                 n = 0;
                 while (*p && *p != ' ' && n < (int)sizeof(w)-1) w[n++] = *p++;
                 w[n] = 0;
-                if (n && !wordstart(all, w) && !wordstart(text, w)) ok = FALSE;
+                if (n && !wordeq(w, all, a->wild) && !wordeq(w, text, a->wild))
+                    ok = FALSE;
 
             }
 
         }
-        if (ok && *a->nowords && (hasaword(all, a->nowords) ||
-                                   hasaword(text, a->nowords))) ok = FALSE;
+        if (ok && *a->nowords && (wordsin(a->nowords, all, a->wild, FALSE) ||
+                                   wordsin(a->nowords, text, a->wild, FALSE)))
+            ok = FALSE;
         free(text);
 
     }
