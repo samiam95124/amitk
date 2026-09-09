@@ -101,6 +101,7 @@
 #define HELPWIN   7 /* the help window */
 #define BANWIN    8 /* the banner across the top */
 #define CMPWIN    9 /* the compose window */
+#define SRCWIN   10 /* the search form */
 
 /* its widgets, numbered within it */
 #define HELPFIND  1 /* the search entry */
@@ -156,6 +157,25 @@ static void kickworker(void);
 #define MENUFOLD  (AMI_SMMAX+3) /* fetch the folder list again */
 #define MENUCHECK (AMI_SMMAX+4) /* check that mail could be sent */
 #define MENUSRV   (AMI_SMMAX+5) /* the server form */
+#define MENUSEARCH (AMI_SMMAX+10) /* the search form */
+
+/* the search form */
+#define SRCFROM   1 /* the sender holds */
+#define SRCTO     2 /* the To line holds */
+#define SRCSUBJ   3 /* the subject holds */
+#define SRCWORDS  4 /* it has the words */
+#define SRCNOT    5 /* and not these */
+#define SRCSIZEOP 6 /* greater or less than */
+#define SRCSIZE   7 /* this many */
+#define SRCUNIT   8 /* of these */
+#define SRCWITHIN 9 /* dated within this */
+#define SRCDATE  10 /* of this day */
+#define SRCFOLD  11 /* the folder searched */
+#define SRCATT   12 /* it has an attachment */
+#define SRCGO    13 /* search */
+#define SRCCLR   14 /* clear the form */
+#define SRCCLOSE 15 /* close it */
+#define SRCSB    16 /* the bar beside what was found */
 
 /* What a notch of the wheel moves. One message, because a message is a
    thing and a notch is a step, and the list is read by stepping through
@@ -617,7 +637,7 @@ what makes the two kinds of field live together.
    no menu until it is asked, so the keys live here where they can be
    read. */
 #define KEYHELP "Tab/f folder  arrows list  Enter read  c compose  " \
-                "g get mail  s servers  h help  q quit"
+                "g get mail  / search  s servers  h help  q quit"
 
 #define CMPMAX  20000 /* the longest line worth calling a line */
 
@@ -2143,7 +2163,10 @@ static void answer(int what)
 
 }
 
-static void openmsg(int i)
+/* Open a message to be read: this one, of this folder. The message list
+   opens its own by number; the search opens what it found, which may be
+   in any folder. */
+static void openmsgin(ami_long fold, const msgrec* m)
 
 {
 
@@ -2156,7 +2179,7 @@ static void openmsg(int i)
     struct timespec t0, t1, t2, t3, t4;
 
     if (diag) clock_gettime(CLOCK_MONOTONIC, &t0);
-    raw = getmsg(foldsel, i);
+    raw = getmsgin(fold, m);
     if (!raw) { fail("The message could not be read back"); return; }
     if (diag) clock_gettime(CLOCK_MONOTONIC, &t1);
     findheader(raw, "From", from, sizeof(from));
@@ -2243,7 +2266,7 @@ static void openmsg(int i)
 
         clock_gettime(CLOCK_MONOTONIC, &t4);
         fprintf(stderr, "open: %d bytes, read %.0fms decode %.0fms "
-                        "wrap %.0fms (%d lines) draw %.0fms\n", msgs[i].len,
+                        "wrap %.0fms (%d lines) draw %.0fms\n", (int)m->len,
                 (t1.tv_sec-t0.tv_sec)*1e3+(t1.tv_nsec-t0.tv_nsec)/1e6,
                 (t2.tv_sec-t1.tv_sec)*1e3+(t2.tv_nsec-t1.tv_nsec)/1e6,
                 (t3.tv_sec-t2.tv_sec)*1e3+(t3.tv_nsec-t2.tv_nsec)/1e6,
@@ -2268,6 +2291,14 @@ static void closeread(void)
     readlines = 0;
     free(readtext);
     readtext = NULL;
+
+}
+
+static void openmsg(int i)
+
+{
+
+    if (i >= 0 && i < msgct) openmsgin(foldsel, &msgs[i]);
 
 }
 
@@ -3391,6 +3422,534 @@ static void helpevent(ami_evtrec* er)
 /*******************************************************************************
 /*******************************************************************************
 
+The search form
+
+Modelled on the one Gmail keeps behind the search box: who it is from
+and to, what the subject holds, words it has and words it must not, how
+big it is, when it came and where to look. The worker does the looking
+(servesearch), since a store of tens of thousands of messages is read
+from the disc, and the results come back on the tick as fetched mail
+does. The rows found are drawn in the window itself, under the form,
+and a message picked from them is opened to be read as one picked from
+the list is.
+
+*******************************************************************************/
+
+static FILE*    srcwf;        /* the search window, NULL when not open */
+static int      srclistup;    /* there are results to show */
+static ami_long srcx0, srcy0, srcx1, srcy1; /* the list's rectangle */
+static ami_long srcsbw;       /* the width of the bar beside it */
+static int      srctop;       /* the first row on show */
+static int      srcsel;       /* the row picked, or -1 */
+static ami_long srcmx, srcmy; /* where the mouse is */
+static ami_long srcsty;       /* where the status line is written */
+static int      srcsizesel;   /* which size test, 1 based as the box is */
+static int      srcunitsel;   /* which unit */
+static int      srcwithinsel; /* which period */
+static int      srcfoldsel;   /* which folder, the first being all */
+static int      srcatt;       /* the attachment box is ticked */
+static char     srcsaid[MAXSTR*2]; /* the status line, kept for redraws */
+
+static void srcdraw(void);
+
+static const char* srcsizeops[] = { "greater than", "less than" };
+static const char* srcunits[] = { "MB", "KB", "bytes" };
+static const ami_long srcunitval[] = { 1024L*1024, 1024L, 1L };
+static const char* srcwithins[] = { "1 day", "3 days", "1 week", "2 weeks",
+                                    "1 month", "2 months", "6 months",
+                                    "1 year" };
+static const ami_long srcwithinsec[] = { 86400L, 3*86400L, 7*86400L,
+                                         14*86400L, 30*86400L, 61*86400L,
+                                         183*86400L, 365*86400L };
+
+/* a string list for a widget, from an array of strings; the widget
+   copies it, so it is freed after */
+static ami_strptr strlist(const char* const* items, int n)
+
+{
+
+    ami_strptr sl = NULL, lp = NULL, sp;
+    int i;
+
+    for (i = 0; i < n; i++) {
+
+        sp = malloc(sizeof(ami_strrec));
+        if (!sp) { fail("Out of memory"); exit(1); }
+        sp->str = strdup(items[i]);
+        if (!sp->str) { fail("Out of memory"); exit(1); }
+        sp->next = NULL;
+        if (lp) lp->next = sp; else sl = sp;
+        lp = sp;
+
+    }
+
+    return (sl);
+
+}
+
+static void freelist(ami_strptr sl)
+
+{
+
+    ami_strptr sp;
+
+    while (sl) { sp = sl->next; free(sl->str); free(sl); sl = sp; }
+
+}
+
+/* the status line under the form: what the search is doing or found */
+static void srcstatus(const char* s)
+
+{
+
+    ami_long w, i;
+
+    if (!srcwf) return;
+    copystr(srcsaid, s, sizeof(srcsaid));
+    w = ami_maxx(srcwf);
+    ami_cursor(srcwf, 1, srcsty);
+    for (i = 1; i <= w; i++) fputc(' ', srcwf);
+    ami_cursor(srcwf, 3, srcsty);
+    fprintf(srcwf, "%.*s", (int)(w-3), srcsaid);
+
+}
+
+/* the labels, drawn again on every redraw; the widgets keep themselves */
+static void srclay(void)
+
+{
+
+    static const char* labels[] = { "From", "To", "Subject", "Has the words",
+                                    "Doesn't have", "Size", "Date within",
+                                    "Search" };
+    ami_long ew, eh, cw, ch, ow, oh, rowh, y;
+    ami_strptr sl;
+    int i;
+
+    ami_editboxsiz(srcwf, "0", &ew, &eh);
+    sl = strlist(srcsizeops, 2);
+    ami_dropboxsiz(srcwf, sl, &cw, &ch, &ow, &oh);
+    freelist(sl);
+    rowh = eh > ch? eh: ch;
+    fprintf(srcwf, "\f");
+    ami_fcolor(srcwf, ami_black);
+    y = 2;
+    for (i = 0; i < 8; i++) {
+
+        ami_cursor(srcwf, 3, y+(rowh-1)/2);
+        fprintf(srcwf, "%s", labels[i]);
+        y += rowh;
+
+    }
+    srcstatus(srcsaid);
+    srcdraw();
+
+}
+
+/* how many rows of what was found fit */
+static int srcvis(void)
+
+{
+
+    int n = srcy1-srcy0+1;
+
+    return (n < 1? 1: n);
+
+}
+
+/* keep the top of the list inside the list */
+static void srcclamp(void)
+
+{
+
+    if (srctop > srcct-srcvis()) srctop = srcct-srcvis();
+    if (srctop < 0) srctop = 0;
+
+}
+
+static void srcbar(void)
+
+{
+
+    int max = srcct-srcvis();
+
+    if (max < 1) max = 1;
+    if (srcct > srcvis()) ami_scrollsiz(srcwf, SRCSB, fullscale(srcvis(), srcct));
+    else ami_scrollsiz(srcwf, SRCSB, INT_MAX);
+    ami_scrollpos(srcwf, SRCSB, fullscale(srctop, max));
+
+}
+
+/* What was found, a row each: when it came, who from, what about.
+   Newest first, as the message list is. */
+static void srcdraw(void)
+
+{
+
+    ami_long w = srcx1-srcsbw-srcx0+1;
+    ami_long x, y;
+    char     s[MAXSTR];
+    char     when[40];
+    int      i, n;
+
+    if (!srcwf) return;
+    ami_fcolor(srcwf, ami_black);
+    ami_reverse(srcwf, FALSE);
+    for (y = srcy0; y <= srcy1; y++) {
+
+        ami_cursor(srcwf, srcx0, y);
+        for (x = 0; x < w; x++) fputc(' ', srcwf);
+
+    }
+    if (!srclistup) return;
+    if (!srcct) {
+
+        ami_cursor(srcwf, srcx0, srcy0);
+        fprintf(srcwf, "Nothing found");
+        return;
+
+    }
+    srcclamp();
+    y = srcy0;
+    for (i = srctop; i < srcct && y <= srcy1; i++) {
+
+        const msgrec* m = &srcres[i];
+
+        if (m->date) whenof(m->date, when, sizeof(when));
+        else copystr(when, m->when, sizeof(when));
+        ami_reverse(srcwf, i == srcsel);
+        snprintf(s, sizeof(s), "%-12.12s %-20.20s %s", when, m->from,
+                 m->subject);
+        n = (int)strlen(s);
+        if (n > w) n = w;
+        ami_cursor(srcwf, srcx0, y);
+        fprintf(srcwf, "%.*s", n, s);
+        if (i == srcsel) for (x = n; x < w; x++) fputc(' ', srcwf);
+        y++;
+
+    }
+    ami_reverse(srcwf, FALSE);
+    srcbar();
+
+}
+
+/* the search is done: its results on show, and how many */
+static void srcfill(void)
+
+{
+
+    char t[MAXSTR];
+
+    srclistup = TRUE;
+    srctop = 0;
+    srcsel = -1;
+    srcdraw();
+    if (!srcct) copystr(t, "Nothing found", sizeof(t));
+    else if (srcct == 1) copystr(t, "1 message found", sizeof(t));
+    else snprintf(t, sizeof(t), "%lld messages found", AMI_LONG_CAST(srcct));
+    srcstatus(t);
+
+}
+
+/* the list moved: drawn again from its new top */
+static void srcscroll(int top)
+
+{
+
+    srctop = top;
+    srcclamp();
+    srcdraw();
+
+}
+
+/* a row picked: shown as picked, and the message read */
+static void srcpickrow(int i)
+
+{
+
+    if (i < 0 || i >= srcct) return;
+    srcsel = i;
+    if (i < srctop) srctop = i;
+    if (i >= srctop+srcvis()) srctop = i-srcvis()+1;
+    srcdraw();
+    openmsgin(srcfold[i], &srcres[i]);
+
+}
+
+/* Search: the form into the ask, and the worker set going. What it
+   finds is picked up by the tick and listed. */
+static void srcgo(void)
+
+{
+
+    char s[MAXSTR];
+    double v;
+
+    ami_getwidgettext(srcwf, SRCFROM, srcask.from, sizeof(srcask.from));
+    trim(srcask.from);
+    ami_getwidgettext(srcwf, SRCTO, srcask.to, sizeof(srcask.to));
+    trim(srcask.to);
+    ami_getwidgettext(srcwf, SRCSUBJ, srcask.subject, sizeof(srcask.subject));
+    trim(srcask.subject);
+    ami_getwidgettext(srcwf, SRCWORDS, srcask.words, sizeof(srcask.words));
+    trim(srcask.words);
+    ami_getwidgettext(srcwf, SRCNOT, srcask.nowords, sizeof(srcask.nowords));
+    trim(srcask.nowords);
+    /* the size, when a number is given */
+    ami_getwidgettext(srcwf, SRCSIZE, s, sizeof(s));
+    trim(s);
+    srcask.sizeop = 0;
+    srcask.sizeval = 0;
+    if (*s && sscanf(s, "%lf", &v) == 1) {
+
+        srcask.sizeop = srcsizesel;
+        srcask.sizeval = (ami_long)(v*srcunitval[srcunitsel-1]);
+
+    }
+    /* the date, when a day is given */
+    ami_getwidgettext(srcwf, SRCDATE, s, sizeof(s));
+    trim(s);
+    srcask.within = 0;
+    srcask.date = 0;
+    if (*s) {
+
+        srcask.date = parseday(s);
+        if (!srcask.date) {
+
+            srcstatus("The date is not understood: write it as 2026-09-09");
+            return;
+
+        }
+        srcask.within = srcwithinsec[srcwithinsel-1];
+
+    }
+    srcask.fold = srcfoldsel-2; /* the first entry is all of them */
+    srcask.attach = srcatt;
+    if (srcbusy) srcstatus("Searching again...");
+    else srcstatus("Searching...");
+    srcwant = TRUE;
+    kickworker();
+
+}
+
+/* the form emptied, ready for another search */
+static void srcclear(void)
+
+{
+
+    ami_putwidgettext(srcwf, SRCFROM, "");
+    ami_putwidgettext(srcwf, SRCTO, "");
+    ami_putwidgettext(srcwf, SRCSUBJ, "");
+    ami_putwidgettext(srcwf, SRCWORDS, "");
+    ami_putwidgettext(srcwf, SRCNOT, "");
+    ami_putwidgettext(srcwf, SRCSIZE, "");
+    ami_putwidgettext(srcwf, SRCDATE, "");
+    srcatt = FALSE;
+    ami_selectwidget(srcwf, SRCATT, FALSE);
+    srclistup = FALSE;
+    srcdraw();
+    srcstatus("");
+
+}
+
+/* close the search window, if it is open. The widgets go first, as the
+   server form's do: a window closed over live widgets leaves the
+   manager's records pointing at a file that is gone. */
+static void srcclose(void)
+
+{
+
+    int i;
+
+    if (!srcwf) return;
+    for (i = SRCFROM; i <= SRCSB; i++) ami_killwidget(srcwf, i);
+    fclose(srcwf);
+    srcwf = NULL;
+    srclistup = FALSE;
+
+}
+
+/* Open the search window. A second open brings the one already up to
+   the front. The fields are made where they stand, the form being of a
+   fixed size; what is found is drawn below them. */
+static void srcopen(void)
+
+{
+
+    static const int edits[] = { SRCFROM, SRCTO, SRCSUBJ, SRCWORDS, SRCNOT };
+    ami_long wx, wy, sx, sy;
+    ami_long labw, ew, eh, cw, ch, ow, oh, bw, bh, rowh, y, x, fw;
+    ami_strptr sl;
+    const char* folds[MAXFOLDER+1];
+    int i;
+
+    if (srcwf) { ami_front(srcwf); return; }
+    ami_openwin(&stdin, &srcwf, NULL, SRCWIN);
+    ami_title(srcwf, "Search mail");
+    ami_buffer(srcwf, FALSE);
+    ami_auto(srcwf, FALSE);
+    ami_curvis(srcwf, FALSE);
+    labw = (ami_long)strlen("Has the words  ");
+    ami_editboxsiz(srcwf, "0", &ew, &eh);
+    ami_buttonsiz(srcwf, "Search", &bw, &bh);
+    sl = strlist(srcsizeops, 2);
+    ami_dropboxsiz(srcwf, sl, &cw, &ch, &ow, &oh);
+    freelist(sl);
+    rowh = eh > ch? eh: ch;
+    fw = 50; /* the fields' width */
+    /* the form, its buttons and status line, and a dozen rows found;
+       cut to the screen when the screen is smaller than that */
+    ami_scnsiz(srcwf, &sx, &sy);
+    ami_winclient(srcwf, 2+labw+fw+2, rowh*8+bh+2+14, &wx, &wy,
+                  BIT(ami_wmframe) | BIT(ami_wmsysbar));
+    if (wx > sx-4) wx = sx-4;
+    if (wy > sy-2) wy = sy-2;
+    ami_setsiz(srcwf, wx, wy);
+    ami_setpos(srcwf, 3, 2);
+    x = 3+labw;
+    y = 2;
+    for (i = 0; i < 5; i++) { /* the text fields */
+
+        ami_editbox(srcwf, x, y, x+fw-1, y+eh-1, edits[i]);
+        y += rowh;
+
+    }
+    /* the size: greater or less than, how much, of what */
+    sl = strlist(srcsizeops, 2);
+    ami_dropboxsiz(srcwf, sl, &cw, &ch, &ow, &oh);
+    ami_dropbox(srcwf, x, y, x+ow-1, y+oh-1, sl, SRCSIZEOP);
+    freelist(sl);
+    ami_editbox(srcwf, x+ow+2, y, x+ow+11, y+eh-1, SRCSIZE);
+    sl = strlist(srcunits, 3);
+    ami_dropboxsiz(srcwf, sl, &cw, &ch, &ow, &oh);
+    ami_dropbox(srcwf, x+fw-ow, y, x+fw-1, y+oh-1, sl, SRCUNIT);
+    freelist(sl);
+    y += rowh;
+    /* the date: within this of that day */
+    sl = strlist(srcwithins, 8);
+    ami_dropboxsiz(srcwf, sl, &cw, &ch, &ow, &oh);
+    ami_dropbox(srcwf, x, y, x+ow-1, y+oh-1, sl, SRCWITHIN);
+    freelist(sl);
+    ami_editbox(srcwf, x+ow+2, y, x+ow+15, y+eh-1, SRCDATE);
+    y += rowh;
+    /* the folder: all of them, or one */
+    folds[0] = "All Mail";
+    for (i = 0; i < foldct && i < MAXFOLDER; i++) folds[i+1] = folders[i].show;
+    sl = strlist(folds, foldct+1);
+    ami_dropboxsiz(srcwf, sl, &cw, &ch, &ow, &oh);
+    ami_dropbox(srcwf, x, y, x+ow-1, y+oh-1, sl, SRCFOLD);
+    freelist(sl);
+    y += rowh;
+    ami_checkbox(srcwf, x, y, x+22, y+eh-1, "Has attachment", SRCATT);
+    y += rowh;
+    /* the buttons, and the status line under them */
+    ami_button(srcwf, x+fw-bw, y, x+fw-1, y+bh-1, "Search", SRCGO);
+    ami_button(srcwf, x+fw-bw*2-2, y, x+fw-bw-3, y+bh-1, "Clear", SRCCLR);
+    ami_button(srcwf, x+fw-bw*3-4, y, x+fw-bw*2-5, y+bh-1, "Close", SRCCLOSE);
+    y += bh;
+    srcsty = y;
+    y += 1;
+    /* what is found goes below, to the bottom */
+    srcx0 = 3;
+    srcy0 = y;
+    srcx1 = ami_maxx(srcwf);
+    srcy1 = ami_maxy(srcwf);
+    if (srcy1 < srcy0) srcy1 = srcy0;
+    ami_scrollvertsiz(srcwf, &srcsbw, &eh);
+    ami_scrollvert(srcwf, srcx1-srcsbw+1, srcy0, srcx1, srcy1, SRCSB);
+    srctop = 0;
+    srcsel = -1;
+    srcsizesel = 1;
+    srcunitsel = 1;
+    srcwithinsel = 1;
+    srcfoldsel = 1;
+    srcatt = FALSE;
+    *srcsaid = 0;
+    srclay();
+
+}
+
+/* an event with the search window's id on it */
+static void srcevent(ami_evtrec* er)
+
+{
+
+    switch (er->etype) {
+
+        case ami_etterm: srcclose(); break; /* the window closed, not the program */
+        case ami_etresize:
+        case ami_etredraw: srclay(); break;
+        case ami_etbutton:
+            if (er->butid == SRCGO) srcgo();
+            else if (er->butid == SRCCLR) srcclear();
+            else srcclose();
+            break;
+        case ami_etedtbox: srcgo(); break; /* return in a field searches */
+        case ami_etdrpbox: /* a pick, remembered for the search */
+            if (er->drpbid == SRCSIZEOP) srcsizesel = er->drpbsl;
+            else if (er->drpbid == SRCUNIT) srcunitsel = er->drpbsl;
+            else if (er->drpbid == SRCWITHIN) srcwithinsel = er->drpbsl;
+            else if (er->drpbid == SRCFOLD) srcfoldsel = er->drpbsl;
+            break;
+        case ami_etchkbox:
+            srcatt = !srcatt;
+            ami_selectwidget(srcwf, SRCATT, srcatt);
+            break;
+        /* the list of what was found: the bar beside it, the keys, and a
+           click on a row */
+        case ami_etsclull: srcscroll(srctop-1); break;
+        case ami_etscldrl: srcscroll(srctop+1); break;
+        case ami_etsclulp: srcscroll(srctop-(srcvis()-1)); break;
+        case ami_etscldrp: srcscroll(srctop+(srcvis()-1)); break;
+        case ami_etsclpos: srcscroll(scaleback(er->sclpos, srcct-srcvis())); break;
+        case ami_etup: if (srcsel > 0) srcpickrow(srcsel-1); break;
+        case ami_etdown: if (srcsel+1 < srcct) srcpickrow(srcsel+1); break;
+        case ami_etpagu: srcscroll(srctop-(srcvis()-1)); break;
+        case ami_etpagd: srcscroll(srctop+(srcvis()-1)); break;
+        case ami_etmoumov: srcmx = er->moupx; srcmy = er->moupy; break;
+        case ami_etmouba:
+            if (er->amoubn == 4) srcscroll(srctop-WHEELROWS);
+            else if (er->amoubn == 5) srcscroll(srctop+WHEELROWS);
+            else if (er->amoubn == 1 && srclistup && srcmx >= srcx0 &&
+                     srcmx <= srcx1-srcsbw && srcmy >= srcy0 && srcmy <= srcy1)
+                srcpickrow(srctop+(srcmy-srcy0));
+            break;
+        default: break;
+
+    }
+
+}
+
+/* what the worker found, on the tick that picks up its work */
+static void srcpick(void)
+
+{
+
+    if (srcdone) {
+
+        srcdone = FALSE;
+        if (srcwf) srcfill();
+
+    } else if (srcbusy && srcwf && *wrkwhat) {
+
+        char t[MAXSTR*2];
+        char a[40], b[40];
+
+        if (wrkmax > 0) {
+
+            commas(wrkpos, a, sizeof(a));
+            commas(wrkmax, b, sizeof(b));
+            snprintf(t, sizeof(t), "%s - %s of %s", wrkwhat, a, b);
+
+        } else copystr(t, wrkwhat, sizeof(t));
+        srcstatus(t);
+
+    }
+
+}
+
+/*******************************************************************************
+
 The menu
 
 *******************************************************************************/
@@ -3441,6 +4000,8 @@ static void setupmenu(void)
     newmenu(&mp, FALSE, FALSE, OFF, MENUCOMP, "Compose");
     appendmenu(&ml, mp);
     newmenu(&mp, FALSE, FALSE, OFF, MENUFETCH, "Get Mail");
+    appendmenu(&ml, mp);
+    newmenu(&mp, FALSE, FALSE, OFF, MENUSEARCH, "Search");
     appendmenu(&ml, mp);
     newmenu(&ma, FALSE, FALSE, OFF, MENUMAIL, "Config");
     appendmenu(&ml, ma);
@@ -3547,6 +4108,7 @@ static void fetchpick(void)
     int list  = wrklist;
     int done  = wrkdone && !wrkgo;
 
+    srcpick(); /* a search finished, or how far one has got */
     wrkfolds = FALSE;
     wrklist = FALSE;
     if (folds) drawfolders();
@@ -3627,7 +4189,8 @@ static void fetchpick(void)
        at, and a message that never left looked exactly like one that
        did. */
     if (timerrun && !fetching && !wrkgo && !wrkbusy && idxwant < 0 &&
-        !sendwant && !failwait && !*sentsaid && !*wrkwhat) {
+        !sendwant && !srcwant && !srcbusy && !srcdone && !failwait &&
+        !*sentsaid && !*wrkwhat) {
 
         ami_killtimer(stdout, TIMFETCH);
         timerrun = FALSE;
@@ -3705,6 +4268,7 @@ static void listkeys(ami_evtrec* er)
                 break;
 
             case 's': case 'S': srvopen(); break;
+            case '/': srcopen(); break;
             case 'h': case 'H': helpopen(); break;
             case 'q': case 'Q': mailquit = TRUE; break;
             default: break;
@@ -3948,6 +4512,7 @@ int main(int argc, char* argv[])
         if (er.winid == HELPWIN) { helpevent(&er); continue; }
         if (er.winid == CMPWIN) { cmpevent(&er); continue; }
         if (er.winid == SRVWIN) { srvevent(&er); continue; }
+        if (er.winid == SRCWIN) { srcevent(&er); continue; }
         if (er.winid == READWIN) {
 
             switch (er.etype) {
@@ -4210,6 +4775,7 @@ int main(int argc, char* argv[])
                 switch (er.menuid) {
 
                     case MENUSRV: srvopen(); break;
+                    case MENUSEARCH: srcopen(); break;
 
                     case MENUCOMP:
                         if (!haveaccount()) { srvopen(); break; }
@@ -4299,7 +4865,7 @@ int main(int argc, char* argv[])
     } while (!mailquit &&
              (er.etype != ami_etterm || er.winid == READWIN ||
               er.winid == SRVWIN || er.winid == HELPWIN ||
-              er.winid == CMPWIN));
+              er.winid == CMPWIN || er.winid == SRCWIN));
     done:
     /* The lock is held here, so the worker is not in the middle of
        writing a message: what is in the store is whole. It is told to
@@ -4314,6 +4880,7 @@ int main(int argc, char* argv[])
     popclose();
     helpclose();
     srvclose();
+    srcclose();
     closeread();
     cmpclose();
     dunlock();

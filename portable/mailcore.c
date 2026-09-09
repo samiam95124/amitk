@@ -1652,6 +1652,37 @@ reader wants.
 static const char* months[] = { "Jan", "Feb", "Mar", "Apr", "May", "Jun",
                                 "Jul", "Aug", "Sep", "Oct", "Nov", "Dec" };
 
+/* When a message came, as the list shows it: the time of day for the
+   last twelve hours, the day for the rest of the year, the day and the
+   year for older. Shown in our own time, whatever time the sender kept:
+   a message is filed by when it arrived here. The index keeps the string
+   as it was when the message was indexed, so a list that has been up for
+   a day asks again with the date: the "11:15 AM" of this morning is the
+   "Sep 9" of tomorrow. */
+void whenof(ami_long t, char* show, ami_long sn)
+
+{
+
+    time_t    now = time(NULL);
+    time_t    tt = t;
+    struct tm lt;
+
+    localtime_r(&tt, &lt);
+    if (now-tt < 12*60*60) {
+
+        ami_long h12 = lt.tm_hour%12;
+
+        if (!h12) h12 = 12;
+        snprintf(show, sn, "%lld:%02d %s", AMI_LONG_CAST(h12), lt.tm_min,
+                 lt.tm_hour < 12? "AM": "PM");
+
+    } else if (now-tt < 300L*24*60*60)
+        snprintf(show, sn, "%s %d", months[lt.tm_mon], lt.tm_mday);
+    else snprintf(show, sn, "%s %d, %d", months[lt.tm_mon], lt.tm_mday,
+                  lt.tm_year+1900);
+
+}
+
 /* pull a date apart, giving the time it stands for, and how to show it */
 ami_long parsedate(const char* s, char* show, ami_long sn)
 
@@ -1662,7 +1693,6 @@ ami_long parsedate(const char* s, char* show, ami_long sn)
     ami_long  i;
     struct tm tm;
     time_t    t;
-    time_t    now = time(NULL);
 
     *show = 0;
     while (*s == ' ') s++;
@@ -1761,27 +1791,7 @@ ami_long parsedate(const char* s, char* show, ami_long sn)
 
     }
     if (t == (time_t)-1) return (0);
-    /* Shown in our own time, whatever time the sender kept: a message is
-       filed by when it arrived here. */
-    {
-
-        struct tm lt;
-
-        localtime_r(&t, &lt);
-        if (now-t < 12*60*60) {
-
-            ami_long h12 = lt.tm_hour%12;
-
-            if (!h12) h12 = 12;
-            snprintf(show, sn, "%lld:%02d %s", AMI_LONG_CAST(h12), lt.tm_min,
-                     lt.tm_hour < 12? "AM": "PM");
-
-        } else if (now-t < 300L*24*60*60)
-            snprintf(show, sn, "%s %d", months[lt.tm_mon], lt.tm_mday);
-        else snprintf(show, sn, "%s %d, %d", months[lt.tm_mon], lt.tm_mday,
-                      lt.tm_year+1900);
-
-    }
+    whenof((ami_long)t, show, sn);
 
     return ((ami_long)t);
 
@@ -4299,6 +4309,7 @@ void mailwork(void)
         wrkbusy = TRUE;
         servesend();
         serveindex();
+        servesearch();
         if (wrkgo) {
 
             wrkdone = FALSE;
@@ -4334,6 +4345,312 @@ char* getmsg(ami_long fold, ami_long i)
     fclose(f);
 
     return (buf);
+
+}
+
+/*******************************************************************************
+
+The search
+
+The form's ask and the worker's answer, as the header says. The worker
+takes the ask between its other work, reads any folder it is to search
+that has no index yet, and tries every message: the tests that the index
+answers first, and the message itself read back only for a survivor that
+still has a test to pass. What it finds is a copy of the record and the
+folder it was in, published under the lock when the whole search is
+done, so the front end never sees a list half made.
+
+*******************************************************************************/
+
+srcrec    srcask;
+ami_long  srcwant;
+ami_long  srcbusy;
+ami_long  srcdone;
+msgrec*   srcres;
+ami_long* srcfold;
+ami_long  srcct;
+
+/* read one message back out of a folder, whole, wherever the folder is:
+   the record says where in the file it lies */
+char* getmsgin(ami_long fold, const msgrec* m)
+
+{
+
+    FILE* f;
+    char* buf;
+    ami_long n;
+
+    if (fold < 0 || fold >= foldct || !m) return (NULL);
+    f = fopen(folders[fold].file, "r");
+    if (!f) return (NULL);
+    buf = getmem(m->len+1);
+    fseek(f, m->off, SEEK_SET);
+    n = fread(buf, 1, m->len, f);
+    buf[n] = 0;
+    fclose(f);
+
+    return (buf);
+
+}
+
+/* Does the message carry an attachment? A part that says so in its
+   disposition, or one that is neither text nor a multipart of its own,
+   which is a picture or a file going along. The walk is textof's. */
+int hasattach(const char* msg, ami_long len)
+
+{
+
+    char  typ[MAXSTR];
+    char  bound[MAXSTR];
+    char  sep[MAXSTR+8];
+    char  disp[MAXSTR];
+    const char* p;
+    ami_long sl;
+
+    findheader(msg, "Content-Type", typ, sizeof(typ));
+    if (strncasecmp(typ, "multipart/", 10)) { /* one part: its own say */
+
+        if (findheader(msg, "Content-Disposition", disp, sizeof(disp)) &&
+            !strncasecmp(disp, "attachment", 10)) return (TRUE);
+        return (FALSE);
+
+    }
+    hdrparam(typ, "boundary", bound, sizeof(bound));
+    if (!*bound) return (FALSE);
+    snprintf(sep, sizeof(sep), "--%s", bound);
+    sl = strlen(sep);
+    p = msg;
+    while ((p = strstr(p, sep))) {
+
+        const char* s = p+sl;
+        const char* e;
+        char        ptyp[MAXSTR];
+        char        hdr[4000];
+        ami_long    n;
+
+        if (s[0] == '-' && s[1] == '-') break; /* the end separator */
+        while (*s == '\r') s++;
+        if (*s == '\n') s++;
+        e = strstr(s, sep);
+        if (!e) e = msg+len;
+        parttype(s, e-s, ptyp, sizeof(ptyp));
+        if (!strncasecmp(ptyp, "multipart/", 10)) {
+
+            if (hasattach(s, e-s)) return (TRUE);
+
+        } else {
+
+            /* the part's own headers, as parttype reads them */
+            n = e-s;
+            if (n > (ami_long)sizeof(hdr)-1) n = sizeof(hdr)-1;
+            memcpy(hdr, s, n);
+            hdr[n] = 0;
+            if (findheader(hdr, "Content-Disposition", disp, sizeof(disp)) &&
+                !strncasecmp(disp, "attachment", 10)) return (TRUE);
+            if (*ptyp && strncasecmp(ptyp, "text/", 5)) return (TRUE);
+
+        }
+        p = e;
+
+    }
+
+    return (FALSE);
+
+}
+
+/* A day as the form writes it, 2026-09-09 or 9/9/2026, as the time at
+   its noon; 0 for none. Noon, so that "within a day" of it takes in the
+   whole of the day either side. */
+ami_long parseday(const char* s)
+
+{
+
+    int y, m, d;
+    struct tm t;
+
+    while (*s == ' ') s++;
+    if (sscanf(s, "%d-%d-%d", &y, &m, &d) == 3) ;
+    else if (sscanf(s, "%d/%d/%d", &m, &d, &y) == 3) ;
+    else return (0);
+    if (y < 100) y += 2000;
+    if (m < 1 || m > 12 || d < 1 || d > 31) return (0);
+    memset(&t, 0, sizeof(t));
+    t.tm_year = y-1900;
+    t.tm_mon = m-1;
+    t.tm_mday = d;
+    t.tm_hour = 12;
+    t.tm_isdst = -1;
+
+    return ((ami_long)mktime(&t));
+
+}
+
+/* any word of the list is in the text */
+static int hasaword(const char* text, const char* words)
+
+{
+
+    char w[MAXSTR];
+    const char* p = words;
+    int n;
+
+    while (*p) {
+
+        while (*p == ' ') p++;
+        n = 0;
+        while (*p && *p != ' ' && n < (int)sizeof(w)-1) w[n++] = *p++;
+        w[n] = 0;
+        if (n && holds(text, w)) return (TRUE);
+
+    }
+
+    return (FALSE);
+
+}
+
+/* one message against the ask; the folder is for reading it back */
+static int srcmatch(ami_long fold, const msgrec* m, const srcrec* a)
+
+{
+
+    char* raw = NULL;
+    char* text = NULL;
+    char  to[MAXSTR];
+    char  all[MAXSTR*4+SNIPPET];
+    int   ok = TRUE;
+
+    /* what the index answers */
+    if (*a->from && !holds(m->from, a->from) && !holds(m->addr, a->from))
+        return (FALSE);
+    if (*a->subject && !holds(m->subject, a->subject)) return (FALSE);
+    if (a->sizeop == 1 && m->len <= a->sizeval) return (FALSE);
+    if (a->sizeop == 2 && m->len >= a->sizeval) return (FALSE);
+    if (a->within && (m->date < a->date-a->within ||
+                      m->date > a->date+a->within)) return (FALSE);
+    if (!*a->to && !*a->words && !*a->nowords && !a->attach) return (TRUE);
+    /* what only the message answers */
+    raw = getmsgin(fold, m);
+    if (!raw) return (FALSE);
+    if (!findheader(raw, "To", to, sizeof(to))) *to = 0;
+    if (*a->to && !holds(to, a->to)) ok = FALSE;
+    if (ok && a->attach && !hasattach(raw, strlen(raw))) ok = FALSE;
+    if (ok && (*a->words || *a->nowords)) {
+
+        /* the words are looked for in the heads and the text alike */
+        text = textof(raw, strlen(raw), 0);
+        snprintf(all, sizeof(all), "%s\n%s\n%s\n%s\n", m->from, m->addr, to,
+                 m->subject);
+        if (*a->words) {
+
+            /* every word must be somewhere, in the heads or the text */
+            char w[MAXSTR];
+            const char* p = a->words;
+            int n;
+
+            while (*p && ok) {
+
+                while (*p == ' ') p++;
+                n = 0;
+                while (*p && *p != ' ' && n < (int)sizeof(w)-1) w[n++] = *p++;
+                w[n] = 0;
+                if (n && !holds(all, w) && !holds(text, w)) ok = FALSE;
+
+            }
+
+        }
+        if (ok && *a->nowords && (hasaword(all, a->nowords) ||
+                                   hasaword(text, a->nowords))) ok = FALSE;
+        free(text);
+
+    }
+    free(raw);
+
+    return (ok);
+
+}
+
+/* The search, from the worker: the folders asked, read if need be, and
+   every message of them tried. The result is published whole at the end. */
+void servesearch(void)
+
+{
+
+    srcrec   a;
+    msgrec*  res = NULL;
+    ami_long* rfold = NULL;
+    ami_long ct = 0, max = 0;
+    ami_long f, i;
+    ami_long f0, f1;
+
+    if (!srcwant) return;
+    dlock(); /* the ask is copied under the lock the form wrote it under */
+    a = srcask;
+    srcwant = FALSE;
+    srcbusy = TRUE;
+    dunlock();
+    if (a.fold >= 0 && a.fold < foldct) { f0 = a.fold; f1 = a.fold+1; }
+    else { f0 = 0; f1 = foldct; }
+    for (f = f0; f < f1 && !wrkstop && !srcwant; f++) {
+
+        if (!folders[f].idxok) {
+
+            snprintf(wrkwhat, sizeof(wrkwhat), "Reading %.400s",
+                     folders[f].show);
+            wrkpos = 0;
+            wrkmax = 0;
+            idxdoing = f;
+            indexfolder(f);
+            idxdoing = -1;
+            wrklist = TRUE;
+
+        }
+        snprintf(wrkwhat, sizeof(wrkwhat), "Searching %.400s",
+                 folders[f].show);
+        wrkmax = folders[f].idxct;
+        for (i = 0; i < folders[f].idxct && !wrkstop && !srcwant; i++) {
+
+            wrkpos = i+1;
+            if (srcmatch(f, &folders[f].idx[i], &a)) {
+
+                if (ct >= max) {
+
+                    max = max? max*2: 100;
+                    res = realloc(res, max*sizeof(msgrec));
+                    rfold = realloc(rfold, max*sizeof(ami_long));
+                    if (!res || !rfold) { fprintf(stderr, "Out of memory\n"); exit(1); }
+
+                }
+                res[ct] = folders[f].idx[i];
+                rfold[ct] = f;
+                ct++;
+
+            }
+
+        }
+
+    }
+    wrkwhat[0] = 0;
+    wrkpos = 0;
+    wrkmax = 0;
+    if (srcwant || wrkstop) { /* asked again before this was done: this one is dropped */
+
+        free(res);
+        free(rfold);
+        srcbusy = FALSE;
+        return;
+
+    }
+    /* newest first, as the list is */
+    qsort(res, ct, sizeof(msgrec), bydate);
+    dlock();
+    free(srcres);
+    free(srcfold);
+    srcres = res;
+    srcfold = rfold;
+    srcct = ct;
+    srcbusy = FALSE;
+    srcdone = TRUE;
+    dunlock();
 
 }
 

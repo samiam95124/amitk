@@ -179,6 +179,43 @@ extern char sentsaid[MAXSTR]; /* and what went right */
 
 /*******************************************************************************
 
+The search
+
+What the search form asks for, and what the worker found. The front end
+fills the ask and sets srcwant; the worker takes it, reads whatever
+folders it has to, and leaves the messages found, copies of their
+records with the folder each is in, under srcdone. The cheap tests, the
+sender, the subject, the size and the date, are made on the index; the
+others, the To line, the words and the attachment, read the message.
+
+*******************************************************************************/
+
+typedef struct {
+
+    char     from[MAXSTR];    /* the sender holds this */
+    char     to[MAXSTR];      /* the To line holds this */
+    char     subject[MAXSTR]; /* the subject holds this */
+    char     words[MAXSTR];   /* every one of these words is in it */
+    char     nowords[MAXSTR]; /* and none of these */
+    ami_long sizeop;          /* 0 any size, 1 greater than, 2 less than */
+    ami_long sizeval;         /* that many bytes */
+    ami_long within;          /* dated within this many seconds, 0 any date */
+    ami_long date;            /* of this time */
+    ami_long fold;            /* the folder to search, -1 for all of them */
+    ami_long attach;          /* it has an attachment */
+
+} srcrec;
+
+extern srcrec    srcask;     /* what is being searched for */
+extern ami_long  srcwant;    /* a search is asked for */
+extern ami_long  srcbusy;    /* and being made */
+extern ami_long  srcdone;    /* and finished, for the front end to show */
+extern msgrec*   srcres;     /* the messages found, copies of their records */
+extern ami_long* srcfold;    /* and the folder each is in */
+extern ami_long  srcct;      /* how many were found */
+
+/*******************************************************************************
+
 What the front end can ask for
 
 *******************************************************************************/
@@ -211,6 +248,11 @@ void  sendmail(const char* to, const char* cc, const char* subject,
                char* err, ami_long errl);
 void  servesend(void);
 void  serveindex(void);
+void  servesearch(void);
+char* getmsgin(ami_long fold, const msgrec* m);
+int   hasattach(const char* msg, ami_long len);
+ami_long parseday(const char* s);
+void whenof(ami_long t, char* show, ami_long sn);
 void  storefolders(ami_long srv);
 int   getfolders(ami_long srv);
 void  imapclose(void);
