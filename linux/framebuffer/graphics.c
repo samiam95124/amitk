@@ -1114,15 +1114,22 @@ static void blitmix(canvas* dst, int dx, int dy, canvas* src,
 
 }
 
-/* rescale an image from source to destination canvas, bilinear */
+/* Rescale an image from source to destination canvas, bilinear. Each
+   destination pixel is taken at the source point its center falls on, the
+   two laid over each other edge to edge, so the last source row and column
+   reach the last of the destination (a ratio of sw-1 over dw left them at
+   a fraction of their weight, and an edge line faded from a stretched
+   copy). The neighbors are clamped to the source. */
 static void rescale(canvas* dp, canvas* sp)
 
 {
 
     unsigned int px1, px2, px3, px4;
     int sx, sy, dx, dy;
+    int sx1, sy1; /* the neighbors, clamped */
     float xr, yr;
-    float xd, yd;
+    float fx, fy; /* the source point sampled */
+    float xd, yd; /* its fraction toward the next pixel */
     int b, r, g;
     uint32_t* src;
     uint32_t* dest;
@@ -1133,23 +1140,31 @@ static void rescale(canvas* dp, canvas* sp)
     dw = dp->w; dh = dp->h;
     src = sp->px;
     dest = dp->px;
-    xr = ((float)(sw-1))/dw; /* find scaling ratio x */
-    yr = ((float)(sh-1))/dh; /* find scaling ratio y */
+    xr = ((float)sw)/dw; /* find scaling ratio x */
+    yr = ((float)sh)/dh; /* find scaling ratio y */
     /* copy and scale source to destination */
     for (dy = 0; dy < dh; dy++) {
 
         di = (size_t)dy*dw; /* set destination index */
+        fy = (dy+0.5f)*yr-0.5f; /* the source row under this row's center */
+        if (fy < 0) fy = 0;
+        sy = (int)fy;
+        yd = fy-sy;
+        if (sy >= sh-1) { sy = sh-1; yd = 0; }
+        sy1 = sy+1 < sh? sy+1: sy;
         for (dx = 0; dx < dw; dx++) {
 
-            sx = xr*dx; /* find source location */
-            sy = yr*dy;
-            xd = (xr*dx)-sx;
-            yd = (yr*dy)-sy;
+            fx = (dx+0.5f)*xr-0.5f; /* the source column under this one */
+            if (fx < 0) fx = 0;
+            sx = (int)fx;
+            xd = fx-sx;
+            if (sx >= sw-1) { sx = sw-1; xd = 0; }
+            sx1 = sx+1 < sw? sx+1: sx;
             si = (size_t)sy*sw+sx; /* find net source index */
             px1 = src[si]; /* get this pixel */
-            px2 = src[si+1]; /* get right pixel */
-            px3 = src[si+sw]; /* get down pixel */
-            px4 = src[si+sw+1]; /* get down/right pixel */
+            px2 = src[(size_t)sy*sw+sx1]; /* get right pixel */
+            px3 = src[(size_t)sy1*sw+sx]; /* get down pixel */
+            px4 = src[(size_t)sy1*sw+sx1]; /* get down/right pixel */
             b = (px1&0xff)*(1-xd)*(1-yd)+(px2&0xff)*xd*(1-yd)+
                    (px3&0xff)*yd*(1-xd)+(px4&0xff)*xd*yd;
             g = ((px1>>8)&0xff)*(1-xd)*(1-yd)+((px2>>8)&0xff)*xd*(1-yd)+

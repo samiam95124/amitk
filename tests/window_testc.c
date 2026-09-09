@@ -165,6 +165,28 @@ static void nextevt(ami_evtrec* er)
 
 }
 
+/* A step of an animation, in an automatic run: the number of the frame
+   being drawn and the step within it as a fraction, frame 18.1, 18.2 and
+   so on, stamped into the title as the frame mark is, so the frame count
+   and the frame range a run selects are untouched; then the capture. The
+   frame's own mark ends the run of steps. Outside the selected range
+   nothing is captured. */
+static int stepnum; /* the step within the frame being drawn */
+
+static void frmstep(void)
+{
+
+    char titlebuf[80];
+
+    if (framenum+1 < tstlo || (tsthi && framenum+1 > tsthi)) return;
+    stepnum++;
+    sprintf(titlebuf, "window_test: frame %d.%d", framenum+1, stepnum);
+    ami_title(tw, titlebuf);
+    autosettle(); /* let the screen settle before the capture */
+    screen_capture();
+
+}
+
 /* wait return to be pressed, or handle terminate */
 
 static void waitnextt(int keeptitle)
@@ -175,6 +197,7 @@ static void waitnextt(int keeptitle)
     char titlebuf[80];
 
     framenum++;
+    stepnum = 0; /* the next frame's steps count from one */
     if (tsthi && framenum > tsthi) longjmp(terminate_buf, 1);
     if (framenum < tstlo) return; /* before the range: the count alone */
     /* Stamp the frame number into the title bar, unless the caller is testing
@@ -232,6 +255,9 @@ static void prtcen(ami_long y, const char* s)
 
 /* wait time in 100 microseconds */
 
+static void frmstep(void);
+static void autosettle(void);
+
 static void waittime(int t)
 
 {
@@ -242,6 +268,9 @@ static void waittime(int t)
     do { ami_event(stdin, &er);
     } while (er.etype != ami_ettim && er.etype != ami_etterm);
     if (er.etype == ami_etterm) longjmp(terminate_buf, 1);
+    /* an automatic run captures the step: the resizes are judged on every
+       step and not on their last screen alone */
+    if (autorun) frmstep();
 
 }
 

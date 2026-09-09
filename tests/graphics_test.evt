@@ -1,0 +1,77 @@
+# Events for the automatic run of graphics_test: see doc/auto_events.md.
+# One event a line, named as in include/graphics.h without ami_et, its
+# parameters in the order of the event record. "sync N" holds the events
+# after it until the test is on frame N, "sync N.S" until step S of it.
+
+# The real keyboard, mouse and joystick are set aside for the run
+keyboardoff
+mouseoff
+joystickoff
+
+# Graphical scrolling test: the arrows scroll the grid, ten steps each way
+sync 146
+up
+up
+up
+up
+up
+up
+up
+up
+up
+up
+down
+down
+down
+down
+down
+down
+down
+down
+down
+down
+left
+left
+left
+left
+left
+left
+left
+left
+left
+left
+right
+right
+right
+right
+right
+right
+right
+right
+right
+right
+enter
+
+# Graphical mouse movement test: the mouse draws a box and a diagonal
+sync 147
+moumovg 1 200 200
+moumovg 1 1100 200
+moumovg 1 1100 700
+moumovg 1 200 700
+moumovg 1 200 200
+moumovg 1 1100 700
+enter
+
+# View drawing scale test: zoom in twice and out once, pan left, right, up
+# and down
+sync 151
+pagu
+pagu
+pagd
+left
+left
+right
+up
+up
+down
+enter

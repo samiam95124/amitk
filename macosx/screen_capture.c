@@ -3,7 +3,7 @@
 *                           SCREEN CAPTURE MODULE                              *
 *                                                                              *
 * macOS/Cocoa version. Grabs the pixel contents of the Ami offscreen bitmap    *
-* and appends it as a PNG to a file called "test_images". Multiple PNGs are    *
+* and appends it as a PNG to a file called "test_images.img". Multiple PNGs are    *
 * concatenated back-to-back in the same file; each is self-contained.          *
 *                                                                              *
 * The file is opened by a module constructor and closed by a destructor.       *
@@ -24,7 +24,7 @@ typedef void* pa_winhan;
 
 #include <dlfcn.h>
 
-#define CAPTURE_FILENAME "test_images"
+#define CAPTURE_FILENAME "test_images.img"
 
 /* ---------- module state ---------- */
 
@@ -46,6 +46,15 @@ static int               syms_resolved;
 
 /* Name the file the pictures go to, before the first of them is taken.
    Later than that the file is already open and the name is ignored. */
+
+/* the label of the next picture, kept in it as its PNG title */
+static char cap_label[80];
+
+/* Label the next picture, "frame N" or "frame N.S": it is kept in the picture
+   as its title, and the viewer's shifted arrows step by it. One picture. */
+void screen_capture_label(const char* s) {
+    strncpy(cap_label, s, sizeof(cap_label)-1);
+}
 
 void screen_capture_name(const char* fn) {
     if (!fn || !*fn || cap_opened) return;
@@ -109,7 +118,24 @@ void screen_capture(void) {
         pngData, CFSTR("public.png"), 1, NULL);
     if (!dest) { CFRelease(pngData); CGImageRelease(img); return; }
 
-    CGImageDestinationAddImage(dest, img, NULL);
+    if (cap_label[0]) {
+        /* the label rides as the PNG title: the viewer steps whole frames by it */
+        CFStringRef title = CFStringCreateWithCString(NULL, cap_label,
+                                                      kCFStringEncodingUTF8);
+        const void* pk[1] = { kCGImagePropertyPNGTitle };
+        const void* pv[1] = { title };
+        CFDictionaryRef pngd = CFDictionaryCreate(NULL, pk, pv, 1,
+            &kCFTypeDictionaryKeyCallBacks, &kCFTypeDictionaryValueCallBacks);
+        const void* dk[1] = { kCGImagePropertyPNGDictionary };
+        const void* dv[1] = { pngd };
+        CFDictionaryRef props = CFDictionaryCreate(NULL, dk, dv, 1,
+            &kCFTypeDictionaryKeyCallBacks, &kCFTypeDictionaryValueCallBacks);
+        CGImageDestinationAddImage(dest, img, props);
+        CFRelease(props);
+        CFRelease(pngd);
+        CFRelease(title);
+        cap_label[0] = 0;
+    } else CGImageDestinationAddImage(dest, img, NULL);
     CGImageDestinationFinalize(dest);
     CFRelease(dest);
     CGImageRelease(img);

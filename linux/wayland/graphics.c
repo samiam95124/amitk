@@ -3858,6 +3858,14 @@ Rescale image canvas
 Rescales an image from the source to the destination. Both scaling up and down
 are possible, as well as changing the aspect ratio. Uses bilinear interpolation.
 
+Each destination pixel is taken at the source point its center falls on,
+the source and destination laid over each other edge to edge: the source
+spans sw pixels over dw destination pixels, and the first and last rows and
+columns of the source reach the first and last of the destination. (A
+ratio of sw-1 over dw, as this once had, left the last source row and
+column at a fraction of their weight, so a line along the right or bottom
+edge of a block faded out of its stretched copy.)
+
 *******************************************************************************/
 
 void rescale(pd_canvas* dp, pd_canvas* sp)
@@ -3868,7 +3876,8 @@ void rescale(pd_canvas* dp, pd_canvas* sp)
     int sx, sy, dx, dy;
     int sx1, sy1; /* the neighbors, clamped */
     float xr, yr;
-    int xd, yd;
+    float fx, fy; /* the source point sampled */
+    float xd, yd; /* its fraction toward the next pixel */
     int b, r, g;
     uint32_t* src;
     uint32_t* dest;
@@ -3881,19 +3890,25 @@ void rescale(pd_canvas* dp, pd_canvas* sp)
     src = pd_canlock(sp, &sstride);
     dest = pd_canlock(dp, &dstride);
 
-    xr = ((float)(sw-1))/dw; /* find scaling ratio x */
-    yr = ((float)(sh-1))/dh; /* find scaling ratio y */
+    xr = ((float)sw)/dw; /* find scaling ratio x */
+    yr = ((float)sh)/dh; /* find scaling ratio y */
 
     /* copy and scale source to destination */
     for (dy = 0; dy < dh; dy++) {
 
         di = dy*dstride; /* set destination index */
+        fy = (dy+0.5f)*yr-0.5f; /* the source row under this row's center */
+        if (fy < 0) fy = 0;
+        sy = (int)fy;
+        yd = fy-sy;
+        if (sy >= sh-1) { sy = sh-1; yd = 0; }
         for (dx = 0; dx < dw; dx++) {
 
-            sx = xr*dx; /* find source x location */
-            sy = yr*dy; /* find source y location */
-            xd = (xr*dx)-sx;
-            yd = (yr*dy)-sy;
+            fx = (dx+0.5f)*xr-0.5f; /* the source column under this one */
+            if (fx < 0) fx = 0;
+            sx = (int)fx;
+            xd = fx-sx;
+            if (sx >= sw-1) { sx = sw-1; xd = 0; }
             /* the right and down neighbors, clamped to the source: a
                source one pixel wide or high has none, and the neighbor
                read ran past the end of its canvas */
@@ -17979,7 +17994,10 @@ Take a screen capture
 Composes the client area of the first window open on the display, and with
 it the tree of child windows, widgets and menus that stands on it, into a
 buffer the caller frees. This is what the screen capture module
-(linux/wayland/screen_capture.c) records.
+(linux/wayland/screen_capture.c) records. The menu bar, when a menu is
+active, stands in a strip of the master above the client area rather than
+on the client area itself, so the picture is cut from the master: the
+client area, and the strip with it.
 
 Two things are left out of the picture on purpose, both because they are
 the desktop's to decide rather than the program's, and a standard made of
@@ -17987,7 +18005,7 @@ them would fail whenever the user was looking elsewhere:
 
 The frame around the client area, which is drawn light or dark by whether
 the window holds the keyboard. The client area is also what the X capturer
-grabs, so the pictures stay comparable across the two.
+grabs, so the pictures stay comparable across the two, but for the strip.
 
 The text cursor, which is solid in a focused window and hollow in one that
 is not. It is taken down for the snapshot and put back after.
@@ -18005,6 +18023,10 @@ uint32_t* grx_capture(int* width, int* height)
     int       fi;
     winptr    win;
     uint32_t* px;
+    uint32_t* cp;
+    int       mw, mh;   /* the master's picture */
+    int       x0, y0, w, h; /* the cut: the client area and the menu strip */
+    int       y;
 
     /* the window the picture is of */
     win = NULL;
@@ -18017,11 +18039,30 @@ uint32_t* grx_capture(int* width, int* height)
     for (fi = 0; fi < MAXFIL; fi++)
         if (opnfil[fi] && opnfil[fi]->win && opnfil[fi]->win->xwhan)
             curoff(opnfil[fi]->win);
-    px = pd_winsnap(grx_padisplay, win->xwhan, width, height);
+    px = pd_winsnap(grx_padisplay, win->xmwhan, &mw, &mh);
     for (fi = 0; fi < MAXFIL; fi++)
         if (opnfil[fi] && opnfil[fi]->win && opnfil[fi]->win->xwhan)
             curon(opnfil[fi]->win);
+    if (!px) return (NULL);
 
-    return (px);
+    /* cut the client area and the menu strip above it out of the master,
+       inside the frame */
+    x0 = subclix(win);
+    y0 = win->childfrm? win->cwoy: 0;
+    w = win->xwr.w;
+    h = (win->menu? win->menuspcy: 0)+win->xwr.h;
+    if (x0+w > mw) w = mw-x0;
+    if (y0+h > mh) h = mh-y0;
+    if (w <= 0 || h <= 0) { free(px); return (NULL); }
+    cp = malloc((size_t)w*h*sizeof(uint32_t));
+    if (cp)
+        for (y = 0; y < h; y++)
+            memcpy(&cp[(size_t)y*w], &px[(size_t)(y0+y)*mw+x0],
+                   (size_t)w*sizeof(uint32_t));
+    free(px);
+    if (width) *width = w;
+    if (height) *height = h;
+
+    return (cp);
 
 }

@@ -2225,10 +2225,10 @@ static int flatten(pd_win* w, int ox, int oy, blitent* out, int n)
     return (n);
 }
 
-static int blitcmp(const void* a, const void* b)
+static int canvcmp(const void* a, const void* b)
 {
-    const blitent* x = a; const blitent* y = b;
-    return (x->cv < y->cv? -1: x->cv > y->cv? 1: 0);
+    const pd_canvas* const* x = a; const pd_canvas* const* y = b;
+    return (*x < *y? -1: *x > *y? 1: 0);
 }
 
 /* blit the flattened tree into the composition buffer, clipped; the
@@ -2263,6 +2263,7 @@ static void compose(pd_display* d, wltop* t)
     int     x1, y1, x2, y2;
     int     ww, wh, mapped, dmg;
     blitent list[MAXBLIT];
+    pd_canvas* lk[MAXBLIT]; /* the canvases in address order, for the locks */
     int     n, i, k;
 
     /* Under the toplevel's lock throughout: its buffers and callback are
@@ -2320,8 +2321,13 @@ static void compose(pd_display* d, wltop* t)
     if (x2 <= x1 || y2 <= y1) { topulk(t); return; }
     TREERD(); /* the tree below, flattened, and its canvases taken */
     n = flatten(win, 0, 0, list, 0);
-    qsort(list, n, sizeof(blitent), blitcmp);
-    for (i = 0; i < n; i++) if (!i || list[i].cv != list[i-1].cv) canlk(list[i].cv);
+    /* the locks in address order, the order every taker of several uses;
+       the list itself stays in tree order, parents before children, which
+       is the order the blit needs: sorted, a parent's canvas landed over
+       its child's and the content vanished under the background */
+    for (i = 0; i < n; i++) lk[i] = list[i].cv;
+    qsort(lk, n, sizeof(pd_canvas*), canvcmp);
+    for (i = 0; i < n; i++) if (!i || lk[i] != lk[i-1]) canlk(lk[i]);
     TREEUN();
     blitlist(list, n, t->bufpx[b], t->bufw, x1, y1, x2, y2);
     alphaover(t->bufpx[b], t->bufw, x1, y1, x2, y2);
@@ -2353,7 +2359,7 @@ static void compose(pd_display* d, wltop* t)
 
         }
     }
-    for (i = 0; i < n; i++) if (!i || list[i].cv != list[i-1].cv) canulk(list[i].cv);
+    for (i = 0; i < n; i++) if (!i || lk[i] != lk[i-1]) canulk(lk[i]);
     wl_surface_attach(t->surf, t->buf[b], 0, 0);
     wl_surface_damage_buffer(t->surf, x1, y1, x2-x1, y2-y1);
     /* Mailbox presentation: a free buffer commits at once, and the

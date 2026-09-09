@@ -69,6 +69,10 @@ static void png_flush_file(png_structp png) {
     fflush(f);
 }
 
+
+/* the label of the next picture, kept in it as its PNG title */
+static char cap_label[80];
+
 static void write_png_frame(FILE *f, uint8_t *rgb_rows, int width, int height) {
     png_structp png = png_create_write_struct(PNG_LIBPNG_VER_STRING,
                                               NULL, NULL, NULL);
@@ -83,6 +87,16 @@ static void write_png_frame(FILE *f, uint8_t *rgb_rows, int width, int height) {
     png_set_IHDR(png, info, width, height, 8,
                  PNG_COLOR_TYPE_RGB, PNG_INTERLACE_NONE,
                  PNG_COMPRESSION_TYPE_DEFAULT, PNG_FILTER_TYPE_DEFAULT);
+    if (cap_label[0]) {
+        /* the label rides as the PNG title: the viewer steps whole frames by it */
+        png_text txt;
+        memset(&txt, 0, sizeof(txt));
+        txt.compression = PNG_TEXT_COMPRESSION_NONE;
+        txt.key = (png_charp)"Title";
+        txt.text = cap_label;
+        txt.text_length = strlen(cap_label);
+        png_set_text(png, info, &txt, 1);
+    }
     png_write_info(png, info);
 
     for (int y = 0; y < height; y++)
@@ -95,9 +109,14 @@ static void write_png_frame(FILE *f, uint8_t *rgb_rows, int width, int height) {
 
 /* ---------- public entry points ---------- */
 
+/* Label the next picture, "frame N" or "frame N.S": it is kept in the picture
+   as its title, and the viewer's shifted arrows step by it. One picture. */
+void screen_capture_label(const char* s) {
+    strncpy(cap_label, s, sizeof(cap_label)-1);
+}
+
 /* Name the file the pictures go to, before the first of them is taken.
    Later than that the file is already open and the name is ignored. */
-
 void screen_capture_name(const char* fn) {
     if (!fn || !*fn || cap_opened) return;
     snprintf(cap_name, sizeof(cap_name), "%s", fn);
@@ -157,6 +176,7 @@ void screen_capture(void) {
     }
 
     write_png_frame(cap_file, rgb, w, h);
+    cap_label[0] = 0;
     cap_frame_count++;
 
     free(rgb);

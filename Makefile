@@ -888,6 +888,15 @@ linux/system_event.o: linux/system_event.c linux/system_event.h Makefile
 linux/screen_capture.o: linux/screen_capture.c Makefile
 	$(CC) $(CFLAGS) -c linux/screen_capture.c -o linux/screen_capture.o
 
+# automatic event input for the picture tests (see doc/auto_events.md)
+tests/auto_event.o: tests/auto_event.c include/graphics.h Makefile
+	$(CC) $(CFLAGS) -c tests/auto_event.c -o tests/auto_event.o
+
+# the same for the terminal tests, with the terminal's event set
+tests/auto_eventt.o: tests/auto_event.c include/terminal.h Makefile
+	$(CC) $(CFLAGS) -DAUTO_EVENT_TERMINAL -c tests/auto_event.c \
+	    -o tests/auto_eventt.o
+
 linux/terminal_capture.o: linux/terminal_capture.c Makefile
 	$(CC) $(CFLAGS) -c linux/terminal_capture.c -o linux/terminal_capture.o
 	
@@ -1578,35 +1587,35 @@ CLIBSC = $(subst ami_term.,ami_termc.,$(CLIBS))
 # Test console model compliant output
 #
 ifeq ($(OSTYPE),Darwin)
-terminal_test: $(CLIBSD) tests/terminal_test.c $(SCREEN_CAPTURE_OBJ)
-	$(CC) $(CFLAGS) tests/terminal_test.c $(SCREEN_CAPTURE_OBJ) $(CLIBS) -o bin/terminal_test
+terminal_test: $(CLIBSD) tests/terminal_test.c tests/auto_eventt.o $(SCREEN_CAPTURE_OBJ)
+	$(CC) $(CFLAGS) tests/terminal_test.c tests/auto_eventt.o $(SCREEN_CAPTURE_OBJ) $(CLIBS) -o bin/terminal_test
 else ifeq ($(OSTYPE),Windows_NT)
 # Windows screen capture uses GDI, not X11, so libpng/zlib are required but
 # libX11 is not linked.
-terminal_test: $(CLIBSD) tests/terminal_test.c $(SCREEN_CAPTURE_OBJ)
-	$(CC) $(CFLAGS) tests/terminal_test.c $(SCREEN_CAPTURE_OBJ) $(CLIBS) -lpng -lz -o bin/terminal_test
+terminal_test: $(CLIBSD) tests/terminal_test.c tests/auto_eventt.o $(SCREEN_CAPTURE_OBJ)
+	$(CC) $(CFLAGS) tests/terminal_test.c tests/auto_eventt.o $(SCREEN_CAPTURE_OBJ) $(CLIBS) -lpng -lz -o bin/terminal_test
 else
-terminal_test: $(CLIBSD) tests/terminal_test.c $(SCREEN_CAPTURE_OBJ)
-	$(CC) $(CFLAGS) tests/terminal_test.c $(SCREEN_CAPTURE_OBJ) $(CLIBS) -o bin/terminal_test
+terminal_test: $(CLIBSD) tests/terminal_test.c tests/auto_eventt.o $(SCREEN_CAPTURE_OBJ)
+	$(CC) $(CFLAGS) tests/terminal_test.c tests/auto_eventt.o $(SCREEN_CAPTURE_OBJ) $(CLIBS) -o bin/terminal_test
 endif
 
 ifeq ($(OSTYPE),Darwin)
-terminal_testg: $(GLIBSD) tests/terminal_test.c $(GSCREEN_CAPTURE_OBJ)
-	$(CC) $(CFLAGS) tests/terminal_test.c $(GSCREEN_CAPTURE_OBJ) $(GLIBS) -o bin/terminal_testg
+terminal_testg: $(GLIBSD) tests/terminal_test.c tests/auto_eventt.o $(GSCREEN_CAPTURE_OBJ)
+	$(CC) $(CFLAGS) tests/terminal_test.c tests/auto_eventt.o $(GSCREEN_CAPTURE_OBJ) $(GLIBS) -o bin/terminal_testg
 else
-terminal_testg: $(GLIBSD) tests/terminal_test.c $(GSCREEN_CAPTURE_OBJ)
-	$(CC) $(CFLAGS) tests/terminal_test.c $(GSCREEN_CAPTURE_OBJ) $(GLIBS) $(XLIBS) -o bin/terminal_testg
+terminal_testg: $(GLIBSD) tests/terminal_test.c tests/auto_eventt.o $(GSCREEN_CAPTURE_OBJ)
+	$(CC) $(CFLAGS) tests/terminal_test.c tests/auto_eventt.o $(GSCREEN_CAPTURE_OBJ) $(GLIBS) $(XLIBS) -o bin/terminal_testg
 endif
 
 #
 # Test graph model compliant output
 #
 ifeq ($(OSTYPE),Darwin)
-graphics_test: $(GLIBSD) tests/graphics_test.c $(GSCREEN_CAPTURE_OBJ)
-	$(CC) $(CFLAGS) tests/graphics_test.c $(GSCREEN_CAPTURE_OBJ) $(GLIBS) -o bin/graphics_test
+graphics_test: $(GLIBSD) tests/graphics_test.c tests/auto_event.o $(GSCREEN_CAPTURE_OBJ)
+	$(CC) $(CFLAGS) tests/graphics_test.c tests/auto_event.o $(GSCREEN_CAPTURE_OBJ) $(GLIBS) -o bin/graphics_test
 else
-graphics_test: $(GLIBSD) tests/graphics_test.c $(GSCREEN_CAPTURE_OBJ)
-	$(CC) $(CFLAGS) tests/graphics_test.c $(GSCREEN_CAPTURE_OBJ) $(GLIBS) $(XLIBS) -o bin/graphics_test
+graphics_test: $(GLIBSD) tests/graphics_test.c tests/auto_event.o $(GSCREEN_CAPTURE_OBJ)
+	$(CC) $(CFLAGS) tests/graphics_test.c tests/auto_event.o $(GSCREEN_CAPTURE_OBJ) $(GLIBS) $(XLIBS) -o bin/graphics_test
 endif
 
 #
@@ -1626,9 +1635,9 @@ endif
 # Graphics test on the Wayland backend: the same program, the backend
 # swapped by link option
 #
-graphics_testw: $(GLIBSWD) tests/graphics_test.c \
+graphics_testw: $(GLIBSWD) tests/graphics_test.c tests/auto_event.o \
 	linux/wayland/screen_capture.o
-	$(CC) $(CFLAGS) tests/graphics_test.c linux/wayland/screen_capture.o \
+	$(CC) $(CFLAGS) tests/graphics_test.c tests/auto_event.o linux/wayland/screen_capture.o \
 	    $(GLIBSW) $(WLLIBS) -lasound -lfluidsynth -lssl -lcrypto -lstdc++ \
 	    -lfreetype -lfontconfig -lm -lpthread -lpng -lz -o bin/graphics_testw
 
@@ -1645,7 +1654,7 @@ widget_testw: $(GLIBSWD) tests/widget_test.c
 	    -lfreetype -lfontconfig -lm -lpthread -o bin/widget_testw
 
 #
-# BMP-stream frame viewer: walks the test_images file produced by
+# BMP-stream frame viewer: walks the test_images.img file produced by
 # screen_capture, one frame per keypress (left/right arrows).
 #
 ifeq ($(OSTYPE),Windows_NT)
@@ -1672,14 +1681,14 @@ endif
 # the program does not open windows of its own.
 #
 ifeq ($(OSTYPE),Darwin)
-terminal_testc: $(LIBPFX)termc$(LIBEXT) tests/terminal_test.c $(SCREEN_CAPTURE_OBJ)
-	$(CC) $(CFLAGS) tests/terminal_test.c $(SCREEN_CAPTURE_OBJ) $(CLIBSC) -o bin/terminal_testc
+terminal_testc: $(LIBPFX)termc$(LIBEXT) tests/terminal_test.c tests/auto_eventt.o $(SCREEN_CAPTURE_OBJ)
+	$(CC) $(CFLAGS) tests/terminal_test.c tests/auto_eventt.o $(SCREEN_CAPTURE_OBJ) $(CLIBSC) -o bin/terminal_testc
 else ifeq ($(OSTYPE),Windows_NT)
-terminal_testc: $(LIBPFX)termc$(LIBEXT) tests/terminal_test.c $(SCREEN_CAPTURE_OBJ)
-	$(CC) $(CFLAGS) tests/terminal_test.c $(SCREEN_CAPTURE_OBJ) $(CLIBSC) -lpng -lz -o bin/terminal_testc
+terminal_testc: $(LIBPFX)termc$(LIBEXT) tests/terminal_test.c tests/auto_eventt.o $(SCREEN_CAPTURE_OBJ)
+	$(CC) $(CFLAGS) tests/terminal_test.c tests/auto_eventt.o $(SCREEN_CAPTURE_OBJ) $(CLIBSC) -lpng -lz -o bin/terminal_testc
 else
-terminal_testc: $(LIBPFX)termc$(LIBEXT) tests/terminal_test.c $(SCREEN_CAPTURE_OBJ)
-	$(CC) $(CFLAGS) tests/terminal_test.c $(SCREEN_CAPTURE_OBJ) $(CLIBSC) -o bin/terminal_testc
+terminal_testc: $(LIBPFX)termc$(LIBEXT) tests/terminal_test.c tests/auto_eventt.o $(SCREEN_CAPTURE_OBJ)
+	$(CC) $(CFLAGS) tests/terminal_test.c tests/auto_eventt.o $(SCREEN_CAPTURE_OBJ) $(CLIBSC) -o bin/terminal_testc
 endif
 
 #
@@ -1695,11 +1704,11 @@ endif
 # believe the feature exists.
 WEAKOPT = -Wl,-U,_wg_hold -Wl,-U,_grx_glassdiff
 ifeq ($(OSTYPE),Darwin)
-window_test: $(GLIBSD) tests/window_test.c $(GSCREEN_CAPTURE_OBJ)
-	$(CC) $(CFLAGS) tests/window_test.c $(GSCREEN_CAPTURE_OBJ) $(GLIBS) $(WEAKOPT) -o bin/window_test
+window_test: $(GLIBSD) tests/window_test.c tests/auto_event.o $(GSCREEN_CAPTURE_OBJ)
+	$(CC) $(CFLAGS) tests/window_test.c tests/auto_event.o $(GSCREEN_CAPTURE_OBJ) $(GLIBS) $(WEAKOPT) -o bin/window_test
 else
-window_test: $(GLIBSD) tests/window_test.c $(GSCREEN_CAPTURE_OBJ)
-	$(CC) $(CFLAGS) tests/window_test.c $(GSCREEN_CAPTURE_OBJ) $(GLIBS) $(XLIBS) -o bin/window_test
+window_test: $(GLIBSD) tests/window_test.c tests/auto_event.o $(GSCREEN_CAPTURE_OBJ)
+	$(CC) $(CFLAGS) tests/window_test.c tests/auto_event.o $(GSCREEN_CAPTURE_OBJ) $(GLIBS) $(XLIBS) -o bin/window_test
 endif
 
 #
@@ -1853,10 +1862,10 @@ pdftest: $(GLIBSD) tests/pdftest.c
 #
 ifeq ($(OSTYPE),Windows_NT)
 # the client carries the sound API itself, so the sound module stays out
-graphics_testr: tests/graphics_test.c portable/graph_client.o \
+graphics_testr: tests/graphics_test.c tests/auto_event.o portable/graph_client.o \
 	stub/screen_capture_stub.o windows/services.o windows/network.o \
 	utils/config.o utils/option.o windows/stdio.o
-	$(CC) $(CFLAGS) tests/graphics_test.c portable/graph_client.o \
+	$(CC) $(CFLAGS) tests/graphics_test.c tests/auto_event.o portable/graph_client.o \
 	    stub/screen_capture_stub.o windows/services.o windows/network.o \
 	    utils/config.o utils/option.o windows/stdio.o \
 	    -lwinmm -lssl -lcrypto -lws2_32 -lcrypt32 -o bin/graphics_testr
@@ -1866,19 +1875,19 @@ else ifeq ($(OSTYPE),Darwin)
 # constructors in LINK ORDER (priorities are ignored), so the base modules
 # come before graph_client.o: its constructor opens sockets, and the network
 # constructor clears the per-descriptor table. Base first, layers after.
-graphics_testr: tests/graphics_test.c macosx/stdio.o macosx/services.o \
+graphics_testr: tests/graphics_test.c tests/auto_event.o macosx/stdio.o macosx/services.o \
 	macosx/network.o utils/config.o utils/option.o \
 	portable/graph_client.o stub/screen_capture_stub.o
-	$(CC) $(CFLAGS) tests/graphics_test.c macosx/stdio.o macosx/services.o \
+	$(CC) $(CFLAGS) tests/graphics_test.c tests/auto_event.o macosx/stdio.o macosx/services.o \
 	    macosx/network.o utils/config.o utils/option.o \
 	    portable/graph_client.o stub/screen_capture_stub.o \
 	    $(SSL_LIBS) -framework CoreFoundation -framework CoreGraphics \
 	    -framework ImageIO -framework CoreMIDI -framework AudioToolbox \
 	    -framework IOKit -lm -lpthread -o bin/graphics_testr
 else
-graphics_testr: tests/graphics_test.c portable/graph_client.o \
+graphics_testr: tests/graphics_test.c tests/auto_event.o portable/graph_client.o \
 	stub/screen_capture_stub.o
-	$(CC) $(CFLAGS) tests/graphics_test.c portable/graph_client.o \
+	$(CC) $(CFLAGS) tests/graphics_test.c tests/auto_event.o portable/graph_client.o \
 	    stub/screen_capture_stub.o $(LINUXSTDIO) linux/services.o \
 	    utils/config.o utils/option.o linux/network.o \
 	    -lssl -lcrypto -lm -lpthread -o bin/graphics_testr
@@ -1890,10 +1899,10 @@ endif
 #
 ifeq ($(OSTYPE),Windows_NT)
 # the client carries the sound API itself, so the sound module stays out
-window_testr: tests/window_test.c portable/graph_client.o \
+window_testr: tests/window_test.c tests/auto_event.o portable/graph_client.o \
 	stub/screen_capture_stub.o windows/services.o windows/network.o \
 	utils/config.o utils/option.o windows/stdio.o
-	$(CC) $(CFLAGS) tests/window_test.c portable/graph_client.o \
+	$(CC) $(CFLAGS) tests/window_test.c tests/auto_event.o portable/graph_client.o \
 	    stub/screen_capture_stub.o windows/services.o windows/network.o \
 	    utils/config.o utils/option.o windows/stdio.o \
 	    -lwinmm -lssl -lcrypto -lws2_32 -lcrypt32 -o bin/window_testr
@@ -1903,19 +1912,19 @@ else ifeq ($(OSTYPE),Darwin)
 # constructors in LINK ORDER (priorities are ignored), so the base modules
 # come before graph_client.o: its constructor opens sockets, and the network
 # constructor clears the per-descriptor table. Base first, layers after.
-window_testr: tests/window_test.c macosx/stdio.o macosx/services.o \
+window_testr: tests/window_test.c tests/auto_event.o macosx/stdio.o macosx/services.o \
 	macosx/network.o utils/config.o utils/option.o \
 	portable/graph_client.o stub/screen_capture_stub.o
-	$(CC) $(CFLAGS) tests/window_test.c macosx/stdio.o macosx/services.o \
+	$(CC) $(CFLAGS) tests/window_test.c tests/auto_event.o macosx/stdio.o macosx/services.o \
 	    macosx/network.o utils/config.o utils/option.o \
 	    portable/graph_client.o stub/screen_capture_stub.o \
 	    $(SSL_LIBS) -framework CoreFoundation -framework CoreGraphics \
 	    -framework ImageIO -framework CoreMIDI -framework AudioToolbox \
 	    -framework IOKit -lm -lpthread $(WEAKOPT) -o bin/window_testr
 else
-window_testr: tests/window_test.c portable/graph_client.o \
+window_testr: tests/window_test.c tests/auto_event.o portable/graph_client.o \
 	stub/screen_capture_stub.o
-	$(CC) $(CFLAGS) tests/window_test.c portable/graph_client.o \
+	$(CC) $(CFLAGS) tests/window_test.c tests/auto_event.o portable/graph_client.o \
 	    stub/screen_capture_stub.o $(LINUXSTDIO) linux/services.o \
 	    utils/config.o utils/option.o linux/network.o \
 	    -lssl -lcrypto -lm -lpthread -o bin/window_testr
@@ -2529,16 +2538,16 @@ FBGRAPH = linux/framebuffer/graphics.o linux/stdio.o linux/services.o \
 FBLIBS = -lfreetype -lfontconfig -lpng -lm -lpthread
 
 # graphics test on the real frame buffer: run from a text console
-graphics_testfb: tests/graphics_test.c $(FBGRAPH) \
+graphics_testfb: tests/graphics_test.c tests/auto_event.o $(FBGRAPH) \
 	linux/framebuffer/framebuffer.o
-	$(CC) $(CFLAGS) tests/graphics_test.c $(FBGRAPH) \
+	$(CC) $(CFLAGS) tests/graphics_test.c tests/auto_event.o $(FBGRAPH) \
 	    linux/framebuffer/framebuffer.o $(FBLIBS) -o bin/graphics_testfb
 
 # graphics test on the mock frame buffer: runs anywhere, final screen
-# lands in fbmock.ppm, captures in test_images
-graphics_testfbm: tests/graphics_test.c $(FBGRAPH) \
+# lands in fbmock.ppm, captures in test_images.img
+graphics_testfbm: tests/graphics_test.c tests/auto_event.o $(FBGRAPH) \
 	linux/framebuffer/fbmock.o
-	$(CC) $(CFLAGS) tests/graphics_test.c $(FBGRAPH) \
+	$(CC) $(CFLAGS) tests/graphics_test.c tests/auto_event.o $(FBGRAPH) \
 	    linux/framebuffer/fbmock.o $(FBLIBS) -o bin/graphics_testfbm
 
 # breakout on the frame buffer: run from a text console
@@ -2599,9 +2608,9 @@ widget_testfb: $(GLIBSFBM) tests/widget_test.c linux/framebuffer/framebuffer.o \
 	    linux/framebuffer/framebuffer.o \
 	    $(GLIBSFBM) $(FBMLIBS) -o bin/widget_testfb
 
-window_testfb: $(GLIBSFBM) tests/window_test.c \
+window_testfb: $(GLIBSFBM) tests/window_test.c tests/auto_event.o \
 	linux/framebuffer/framebuffer.o linux/wayland/screen_capture.o
-	$(CC) $(CFLAGS) tests/window_test.c linux/wayland/screen_capture.o \
+	$(CC) $(CFLAGS) tests/window_test.c tests/auto_event.o linux/wayland/screen_capture.o \
 	    linux/framebuffer/framebuffer.o \
 	    $(GLIBSFBM) $(FBMLIBS) -o bin/window_testfb
 
@@ -2616,8 +2625,8 @@ widget_testfbmk: $(GLIBSFBM) tests/widget_test.c linux/framebuffer/fbmock.o \
 	    linux/framebuffer/fbmock.o \
 	    $(GLIBSFBM) $(FBMLIBS) -o bin/widget_testfbmk
 
-window_testfbm: $(GLIBSFBM) tests/window_test.c \
+window_testfbm: $(GLIBSFBM) tests/window_test.c tests/auto_event.o \
 	linux/framebuffer/fbmock.o linux/wayland/screen_capture.o
-	$(CC) $(CFLAGS) tests/window_test.c linux/wayland/screen_capture.o \
+	$(CC) $(CFLAGS) tests/window_test.c tests/auto_event.o linux/wayland/screen_capture.o \
 	    linux/framebuffer/fbmock.o \
 	    $(GLIBSFBM) $(FBMLIBS) -o bin/window_testfbm

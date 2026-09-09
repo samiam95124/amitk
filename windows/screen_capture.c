@@ -3,7 +3,7 @@
 *                           SCREEN CAPTURE MODULE                              *
 *                                                                              *
 * Windows/GDI version. Grabs the pixel contents of the running Petit-Ami      *
-* window and appends it as a PNG to a file called "test_images". Multiple      *
+* window and appends it as a PNG to a file called "test_images.img". Multiple      *
 * PNGs are concatenated back-to-back in the same file; each is self-           *
 * delimiting (PNG signature at the start, IEND chunk at the end) so readers   *
 * can walk them sequentially.                                                  *
@@ -13,7 +13,7 @@
 * (e.g. just before waitnext() in a test program).                             *
 *                                                                              *
 * Output format matches linux/screen_capture.c and macosx/screen_capture.c    *
-* (concatenated PNGs) so test_images files are portable across platforms for   *
+* (concatenated PNGs) so test_images.img files are portable across platforms for   *
 * cross-platform regression comparison.                                        *
 *                                                                              *
 * Uses Win32 file APIs (CreateFile/WriteFile) exclusively to avoid the         *
@@ -34,7 +34,7 @@
 #include <windows.h>
 #include <png.h>
 
-#define CAPTURE_FILENAME "test_images"
+#define CAPTURE_FILENAME "test_images.img"
 
 /* ---------- module state ---------- */
 
@@ -172,6 +172,10 @@ static void png_flush_handle(png_structp png)
     FlushFileBuffers(h);
 }
 
+
+/* the label of the next picture, kept in it as its PNG title */
+static char cap_label[80];
+
 static void write_png_frame(HANDLE h, uint8_t *rgb_rows, int width, int height)
 {
     png_structp png = png_create_write_struct(PNG_LIBPNG_VER_STRING,
@@ -187,6 +191,16 @@ static void write_png_frame(HANDLE h, uint8_t *rgb_rows, int width, int height)
     png_set_IHDR(png, info, width, height, 8,
                  PNG_COLOR_TYPE_RGB, PNG_INTERLACE_NONE,
                  PNG_COMPRESSION_TYPE_DEFAULT, PNG_FILTER_TYPE_DEFAULT);
+    if (cap_label[0]) {
+        /* the label rides as the PNG title: the viewer steps whole frames by it */
+        png_text txt;
+        memset(&txt, 0, sizeof(txt));
+        txt.compression = PNG_TEXT_COMPRESSION_NONE;
+        txt.key = (png_charp)"Title";
+        txt.text = cap_label;
+        txt.text_length = strlen(cap_label);
+        png_set_text(png, info, &txt, 1);
+    }
     png_write_info(png, info);
 
     for (int y = 0; y < height; y++)
@@ -199,9 +213,15 @@ static void write_png_frame(HANDLE h, uint8_t *rgb_rows, int width, int height)
 
 /* ---------- public entry point ---------- */
 
+/* Label the next picture, "frame N" or "frame N.S": it is kept in the picture
+   as its title, and the viewer's shifted arrows step by it. One picture. */
+void screen_capture_label(const char* s)
+{
+    strncpy(cap_label, s, sizeof(cap_label)-1);
+}
+
 /* Name the file the pictures go to, before the first of them is taken.
    Later than that the file is already open and the name is ignored. */
-
 void screen_capture_name(const char* fn)
 {
     if (!fn || !*fn || cap_opened) return;
@@ -234,6 +254,7 @@ void screen_capture(void)
     if (!rgb) return;
 
     write_png_frame(cap_file, rgb, w, h);
+    cap_label[0] = 0;
     cap_frame_count++;
 
     free(rgb);

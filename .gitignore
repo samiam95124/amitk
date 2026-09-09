@@ -1,5 +1,6 @@
 # regression run products (bin/regress); the golden .cmp files are tracked
 tests/*.lst
+tests/*.img
 tests/*.dif
 tests/*.out
 tests/*.pdf

@@ -12,7 +12,7 @@
 *   q / close button — quit                                                    *
 *                                                                              *
 * Usage:                                                                       *
-*   bin/testviewer [filename]       # default: test_images                     *
+*   bin/testviewer [filename]       # default: test_images.img                    *
 *                                                                              *
 *******************************************************************************/
 
@@ -32,7 +32,7 @@
 #include <stdint.h>
 #include <ImageIO/ImageIO.h>
 
-#define DEFAULT_FILENAME "test_images"
+#define DEFAULT_FILENAME "test_images.img"
 
 /* PNG signature: 8 bytes */
 static const uint8_t png_sig[8] = { 0x89, 'P', 'N', 'G', '\r', '\n', 0x1a, '\n' };
