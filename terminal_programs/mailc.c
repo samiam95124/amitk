@@ -263,15 +263,19 @@ Odds and ends
    The library takes each part as a fraction of the whole range of a
    long, not as a byte: 245 out of LONG_MAX is not a light grey, it is
    black, and every "quiet grey" in this program was black until this
-   was noticed. Written once, here, so it cannot be got wrong twice. */
-static int rgb(int c)
+   was noticed. Written once, here, so it cannot be got wrong twice.
+
+   It answers an ami_long, which is what the colour calls take: answered
+   as an int it was cut to the low bits of the long, and the banner and
+   the status strip were black again. */
+static ami_long rgb(int c)
 
 {
 
     if (c < 0) c = 0;
     if (c > 255) c = 255;
 
-    return (c*(LONG_MAX/255));
+    return ((ami_long)c*(LONG_MAX/255));
 
 }
 
