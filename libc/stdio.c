@@ -4817,8 +4817,31 @@ long ftell(
     /* check file is allocated and open */
     if (!stream || stream->_fileno < 0) return (0);
 
-    pos = vlseek(stream->_fileno, 0, SEEK_CUR); /* get underlying position */
-    if (pos < 0) return (-1); /* seek error */
+    if ((stream->_flags & _IO_IS_APPENDING) &&
+        !(!(stream->_flags & _IO_CURRENTLY_PUTTING) &&
+          stream->_IO_read_end > stream->_IO_read_ptr)) {
+
+        /* An append stream writes at the end of the file whatever the
+           descriptor's position says, and until its first write goes out
+           that position is still 0 from the open. Asked from there, the
+           mail store learned that every message began 55 bytes into its
+           mailbox -- the length of the separator line -- and ran to the
+           end of the file. The end of the file is where the pending
+           output will land, so that is where the position is measured
+           from -- unless the stream is in the middle of reading, which
+           an "a+" stream may be, when the descriptor's position is the
+           one that counts. */
+        struct stat st;
+
+        if (fstat(stream->_fileno, &st) < 0) return (-1);
+        pos = st.st_size;
+
+    } else {
+
+        pos = vlseek(stream->_fileno, 0, SEEK_CUR); /* get underlying position */
+        if (pos < 0) return (-1); /* seek error */
+
+    }
 
     /* adjust for buffered data the underlying position does not reflect */
     if (stream->_flags & _IO_CURRENTLY_PUTTING)
