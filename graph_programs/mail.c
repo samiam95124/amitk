@@ -248,6 +248,7 @@ static int   listpart;          /* and the list's */
 static ami_long sbw;               /* scroll bar thickness */
 static int   listrows;          /* message lines the list holds */
 static ami_long clickms;        /* when the list was last clicked */
+static char  movnote[MAXSTR];   /* the move asked for, while it waits its turn */
 static char  keepsaid[MAXSTR];  /* what the worker said, kept for when it is done */
 static int   foldy[MAXFOLDER];  /* where each folder was drawn, for clicks */
 static int   foldon[MAXFOLDER]; /* and whether it is drawn at all */
@@ -645,8 +646,9 @@ static void popact(int row)
     kickworker();
     drawlist();
     drawfolders();
-    snprintf(msg, sizeof(msg), "Moving %d message%s to %s...", n,
+    snprintf(movnote, sizeof(movnote), "%d message%s to %s", n,
              n == 1? "": "s", who);
+    snprintf(msg, sizeof(msg), "Moving %s...", movnote);
     status(msg);
 
 }
@@ -4923,6 +4925,12 @@ static void fetchpick(void)
             snprintf(t, sizeof(t), "%s - %s of %s", wrkwhat, a, b);
 
         } else copystr(t, wrkwhat, sizeof(t));
+        if (movwant && *movnote) { /* a move waits its turn behind this */
+
+            strncat(t, " -- then moving ", sizeof(t)-strlen(t)-1);
+            strncat(t, movnote, sizeof(t)-strlen(t)-1);
+
+        }
         status(t);
         statprog(wrkpos, wrkmax);
 

@@ -4407,7 +4407,10 @@ void serveindex(void)
 
     ami_long i;
 
-    while (!wrkstop) {
+    /* Between folders, a move that is waiting goes first: it drops the
+       index of the folder it empties, and reading that folder before
+       the move would be reading it twice. */
+    while (!wrkstop && !movwant) {
 
         ami_long f = idxwant;
 
