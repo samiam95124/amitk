@@ -18,9 +18,9 @@ as if the mouse was used to select a menu item.
 The menu select key is the one that produces the display menu event,
 ami_etmenu. On Wayland and X11 that is Alt pressed and released by
 itself, as Windows has it; Alt held while another key is pressed is a
-modifier as before. On a terminal it is F10, the key the desktops use
-for the same thing, which xterm and its kind pass through. A window
-without a menu is handed the event and may do as it likes with it.
+modifier as before. On a terminal it is F11, since xterm keeps F10 for
+itself. A window without a menu is handed the event and may do as it
+likes with it.
 
 The highlight is the pressed look of a menu entry on the desktops, and
 reverse video on a terminal. Left at the top of a pulldown closes it and

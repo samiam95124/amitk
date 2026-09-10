@@ -371,7 +371,7 @@ static char *keytab[ami_etterm+1+MAXFKEY] = {
     "",                     /* print block */
     "",                     /* print screen */
     "",                     /* function key */
-    "\33\133\62\61\176",    /* display menu             (F10, the desktops' menu key) */
+    "\33\133\62\63\176",    /* display menu             (F11: xterm keeps F10 for itself) */
     "",                     /* mouse button assertion */
     "",                     /* mouse button deassertion */
     /* mouse move is just the leader for the mouse move/assert message. The
