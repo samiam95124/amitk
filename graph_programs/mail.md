@@ -19,6 +19,32 @@ storage you could keep here. And once the mail is a file on your disk,
 anything can be applied to it -- your own rules, your own tools, without
 asking anybody's permission.
 
+# Running it
+
+`mail` is the program for the desktop and `mailc` the same program for a
+terminal; what follows is true of both, with the terminal's differences
+noted where they come. Either takes these on the command line:
+
+- `--fetch`, or `-f` -- fetch as soon as the window is up, instead of
+  waiting for Get Mail or the timer.
+- `--diag`, or `-d` -- say on standard error what is being done and how
+  long it takes, for finding out why something is slow.
+- `--limit=N` -- how many messages to take from each folder when an
+  account has not said, 200 to begin with; Config/Servers sets it for
+  each account.
+
+The store is `~/.amimail`, made on the first run. Beside the program
+are `mail.md`, this help; `mail.cat`, the rules that say what kind of
+mail a message is; and `mail.bmp`, the banner's picture. They are
+looked for where the program is, then in `graph_programs` beside it,
+then in the current directory, so the program runs from the build
+directory or from anywhere. `mail.desktop` beside them is a launcher
+entry for the desktop, with `mail.png` as its icon; copy the entry to
+`~/.local/share/applications` and the picture to
+`~/.local/share/icons/hicolor/256x256/apps/ami-mail.png`, and the
+program is in the launcher and the task bar. Printing wants `lp`, the
+system's print command.
+
 # Getting started
 
 Config/Servers asks for an account: where the mail is read from, who to

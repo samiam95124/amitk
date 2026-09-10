@@ -1,0 +1,180 @@
+.TH MAIL 1 "September 2026" "Petit-Ami" "Petit-Ami programs"
+.SH NAME
+mail, mailc \- read, keep and send mail, on the desktop or in a terminal
+.SH SYNOPSIS
+.B mail
+.RB [ \-\-fetch | \-f ]
+.RB [ \-\-diag | \-d ]
+.RB [ \-\-limit= \fIn\fR ]
+.br
+.B mailc
+.RB [ \-\-fetch | \-f ]
+.RB [ \-\-diag | \-d ]
+.RB [ \-\-limit= \fIn\fR ]
+.SH DESCRIPTION
+.B mail
+is a mail reader that keeps your mail on this machine rather than on a
+server. It reads mail from IMAP servers into mbox files under
+.IR ~/.amimail ,
+and everything it shows is found by reading those files again.
+.B mailc
+is the same program built for a terminal.
+.PP
+The rule it is built to: the server folders are watched, not managed.
+They are read and mirrored here; nothing is created, moved, renamed or
+flagged on any server. The folders you make are local, live here, and
+the servers are never told of them. The one change to a server the
+program will ever make is taking mail off it, and that is not written
+yet.
+.PP
+The window has the folders down the left, one section for each
+account's server folders and one for the local folders, and the
+messages of the folder picked on the right: who from, what kind of mail,
+the subject and as much of the message as fits, and when it came. A
+message opens in a window of its own, with Reply, Reply All, Forward and
+Print on its menu. The strip at the foot says what is being done and how
+far it has got; fetching is on a thread of its own, so the window
+answers while mail arrives.
+.SH OPTIONS
+.TP
+.BR \-\-fetch ", " \-f
+Fetch as soon as the window is up, instead of waiting for Get Mail or the
+timer.
+.TP
+.BR \-\-diag ", " \-d
+Say on standard error what is being done and how long each step takes.
+.TP
+.BI \-\-limit= n
+How many messages to take from each folder when an account has not
+said, 200 to begin with; the server form sets it for each account.
+.SH THE KEYBOARD
+The folders and the list each mark their pick: green where the keyboard
+is, cyan at the other. The program comes up with the keyboard at the
+list, on the first message of the first folder.
+.TP
+.B Up, Down
+Move the pick of the pane the keyboard is at. At the folders, that
+shows the folder.
+.TP
+.B Return
+At the list, opens the message picked.
+.TP
+.B Left, Right
+Take the keyboard to the folders or to the list.
+.TP
+.B Alt\-F12
+Put the keyboard at the menu bar. On the desktop, Alt pressed and let go
+by itself does the same. Left and Right then walk the bar, Down or
+Return opens an entry's list, Up and Down walk it, Return chooses.
+.TP
+.B Escape
+Leaves a menu however it was opened, and closes the search form, the
+server form, the options box, the help window, a message's menu, and a
+message being read.
+.TP
+.B Page Up, Page Down
+Move the list a page; the wheel moves it a message a notch.
+.TP
+.B /
+In the terminal, opens the search form.
+.PP
+A click on a folder or a message picks it and takes the keyboard to
+that pane. A double click, or Return, opens a message.
+.SH THE MENUS
+.TP
+.B Compose
+A window with the three fields a message needs and a space to write in;
+Send sends it, Cancel throws it away. Everything sent goes into a local
+folder called Sent.
+.TP
+.B Get Mail
+Ask each server what folders it has and fetch what is new. The program
+also looks by itself every fifteen seconds unless the server form says
+otherwise; set it to zero and it fetches only when asked.
+.TP
+.B Search
+A form modelled on the one behind Gmail's search box: who from, who to,
+the subject, words it has and words it must not, size, date and which
+folder. Terms match whole; with Allow wildcards on, which it is to begin
+with, * stands for any run of characters and ? for one. What is found is
+listed under the form with the folder each message is in, and has the
+same second\-button menu a message in the list has.
+.TP
+.B Config
+Servers..., the accounts: where mail is read from, who to log in as, how
+many messages of each folder to take, and which account sends.
+Options..., a box of check boxes kept with the accounts; the first is
+threaded mode, on to begin with, which gathers the list into
+conversations.
+.TP
+.B Help
+The help, the text of
+.IR mail.md .
+.SH THE SECOND MOUSE BUTTON
+On a message, a menu: Read opens it; the rest move mail into local
+folders and only local ones. Move to local Trash takes the message; a
+local folder for the sender's domain takes everything from that place;
+one for the sender's name takes everything under that display name; one
+for this thread takes the conversation; and one for each address on the
+To line takes everything that went there. Each entry says how many
+messages it would take. Escape, or a click anywhere else, puts the menu
+away.
+.SH PRINTING
+Print, on the menu of a message being read, hands the message as shown,
+the header lines and the text, to
+.BR lp (1),
+so it goes wherever lp is set to send things. The strip says it has
+gone, or that lp would not take it.
+.SH FILES
+.TP
+.I ~/.amimail/account
+The accounts: servers, names, passwords and counts, and the options.
+Written so that only its owner can read it.
+.TP
+.I ~/.amimail/NAME/FOLDER.mbox
+One directory for each account, named for it, and one called
+.I local
+for the folders that are yours. Each mailbox is mbox: the message
+exactly as it arrived, headers and all, which any mail program can
+read.
+.TP
+.IR FOLDER.mbox.idx ", " FOLDER.mbox.state
+Beside each mailbox: the index the list is drawn from and the store is
+searched by, a line for every message; and how far the folder has been
+read from its server, so that fetching again takes only what is new.
+Both are made again when they are missing or stale.
+.TP
+.IR mail.md ", " mail.cat ", " mail.bmp
+The help, the rules that say what kind of mail a message is, and the
+banner's picture, kept beside the program: looked for where the program
+is, then in
+.I graph_programs
+beside it, then in the current directory.
+.TP
+.IR mail.desktop ", " mail.png
+A launcher entry for the desktop and its icon. Copy the entry to
+.I ~/.local/share/applications
+and the picture to
+.IR ~/.local/share/icons/hicolor/256x256/apps/ami\-mail.png .
+.TP
+.IR client_tls_cert.pem ", " client_tls_key.pem
+The client certificate the network library presents on a secure
+connection, looked for beside the program, then in the home directory,
+then in the current directory.
+.SH NOTES
+For Gmail the password is an application password, issued per program to
+an account with two step verification on, from
+myaccount.google.com/apppasswords; it is sixteen characters, and the
+spaces it is shown with are not part of it. The mail server is
+imap.gmail.com on port 993 and the sending server smtp.gmail.com on port
+465.
+.PP
+Every message carries the SHA\-256 of what it is, in the index. That is
+how the program knows a message it already has, whichever folder or
+server it arrives from again, so nothing is stored twice.
+.SH SEE ALSO
+.BR lp (1),
+.BR mbox (5)
+.SH BUGS
+Deleting from a server is not written. Mail sent from here goes over one
+account, the one the server form marks as sending.
