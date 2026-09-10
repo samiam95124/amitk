@@ -2792,6 +2792,7 @@ static void wigdrag(void); /* forward */
 static void clspops(int downto); /* forward */
 static void wigdrw(wigptr wg); /* forward */
 static int  menselkey(ami_long etype);   /* forward: menu select mode */
+static void menselpops(void);
 static int  menselstart(void);
 static void menselmouse(winptr win);
 static void mbarsiz(winptr win); /* forward */
@@ -5823,6 +5824,7 @@ static void intevent(FILE* f)
                puts it there: see menu select mode below */
             if (menselkey(ev.etype)) break;
             if (ev.etype == ami_etmenu && menselstart()) break;
+            if (ev.etype == ami_etcan && popcnt) { menselpops(); break; } /* cancel closes what the mouse opened */
             win = curfocus; /* get the focus window (if any) */
             if (win) {
 
@@ -10022,6 +10024,18 @@ static void menselmouse(winptr win)
         wigdrw(bar);
 
     }
+
+}
+
+/* the popups the mouse opened go, and the bar they hang from is at rest */
+static void menselpops(void)
+
+{
+
+    wigptr owner = popcnt? popstk[0]->owner: NULL;
+
+    clspops(0);
+    if (owner && owner->typ == wtmenubar) { owner->sel = 0; wigdrw(owner); }
 
 }
 

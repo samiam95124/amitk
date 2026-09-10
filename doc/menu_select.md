@@ -26,6 +26,7 @@ The highlight is the pressed look of a menu entry on the desktops, and
 reverse video on a terminal. Left at the top of a pulldown closes it and
 comes back out to the bar entry; Left in a submenu comes back out to
 the entry that opened it. A click anywhere ends the mode and then does
-what a click does. The mode lives in the Wayland and X11 graphics
+what a click does. Cancel also closes a menu the mouse opened, so
+Escape is the way out of a menu however it was opened. The mode lives in the Wayland and X11 graphics
 modules and in the terminal window manager; the framebuffer's menus are
 the portable window manager's and do not have it yet.

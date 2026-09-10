@@ -6754,6 +6754,12 @@ static void menu_event(ami_evtrec* ev)
         if (mp->parent) par = txt2win(mp->parent); /* index parent window */
         if (ev->etype == ami_etmenu) menselstart(mp); /* the menu key: the keyboard comes to the bar */
         else if (menselwin && menselkeys(ev->etype)) menselkey(ev->etype);
+        else if (ev->etype == ami_etcan) { /* the menu the mouse opened goes */
+
+            remmen(mp->head);
+            menu_release_all(mp->head, NULL);
+
+        }
         else if (ev->etype == ami_etredraw) { /* redraw the window */
 
             dec->menupaint(mp, decmexpose); /* repaint the entry */
@@ -13548,6 +13554,18 @@ static void xwinevt(winptr win, ami_evtrec* er, pd_evt* e, int* keep)
                where the menu code acts on them outside this lock */
             if (menselwin && menselkeys(er->etype))
                 er->winid = menselpath[mensellev]->wid;
+            /* cancel with a menu open by the mouse closes the menu instead
+               of reaching the program: it goes to the entry that is open */
+            else if (er->etype == ami_etcan) {
+
+                winptr w = win;
+                metptr mp;
+
+                while (w && !w->metlst) w = w->parwin;
+                if (w) for (mp = w->metlst; mp; mp = mp->next)
+                    if (mp->pressed) { er->winid = mp->wid; break; }
+
+            }
             if (er->etype != ami_etchar)
                 *keep = TRUE; /* a control was found */
 
