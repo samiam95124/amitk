@@ -180,6 +180,7 @@ static void kickworker(void);
 #define MENUSRV   (AMI_SMMAX+5) /* the server form */
 #define MENUSEARCH (AMI_SMMAX+10) /* the search form */
 #define MENUOPT   (AMI_SMMAX+11) /* the options box */
+#define MENUPRINT (AMI_SMMAX+12) /* print the message being read */
 
 /* the options box */
 #define OPTTHREAD 1 /* messages shown by thread */
@@ -2759,6 +2760,8 @@ static void openmsgin(ami_long fold, const msgrec* m)
             appendmenu(&ml, mp);
             newmenu(&mp, FALSE, FALSE, OFF, MENUFWD, "Forward");
             appendmenu(&ml, mp);
+            newmenu(&mp, FALSE, FALSE, OFF, MENUPRINT, "Print");
+            appendmenu(&ml, mp);
             ami_menu(readwf, ml);
 
         }
@@ -2846,6 +2849,51 @@ static void closeread(void)
     readlines = 0;
     free(readtext);
     readtext = NULL;
+
+}
+
+/* Print the message being read: what the reader shows, the header lines
+   and the text, handed to the system's print command as a file. lp
+   spools a copy, so the file is taken away once it has gone. The job
+   is named for the subject, in the letters a file name and a command
+   line both allow, since that name is what the print queue shows. */
+static void printread(void)
+
+{
+
+    char  path[MAXSTR];
+    char  cmd[MAXSTR];
+    char  msg[MAXSTR];
+    char  name[64];
+    const char* s;
+    FILE* f;
+    ami_long e;
+    int   k;
+
+    if (!readwf || !readtext) return;
+    for (s = redsubj, k = 0; *s && k < (int)sizeof(name)-1; s++)
+        if (isalnum((unsigned char)*s)) name[k++] = *s;
+        else if (k && name[k-1] != '_') name[k++] = '_';
+    while (k && name[k-1] == '_') k--;
+    name[k] = 0;
+    if (!*name) copystr(name, "message", sizeof(name));
+    snprintf(path, sizeof(path), "/tmp/ami-mail-%d-%s.txt", (int)getpid(), name);
+    f = fopen(path, "w");
+    if (!f) { fail("The message could not be written out for printing"); return; }
+    fputs(readtext, f);
+    if (*readtext && readtext[strlen(readtext)-1] != '\n') fputc('\n', f);
+    fclose(f);
+    snprintf(cmd, sizeof(cmd), "lp %s", path);
+    ami_execw(cmd, &e);
+    remove(path);
+    if (e) {
+
+        fail("The printer did not take the message: is lp, the print command, there?");
+        return;
+
+    }
+    snprintf(msg, sizeof(msg), "Sent to the printer: %s", *redsubj? redsubj: "(no subject)");
+    status(msg);
 
 }
 
@@ -5407,6 +5455,7 @@ int main(int argc, char* argv[])
                 case ami_etmenus:
                     if (er.menuid == MENUREPLY || er.menuid == MENUREPALL ||
                         er.menuid == MENUFWD) answer(er.menuid);
+                    else if (er.menuid == MENUPRINT) printread();
                     break;
                 case ami_etterm: closeread(); break;
                 case ami_etredraw:

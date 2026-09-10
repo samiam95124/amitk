@@ -303,7 +303,8 @@ much as what arrives.
 
 ## Answering
 
-A message being read has Reply, Reply All and Forward on its own menu.
+A message being read has Reply, Reply All, Forward and Print on its
+own menu.
 
 Reply goes to whoever wrote it. Reply All goes to them and to everybody
 else the message was addressed to, less yourself. Both carry the subject
@@ -315,6 +316,14 @@ answers, so a mail reader at the other end files it in the conversation.
 Forward carries the message under a line saying where it came from, with
 its own subject marked Fwd:, and is not threaded -- it is a new message
 to somebody who was not in the conversation.
+
+## Printing
+
+Print sends the message as the reader shows it, the header lines and
+the text, to the printer, through lp, the system's print command, so
+it goes wherever lp is set to send things. The strip says it has gone,
+or that lp would not take it, which on most systems means there is no
+printer set up.
 
 # What is not here yet
 
