@@ -346,7 +346,7 @@ record is a line and has to stay one.
    a server keeping UTC sorted hours into the future. An index that is
    wrong is worse than none, since nothing would ever go back and look
    at the mailbox again. */
-#define IDXHEAD "ami-mail-index 2"
+#define IDXHEAD "ami-mail-index 4"
 
 static void idxfile(ami_long fold, char* fn, ami_long fnl)
 
@@ -428,6 +428,9 @@ static void idxwrite(FILE* f, const msgrec* m)
     idxput(f, m->from);
     idxput(f, m->subject);
     idxput(f, m->snip);
+    idxput(f, m->mid);
+    idxput(f, m->irt);
+    idxput(f, m->to);
     fputc('\n', f);
 
 }
@@ -449,6 +452,9 @@ static int idxread(char* line, msgrec* m)
     p = idxget(p, m->from, sizeof(m->from));
     p = idxget(p, m->subject, sizeof(m->subject));
     p = idxget(p, m->snip, sizeof(m->snip));
+    p = idxget(p, m->mid, sizeof(m->mid));
+    p = idxget(p, m->irt, sizeof(m->irt));
+    p = idxget(p, m->to, sizeof(m->to));
 
     return (p && m->len > 0 && strlen(m->dig) == DIGLEN-1);
 
@@ -916,6 +922,7 @@ void readaccount(void)
         if (!strcasecmp(p, "end")) { r = NULL; continue; }
         if (!strcasecmp(p, "poll")) { pollsec = atol(v); continue; }
         if (!strcasecmp(p, "sendfrom")) { sendsrv = atol(v); continue; }
+        if (!strcasecmp(p, "threaded")) { threaded = atol(v); continue; }
         if (!r) { /* the old form: settings before any server line */
 
             if (srvct >= MAXSRV) break;
@@ -970,6 +977,7 @@ void writeaccount(void)
     fprintf(f, "# Mail accounts. Written by the Config form in mail.\n");
     fprintf(f, "poll %lld\n", AMI_LONG_CAST(pollsec));
     fprintf(f, "sendfrom %lld\n", AMI_LONG_CAST(sendsrv));
+    fprintf(f, "threaded %lld\n", AMI_LONG_CAST(threaded));
     for (i = 0; i < srvct; i++) {
 
         fprintf(f, "\nserver %s\n", servers[i].name);
@@ -1961,6 +1969,45 @@ static void snipof(const char* text, char* snip, ami_long sn)
    headers and the beginning of the body, which is all the list shows --
    while len is the length of the whole thing, which is what reading it
    later will need. */
+/* the first <id> of a header, or its first word; and the last */
+static void firstid(const char* s, char* d, ami_long dl)
+
+{
+
+    const char* p = s;
+    const char* e;
+    ami_long    n;
+
+    while (*p == ' ' || *p == '\t') p++;
+    if (*p == '<') { e = strchr(p, '>'); if (e) e++; else e = p+strlen(p); }
+    else { e = p; while (*e && *e != ' ' && *e != '\t' && *e != ',') e++; }
+    n = e-p;
+    if (n > dl-1) n = dl-1;
+    memcpy(d, p, n);
+    d[n] = 0;
+
+}
+
+static void lastid(const char* s, char* d, ami_long dl)
+
+{
+
+    const char* p = s;
+    const char* last = NULL;
+
+    while (*p) {
+
+        while (*p == ' ' || *p == '\t' || *p == ',') p++;
+        if (!*p) break;
+        last = p;
+        if (*p == '<') { p = strchr(p, '>'); if (!p) break; p++; }
+        else while (*p && *p != ' ' && *p != '\t' && *p != ',') p++;
+
+    }
+    if (last) firstid(last, d, dl); else *d = 0;
+
+}
+
 static void fillrec(msgrec* m, const char* msg, ami_long have, ami_long len,
                     ami_long off, const char* dig)
 
@@ -1981,6 +2028,57 @@ static void fillrec(msgrec* m, const char* msg, ami_long have, ami_long len,
         copystr(m->subject, "(no subject)", sizeof(m->subject));
     findheader(msg, "Date", date, sizeof(date));
     m->date = parsedate(date, m->when, sizeof(m->when));
+    /* what it is and what it answers, for the threads: the message id,
+       and the first id of In-Reply-To, or the last of References when
+       there is no In-Reply-To */
+    {
+
+        char ids[MAXSTR*2];
+
+        if (!findheader(msg, "Message-ID", ids, sizeof(ids))) *ids = 0;
+        firstid(ids, m->mid, sizeof(m->mid));
+        if (findheader(msg, "In-Reply-To", ids, sizeof(ids)))
+            firstid(ids, m->irt, sizeof(m->irt));
+        else if (findheader(msg, "References", ids, sizeof(ids)))
+            lastid(ids, m->irt, sizeof(m->irt));
+        else *m->irt = 0;
+
+    }
+    /* who it went to: the addresses alone, in one case, comma-separated,
+       for the menu that gathers by recipient and the search's To */
+    {
+
+        char hdr[MAXSTR*4];
+        char one[MAXSTR], addr[MAXSTR];
+        const char* p;
+        ami_long n = 0;
+
+        *m->to = 0;
+        if (findheader(msg, "To", hdr, sizeof(hdr))) {
+
+            p = hdr;
+            while (*p) {
+
+                ami_long k = 0;
+
+                while (*p == ' ' || *p == ',') p++;
+                while (*p && *p != ',') { if (k < (ami_long)sizeof(one)-1) one[k++] = *p; p++; }
+                one[k] = 0;
+                trim(one);
+                if (!*one) continue;
+                addrof(one, addr, sizeof(addr));
+                if (!*addr) continue;
+                for (k = 0; addr[k]; k++) addr[k] = tolower((unsigned char)addr[k]);
+                if (n+strlen(addr)+3 >= sizeof(m->to)) break;
+                if (n) { m->to[n++] = ','; m->to[n++] = ' '; }
+                strcpy(m->to+n, addr);
+                n += strlen(addr);
+
+            }
+
+        }
+
+    }
     /* only what the list will show: see decodepart */
     text = textof(msg, have, SNIPPET*2);
     snipof(text, m->snip, sizeof(m->snip));
@@ -2039,6 +2137,7 @@ ami_long idxdoing = -1;   /* the folder being read just now */
 ami_long wrkgo;      /* a fetch is running on the other thread */
 char failsaid[MAXSTR*3];
 char sentsaid[MAXSTR]; /* and what went right */
+ami_long threaded = TRUE; /* the Options box: messages shown by thread */
 ami_long sendfail;         /* and whether it was a send that failed */
 ami_long failwait;
 
@@ -2516,31 +2615,50 @@ ami_long localfolder(const char* show)
 }
 
 /* Move messages out of a folder's file and into another's. The set says
-   which, by index in the folder's message list. The blocks are moved
-   whole and verbatim -- separator line to trailing blank -- so nothing
-   is reencoded, requoted or otherwise touched on the way. */
+   which, by index in the folder's index. The blocks are moved whole and
+   verbatim -- separator line to trailing blank -- so nothing is
+   reencoded, requoted or otherwise touched on the way.
+
+   The file is streamed, a line at a time, and never held whole: a
+   mailbox of four gigabytes was read into memory entire and written
+   out again, which is what made a move from the inbox look like
+   nothing happening. Which message a block is, is found from where it
+   begins, by looking that offset up in the index sorted by offset. */
+
+typedef struct { ami_long off; ami_long i; } offrec;
+
+static int byoff(const void* a, const void* b)
+
+{
+
+    const offrec* x = a;
+    const offrec* y = b;
+
+    return (x->off < y->off? -1: x->off > y->off);
+
+}
+
+#define MOVELINE 65536 /* a line is taken in pieces this long */
+
 ami_long movelocal(ami_long fold, const char* dstfile, const char* set)
 
 {
 
-    FILE* f;
-    FILE* out;
-    FILE* dst;
-    char  tmp[MAXSTR*2+8];
-    char* buf;
-    ami_long  n;
-    ami_long  i, start, blkstart;
-    ami_long  moved = 0;
+    FILE*    f;
+    FILE*    out;
+    FILE*    dst;
+    FILE*    cur;
+    char     tmp[MAXSTR*2+8];
+    char*    line;
+    offrec*  offs;
+    ami_long n, i;
+    ami_long pos = 0;
+    ami_long moved = 0;
+    int      atstart = TRUE;  /* the next read begins a line */
+    int      prevblank = TRUE; /* the line before was blank: a separator may follow */
 
     f = fopen(folders[fold].file, "r");
     if (!f) return (0);
-    fseek(f, 0, SEEK_END);
-    n = ftell(f);
-    fseek(f, 0, SEEK_SET);
-    buf = getmem(n+1);
-    n = fread(buf, 1, n, f);
-    buf[n] = 0;
-    fclose(f);
     snprintf(tmp, sizeof(tmp), "%s/movetmp", store);
     out = fopen(tmp, "w");
     dst = fopen(dstfile, "a");
@@ -2548,63 +2666,59 @@ ami_long movelocal(ami_long fold, const char* dstfile, const char* set)
 
         if (out) fclose(out);
         if (dst) fclose(dst);
-        free(buf);
+        fclose(f);
         fail("The move could not open its files");
-
         return (0);
 
     }
-    /* walk the separators exactly as the indexing does, so the blocks
-       here are the messages there */
-    start = -1;
-    blkstart = 0;
-    for (i = 0; i < n; i++) {
+    /* the index by offset, for finding a block's message */
+    n = folders[fold].idxct;
+    offs = getmem((n? n: 1)*sizeof(offrec));
+    for (i = 0; i < n; i++) { offs[i].off = folders[fold].idx[i].off; offs[i].i = i; }
+    qsort(offs, n, sizeof(offrec), byoff);
+    line = getmem(MOVELINE);
+    cur = out;
+    wrkmax = n;
+    wrkpos = 0;
+    while (fgets(line, MOVELINE, f)) {
 
-        int atsep = !strncmp(buf+i, "From ", 5) &&
-                    (i == 0 || (i >= 2 && buf[i-1] == '\n' &&
-                                (buf[i-2] == '\n' ||
-                                 (buf[i-2] == '\r' && i >= 3 &&
-                                  buf[i-3] == '\n'))));
+        ami_long len = strlen(line);
+        int      whole = len && line[len-1] == '\n';
 
-        if (atsep) {
+        /* a separator: "From " at the start of a line, after a blank one
+           or at the start of the file, exactly as the indexing takes it */
+        if (atstart && prevblank && !strncmp(line, "From ", 5)) {
 
-            if (start >= 0) { /* the block that just ended */
+            /* the message begins past this line; whose is it? */
+            ami_long start = pos+len;
+            ami_long lo = 0, hi = n-1, m = -1;
 
-                ami_long m;
+            while (lo <= hi) {
 
-                for (m = 0; m < msgct; m++) if (msgs[m].off == start) break;
-                if (m < msgct && set[m]) {
+                ami_long mid = (lo+hi)/2;
 
-                    fwrite(buf+blkstart, 1, i-blkstart, dst);
-                    moved++;
-
-                } else fwrite(buf+blkstart, 1, i-blkstart, out);
+                if (offs[mid].off == start) { m = offs[mid].i; break; }
+                if (offs[mid].off < start) lo = mid+1; else hi = mid-1;
 
             }
-            blkstart = i;
-            while (i < n && buf[i] != '\n') i++;
-            start = i+1;
+            if (m >= 0 && set[m]) { cur = dst; moved++; } else cur = out;
+            wrkpos++;
 
         }
-        while (i < n && buf[i] != '\n') i++;
+        fwrite(line, 1, len, cur);
+        pos += len;
+        if (atstart) prevblank = whole && (len == 1 || (len == 2 && line[0] == '\r'));
+        else if (whole) prevblank = FALSE;
+        atstart = whole;
+        if (wrkstop) break;
 
     }
-    if (start >= 0) { /* the last block */
-
-        ami_long m;
-
-        for (m = 0; m < msgct; m++) if (msgs[m].off == start) break;
-        if (m < msgct && set[m]) {
-
-            fwrite(buf+blkstart, 1, n-blkstart, dst);
-            moved++;
-
-        } else fwrite(buf+blkstart, 1, n-blkstart, out);
-
-    }
-    free(buf);
+    free(line);
+    free(offs);
+    fclose(f);
     fclose(dst);
     fclose(out);
+    if (wrkstop) { remove(tmp); return (0); }
     rename(tmp, folders[fold].file);
     /* This mailbox has been written out again without the messages that
        left it, so everything after the first of them sits somewhere
@@ -2615,6 +2729,73 @@ ami_long movelocal(ami_long fold, const char* dstfile, const char* set)
     return (moved);
 
 }
+
+/* The move as the worker does it: the front end asks, with the set of
+   messages to go and the folder they go to, and the worker moves them,
+   drops the index of the folder they left for reading again, and says
+   how many went. The set is the worker's from the ask on. */
+static ami_long movfold, movdst, movn;
+static char*    movset;
+ami_long        movwant;
+ami_long        movbusy;
+
+void movask(ami_long fold, ami_long dst, const char* set, ami_long n)
+
+{
+
+    free(movset);
+    movset = getmem(n? n: 1);
+    memcpy(movset, set, n);
+    movn = n;
+    movfold = fold;
+    movdst = dst;
+    movwant = TRUE;
+
+}
+
+void servemove(void)
+
+{
+
+    ami_long fold, dst, moved;
+    char*    set;
+    char     to[MAXSTR];
+
+    if (!movwant) return;
+    dlock(); /* the ask, under the lock the front end wrote it under */
+    fold = movfold;
+    dst = movdst;
+    set = movset;
+    movset = NULL;
+    movwant = FALSE;
+    movbusy = TRUE;
+    copystr(to, folders[dst].show, sizeof(to));
+    dunlock();
+    snprintf(wrkwhat, sizeof(wrkwhat), "Moving to %.400s", to);
+    moved = movelocal(fold, folders[dst].file, set);
+    free(set);
+    wrkwhat[0] = 0;
+    wrkpos = 0;
+    wrkmax = 0;
+    dlock();
+    /* The counts are worked out rather than counted again: what left
+       this folder arrived in that one. The folder itself is read again,
+       since its file has just changed under the list. */
+    folders[fold].msgs -= moved;
+    if (folders[fold].msgs < 0) folders[fold].msgs = 0;
+    folders[dst].msgs += moved;
+    folders[fold].dirty = TRUE;
+    folders[dst].dirty = TRUE;
+    idxwant = fold;
+    wrkfolds = TRUE;
+    snprintf(sentsaid, sizeof(sentsaid), "%lld message%s moved to %s -- "
+             "locally; the server is not touched", AMI_LONG_CAST(moved),
+             moved == 1? "": "s", to);
+    movbusy = FALSE;
+    dunlock();
+
+}
+
 /*******************************************************************************
 
 Talking to the IMAP server
@@ -4208,7 +4389,7 @@ void fetchrun(void)
        timer setting the pace: that apparatus existed only to give the
        display a turn between messages, and the display has a thread of
        its own now. */
-    while (!wrkdone && !wrkstop) { servesend(); serveindex(); fetchstep(); }
+    while (!wrkdone && !wrkstop) { servesend(); servemove(); serveindex(); fetchstep(); }
 
 }
 
@@ -4263,7 +4444,10 @@ void serveindex(void)
 
     ami_long i;
 
-    while (!wrkstop) {
+    /* Between folders, a move that is waiting goes first: it drops the
+       index of the folder it empties, and reading that folder before
+       the move would be reading it twice. */
+    while (!wrkstop && !movwant) {
 
         ami_long f = idxwant;
 
@@ -4304,6 +4488,7 @@ void mailwork(void)
 
         wrkbusy = TRUE;
         servesend();
+        servemove(); /* before the index: the move drops it, the reading remakes it */
         serveindex();
         if (wrkgo) {
 
@@ -4484,14 +4669,108 @@ ami_long parseday(const char* s)
 
 }
 
-/* any word of the list is in the text */
-static int hasaword(const char* text, const char* words)
+/* Does the text match the term? Whole, in any case: "ali" is Ali and
+   not AliExpress, and not the personalized in a Quora digest's address.
+   With the wildcards on, * in the term stands for any run of characters
+   and ? for any one, so "ali*" is both and "*@quora.com" is every
+   digest. Off, the two are characters like any other. */
+static int termeq(const char* term, const char* text, int wild)
+
+{
+
+    if (!wild) return (!strcasecmp(term, text));
+    while (*term) {
+
+        if (*term == '*') {
+
+            while (*term == '*') term++;
+            if (!*term) return (TRUE); /* a star at the end takes the rest */
+            for (; *text; text++) if (termeq(term, text, wild)) return (TRUE);
+
+            return (FALSE);
+
+        }
+        if (!*text) return (FALSE);
+        if (*term != '?' && tolower((unsigned char)*term) !=
+                            tolower((unsigned char)*text)) return (FALSE);
+        term++;
+        text++;
+
+    }
+
+    return (!*text);
+
+}
+
+/* Does any word of the text match the term? The words are what spaces
+   set apart: a comma or a stop stays on its word, and a term that wants
+   the word with or without it says so with a star. */
+static int wordeq(const char* term, const char* text, int wild)
+
+{
+
+    char w[MAXSTR];
+    const char* p = text;
+    int n;
+
+    while (*p) {
+
+        while (*p && isspace((unsigned char)*p)) p++;
+        n = 0;
+        while (*p && !isspace((unsigned char)*p)) {
+
+            if (n < (int)sizeof(w)-1) w[n++] = *p;
+            p++;
+
+        }
+        w[n] = 0;
+        if (n && termeq(term, w, wild)) return (TRUE);
+
+    }
+
+    return (FALSE);
+
+}
+
+/* Does the term match the name or the address of any of the people on
+   the line? A To line names several; each is tried whole, then as its
+   address and its name alone. */
+static int personeq(const char* term, const char* line, int wild)
+
+{
+
+    char one[MAXSTR], part[MAXSTR];
+    const char* p = line;
+    int n;
+
+    while (*p) {
+
+        while (*p == ' ' || *p == ',') p++;
+        n = 0;
+        while (*p && *p != ',') { if (n < (int)sizeof(one)-1) one[n++] = *p; p++; }
+        one[n] = 0;
+        trim(one);
+        if (!*one) continue;
+        if (termeq(term, one, wild)) return (TRUE);
+        addrof(one, part, sizeof(part));
+        if (*part && termeq(term, part, wild)) return (TRUE);
+        nameof(one, part, sizeof(part));
+        if (*part && termeq(term, part, wild)) return (TRUE);
+
+    }
+
+    return (FALSE);
+
+}
+
+/* every word of the list is a word of the text (all) or none is (any) */
+static int wordsin(const char* words, const char* text, int wild, int all)
 
 {
 
     char w[MAXSTR];
     const char* p = words;
-    int n;
+    int n, found = FALSE;
 
     while (*p) {
 
@@ -4499,11 +4778,14 @@ static int hasaword(const char* text, const char* words)
         n = 0;
         while (*p && *p != ' ' && n < (int)sizeof(w)-1) w[n++] = *p++;
         w[n] = 0;
-        if (n && holds(text, w)) return (TRUE);
+        if (!n) continue;
+        found = wordeq(w, text, wild);
+        if (all && !found) return (FALSE);
+        if (!all && found) return (TRUE);
 
     }
 
-    return (FALSE);
+    return (all);
 
 }
 
@@ -4519,29 +4801,29 @@ static int srcmatch(ami_long fold, const msgrec* m, const srcrec* a)
     int   ok = TRUE;
 
     /* what the index answers */
-    if (*a->from && !holds(m->from, a->from) && !holds(m->addr, a->from))
-        return (FALSE);
-    if (*a->subject && !holds(m->subject, a->subject)) return (FALSE);
+    if (*a->from && !termeq(a->from, m->from, a->wild) &&
+        !termeq(a->from, m->addr, a->wild)) return (FALSE);
+    if (*a->subject && !termeq(a->subject, m->subject, a->wild)) return (FALSE);
     if (a->sizeop == 1 && m->len <= a->sizeval) return (FALSE);
     if (a->sizeop == 2 && m->len >= a->sizeval) return (FALSE);
     if (a->within && (m->date < a->date-a->within ||
                       m->date > a->date+a->within)) return (FALSE);
-    if (!*a->to && !*a->words && !*a->nowords && !a->attach) return (TRUE);
+    if (*a->to && !personeq(a->to, m->to, a->wild)) return (FALSE);
+    if (!*a->words && !*a->nowords && !a->attach) return (TRUE);
     /* what only the message answers */
     raw = getmsgin(fold, m);
     if (!raw) return (FALSE);
     if (!findheader(raw, "To", to, sizeof(to))) *to = 0;
-    if (*a->to && !holds(to, a->to)) ok = FALSE;
     if (ok && a->attach && !hasattach(raw, strlen(raw))) ok = FALSE;
     if (ok && (*a->words || *a->nowords)) {
 
-        /* the words are looked for in the heads and the text alike */
+        /* the words are looked for in the heads and the text alike:
+           every word of the one list somewhere, no word of the other */
         text = textof(raw, strlen(raw), 0);
         snprintf(all, sizeof(all), "%s\n%s\n%s\n%s\n", m->from, m->addr, to,
                  m->subject);
         if (*a->words) {
 
-            /* every word must be somewhere, in the heads or the text */
             char w[MAXSTR];
             const char* p = a->words;
             int n;
@@ -4552,13 +4834,15 @@ static int srcmatch(ami_long fold, const msgrec* m, const srcrec* a)
                 n = 0;
                 while (*p && *p != ' ' && n < (int)sizeof(w)-1) w[n++] = *p++;
                 w[n] = 0;
-                if (n && !holds(all, w) && !holds(text, w)) ok = FALSE;
+                if (n && !wordeq(w, all, a->wild) && !wordeq(w, text, a->wild))
+                    ok = FALSE;
 
             }
 
         }
-        if (ok && *a->nowords && (hasaword(all, a->nowords) ||
-                                   hasaword(text, a->nowords))) ok = FALSE;
+        if (ok && *a->nowords && (wordsin(a->nowords, all, a->wild, FALSE) ||
+                                   wordsin(a->nowords, text, a->wild, FALSE)))
+            ok = FALSE;
         free(text);
 
     }
@@ -4583,6 +4867,16 @@ static int srcmatch(ami_long fold, const msgrec* m, const srcrec* a)
    A folder with no index yet is not read here: indexing is the worker's,
    and a search that took to reading a four gigabyte mailbox would be the
    wait it was made to avoid. Its name is kept for the front end to say. */
+static const msgrec* srtres; /* the records an order table is sorted over */
+
+static int byresdate(const void* a, const void* b)
+
+{
+
+    return (bydate(&srtres[*(const ami_long*)a], &srtres[*(const ami_long*)b]));
+
+}
+
 void servesearch(void)
 
 {
@@ -4590,6 +4884,9 @@ void servesearch(void)
     srcrec   a;
     msgrec*  res = NULL;
     ami_long* rfold = NULL;
+    msgrec*  sres;
+    ami_long* sfold;
+    ami_long* order;
     ami_long ct = 0, max = 0;
     ami_long f, i;
     ami_long f0, f1;
@@ -4661,8 +4958,21 @@ void servesearch(void)
         return;
 
     }
-    /* newest first, as the list is */
-    qsort(res, ct, sizeof(msgrec), bydate);
+    /* newest first, as the list is: the records are sorted through an
+       order table, so that each keeps the folder it was found in */
+    order = malloc((ct? ct: 1)*sizeof(ami_long));
+    sres = malloc((ct? ct: 1)*sizeof(msgrec));
+    sfold = malloc((ct? ct: 1)*sizeof(ami_long));
+    if (!order || !sres || !sfold) { fprintf(stderr, "Out of memory\n"); exit(1); }
+    for (i = 0; i < ct; i++) order[i] = i;
+    srtres = res;
+    qsort(order, ct, sizeof(ami_long), byresdate);
+    for (i = 0; i < ct; i++) { sres[i] = res[order[i]]; sfold[i] = rfold[order[i]]; }
+    free(order);
+    free(res);
+    free(rfold);
+    res = sres;
+    rfold = sfold;
     dlock();
     free(srcres);
     free(srcfold);
@@ -4791,19 +5101,341 @@ int resfile(const char* leaf, char* path, ami_long pl)
 
 }
 
+/*******************************************************************************
+
+Threads
+
+In threaded mode the list is the folder's messages gathered into
+conversations: a thread is the messages with one subject, once the
+Re: and Fwd: and the tags in brackets are taken off the front, and
+within a thread a message stands under the one it answers, found by
+its In-Reply-To, or under the thread's first message when what it
+answers is not here. The threads stand newest first, by their newest
+message, and within a thread the first message comes first and the
+replies follow it, oldest first, each with its own replies under it.
+
+The list the display draws is then a copy of the index in that order,
+with two arrays beside it: where each row stands in the index, for the
+moves, and how deep it is, for the drawing. Not threaded, the list is
+the index itself, and both arrays are NULL.
+
+*******************************************************************************/
+
+ami_long* viewidx;
+int*      viewdepth;
+static msgrec*  view;
+static ami_long viewmax;
+
+/* the subject with its answering and forwarding prefixes taken off, in
+   one case, hashed: the same for every message of a thread */
+static unsigned long long subjkey(const msgrec* m)
+
+{
+
+    const char* p = m->subject;
+    unsigned long long h = 1469598103934665603ULL;
+    int sp = FALSE, any = FALSE;
+
+    while (*p) {
+
+        while (*p == ' ' || *p == '\t') p++;
+        if (*p == '[') { /* a tag: [EXTERNAL], [list-name] */
+
+            const char* e = strchr(p, ']');
+
+            if (!e) break;
+            p = e+1;
+            continue;
+
+        }
+        if ((!strncasecmp(p, "re", 2) || !strncasecmp(p, "fw", 2) ||
+             !strncasecmp(p, "aw", 2) || !strncasecmp(p, "sv", 2)) &&
+            (p[2] == ':' || (tolower((unsigned char)p[2]) == 'd' && p[3] == ':') ||
+             (p[2] == '[' && strchr(p, ':') && strchr(p, ':') < p+8))) {
+
+            p = strchr(p, ':')+1;
+            continue;
+
+        }
+        break;
+
+    }
+    for (; *p; p++) {
+
+        int c = tolower((unsigned char)*p);
+
+        if (c == ' ' || c == '\t') { sp = TRUE; continue; }
+        if (sp && any) { h ^= ' '; h *= 1099511628211ULL; }
+        sp = FALSE;
+        any = TRUE;
+        h ^= (unsigned char)c;
+        h *= 1099511628211ULL;
+
+    }
+    if (!any) { /* no subject: a thread of its own, keyed by its id */
+
+        for (p = m->mid; *p; p++) { h ^= (unsigned char)*p; h *= 1099511628211ULL; }
+        h ^= 0x5a;
+
+    }
+
+    return (h);
+
+}
+
+/* the two are of one thread: one subject, Re: and Fwd: aside */
+int samethread(const msgrec* a, const msgrec* b)
+
+{
+
+    return (subjkey(a) == subjkey(b));
+
+}
+
+/* the address is one of those the message went to */
+int toholds(const char* to, const char* addr)
+
+{
+
+    const char* p = to;
+    ami_long    n = strlen(addr);
+
+    if (!n) return (FALSE);
+    while (*p) {
+
+        while (*p == ' ' || *p == ',') p++;
+        if (!strncasecmp(p, addr, n) && (p[n] == 0 || p[n] == ',')) return (TRUE);
+        while (*p && *p != ',') p++;
+
+    }
+
+    return (FALSE);
+
+}
+
+static unsigned long long strhash(const char* p)
+
+{
+
+    unsigned long long h = 1469598103934665603ULL;
+
+    for (; *p; p++) { h ^= (unsigned char)*p; h *= 1099511628211ULL; }
+
+    return (h);
+
+}
+
+typedef struct { unsigned long long key; ami_long i; } tkey;
+
+static int bytkey(const void* a, const void* b)
+
+{
+
+    const tkey* x = a;
+    const tkey* y = b;
+
+    if (x->key != y->key) return (x->key < y->key? -1: 1);
+
+    return (x->i < y->i? -1: x->i > y->i);
+
+}
+
+/* the threaded view of a folder, built whole */
+static void threadview(ami_long fold)
+
+{
+
+    msgrec*   idx = folders[fold].idx;
+    ami_long  n = folders[fold].idxct;
+    tkey*     subj;      /* messages by subject key, then by date */
+    tkey*     ids;       /* messages by their id, for the answers to find */
+    ami_long* parent;
+    ami_long* first;     /* a message's first child */
+    ami_long* next;      /* and the next child of its parent */
+    ami_long* thread;    /* the thread each message is in: its root */
+    ami_long* stack;
+    tkey*     roots;     /* the threads, by their newest date */
+    ami_long  i, j, k, out, nroot;
+
+    if (n > viewmax) {
+
+        viewmax = n+1024;
+        view = realloc(view, viewmax*sizeof(msgrec));
+        viewidx = realloc(viewidx, viewmax*sizeof(ami_long));
+        viewdepth = realloc(viewdepth, viewmax*sizeof(int));
+        if (!view || !viewidx || !viewdepth) { fprintf(stderr, "Out of memory\n"); exit(1); }
+
+    }
+    if (!n) { msgs = view; msgct = 0; return; }
+    subj = getmem(n*sizeof(tkey));
+    ids = getmem(n*sizeof(tkey));
+    parent = getmem(n*sizeof(ami_long));
+    first = getmem(n*sizeof(ami_long));
+    next = getmem(n*sizeof(ami_long));
+    thread = getmem(n*sizeof(ami_long));
+    stack = getmem(n*sizeof(ami_long));
+    roots = getmem(n*sizeof(tkey));
+    for (i = 0; i < n; i++) {
+
+        subj[i].key = subjkey(&idx[i]);
+        subj[i].i = i;
+        ids[i].key = *idx[i].mid? strhash(idx[i].mid): 0;
+        ids[i].i = i;
+        parent[i] = -1;
+        first[i] = -1;
+        next[i] = -1;
+
+    }
+    qsort(ids, n, sizeof(tkey), bytkey);
+    /* the thread of each message: the oldest of its subject is its root */
+    qsort(subj, n, sizeof(tkey), bytkey);
+    for (i = 0; i < n; i = j) {
+
+        ami_long root = subj[i].i;
+
+        for (j = i; j < n && subj[j].key == subj[i].key; j++)
+            if (idx[subj[j].i].date < idx[root].date) root = subj[j].i;
+        for (j = i; j < n && subj[j].key == subj[i].key; j++)
+            thread[subj[j].i] = root;
+
+    }
+    /* what each answers, when that is here and in the same thread; else
+       the root, and the root answers nothing */
+    for (i = 0; i < n; i++) {
+
+        ami_long p = -1;
+
+        if (thread[i] == i) continue;
+        if (*idx[i].irt) {
+
+            unsigned long long key = strhash(idx[i].irt);
+            ami_long lo = 0, hi = n-1;
+
+            while (lo <= hi) {
+
+                ami_long mid = (lo+hi)/2;
+
+                if (ids[mid].key == key) { p = ids[mid].i; break; }
+                if (ids[mid].key < key) lo = mid+1; else hi = mid-1;
+
+            }
+            if (p >= 0 && (thread[p] != thread[i] || p == i)) p = -1;
+
+        }
+        if (p < 0) p = thread[i];
+        parent[i] = p;
+
+    }
+    /* a reply that answers its own descendant would make a ring; walk up
+       from each and cut any ring at the root */
+    for (i = 0; i < n; i++) {
+
+        ami_long p = parent[i], steps = 0;
+
+        while (p >= 0 && steps++ < n) { if (p == i) { parent[i] = thread[i]; break; } p = parent[p]; }
+        if (steps >= n) parent[i] = thread[i];
+
+    }
+    /* the children of each, oldest first: linked in from the newest
+       down so that each list comes out in date order */
+    {
+
+        tkey* bydt = getmem(n*sizeof(tkey));
+
+        for (i = 0; i < n; i++) { bydt[i].key = (unsigned long long)idx[i].date; bydt[i].i = i; }
+        qsort(bydt, n, sizeof(tkey), bytkey);
+        for (k = n-1; k >= 0; k--) {
+
+            i = bydt[k].i;
+            if (parent[i] >= 0) { next[i] = first[parent[i]]; first[parent[i]] = i; }
+
+        }
+        free(bydt);
+
+    }
+    /* the threads, by their newest message, newest first */
+    nroot = 0;
+    for (i = 0; i < n; i++) if (thread[i] == i) { roots[nroot].key = 0; roots[nroot].i = i; nroot++; }
+    {
+
+        /* the newest date of each thread, by root */
+        unsigned long long* newest = getmem(n*sizeof(unsigned long long));
+
+        for (i = 0; i < n; i++) newest[i] = 0;
+        for (i = 0; i < n; i++)
+            if ((unsigned long long)idx[i].date > newest[thread[i]])
+                newest[thread[i]] = (unsigned long long)idx[i].date;
+        for (j = 0; j < nroot; j++) roots[j].key = ~newest[roots[j].i];
+        free(newest);
+
+    }
+    qsort(roots, nroot, sizeof(tkey), bytkey);
+    /* the rows: each thread walked from its root, a message before its
+       replies, the replies oldest first */
+    out = 0;
+    for (j = 0; j < nroot; j++) {
+
+        ami_long sp = 0;
+        ami_long r = roots[j].i;
+
+        stack[sp++] = r;
+        viewdepth[out] = 0;
+        while (sp) {
+
+            ami_long m = stack[--sp];
+            ami_long c, d = 0, cnt = 0;
+
+            /* depth is the parent's plus one */
+            if (m != r) { ami_long q = parent[m]; while (q >= 0 && q != r) { d++; q = parent[q]; } d++; }
+            view[out] = idx[m];
+            viewidx[out] = m;
+            viewdepth[out] = (int)d;
+            out++;
+            /* the children go on the stack newest first, so that the
+               oldest is taken next */
+            for (c = first[m]; c >= 0; c = next[c]) cnt++;
+            for (k = cnt-1; k >= 0; k--) {
+
+                ami_long c2 = first[m], t;
+
+                for (t = 0; t < k; t++) c2 = next[c2];
+                stack[sp++] = c2;
+
+            }
+
+        }
+
+    }
+    free(subj); free(ids); free(parent); free(first); free(next);
+    free(thread); free(stack); free(roots);
+    msgs = view;
+    msgct = out;
+
+}
+
 /* The list the display draws is the selected folder's index -- not a
-   copy of it, and not one built for the purpose. This points the two at
-   each other, and is called wherever either can move: the array is
-   grown as mail arrives, and growing it can move it. Every caller holds
-   the lock, which is what makes that safe. */
+   copy of it, and not one built for the purpose -- unless the threads
+   are on, when it is the index in thread order (threadview). This
+   points the list at the folder, and is called wherever either can
+   move: the array is grown as mail arrives, and growing it can move
+   it. Every caller holds the lock, which is what makes that safe. */
 void useidx(void)
 
 {
 
     if (foldsel >= 0 && foldsel < foldct) {
 
-        msgs = folders[foldsel].idx;
-        msgct = folders[foldsel].idxct;
+        if (threaded) threadview(foldsel);
+        else {
+
+            msgs = folders[foldsel].idx;
+            msgct = folders[foldsel].idxct;
+            free(viewidx); viewidx = NULL;
+            free(viewdepth); viewdepth = NULL;
+            free(view); view = NULL;
+            viewmax = 0;
+
+        }
 
     } else { msgs = NULL; msgct = 0; }
 

@@ -1686,6 +1686,12 @@ void pd_windel(pd_win* win)
     if (d->igrab == win) d->igrab = NULL;
     ULK(d);
     droptop(d, win);
+    /* What the child covered is drawn again without it: the area is
+       marked damaged before the child leaves the tree, so the next
+       composition repaints it from what stands beneath. Left unmarked,
+       a closed menu stayed on the screen until something else drew
+       there -- a click or Escape closed it at once, and it lingered. */
+    if (win->parent && win->parent != &d->root) windmg(win, 0, 0, win->w, win->h);
     TREEWR(); /* out of the tree: no walk reaches it after this */
     unlinkchild(win);
     TREEUN();
@@ -2661,6 +2667,9 @@ static void mktoplevel(pd_display* d, pd_win* win)
     t->xtop = xdg_surface_get_toplevel(t->xsurf);
     xdg_toplevel_add_listener(t->xtop, &xtop_lis, win);
     xdg_toplevel_set_title(t->xtop, win->title? win->title: "ami");
+    /* the program's name is its id: a desktop file of that name gives it
+       an icon and a place in the launcher */
+    xdg_toplevel_set_app_id(t->xtop, program_invocation_short_name);
     wl_surface_commit(t->surf); /* the no-buffer commit of the handshake */
     wl_display_flush(d->dpy);
 }
@@ -3123,6 +3132,12 @@ static uint32_t keysymof(pd_display* d, uint32_t code)
 
     }
     if (!d->keymap) return (0);
+    /* Through the state, which knows the modifiers: shift-8 is an
+       asterisk, not an 8. Read at level 0 of the keymap it was an 8
+       whatever was held, and no shifted punctuation could be typed;
+       letters alone came out capital, since the graphics layer upcases
+       them itself when it sees the shift key down. */
+    if (d->xst) return (xkb_state_key_get_one_sym(d->xst, code));
     n = xkb_keymap_key_get_syms_by_level(d->keymap, code, 0, 0, &syms);
     if (n < 1) return (0);
     return (syms[0]);
@@ -3135,6 +3150,11 @@ static void keyevt(pd_display* d, pd_etype t, uint32_t xkc, uint32_t time)
 
     w = keywin(d);
     if (!w) return;
+    /* The rig's keys come with no modifier events, so the state is told
+       of them here; a real keyboard's modifiers arrive from the seat and
+       are not counted twice */
+    if (d->injfd >= 0 && d->xst)
+        xkb_state_update_key(d->xst, xkc, t == pd_etkeydown? XKB_KEY_DOWN: XKB_KEY_UP);
     mkevt(&e, t, w);
     e.code = xkc;
     e.keysym = keysymof(d, xkc);

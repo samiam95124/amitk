@@ -1,0 +1,8 @@
+[Desktop Entry]
+Type=Application
+Name=Ami Mail
+Comment=Petit-Ami mail reader
+Exec=/home/samiam/projects/amitk/bin/mail
+Icon=ami-mail
+Terminal=false
+Categories=Network;Email;

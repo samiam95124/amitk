@@ -102,6 +102,7 @@
 #define BANWIN    8 /* the banner across the top */
 #define CMPWIN    9 /* the compose window */
 #define SRCWIN   10 /* the search window */
+#define OPTWIN   11 /* the options box */
 #define BANPIC    1 /* the picture in it */
 
 /* its widgets, numbered within it */
@@ -160,6 +161,7 @@
 #define SRCCLR   14 /* clear the form */
 #define SRCCLOSE 15 /* close it */
 #define SRCSB    16 /* the bar beside what was found */
+#define SRCWILD  17 /* * and ? in the terms stand for anything */
 
 static void newmenu(ami_menuptr* mp, int onoff, int bar, int select,
                     int id, char* face);
@@ -177,6 +179,11 @@ static void kickworker(void);
 #define MENUCHECK (AMI_SMMAX+4) /* check that mail could be sent */
 #define MENUSRV   (AMI_SMMAX+5) /* the server form */
 #define MENUSEARCH (AMI_SMMAX+10) /* the search form */
+#define MENUOPT   (AMI_SMMAX+11) /* the options box */
+
+/* the options box */
+#define OPTTHREAD 1 /* messages shown by thread */
+#define OPTCLOSE  2 /* close it */
 
 /* What a notch of the wheel moves. One message, because a message is a
    thing and a notch is a step, and the list is read by stepping through
@@ -240,6 +247,9 @@ static int   banpart;           /* the banner's right strip is drawn already */
 static int   listpart;          /* and the list's */
 static ami_long sbw;               /* scroll bar thickness */
 static int   listrows;          /* message lines the list holds */
+static ami_long clickms;        /* when the list was last clicked */
+static char  movnote[MAXSTR];   /* the move asked for, while it waits its turn */
+static char  keepsaid[MAXSTR];  /* what the worker said, kept for when it is done */
 static int   foldy[MAXFOLDER];  /* where each folder was drawn, for clicks */
 static int   foldon[MAXFOLDER]; /* and whether it is drawn at all */
 static int   foldcnt[MAXFOLDER]; /* the count each line shows */
@@ -294,6 +304,22 @@ static ami_long rgb(int c)
 
 }
 
+/* the time now, in milliseconds of no particular epoch: for telling a
+   second click on a row from a first */
+static ami_long msnow(void)
+
+{
+
+    struct timespec t;
+
+    clock_gettime(CLOCK_MONOTONIC, &t);
+
+    return ((ami_long)t.tv_sec*1000+t.tv_nsec/1000000);
+
+}
+
+#define DBLMS 400 /* a second click within this many is a double click */
+
 /* say something went wrong, in a way the user can see */
 /* A fetch the timer started is a fetch nobody asked for, and a server
    that is down will fail every one of them. Putting a box on the screen
@@ -342,7 +368,21 @@ static FILE* popwf;      /* the menu, NULL when closed */
 static int   popmsg;     /* the message it is for */
 static int   poprow = -1; /* the entry under the mouse */
 static int   poprowh;    /* the height of an entry */
-static char  poplab[3][MAXSTR]; /* the entries' faces */
+static int   popx, popy, popw, poph; /* where it stands in the main window */
+/* the entries: what each does, its face, and what it works on */
+#define MAXPOP 10
+enum { POP_READ, POP_TRASH, POP_DOMAIN, POP_NAME, POP_TO, POP_THREAD };
+typedef struct {
+
+    int  kind;
+    char lab[MAXSTR]; /* the face */
+    char arg[MAXSTR]; /* the domain key, the address, the name */
+    char who[80];     /* the folder it would make */
+
+} poprec;
+static poprec popent[MAXPOP];
+static void openmsg(int i); /* forward */
+static int    popct;
 
 /* The part of an address that says who sent it, for gathering their
    mail together. That is the domain and not the whole address: LinkedIn
@@ -371,7 +411,53 @@ static void senderkey(const char* addr, char* key, int kl)
     for (i = 0; personal[i]; i++)
         if (!strcasecmp(at+1, personal[i]))
             { copystr(key, addr, kl); return; } /* a person, not a sender */
-    copystr(key, at+1, kl);
+    /* The domain, less whatever it is a part of: selections.aliexpress.com
+       and notice.aliexpress.com are one sender, aliexpress.com. The last
+       two labels are kept, or three where the second is itself a suffix
+       under a country, as co.uk. */
+    {
+
+        const char* d = at+1;
+        const char* labels[64];
+        int         n = 0;
+        const char* p = d;
+
+        labels[n++] = p;
+        while (*p && n < 64) { if (*p == '.') labels[n++] = p+1; p++; }
+        if (n >= 3) {
+
+            const char* last = labels[n-1];
+            const char* second = labels[n-2];
+            int keep = 2;
+
+            if (strlen(last) == 2 &&
+                (!strncasecmp(second, "co.", 3) || !strncasecmp(second, "com.", 4) ||
+                 !strncasecmp(second, "org.", 4) || !strncasecmp(second, "net.", 4) ||
+                 !strncasecmp(second, "ac.", 3) || !strncasecmp(second, "gov.", 4) ||
+                 !strncasecmp(second, "edu.", 4))) keep = 3;
+            d = labels[n-keep];
+
+        }
+        copystr(key, d, kl);
+
+    }
+
+}
+
+
+/* What to call a sender's folder: a domain by its own name, aliexpress
+   for aliexpress.com; a person, whose key is their address, by the name
+   they write under. */
+static void sendername(const char* key, const char* from, char* name, int nl)
+
+{
+
+    const char* dot;
+
+    if (strchr(key, '@')) { copystr(name, from, nl); return; }
+    dot = strchr(key, '.');
+    if (dot && dot-key < nl-1) { memcpy(name, key, dot-key); name[dot-key] = 0; }
+    else copystr(name, key, nl);
 
 }
 
@@ -413,10 +499,10 @@ static void popdraw(void)
     ami_line(popwf, 0, 0, 0, h-1);
     ami_line(popwf, w-1, 0, w-1, h-1);
     ami_fcolor(popwf, ami_black);
-    for (i = 0; i < 3; i++) {
+    for (i = 0; i < popct; i++) {
 
         ami_cursorg(popwf, 8, 3+i*poprowh+(poprowh-chrh)/2);
-        fprintf(popwf, "%s", poplab[i]);
+        fprintf(popwf, "%s", popent[i].lab);
 
     }
 
@@ -427,55 +513,85 @@ static void popopen(int i, int x, int y)
 
 {
 
-    int w, h;
+    int  w, h, k;
     char nm[60];
+    char key[100];
+    char name[60];
+    int  n, m;
 
     popclose();
     popmsg = i;
+    popct = 0;
     copystr(nm, msgs[i].from, sizeof(nm));
-    snprintf(poplab[0], sizeof(poplab[0]), "Move to local Trash");
+    /* read it, and the one message to the local Trash */
+    popent[popct].kind = POP_READ;
+    copystr(popent[popct].lab, "Read", MAXSTR);
+    popct++;
+    popent[popct].kind = POP_TRASH;
+    copystr(popent[popct].lab, "Move to local Trash", MAXSTR);
+    copystr(popent[popct].who, "Trash", sizeof(popent[popct].who));
+    popct++;
+    /* everything from that place. Say what it will gather, since the
+       sender's name and what their mail comes from are not always the
+       same word. */
+    senderkey(msgs[i].addr, key, sizeof(key));
+    for (m = 0, n = 0; m < msgct; m++) if (fromsender(&msgs[m], key)) n++;
+    sendername(key, msgs[i].from, name, sizeof(name));
+    popent[popct].kind = POP_DOMAIN;
+    copystr(popent[popct].arg, key, MAXSTR);
+    copystr(popent[popct].who, name, sizeof(popent[popct].who));
+    snprintf(popent[popct].lab, MAXSTR, "Local folder for %s (%d here)", name, n);
+    popct++;
+    /* And by the name they show, which is not the same thing: a domain
+       gathers eight sorts of Facebook notice into one folder, and a
+       name keeps a person who writes through LinkedIn out of the
+       LinkedIn folder. Both are offered, with what each would take,
+       because which is wanted depends on the sender. */
+    for (m = 0, n = 0; m < msgct; m++) if (!strcmp(msgs[m].from, msgs[i].from)) n++;
+    popent[popct].kind = POP_NAME;
+    copystr(popent[popct].arg, msgs[i].from, MAXSTR);
+    copystr(popent[popct].who, nm, sizeof(popent[popct].who));
+    snprintf(popent[popct].lab, MAXSTR, "Local folder for \"%s\" (%d here)", nm, n);
+    popct++;
+    /* everything of this thread: the conversation, wherever its
+       messages came from */
+    for (m = 0, n = 0; m < msgct; m++) if (samethread(&msgs[m], &msgs[i])) n++;
+    popent[popct].kind = POP_THREAD;
+    copystr(popent[popct].who, msgs[i].subject, sizeof(popent[popct].who));
+    snprintf(popent[popct].lab, MAXSTR, "Local folder for this thread (%d here)", n);
+    popct++;
+    /* and by whom it went to: one entry for each address on its To
+       line, since mail to a list, or to an old address of yours, is a
+       kind of its own */
     {
 
-        char key[100];
-        int n;
+        const char* p = msgs[i].to;
 
-        /* Say what it will gather, since the sender's name and what
-           their mail comes from are not always the same word. */
-        senderkey(msgs[i].addr, key, sizeof(key));
-        n = 0;
-        {
+        while (*p && popct < MAXPOP) {
 
-            int m;
+            char addr[MAXSTR];
 
-            for (m = 0; m < msgct; m++) if (fromsender(&msgs[m], key)) n++;
-
-        }
-        snprintf(poplab[1], sizeof(poplab[1]),
-                 "Local folder for %s (%d here)", key, n);
-        /* And by the name they show, which is not the same thing: a
-           domain gathers eight sorts of Facebook notice into one folder,
-           and a name keeps a person who writes through LinkedIn out of
-           the LinkedIn folder. Both are offered, with what each would
-           take, because which is wanted depends on the sender. */
-        n = 0;
-        {
-
-            int m;
-
-            for (m = 0; m < msgct; m++)
-                if (!strcmp(msgs[m].from, msgs[i].from)) n++;
+            k = 0;
+            while (*p == ' ' || *p == ',') p++;
+            while (*p && *p != ',') { if (k < (int)sizeof(addr)-1) addr[k++] = *p; p++; }
+            addr[k] = 0;
+            if (!*addr) continue;
+            for (m = 0, n = 0; m < msgct; m++) if (toholds(msgs[m].to, addr)) n++;
+            popent[popct].kind = POP_TO;
+            copystr(popent[popct].arg, addr, MAXSTR);
+            copystr(popent[popct].who, addr, sizeof(popent[popct].who));
+            snprintf(popent[popct].lab, MAXSTR, "Local folder for to %s (%d here)", addr, n);
+            popct++;
 
         }
-        snprintf(poplab[2], sizeof(poplab[2]),
-                 "Local folder for \"%s\" (%d here)", nm, n);
 
     }
     poprowh = chrh+10;
-    w = ami_strsiz(listwf, poplab[0]);
-    if (ami_strsiz(listwf, poplab[1]) > w) w = ami_strsiz(listwf, poplab[1]);
-    if (ami_strsiz(listwf, poplab[2]) > w) w = ami_strsiz(listwf, poplab[2]);
+    w = 0;
+    for (k = 0; k < popct; k++)
+        if (ami_strsiz(listwf, popent[k].lab) > w) w = ami_strsiz(listwf, popent[k].lab);
     w += 20;
-    h = poprowh*3+6;
+    h = poprowh*popct+6;
     /* The menu is a child of the main window, not of the list: a child
        is clipped by its parent, and a menu opened near the bottom of
        the list would be cut off by it. The mouse position arrives in
@@ -486,6 +602,7 @@ static void popopen(int i, int x, int y)
     if (y+h > ami_maxyg(stdout)) y = ami_maxyg(stdout)-h;
     if (x < 0) x = 0;
     if (y < 0) y = 0;
+    popx = x; popy = y; popw = w; poph = h;
     ami_openwin(&stdin, &popwf, stdout, POPWIN);
     ami_frame(popwf, FALSE);
     ami_auto(popwf, FALSE);
@@ -509,64 +626,66 @@ static void popact(int row)
 
     char* set;
     int   dst;
-    int   moved;
     int   i = popmsg;
+    int   m, n;
     char  msg[MAXSTR];
-    char  who[60];
+    char  who[80];
+    const poprec* e;
 
     popclose();
-    if (foldsel < 0 || i < 0 || i >= msgct) return;
+    if (foldsel < 0 || i < 0 || i >= msgct || row < 0 || row >= popct) return;
+    e = &popent[row];
+    if (e->kind == POP_READ) { openmsg(i); return; }
     set = getmem(msgct);
     memset(set, 0, msgct);
-    if (row == 0) { /* this one message, to the local trash */
+    copystr(who, e->who, sizeof(who));
+    switch (e->kind) {
 
-        set[i] = TRUE;
-        dst = localfolder("Trash");
-        copystr(who, "Trash", sizeof(who));
-
-    } else if (row == 1) { /* everything from that place */
-
-        int m;
-        char key[100];
-
-        senderkey(msgs[i].addr, key, sizeof(key));
-        for (m = 0; m < msgct; m++)
-            if (fromsender(&msgs[m], key)) set[m] = TRUE;
-        copystr(who, msgs[i].from, sizeof(who));
-        dst = localfolder(who);
-
-    } else { /* everything from that name */
-
-        int m;
-
-        for (m = 0; m < msgct; m++)
-            if (!strcmp(msgs[m].from, msgs[i].from)) set[m] = TRUE;
-        copystr(who, msgs[i].from, sizeof(who));
-        dst = localfolder(who);
+        case POP_TRASH: set[i] = TRUE; break;
+        case POP_DOMAIN: /* everything from that place */
+            for (m = 0; m < msgct; m++) if (fromsender(&msgs[m], e->arg)) set[m] = TRUE;
+            break;
+        case POP_NAME: /* everything from that name */
+            for (m = 0; m < msgct; m++) if (!strcmp(msgs[m].from, e->arg)) set[m] = TRUE;
+            break;
+        case POP_TO: /* everything that went to that address */
+            for (m = 0; m < msgct; m++) if (toholds(msgs[m].to, e->arg)) set[m] = TRUE;
+            break;
+        case POP_THREAD: /* the conversation */
+            for (m = 0; m < msgct; m++) if (samethread(&msgs[m], &msgs[i])) set[m] = TRUE;
+            break;
+        default: break;
 
     }
+    dst = localfolder(who);
     if (dst < 0) { free(set); fail("No room for another folder"); return; }
-    moved = movelocal(foldsel, folders[dst].file, set);
+    /* The worker moves them: a mailbox of gigabytes takes a while to
+       write out again, and the display stays live while it does. The
+       folder is read again after, and the worker says how many went. */
+    for (m = 0, n = 0; m < msgct; m++) n += set[m];
+    /* the set is over the list's rows; the worker wants it over the
+       folder's index, which the threads have put in another order */
+    if (viewidx) {
+
+        char* iset = getmem(folders[foldsel].idxct? folders[foldsel].idxct: 1);
+
+        memset(iset, 0, folders[foldsel].idxct);
+        for (m = 0; m < msgct; m++) if (set[m]) iset[viewidx[m]] = TRUE;
+        movask(foldsel, dst, iset, folders[foldsel].idxct);
+        free(iset);
+
+    } else movask(foldsel, dst, set, msgct);
     free(set);
     msgsel = -1;
-    /* The counts are worked out rather than counted again: what left
-       this folder arrived in that one, and counting means reading every
-       mailbox in the store through -- gigabytes, to learn a number
-       already known. The folder itself is read again by the worker,
-       since its file has just changed under the list. */
-    folders[foldsel].msgs -= moved;
-    if (folders[foldsel].msgs < 0) folders[foldsel].msgs = 0;
-    folders[dst].msgs += moved;
-    folders[foldsel].dirty = TRUE;
-    folders[dst].dirty = TRUE;
     msgct = 0;
     idxfold = -1;
     idxwant = foldsel;
     kickworker();
     drawlist();
     drawfolders();
-    snprintf(msg, sizeof(msg), "%d message%s moved to %s -- locally; the "
-             "server is not touched", moved, moved == 1? "": "s", who);
+    snprintf(movnote, sizeof(movnote), "%d message%s to %s", n,
+             n == 1? "": "s", who);
+    snprintf(msg, sizeof(msg), "Moving %s...", movnote);
     status(msg);
 
 }
@@ -1725,12 +1844,12 @@ typedef struct {
 
 } rowpiece;
 
-static int rowpieces(const msgrec* m, int dx, rowpiece* pc)
+static int rowpieces(const msgrec* m, int dx, int depth, rowpiece* pc)
 
 {
 
     int n = 0;
-    int x = catx+8;
+    int x = catx+8+depth*ami_strsiz(listwf, "0")*2; /* a reply stands in */
 
     ami_bold(listwf, TRUE);
     pc[n].x = x;
@@ -1789,7 +1908,7 @@ static void drawmsg(int i, int y)
     {
 
         rowpiece pc[2];
-        int      n = rowpieces(m, datex, pc);
+        int      n = rowpieces(m, datex, viewdepth? viewdepth[i]: 0, pc);
         int      k;
 
         for (k = 0; k < n; k++) {
@@ -1838,8 +1957,8 @@ static void drawtail(int i, int y, int olddx)
     int      on, nn, k, x0;
     char     s[MAXSTR];
 
-    on = rowpieces(m, olddx, op);
-    nn = rowpieces(m, datex, np);
+    on = rowpieces(m, olddx, viewdepth? viewdepth[i]: 0, op);
+    nn = rowpieces(m, datex, viewdepth? viewdepth[i]: 0, np);
     /* where the two drawings part: a piece one has and the other has
        not, or the first character that differs; alike throughout, the
        divider before the date is the first thing that moved */
@@ -3905,14 +4024,17 @@ static int      srcrowh;      /* the height of a row of it */
 static int      srctop;       /* the first row on show */
 static int      srcsel;       /* the row picked, or -1 */
 static ami_long srcmx, srcmy; /* where the mouse is */
+static ami_long srcclickms;   /* when the list was last clicked */
 
 static void srcdraw(void);
+static void foldname(ami_long f, char* s, ami_long sl);
 static ami_long srcsty;       /* where the status line is written */
 static ami_long srcsizesel = 1;   /* the dropboxes' picks, 1 based */
 static ami_long srcunitsel = 1;
 static ami_long srcwithinsel = 1;
 static ami_long srcfoldsel = 1;
 static int      srcatt;       /* the attachment box is checked */
+static int      srcwild = TRUE; /* and the wildcard box, which starts so */
 static char     srcsaid[MAXSTR]; /* what the status line says */
 
 static const char* srcsizeops[] = { "greater than", "less than" };
@@ -4053,6 +4175,7 @@ static void srcdraw(void)
     ami_long w = srcx1-srcsbw-srcx0;
     ami_long datew = ami_strsiz(srcwf, "Sep 30, 2026")+16;
     ami_long fromw = ami_strsiz(srcwf, "0")*22;
+    ami_long foldw = ami_strsiz(srcwf, "0")*18; /* which folder it is in */
     ami_long x, y;
     char     s[MAXSTR];
     int      i;
@@ -4096,6 +4219,16 @@ static void srcdraw(void)
         fprintf(srcwf, "%s", s);
         ami_bold(srcwf, FALSE);
         x += fromw;
+        /* the folder it was found in, with its account's name, since two
+           accounts each have an INBOX; in the quieter grey of the list's
+           kind column, there to be glanced past */
+        foldname(srcfold[i], s, sizeof(s));
+        clipstr(srcwf, s, foldw-8);
+        ami_fcolorc(srcwf, rgb(110), rgb(110), rgb(110));
+        ami_cursorg(srcwf, x, y);
+        fprintf(srcwf, "%s", s);
+        ami_fcolor(srcwf, ami_black);
+        x += foldw;
         copystr(s, m->subject, sizeof(s));
         clipstr(srcwf, s, srcx0+w-x-8);
         ami_cursorg(srcwf, x, y);
@@ -4143,7 +4276,19 @@ static void srcscroll(int top)
 
 }
 
-/* a row picked: shown as picked, and the message read */
+/* the name of a folder as the list shows it: the account's, then its own */
+static void foldname(ami_long f, char* s, ami_long sl)
+
+{
+
+    if (f < 0 || f >= foldct) { *s = 0; return; }
+    if (folders[f].srv >= 0 && folders[f].srv < srvct)
+        snprintf(s, sl, "%s %s", servers[folders[f].srv].name, folders[f].show);
+    else copystr(s, folders[f].show, sl);
+
+}
+
+/* a row picked: shown as picked, and brought into view */
 static void srcpickrow(int i)
 
 {
@@ -4153,6 +4298,15 @@ static void srcpickrow(int i)
     if (i < srctop) srctop = i;
     if (i >= srctop+srcvis()) srctop = i-srcvis()+1;
     srcdraw();
+
+}
+
+/* and read: on a double click, or return */
+static void srcopenrow(int i)
+
+{
+
+    if (i < 0 || i >= srcct) return;
     openmsgin(srcfold[i], &srcres[i]);
 
 }
@@ -4206,6 +4360,7 @@ static void srcgo(void)
     }
     srcask.fold = srcfoldsel-2; /* the first entry is all of them */
     srcask.attach = srcatt;
+    srcask.wild = srcwild;
     if (srcbusy) srcstatus("Searching again...");
     else srcstatus("Searching...");
     srcwant = TRUE;
@@ -4241,16 +4396,87 @@ static void srcclose(void)
     int i;
 
     if (!srcwf) return;
-    for (i = SRCFROM; i <= SRCSB; i++) ami_killwidget(srcwf, i); /* first: see closeread */
+    for (i = SRCFROM; i <= SRCWILD; i++) ami_killwidget(srcwf, i); /* first: see closeread */
     fclose(srcwf);
     srcwf = NULL;
     srclistup = FALSE;
 
 }
 
+/* Place the form for the window's size: the fields stretch with the
+   width, the buttons and the unit box keep to the right edge, and the
+   list of what was found takes the rest of the height. At the open,
+   and again when the window is resized. */
+static void srcplace(void)
+
+{
+
+    static const int edits[] = { SRCFROM, SRCTO, SRCSUBJ, SRCWORDS, SRCNOT };
+    ami_long chrw = ami_strsiz(srcwf, "0");
+    ami_long labw = ami_strsiz(srcwf, "Has the words  ");
+    ami_long w = ami_maxxg(srcwf);
+    ami_long ew, eh, cw, ch, ow, oh, bw, bh, rowh, y, x, fw;
+    ami_strptr sl;
+    int i;
+
+    ami_editboxsizg(srcwf, "0", &ew, &eh);
+    ami_buttonsizg(srcwf, "Search", &bw, &bh);
+    sl = strlist(srcsizeops, 2);
+    ami_dropboxsizg(srcwf, sl, &cw, &ch, &ow, &oh);
+    freelist(sl);
+    rowh = (eh > ch? eh: ch)+chrh/2;
+    x = chrw*2+labw;
+    fw = w-x-chrw*2; /* the fields' width: what the window gives */
+    if (fw < chrw*24) fw = chrw*24;
+    y = chrh;
+    for (i = 0; i < 5; i++) { /* the text fields */
+
+        ami_poswidgetg(srcwf, edits[i], x, y);
+        ami_sizwidgetg(srcwf, edits[i], fw, eh);
+        y += rowh;
+
+    }
+    /* the size: greater or less than, how much, of what */
+    ami_poswidgetg(srcwf, SRCSIZEOP, x, y);
+    ami_poswidgetg(srcwf, SRCSIZE, x+ow+chrw*2, y);
+    sl = strlist(srcunits, 3);
+    ami_dropboxsizg(srcwf, sl, &cw, &ch, &ow, &oh);
+    freelist(sl);
+    ami_poswidgetg(srcwf, SRCUNIT, x+fw-ow, y);
+    y += rowh;
+    /* the date: within this of that day */
+    sl = strlist(srcwithins, 8);
+    ami_dropboxsizg(srcwf, sl, &cw, &ch, &ow, &oh);
+    freelist(sl);
+    ami_poswidgetg(srcwf, SRCWITHIN, x, y);
+    ami_poswidgetg(srcwf, SRCDATE, x+ow+chrw*2, y);
+    y += rowh;
+    ami_poswidgetg(srcwf, SRCFOLD, x, y);
+    y += rowh;
+    ami_poswidgetg(srcwf, SRCATT, x, y);
+    ami_poswidgetg(srcwf, SRCWILD, x+chrw*26, y);
+    y += rowh;
+    /* the buttons, against the right */
+    ami_poswidgetg(srcwf, SRCGO, x+fw-bw, y);
+    ami_poswidgetg(srcwf, SRCCLR, x+fw-bw*2-chrw*2, y);
+    ami_poswidgetg(srcwf, SRCCLOSE, x+fw-bw*3-chrw*4, y);
+    y += bh+chrh;
+    srcsty = y;
+    y += chrh+chrh/2;
+    /* what is found goes below, to the bottom */
+    srcx0 = chrw*2;
+    srcy0 = y;
+    srcx1 = w-chrw*2;
+    srcy1 = ami_maxyg(srcwf)-chrh;
+    if (srcy1 < srcy0+srcrowh) srcy1 = srcy0+srcrowh;
+    ami_poswidgetg(srcwf, SRCSB, srcx1-srcsbw, srcy0);
+    ami_sizwidgetg(srcwf, SRCSB, srcsbw, srcy1-srcy0);
+
+}
+
 /* Open the search window. A second open brings the one already up to
-   the front. The fields are made where they stand, the form being of a
-   fixed size; the list is made when there is something to list. */
+   the front. The widgets are made here and placed by srcplace, which
+   places them again when the window is resized. */
 static void srcopen(void)
 
 {
@@ -4284,7 +4510,8 @@ static void srcopen(void)
     rowh = (eh > ch? eh: ch)+chrh/2;
     fw = chrw*60; /* the fields' width */
     ami_winclientg(srcwf, chrw*2+labw+fw+chrw*2, rowh*9+bh+chrh*2+chrh*16,
-                   &wx, &wy, BIT(ami_wmframe) | BIT(ami_wmsysbar));
+                   &wx, &wy, BIT(ami_wmframe) | BIT(ami_wmsysbar) |
+                             BIT(ami_wmsize));
     ami_setsizg(srcwf, wx, wy);
     ami_setposg(srcwf, 160, 100);
     x = chrw*2+labw;
@@ -4322,6 +4549,9 @@ static void srcopen(void)
     freelist(sl);
     y += rowh;
     ami_checkboxg(srcwf, x, y, x+chrw*24, y+eh, "Has attachment", SRCATT);
+    ami_checkboxg(srcwf, x+chrw*26, y, x+chrw*52, y+eh, "Allow wildcards",
+                  SRCWILD);
+    ami_selectwidget(srcwf, SRCWILD, srcwild);
     y += rowh;
     /* the buttons, and the status line beside them */
     ami_buttong(srcwf, x+fw-bw, y, x+fw, y+bh, "Search", SRCGO);
@@ -4340,6 +4570,7 @@ static void srcopen(void)
     srcrowh = chrh+8;
     ami_scrollvertsizg(srcwf, &srcsbw, &eh);
     ami_scrollvertg(srcwf, srcx1-srcsbw, srcy0, srcx1, srcy1, SRCSB);
+    srcplace();
     srctop = 0;
     srcsel = -1;
     srcsizesel = 1;
@@ -4361,7 +4592,8 @@ static void srcevent(ami_evtrec* er)
     switch (er->etype) {
 
         case ami_etterm: srcclose(); break; /* the window closed, not the program */
-        case ami_etresize:
+        case ami_etcan: srcclose(); break;  /* Escape: the same */
+        case ami_etresize: srcplace(); srclay(); break;
         case ami_etredraw: srclay(); break;
         case ami_etbutton:
             if (er->butid == SRCGO) srcgo();
@@ -4376,8 +4608,17 @@ static void srcevent(ami_evtrec* er)
             else if (er->drpbid == SRCFOLD) srcfoldsel = er->drpbsl;
             break;
         case ami_etchkbox:
-            srcatt = !srcatt;
-            ami_selectwidget(srcwf, SRCATT, srcatt);
+            if (er->ckbxid == SRCWILD) {
+
+                srcwild = !srcwild;
+                ami_selectwidget(srcwf, SRCWILD, srcwild);
+
+            } else {
+
+                srcatt = !srcatt;
+                ami_selectwidget(srcwf, SRCATT, srcatt);
+
+            }
             break;
         /* the list of what was found: the bar beside it, the keys, and a
            click on a row */
@@ -4391,10 +4632,23 @@ static void srcevent(ami_evtrec* er)
         case ami_etpagu: srcscroll(srctop-(srcvis()-1)); break;
         case ami_etpagd: srcscroll(srctop+(srcvis()-1)); break;
         case ami_etmoumovg: srcmx = er->moupxg; srcmy = er->moupyg; break;
-        case ami_etmouba:
-            if (er->amoubn == 1 && srclistup && srcmx >= srcx0 &&
-                srcmx < srcx1-srcsbw && srcmy >= srcy0+4 && srcmy < srcy1)
-                srcpickrow(srctop+(srcmy-srcy0-4)/srcrowh);
+        case ami_etenter: srcopenrow(srcsel); break; /* return reads the pick */
+        case ami_etmouba: /* the wheel, as buttons 4 and 5: a row a notch */
+            if (er->amoubn == 4) srcscroll(srctop-1);
+            else if (er->amoubn == 5) srcscroll(srctop+1);
+            else if (er->amoubn == 1 && srclistup && srcmx >= srcx0 &&
+                     srcmx < srcx1-srcsbw && srcmy >= srcy0+4 && srcmy < srcy1) {
+
+                /* a click picks the row; a second on the same row within
+                   a double click's time reads it */
+                int      i = srctop+(srcmy-srcy0-4)/srcrowh;
+                ami_long t = msnow();
+
+                if (i == srcsel && t-srcclickms < DBLMS)
+                    { srcopenrow(i); srcclickms = 0; }
+                else { srcpickrow(i); srcclickms = t; }
+
+            }
             break;
         default: break;
 
@@ -4425,6 +4679,103 @@ static void srcpick(void)
 
         } else copystr(t, srcwhat, sizeof(t));
         srcstatus(t);
+
+    }
+
+}
+
+/*******************************************************************************
+
+The options
+
+A box of check boxes, opened from Config. What each box says is kept in
+the account file with the accounts, so it is there next time.
+
+*******************************************************************************/
+
+static FILE* optwf; /* the window, NULL when not open */
+
+static void optlay(void)
+
+{
+
+    fprintf(optwf, "\f"); /* the boxes say it all; the title says what they are */
+
+}
+
+static void optclose(void)
+
+{
+
+    if (!optwf) return;
+    ami_killwidget(optwf, OPTTHREAD); /* the widgets first: see closeread */
+    ami_killwidget(optwf, OPTCLOSE);
+    fclose(optwf);
+    optwf = NULL;
+
+}
+
+static void optopen(void)
+
+{
+
+    ami_long wx, wy, chrw, cw, ch, bw, bh, x, y;
+
+    if (optwf) { ami_front(optwf); return; }
+    ami_openwin(&stdin, &optwf, NULL, OPTWIN);
+    ami_title(optwf, "Options");
+    ami_buffer(optwf, FALSE);
+    ami_auto(optwf, FALSE);
+    ami_curvis(optwf, FALSE);
+    ami_font(optwf, AMI_FONT_SIGN);
+    ami_setpoints(optwf, pointsz);
+    ami_binvis(optwf);
+    chrw = ami_strsiz(optwf, "0");
+    ami_checkboxsizg(optwf, "Threaded mode", &cw, &ch);
+    ami_buttonsizg(optwf, "Close", &bw, &bh);
+    ami_winclientg(optwf, chrw*36, chrh*2+ch+chrh+bh+chrh, &wx, &wy,
+                   BIT(ami_wmframe) | BIT(ami_wmsysbar));
+    ami_setsizg(optwf, wx, wy);
+    ami_setposg(optwf, 200, 140);
+    x = chrw*2;
+    y = chrh*2;
+    ami_checkboxg(optwf, x, y, x+cw, y+ch, "Threaded mode", OPTTHREAD);
+    ami_selectwidget(optwf, OPTTHREAD, threaded);
+    y += ch+chrh;
+    ami_buttong(optwf, ami_maxxg(optwf)-chrw*2-bw, y, ami_maxxg(optwf)-chrw*2,
+                y+bh, "Close", OPTCLOSE);
+    optlay();
+
+}
+
+/* an event with the options box's id on it */
+static void optevent(ami_evtrec* er)
+
+{
+
+    switch (er->etype) {
+
+        case ami_etterm: optclose(); break; /* the box closed, not the program */
+        case ami_etcan: optclose(); break;  /* Escape: the same */
+        case ami_etredraw:
+        case ami_etresize: optlay(); break;
+        case ami_etbutton: optclose(); break;
+        case ami_etchkbox:
+            if (er->ckbxid == OPTTHREAD) {
+
+                threaded = !threaded;
+                ami_selectwidget(optwf, OPTTHREAD, threaded);
+                writeaccount(); /* kept with the accounts */
+                /* the list in its new order, from the top */
+                useidx();
+                msgtop = 0;
+                msgsel = -1;
+                listshown = 0;
+                drawlist();
+
+            }
+            break;
+        default: break;
 
     }
 
@@ -4491,6 +4842,8 @@ static void setupmenu(void)
     /* as in the spreadsheet, the branch is hung on after the standard
        menu is built, since building it clears the branch link */
     newmenu(&mp, FALSE, FALSE, OFF, MENUSRV, "Servers...");
+    appendmenu(&ma->branch, mp);
+    newmenu(&mp, FALSE, FALSE, OFF, MENUOPT, "Options...");
     appendmenu(&ma->branch, mp);
     newmenu(&mp, FALSE, FALSE, ON, MENUFOLD, "Refresh Folder List");
     appendmenu(&ma->branch, mp);
@@ -4611,11 +4964,25 @@ static void fetchpick(void)
             snprintf(t, sizeof(t), "%s - %s of %s", wrkwhat, a, b);
 
         } else copystr(t, wrkwhat, sizeof(t));
+        if (movwant && *movnote) { /* a move waits its turn behind this */
+
+            strncat(t, " -- then moving ", sizeof(t)-strlen(t)-1);
+            strncat(t, movnote, sizeof(t)-strlen(t)-1);
+
+        }
         status(t);
         statprog(wrkpos, wrkmax);
 
     }
-    if (*sentsaid) { status(sentsaid); *sentsaid = 0; }
+    if (*sentsaid) {
+
+        /* said now, and again when the worker is done: the reading of
+           a folder that follows a move writes its progress over it */
+        status(sentsaid);
+        copystr(keepsaid, sentsaid, sizeof(keepsaid));
+        *sentsaid = 0;
+
+    }
     if (failwait) {
 
         failwait = FALSE;
@@ -4676,11 +5043,12 @@ static void fetchpick(void)
        at, and a message that never left looked exactly like one that
        did. */
     if (timerrun && !fetching && !wrkgo && !wrkbusy && idxwant < 0 &&
-        !sendwant && !srcwant && !srcbusy && !srcdone &&
+        !sendwant && !movwant && !movbusy && !srcwant && !srcbusy && !srcdone &&
         !failwait && !*sentsaid && !*wrkwhat) {
 
         ami_killtimer(stdout, TIMFETCH);
         timerrun = FALSE;
+        if (*keepsaid) { status(keepsaid); *keepsaid = 0; } /* the last word */
 
     }
 
@@ -4913,10 +5281,22 @@ int main(int argc, char* argv[])
         /* Every event names the window it came from. The reader is a
            window of its own and the panes are windows of their own, so
            this one loop serves them all. */
+        /* The message menu goes away on Escape, wherever the keys are,
+           and on a click anywhere but on it: a menu nobody wants is put
+           away without choosing from it. The list places a click for
+           itself, since the menu may stand over it. */
+        if (popwf) {
+
+            if (er.etype == ami_etcan) { popclose(); continue; }
+            if (er.etype == ami_etmouba && er.winid != POPWIN &&
+                er.winid != LISTWIN) { popclose(); continue; }
+
+        }
         if (er.winid == HELPWIN) { helpevent(&er); continue; }
         if (er.winid == SRCWIN) { srcevent(&er); continue; }
         if (er.winid == CMPWIN) { cmpevent(&er); continue; }
         if (er.winid == SRVWIN) { srvevent(&er); continue; }
+        if (er.winid == OPTWIN) { optevent(&er); continue; }
         if (er.winid == READWIN) {
 
             switch (er.etype) {
@@ -5020,7 +5400,7 @@ int main(int argc, char* argv[])
 
                     ami_long r = (er.moupyg-3)/(poprowh? poprowh: 1);
 
-                    poprow = r >= 0 && r < 3? r: -1;
+                    poprow = r >= 0 && r < popct? r: -1;
                     break;
 
                 }
@@ -5047,7 +5427,26 @@ int main(int argc, char* argv[])
                the menu sends this pane a nohover -- so the menu was
                destroyed either as it was born or the moment the mouse
                set off towards it. */
-            if (popwf && er.etype == ami_etmouba) { popclose(); continue; }
+            if (popwf && er.etype == ami_etmouba) {
+
+                /* A click while the menu is open: on an entry it takes
+                   the entry, though the click came to the list -- the
+                   menu had not been told of the pointer's crossing and
+                   knew no row -- and anywhere else it puts the menu
+                   away. */
+                int px = mpx+listx, py = mpy+listy;
+
+                if (er.amoubn == 1 && px >= popx && px < popx+popw &&
+                    py >= popy && py < popy+poph) {
+
+                    int r = (py-popy-3)/(poprowh? poprowh: 1);
+
+                    if (r >= 0 && r < popct) popact(r); else popclose();
+
+                } else popclose();
+                continue;
+
+            }
             switch (er.etype) {
 
                 case ami_etmoumovg: mpx = er.moupxg; mpy = er.moupyg; break;
@@ -5065,7 +5464,18 @@ int main(int argc, char* argv[])
                     } else if (er.amoubn == 1) {
 
                         i = msgtop+(mpy-4)/rowh;
-                        if (i >= 0 && i < msgct) { selectmsg(i); openmsg(i); }
+                        if (i >= 0 && i < msgct) {
+
+                            /* a click picks the message; a second on the
+                               same one, within a double click's time,
+                               opens it */
+                            ami_long t = msnow();
+
+                            if (i == msgsel && t-clickms < DBLMS)
+                                { openmsg(i); clickms = 0; }
+                            else { selectmsg(i); clickms = t; }
+
+                        }
 
                     } else if (er.amoubn == 2 || er.amoubn == 3) {
 
@@ -5103,6 +5513,10 @@ int main(int argc, char* argv[])
                     showlist();
                     fromdrag = FALSE;
                     break;
+                case ami_etenter: /* return opens the message picked */
+                    if (msgsel >= 0) openmsg(msgsel);
+                    break;
+
                 case ami_etredraw: /* only what was exposed */
                     /* the right strip a wider pane is told of was drawn
                        by the layout, with the rows' tails */
@@ -5144,6 +5558,10 @@ int main(int argc, char* argv[])
                 drawstatus();
                 break;
 
+            case ami_etenter: /* return opens the message picked */
+                if (msgsel >= 0) openmsg(msgsel);
+                break;
+
             case ami_ettim:
                 /* one step of a fetch, if one is running */
                 if (er.timnum == TIMFETCH) fetchpick();
@@ -5162,6 +5580,7 @@ int main(int argc, char* argv[])
                 switch (er.menuid) {
 
                     case MENUSRV: srvopen(); break;
+                    case MENUOPT: optopen(); break;
 
                     case MENUCOMP:
                         if (!haveaccount()) { srvopen(); break; }
@@ -5241,7 +5660,7 @@ int main(int argc, char* argv[])
 
     /* a terminate for the reader closed the reader, not the program */
     } while (er.etype != ami_etterm || er.winid == READWIN ||
-             er.winid == SRVWIN || er.winid == HELPWIN ||
+             er.winid == SRVWIN || er.winid == OPTWIN || er.winid == HELPWIN ||
              er.winid == CMPWIN || er.winid == SRCWIN);
     done:
     /* The lock is held here, so the worker is not in the middle of
@@ -5257,6 +5676,7 @@ int main(int argc, char* argv[])
     popclose();
     helpclose();
     srcclose();
+    optclose();
     srvclose();
     closeread();
     cmpclose();

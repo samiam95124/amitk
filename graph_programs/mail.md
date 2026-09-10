@@ -120,7 +120,8 @@ click a message to make one.
 
 The list shows, for each message: who it is from, what kind of mail it
 is, the subject, as much of the message as fits, and when it arrived.
-Click one to open it in a window of its own.
+A click picks one; a double click, or Return, opens it in a window of
+its own.
 
 The wheel moves one message a notch. The arrows, the page keys and the
 scroll bar all work. In an open message the wheel moves three lines,
@@ -131,6 +132,20 @@ encoded subject lines, quoted printable, base64, multipart gone into for
 the plain text part, and html with the tags taken out where plain text
 is not on offer.
 
+# Options
+
+Config/Options opens a box of check boxes. What each says is kept with
+the accounts, so it holds next time.
+
+Threaded mode, which is on to begin with, gathers the list into
+conversations. A thread is the messages with one subject, once the Re:
+and Fwd: and any tags in brackets are taken off the front. The thread
+begins with its first message and the replies follow it, oldest first,
+each standing in under the message it answers -- found by its
+In-Reply-To header, or under the first message when what it answers is
+not here. The threads stand newest first, by their newest message.
+Off, the list is every message on its own, newest first.
+
 # Searching
 
 Search, on the menu bar, opens a form modelled on the one behind the
@@ -139,6 +154,17 @@ subject holds, words it has, words it must not have, its size, when it
 came, and which folder to look in. Fill in what you know and leave the
 rest blank; a message is found when it fits everything given. Return in
 any field searches, as the Search button does.
+
+A term matches whole, in any case: From "ali" finds Ali and not
+AliExpress, and a subject is matched against the whole subject line.
+With Allow wildcards ticked, which it is to begin with, a * in a term
+stands for any run of characters and a ? for any one: "ali*" finds
+both, "*@quora.com" finds every Quora digest, and "*stock*" finds every
+subject with stock in it. Unticked, the two are characters like any
+other. From is matched against the sender's name and address, To
+against each name and address on the To line. The words fields are
+lists of words set apart by spaces; each is matched against the words
+of the message and its headers, with wildcards in it if they are on.
 
 Size takes a number, in megabytes, kilobytes or bytes as the box beside
 it says. The date is a day, written as 2026-09-09 or 9/9/2026, and the
@@ -154,25 +180,34 @@ got. A search that is asked again before it is done drops what it was
 doing and starts over.
 
 What is found is listed under the form, newest first: when it came,
-who from, and the subject. Click one to read it; the arrows, the page
-keys and the scroll bar move through the list. In the terminal, the /
+who from, which folder it is in, and the subject. A click picks one and
+a double click, or Return, reads it; the arrows, the page keys and the
+scroll bar move through the list. In the terminal, the /
 key opens the form.
 
 # The second mouse button
 
-On a message, three things, all of them local:
+On a message, a menu. Read opens it. The rest move mail into local
+folders, and only local ones; the server is never touched:
 
 - **Move to local Trash** -- that message, to a local folder called
-  Trash. Not the server's Trash, which is untouched.
+  Trash. Not the server's Trash.
 - **Local folder for a place** -- everything in this folder from that
-  domain. LinkedIn writes from four addresses and they are all LinkedIn.
+  sender's domain, less whatever it is a part of. LinkedIn writes from
+  four addresses and they are all linkedin.
 - **Local folder for a name** -- everything from that display name.
   Facebook writes under eight of them, one per friend, and sometimes
   that is what you want kept apart.
+- **Local folder for this thread** -- the conversation: everything with
+  this subject, Re: and Fwd: aside, whoever wrote it.
+- **Local folder for to an address** -- one for each address on the
+  message's To line: everything that went to that address. Mail to a
+  list, or to an old address of yours, is a kind of its own.
 
 The menu says how many messages each would take, because which one is
-right depends on the sender, and the count is what makes it a choice
-rather than a guess. The menu is cancelled by the next click.
+right depends on the mail, and the count is what makes it a choice
+rather than a guess. Escape, or a click anywhere else, puts the menu
+away.
 
 # What kind of mail this is
 

@@ -264,7 +264,14 @@ static SSL_CTX* server_dtls_ctx;
    created lazily, on the first secure use of each, rather than in the startup
    constructor. Otherwise every program linking this library would have to carry
    the .pem files (and would abort at startup without them). The pthread_once
-   guards make the lazy creation safe under the multithreaded server. */
+   guards make the lazy creation safe under the multithreaded server.
+
+   A .pem file is looked for the way Petit-Ami finds anything it keeps beside
+   a program: in the program's directory, then the user's, then the current
+   one. A program started from a launcher, whose current directory is
+   wherever the desktop put it, finds its certificates all the same. The
+   three directories are found here, not through the services module: each
+   module stands alone, usable without another of the library. */
 static pthread_once_t client_tls_once  = PTHREAD_ONCE_INIT;
 static pthread_once_t client_dtls_once = PTHREAD_ONCE_INIT;
 static pthread_once_t server_tls_once  = PTHREAD_ONCE_INIT;
@@ -3188,6 +3195,56 @@ Initialize SSL context
 
 *******************************************************************************/
 
+#define PATHLEN 1000 /* a pathed file name, as the services module sizes them */
+
+/* Where a .pem file is: the program's path, the user's, then the current
+   one, the first that holds it. When none does the bare name is given
+   back, so that the error names the file that was wanted.
+
+   The program's directory comes from the kernel's link to the running
+   file, which holds however the program was started; a system without
+   /proc skips to the other two. The user's is the home directory from
+   the environment. */
+static void certpath(
+    /* file name */ const char* leaf,
+    /* pathed name */ char* path,
+    /* length of that */ ami_long pl
+)
+
+{
+
+    char    dir[PATHLEN];
+    char*   e;
+    ssize_t l;
+    FILE*   f;
+    int     i;
+
+    for (i = 0; i < 3; i++) {
+
+        dir[0] = 0;
+        if (i == 0) { /* the program's directory */
+
+            l = readlink("/proc/self/exe", dir, sizeof(dir)-1);
+            if (l > 0) dir[l] = 0;
+            e = l > 0? strrchr(dir, '/'): NULL;
+            if (e) *e = 0; else dir[0] = 0;
+
+        } else if (i == 1) { /* the user's */
+
+            e = getenv("HOME");
+            if (e) snprintf(dir, sizeof(dir), "%s", e);
+
+        } else if (!getcwd(dir, sizeof(dir))) dir[0] = 0; /* the current */
+        if (!*dir) continue;
+        snprintf(path, pl, "%s/%s", dir, leaf);
+        f = fopen(path, "r");
+        if (f) { fclose(f); return; }
+
+    }
+    snprintf(path, pl, "%s", leaf);
+
+}
+
 void initctx(
     /* context */ SSL_CTX** ctx,
     /* communications method */ const SSL_METHOD *method,
@@ -3197,7 +3254,8 @@ void initctx(
 
 {
 
-    int r;
+    int    r;
+    char   certfn[PATHLEN], keyfn[PATHLEN];
 
     /* create new client TLS SSL context */
     *ctx = SSL_CTX_new(method);
@@ -3206,10 +3264,12 @@ void initctx(
     /* Set the client key and cert. The chain form loads a single certificate
        exactly as before, but a file carrying leaf followed by intermediates
        presents the whole chain to the peer */
-    r = SSL_CTX_use_certificate_chain_file(*ctx, cert);
+    certpath(cert, certfn, PATHLEN);
+    r = SSL_CTX_use_certificate_chain_file(*ctx, certfn);
     if (r <= 0) sslerrorqueue();
 
-    r = SSL_CTX_use_PrivateKey_file(*ctx, key, SSL_FILETYPE_PEM);
+    certpath(key, keyfn, PATHLEN);
+    r = SSL_CTX_use_PrivateKey_file(*ctx, keyfn, SSL_FILETYPE_PEM);
     if (r <= 0) sslerrorqueue();
 
     r = SSL_CTX_check_private_key(*ctx);

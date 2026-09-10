@@ -6084,6 +6084,8 @@ static void remchlwin(winptr par, winptr win)
 
 }
 
+static void menu_close(metptr mp); /* forward */
+
 static void closewin(int ofn)
 
 {
@@ -6098,6 +6100,19 @@ static void closewin(int ofn)
     wid = filwin[ofn]; /* get window id */
     ifn = opnfil[ofn]->inl; /* get the input file link */
     win = lfn2win(ofn); /* get a pointer to the window */
+    /* The menu goes with the window. Its bar and its entries are windows
+       of their own, each with a file; left behind they kept their files
+       and their records after the window was gone, four of them for
+       every reader opened and closed, and the pointer crossing one of
+       them was handed a file with no window under it. */
+    if (win->menu || win->metlst) {
+
+        menu_close(win->menu);
+        win->menu = NULL;
+        menu_close(win->metlst);
+        win->metlst = NULL;
+
+    }
     /* the display windows go under the screen lock: the event thread holds
        it through the handling of an event on this window, so it is never
        drawing into them as they go */
