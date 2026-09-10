@@ -92,7 +92,6 @@
 
 /* Petit-Ami definitions */
 #include <localdefs.h>
-#include <services.h>
 #include <network.h>
 
 #include <diag.h>
@@ -270,7 +269,9 @@ static SSL_CTX* server_dtls_ctx;
    A .pem file is looked for the way Petit-Ami finds anything it keeps beside
    a program: in the program's directory, then the user's, then the current
    one. A program started from a launcher, whose current directory is
-   wherever the desktop put it, finds its certificates all the same. */
+   wherever the desktop put it, finds its certificates all the same. The
+   three directories are found here, not through the services module: each
+   module stands alone, usable without another of the library. */
 static pthread_once_t client_tls_once  = PTHREAD_ONCE_INIT;
 static pthread_once_t client_dtls_once = PTHREAD_ONCE_INIT;
 static pthread_once_t server_tls_once  = PTHREAD_ONCE_INIT;
@@ -3198,7 +3199,12 @@ Initialize SSL context
 
 /* Where a .pem file is: the program's path, the user's, then the current
    one, the first that holds it. When none does the bare name is given
-   back, so that the error names the file that was wanted. */
+   back, so that the error names the file that was wanted.
+
+   The program's directory comes from the kernel's link to the running
+   file, which holds however the program was started; a system without
+   /proc skips to the other two. The user's is the home directory from
+   the environment. */
 static void certpath(
     /* file name */ const char* leaf,
     /* pathed name */ char* path,
@@ -3207,16 +3213,30 @@ static void certpath(
 
 {
 
-    char   dir[PATHLEN];
-    FILE*  f;
-    int    i;
+    char    dir[PATHLEN];
+    char*   e;
+    ssize_t l;
+    FILE*   f;
+    int     i;
 
     for (i = 0; i < 3; i++) {
 
-        if (i == 0) ami_getpgm(dir, PATHLEN);
-        else if (i == 1) ami_getusr(dir, PATHLEN);
-        else ami_getcur(dir, PATHLEN);
-        ami_maknam(path, pl, dir, (char*)leaf, "");
+        dir[0] = 0;
+        if (i == 0) { /* the program's directory */
+
+            l = readlink("/proc/self/exe", dir, sizeof(dir)-1);
+            if (l > 0) dir[l] = 0;
+            e = l > 0? strrchr(dir, '/'): NULL;
+            if (e) *e = 0; else dir[0] = 0;
+
+        } else if (i == 1) { /* the user's */
+
+            e = getenv("HOME");
+            if (e) snprintf(dir, sizeof(dir), "%s", e);
+
+        } else if (!getcwd(dir, sizeof(dir))) dir[0] = 0; /* the current */
+        if (!*dir) continue;
+        snprintf(path, pl, "%s/%s", dir, leaf);
         f = fopen(path, "r");
         if (f) { fclose(f); return; }
 
