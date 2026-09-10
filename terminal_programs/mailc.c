@@ -262,11 +262,16 @@ static void drawfolders(void);
 static void showfolder(int i);
 
 /* The keyboard at the panes. The folders and the list each stand their
-   pick in reverse video; the pane the keyboard is at stands it on green
-   instead, and there the arrows move the pick. Left and Right take the
-   keyboard from one pane to the other, and a click on a pick takes it
-   there too. It starts at the list, on the first message of the first
-   folder, so the program comes up ready to be worked from the keys. */
+   pick on cyan; the pane the keyboard is at stands it on green instead,
+   and there the arrows move the pick. Left and Right take the keyboard
+   from one pane to the other, and a click on a pick takes it there too.
+   It starts at the list, on the first message of the first folder, so
+   the program comes up ready to be worked from the keys.
+
+   The marks are colours and not reverse video: the terminal holds one
+   attribute at a time, so the bold of a sender's name took reverse off
+   and left it off, and a reversed row came out as black blocks where
+   its spaces were. Colours stay put across an attribute. */
 static int kbdpane = LISTWIN; /* where the keyboard is: FOLDWIN or LISTWIN */
 
 /* the mark on, for a pane's pick, and off again */
@@ -274,12 +279,8 @@ static void markon(FILE* f, int pane)
 
 {
 
-    if (kbdpane == pane) {
-
-        ami_bcolor(f, ami_green);
-        ami_fcolor(f, ami_black);
-
-    } else ami_reverse(f, TRUE);
+    ami_bcolor(f, kbdpane == pane? ami_green: ami_cyan);
+    ami_fcolor(f, ami_black);
 
 }
 
@@ -287,7 +288,6 @@ static void markoff(FILE* f)
 
 {
 
-    ami_reverse(f, FALSE);
     ami_bcolor(f, ami_white);
     ami_fcolor(f, ami_black);
 
@@ -1664,8 +1664,7 @@ static void drawfoldline(int i, int y, int w)
     if (folders[i].msgs > 0) commas(folders[i].msgs, cnt, sizeof(cnt));
     foldcnt[i] = folders[i].msgs;
     cw = *cnt? (int)strlen(cnt)+2: 0;
-    /* the one being read stands in reverse video, which is what a
-       terminal has instead of a coloured bar */
+    /* the one being read stands on its mark */
     if (i == foldsel) markon(foldwf, FOLDWIN); else markoff(foldwf);
     ami_cursor(foldwf, 1, y);
     for (k = 0; k < w; k++) fputc(' ', foldwf);
@@ -1795,7 +1794,7 @@ static void drawmsg(int i, int y)
     int     subw;
 
     /* the whole row printed over, its own ground included; the one that
-       is selected stands in reverse video */
+       is selected stands on its mark */
     if (i == msgsel) markon(listwf, LISTWIN); else markoff(listwf);
     ami_cursor(listwf, 1, y);
     for (k = 0; k < w; k++) fputc(' ', listwf);
