@@ -4867,6 +4867,16 @@ static int srcmatch(ami_long fold, const msgrec* m, const srcrec* a)
    A folder with no index yet is not read here: indexing is the worker's,
    and a search that took to reading a four gigabyte mailbox would be the
    wait it was made to avoid. Its name is kept for the front end to say. */
+static const msgrec* srtres; /* the records an order table is sorted over */
+
+static int byresdate(const void* a, const void* b)
+
+{
+
+    return (bydate(&srtres[*(const ami_long*)a], &srtres[*(const ami_long*)b]));
+
+}
+
 void servesearch(void)
 
 {
@@ -4874,6 +4884,9 @@ void servesearch(void)
     srcrec   a;
     msgrec*  res = NULL;
     ami_long* rfold = NULL;
+    msgrec*  sres;
+    ami_long* sfold;
+    ami_long* order;
     ami_long ct = 0, max = 0;
     ami_long f, i;
     ami_long f0, f1;
@@ -4945,8 +4958,21 @@ void servesearch(void)
         return;
 
     }
-    /* newest first, as the list is */
-    qsort(res, ct, sizeof(msgrec), bydate);
+    /* newest first, as the list is: the records are sorted through an
+       order table, so that each keeps the folder it was found in */
+    order = malloc((ct? ct: 1)*sizeof(ami_long));
+    sres = malloc((ct? ct: 1)*sizeof(msgrec));
+    sfold = malloc((ct? ct: 1)*sizeof(ami_long));
+    if (!order || !sres || !sfold) { fprintf(stderr, "Out of memory\n"); exit(1); }
+    for (i = 0; i < ct; i++) order[i] = i;
+    srtres = res;
+    qsort(order, ct, sizeof(ami_long), byresdate);
+    for (i = 0; i < ct; i++) { sres[i] = res[order[i]]; sfold[i] = rfold[order[i]]; }
+    free(order);
+    free(res);
+    free(rfold);
+    res = sres;
+    rfold = sfold;
     dlock();
     free(srcres);
     free(srcfold);
