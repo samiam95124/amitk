@@ -1,0 +1,339 @@
+MAIL: THEORY OF OPERATION
+
+This is how the mail program is put together and why. It goes with
+mail.c, the graphical front end; mailc.c, the terminal front end; and
+mailcore.c with mailcore.h, the program proper that both share. The
+user's side of the same ground is in mail.md, the help, and in
+doc/mail.pdf, the manual.
+
+
+1. THE SHAPE OF IT
+
+The program is in two halves.
+
+mailcore.c is everything that is not drawing: the store, the index, the
+digests, the accounts, the reading of messages, the talking to servers,
+the search, the threads, the moves, and the worker thread that does the
+long work. It draws nothing at all and knows nothing about windows.
+
+A front end puts it on a screen. mail.c does that with the graphics
+library, mailc.c with the terminal library, and they differ in nothing
+else: the same core, the same events, the same names for the same
+things. Where one has a graphical detail (a pixel row height, a widget)
+the other has the character equivalent, and the reader of one can find
+their place in the other by function name.
+
+The contract between the halves is written at the top of mailcore.h. A
+front end supplies three things, since only it knows how to say
+anything:
+
+    status()    a line saying what is going on
+    fail()      something went wrong and somebody should be told
+    statprog()  how far into a piece of work we are
+
+and keeps one rule about the lock, given in section 4.
+
+
+2. THE STORE
+
+Everything the program shows, it finds by reading files it wrote. The
+files are the truth and the display is a view of them.
+
+    ~/.amimail/
+        account                 the accounts and the options
+        <account>/<folder>.mbox one directory per account, named for it
+        local/<folder>.mbox     the folders that are yours
+        <folder>.mbox.idx       beside every mailbox: the index
+        <folder>.mbox.state     and how far it was read from the server
+
+A mailbox is mbox. A message goes in exactly as it arrived from the
+server, headers and all, behind a "From " separator line saying who it
+is from and when. A line inside a message that begins "From " is
+escaped with a > so it cannot be mistaken for a separator, and the
+newlines trailing a message are dropped. That is the whole of the
+transformation, so any mail program can read these files and this one
+can read theirs.
+
+The account file is lines of "keyword value": poll, sendfrom, threaded
+for the program; then for each account a "server <name>" line followed
+by imap, imapport, smtp, smtpport, user, pass and limit, ended by "end".
+It holds a password, so it is written mode 0600, and the program says
+so if it finds it readable by anyone else.
+
+The state file beside a server folder's mailbox holds three numbers and
+the folder's name: the UIDVALIDITY the server gave, the lowest UID taken
+and the highest. Fetching again asks only for UIDs above the highest; a
+changed validity means the server renumbered, and the folder is taken
+again from the start.
+
+The store is found through the user's home directory. The account file
+from before accounts had names, and mailboxes from before they had
+directories, are moved into place by migratestore() at startup, so an
+old store comes forward without being told.
+
+
+3. THE INDEX AND THE DIGESTS
+
+Without an index, showing a folder means reading and parsing every byte
+of its mailbox, half a minute for one of sixty thousand messages. With
+one it is a third of a second, once, at startup.
+
+The index is a text file, a line per message, tab separated, with a
+header line naming its version (IDXHEAD, "ami-mail-index 4"). The
+fields are, in order: offset in the mailbox, length, date as seconds,
+digest, category, date as shown, sender's address, sender's name,
+subject, snippet, Message-ID, In-Reply-To, To addresses. Tabs and
+newlines inside a field are escaped by idxput() and undone by idxget().
+Bumping the version number in IDXHEAD makes every index stale, so a
+change to the fields is taken up by reindexing at the next start.
+
+An index is written as mail arrives, one line per message committed, so
+a folder that grows costs only the new lines. idxfits() checks an index
+against its mailbox at startup: the mailbox must be at least as long as
+the last entry reaches, and the entry must begin where it says. A
+mailbox rewritten underneath its index, by a move for instance, fails
+that and is indexed again. indexfolder() does the reindexing, reading
+the mailbox from the end of what the index already covers, and it is
+the one long operation the worker does that is not a fetch.
+
+The folder's index is also the list. useidx() points msgs and msgct at
+the selected folder's index array, not at a copy, so showing a folder
+that has been read costs nothing. The array can move when it grows, so
+useidx() is called wherever that can happen, under the lock.
+
+Every message carries the SHA-256 of what it is. The digest is taken
+over a canonical form, the message as received with the "From " escapes
+undone and the trailing newlines dropped, so the message as stored and
+the message as received give the same digest, and so does the same
+message arriving from another folder or another server. digestof()
+takes it over a message in memory; digstart()/digend() take it over a
+message going past on its way into the file, holding back runs of line
+ends until something follows them so the two agree byte for byte. The
+digests of the whole store are hashed in memory (rehashall(),
+finddigest()), which is how a message already here is passed over when
+a server offers it again: fetchdup counts those.
+
+
+4. THREADS AND THE LOCK
+
+There are three threads.
+
+The main thread is the front end: it waits for an event, handles it,
+draws, and waits again. The worker thread, mailwork(), does the long
+work: sending, moving, indexing and fetching, in that order, looping
+with a short sleep. The search thread, searchwork(), makes searches,
+so that a search asked in the middle of an hour's fetch answers in a
+second or two.
+
+One lock covers the shared data: dlock()/dunlock() over datlock, made
+by the front end at startup before any thread exists. The rule is in
+mailcore.h and bears repeating because everything rests on it. The
+main thread holds the lock for the whole of handling an event and drops
+it while it waits for the next, so every click, redraw and menu choice
+is covered without a lock of its own. The worker takes it around the
+commit of each message, the append, the digest and the count, which is
+short, and around anything that rebuilds the folder table. The lock is
+not recursive, it is taken in exactly those places, and no helper takes
+it, so no helper can be called from a path that already holds it and
+deadlock.
+
+The worker draws nothing. What it is doing it leaves in variables the
+front end reads: wrkwhat, wrkpos and wrkmax for the strip; wrkfolds,
+wrkcounts and wrklist saying which pane wants redrawing; sentsaid and
+failsaid for what went right and wrong. The front end picks them up on
+a tick.
+
+The tick is a timer, TIMFETCH, one second, started by kickworker() when
+anything is asked of the worker and stopped when the worker is quiet
+and nothing is waiting to be said. A tick ten times a second forever
+would be a program that never lets the machine alone; a tick that stops
+too soon misses what the worker had left to say. The condition that
+stops it lists everything the worker might be in the middle of, and
+was got wrong more than once.
+
+The worker's reading of a folder yields to a move (serveindex() loops
+while no move is wanted), since a move drops the index of the folder it
+empties and the reading would only have to be done again.
+
+
+5. TALKING TO SERVERS
+
+Fetching is IMAP over TLS through the network library. The folder is
+opened with EXAMINE, which the protocol defines as read only, and each
+message is asked for with BODY.PEEK[], the form that does not mark it
+read. Either alone would do; both are used because a mail reader that
+quietly marks a thousand messages read is one nobody trusts twice.
+Nothing on a server is created, moved, renamed or flagged.
+
+A fetch, fetchrun(), goes account by account and folder by folder in
+the order fetchorder() sets. Get Mail also asks each server what folders
+it has (getfolders(), storefolders()); the timer's fetch does not, since
+folders do not come and go by the quarter minute and asking costs a
+connection. Each folder takes what is new above its state file's
+highest UID, newest first up to the account's limit, and commits each
+message as it arrives: appended to the mailbox, digested, indexed,
+counted, under the lock for that one message. A folder is never held
+half written.
+
+A server that stops answering is given up on after NETWAIT seconds and
+then left alone for a while, fifteen seconds, then thirty, doubling to
+a quarter of an hour, so a server that has had enough of us is not
+asked again at once; serverfailed(), serverspoke() and serverquiet()
+keep that per account. Before a connection is made at all, reachable()
+tries the host with a plain socket and a few seconds' patience, because
+the library treats a connection it cannot make as a fatal error and a
+mail program meets servers that are down.
+
+Sending is SMTP over TLS from the one account marked sendfrom. The
+compose window fills outto, outcc, outsub, outbody, outinreply and
+outrefs and sets sendwant; servesend() on the worker sends it, and a
+copy goes into the local Sent folder in the same form as everything
+received. smtpcheck() is Config's "check that mail could be sent".
+
+
+6. WHAT A MESSAGE LOOKS LIKE
+
+A message is read back out of its mailbox by offset and length
+(getmsg(), getmsgin()), and taken apart only to be shown, never to be
+stored. findheader() finds a header, folded lines and all. textof()
+gives the readable text: encoded subject words decoded, quoted
+printable and base64 undone, multipart gone into for the text/plain
+part, and HTML reduced to text where plain text is not on offer.
+hasattach() says whether there is an attachment. parsedate() and
+whenof() read the Date header and show it the way mail readers do:
+the time today, the day this week, the date otherwise.
+
+classify() gives each message its category from mail.cat, a rules file
+kept beside the program: a category and what it matches, one to a line,
+first match wins, "other" for the rest. The rule that does the most
+work is the last: machine mail says so in its headers (List-Unsubscribe,
+List-Id, Precedence: bulk), so mail carrying none of those, having
+matched nothing more particular, was written by a person.
+
+fillrec() makes a message's index record from the message: it is the
+one place that decides what the list shows.
+
+
+7. THREADS OF CONVERSATION
+
+With threaded on, the Options box's first check box and on to begin
+with, threadview() builds a view of the folder's index: viewidx says
+which index record each row of the list is, viewdepth how deep in its
+thread. A thread is the messages with one subject once Re:, Fwd: and
+bracketed tags are taken off the front (subjkey(), samethread()); it
+begins with its first message and the replies follow it, oldest first,
+each standing in under the message it answers, found by its In-Reply-To
+against the Message-IDs, or under the first message when what it
+answers is not here. Threads stand newest first by their newest
+message. Off, viewidx is NULL and the list is the index in date order.
+
+Anything that maps a row of the list to a record goes through viewidx
+when it is set: opening a message, the second-button menu, a move.
+
+
+8. LOCAL FOLDERS AND MOVES
+
+A local folder is a mailbox under local/ with no server side.
+localfolder() finds or makes one by name, safename() turning the name
+into a file name. Moves go through the worker: movask() leaves the
+folder, the destination and a set of flags over the folder's index
+records, and servemove() calls movelocal(), which streams the source
+mailbox, writing each message either back to a rewritten source or on
+to the destination, a line at a time, so a mailbox of gigabytes is not
+read into memory. The counts are worked out rather than counted again;
+the source is marked for reindexing and the destination's index is
+appended to. What was moved is reported in sentsaid.
+
+The second-button menu's entries are all moves over a set: the one
+message, everything from the sender's domain (senderkey(), the
+registrable domain, so aliexpress.com and its subdomains are one
+sender), everything under the sender's display name, the thread, and
+everything to each address on the To line (toholds()).
+
+
+9. THE SEARCH
+
+The form fills srcask, a srcrec, and sets srcwant. The search thread
+copies the ask under the lock, then for each folder in question copies
+the folder's index under the lock and matches against the copy without
+it, so the worker can go on appending. A term matches a field whole, in
+any case; with wild on, * and ? are wildcards (termeq()). From is
+matched against the sender's name and address, To against the To
+addresses in the index, subject against the subject, the words against
+the words of the message and its headers, which means reading the
+message (wordsin()). The results are copies of the matching records
+with the folder each was found in, sorted newest first through an order
+table so the folders stay with their records, and left under srcdone
+for the front end's tick to pick up. A search asked again before the
+last is done drops what it was doing. A folder not yet indexed is not
+searched, and is named in srcmissed.
+
+A result's menu acts in the folder the result names, finding the record
+there again by offset; a move from anywhere with results showing sets
+srcredo, and the search is run again once the worker is quiet.
+
+
+10. THE FRONT END
+
+The graphical front end is a handful of windows, each with an id the
+events name: the main window, the folder pane, the list pane, the
+banner, the reader, the server form, the compose window, the help
+window, the search window, the options box, and the message menu. One
+event loop serves them all, dispatching on the window id, and every
+window's drawing lives with its events.
+
+Drawing follows one idea: draw what changed and no more. A count that
+changes redraws its line, a pick that moves redraws two rows, a scroll
+moves what is on the screen and draws the rows that came into view, a
+resize draws what it moved. The whole list is drawn only when it has
+to be. The strip at the foot says what the worker is doing; the tick
+keeps it current and puts the worker's last word there when it stops.
+
+The keyboard is always at one of the two panes. kbdpane says which;
+the pick there is marked green, the other cyan. Up and Down move the
+pick, Return opens, Left and Right move the keyboard, and a click
+carries it. The keys are taken before the panes' own events, whichever
+window the library hands them to. The menu bar is worked from the keys
+by the library's menu select mode, Alt-F12, which the program does not
+see at all.
+
+Escape is the library's cancel event and closes whatever is on top:
+the message menu, the reader, the search form, the server form, the
+options box, the help window.
+
+Printing writes the message as shown to a file named for the subject
+and hands it to lp through the services module's exec, then removes
+the file. The launcher entry and icon, mail.desktop and mail.png, sit
+beside the program with mail.md, mail.cat and mail.bmp; resfile() finds
+any of them where the program is, then in graph_programs beside it,
+then in the current directory.
+
+The terminal front end is the same program in characters: reverse
+video and colours for marks, character cells for pixels, the / key for
+the search form, and the terminal library's menus and widgets. Its
+marks are colours rather than reverse video because the terminal holds
+one attribute at a time, and the bold of a sender's name took reverse
+off.
+
+
+11. TESTING
+
+The Wayland rig drives the graphical program without a hand on the
+desk: PD_INPUT names a fifo whose lines synthesize keys and pointer
+events, and gdb attached to the running program reads its state. The
+tests in this program's history run against a scratch copy of the
+store, HOME pointed at a directory of copied mailboxes, so the real
+store is never touched. The terminal program is driven the same way on
+a pseudo-terminal, fed bytes.
+
+Nothing in the program is there for the tests: the rig is the display
+layer's, and the program is driven through the same events a person
+would send.
+
+
+12. WHAT IS NOT HERE
+
+Deleting from a server: the one change to a server this program will
+ever make, and it will not be made until the mail here has been checked
+against what is there, message by message, which the digests make
+possible.
