@@ -120,7 +120,8 @@ click a message to make one.
 
 The list shows, for each message: who it is from, what kind of mail it
 is, the subject, as much of the message as fits, and when it arrived.
-Click one to open it in a window of its own.
+A click picks one; a double click, or Return, opens it in a window of
+its own.
 
 The wheel moves one message a notch. The arrows, the page keys and the
 scroll bar all work. In an open message the wheel moves three lines,
@@ -165,8 +166,9 @@ got. A search that is asked again before it is done drops what it was
 doing and starts over.
 
 What is found is listed under the form, newest first: when it came,
-who from, and the subject. Click one to read it; the arrows, the page
-keys and the scroll bar move through the list. In the terminal, the /
+who from, which folder it is in, and the subject. A click picks one and
+a double click, or Return, reads it; the arrows, the page keys and the
+scroll bar move through the list. In the terminal, the /
 key opens the form.
 
 # The second mouse button

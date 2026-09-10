@@ -228,6 +228,7 @@ static int   rowh;              /* the height of a message line */
 static int   foldw;             /* the width of the folder pane */
 static ami_long sbw;               /* scroll bar thickness */
 static int   listrows;          /* message lines the list holds */
+static ami_long clickms;        /* when the list was last clicked */
 static int   foldy[MAXFOLDER];  /* where each folder was drawn, for clicks */
 static int   foldon[MAXFOLDER]; /* and whether it is drawn at all */
 static int   foldcnt[MAXFOLDER]; /* the count each line shows */
@@ -281,6 +282,22 @@ static ami_long rgb(int c)
     return ((ami_long)c*(LONG_MAX/255));
 
 }
+
+/* the time now, in milliseconds of no particular epoch: for telling a
+   second click on a row from a first */
+static ami_long msnow(void)
+
+{
+
+    struct timespec t;
+
+    clock_gettime(CLOCK_MONOTONIC, &t);
+
+    return ((ami_long)t.tv_sec*1000+t.tv_nsec/1000000);
+
+}
+
+#define DBLMS 400 /* a second click within this many is a double click */
 
 /* say something went wrong, in a way the user can see */
 /* A fetch the timer started is a fetch nobody asked for, and a server
@@ -3472,6 +3489,7 @@ static ami_long srcsbw;       /* the width of the bar beside it */
 static int      srctop;       /* the first row on show */
 static int      srcsel;       /* the row picked, or -1 */
 static ami_long srcmx, srcmy; /* where the mouse is */
+static ami_long srcclickms;   /* when the list was last clicked */
 static ami_long srcsty;       /* where the status line is written */
 static int      srcsizesel;   /* which size test, 1 based as the box is */
 static int      srcunitsel;   /* which unit */
@@ -3482,6 +3500,7 @@ static int      srcwild = TRUE; /* and the wildcard box, which starts so */
 static char     srcsaid[MAXSTR*2]; /* the status line, kept for redraws */
 
 static void srcdraw(void);
+static void foldname(ami_long f, char* s, ami_long sl);
 
 static const char* srcsizeops[] = { "greater than", "less than" };
 static const char* srcunits[] = { "MB", "KB", "bytes" };
@@ -3621,6 +3640,7 @@ static void srcdraw(void)
     ami_long x, y;
     char     s[MAXSTR];
     char     when[40];
+    char     fold[MAXSTR];
     int      i, n;
 
     if (!srcwf) return;
@@ -3649,8 +3669,9 @@ static void srcdraw(void)
         if (m->date) whenof(m->date, when, sizeof(when));
         else copystr(when, m->when, sizeof(when));
         ami_reverse(srcwf, i == srcsel);
-        snprintf(s, sizeof(s), "%-12.12s %-20.20s %s", when, m->from,
-                 m->subject);
+        foldname(srcfold[i], fold, sizeof(fold));
+        snprintf(s, sizeof(s), "%-12.12s %-20.20s %-16.16s %s", when, m->from,
+                 fold, m->subject);
         n = (int)strlen(s);
         if (n > w) n = w;
         ami_cursor(srcwf, srcx0, y);
@@ -3700,7 +3721,20 @@ static void srcscroll(int top)
 
 }
 
-/* a row picked: shown as picked, and the message read */
+/* the name of a folder as the list shows it: the account's, then its own,
+   since two accounts each have an INBOX */
+static void foldname(ami_long f, char* s, ami_long sl)
+
+{
+
+    if (f < 0 || f >= foldct) { *s = 0; return; }
+    if (folders[f].srv >= 0 && folders[f].srv < srvct)
+        snprintf(s, sl, "%s %s", servers[folders[f].srv].name, folders[f].show);
+    else copystr(s, folders[f].show, sl);
+
+}
+
+/* a row picked: shown as picked, and brought into view */
 static void srcpickrow(int i)
 
 {
@@ -3710,6 +3744,15 @@ static void srcpickrow(int i)
     if (i < srctop) srctop = i;
     if (i >= srctop+srcvis()) srctop = i-srcvis()+1;
     srcdraw();
+
+}
+
+/* and read: on a double click, or return */
+static void srcopenrow(int i)
+
+{
+
+    if (i < 0 || i >= srcct) return;
     openmsgin(srcfold[i], &srcres[i]);
 
 }
@@ -4028,9 +4071,20 @@ static void srcevent(ami_evtrec* er)
             if (er->amoubn == 4) srcscroll(srctop-1); /* a row a notch */
             else if (er->amoubn == 5) srcscroll(srctop+1);
             else if (er->amoubn == 1 && srclistup && srcmx >= srcx0 &&
-                     srcmx <= srcx1-srcsbw && srcmy >= srcy0 && srcmy <= srcy1)
-                srcpickrow(srctop+(srcmy-srcy0));
+                     srcmx <= srcx1-srcsbw && srcmy >= srcy0 && srcmy <= srcy1) {
+
+                /* a click picks the row; a second on the same row within
+                   a double click's time reads it */
+                int      i = srctop+(srcmy-srcy0);
+                ami_long t = msnow();
+
+                if (i == srcsel && t-srcclickms < DBLMS)
+                    { srcopenrow(i); srcclickms = 0; }
+                else { srcpickrow(i); srcclickms = t; }
+
+            }
             break;
+        case ami_etenter: srcopenrow(srcsel); break; /* return reads the pick */
         default: break;
 
     }
@@ -4796,7 +4850,18 @@ int main(int argc, char* argv[])
                     } else if (er.amoubn == 1) {
 
                         i = msgtop+(mpy-1); /* row 1 is message msgtop */
-                        if (i >= 0 && i < msgct) { selectmsg(i); openmsg(i); }
+                        if (i >= 0 && i < msgct) {
+
+                            /* a click picks the message; a second on the
+                               same one, within a double click's time,
+                               opens it -- as Return does */
+                            ami_long t = msnow();
+
+                            if (i == msgsel && t-clickms < DBLMS)
+                                { openmsg(i); clickms = 0; }
+                            else { selectmsg(i); clickms = t; }
+
+                        }
 
                     } else if (er.amoubn == 2 || er.amoubn == 3) {
 
