@@ -620,7 +620,18 @@ static void popact(int row)
        write out again, and the display stays live while it does. The
        folder is read again after, and the worker says how many went. */
     for (m = 0, n = 0; m < msgct; m++) n += set[m];
-    movask(foldsel, dst, set, msgct);
+    /* the set is over the list's rows; the worker wants it over the
+       folder's index, which the threads have put in another order */
+    if (viewidx) {
+
+        char* iset = getmem(folders[foldsel].idxct? folders[foldsel].idxct: 1);
+
+        memset(iset, 0, folders[foldsel].idxct);
+        for (m = 0; m < msgct; m++) if (set[m]) iset[viewidx[m]] = TRUE;
+        movask(foldsel, dst, iset, folders[foldsel].idxct);
+        free(iset);
+
+    } else movask(foldsel, dst, set, msgct);
     free(set);
     msgsel = -1;
     msgct = 0;
@@ -1664,8 +1675,10 @@ static void drawmsg(int i, int y)
     clipstr(listwf, s, catx-fromx-3);
     ami_cursor(listwf, fromx+2, y);
     fprintf(listwf, "%s", s);
-    /* the subject, then the start of the message after it */
-    x = catx+2;
+    /* the subject, then the start of the message after it; a reply
+       stands in by its depth in the thread */
+    x = catx+2+(viewdepth? viewdepth[i]*2: 0);
+    if (x > datex-4) x = datex-4;
     subw = datex-x-2;
     copystr(s, m->subject, MAXSTR);
     clipstr(listwf, s, subw);
@@ -4248,6 +4261,12 @@ static void optevent(ami_evtrec* er)
                 threaded = !threaded;
                 ami_selectwidget(optwf, OPTTHREAD, threaded);
                 writeaccount(); /* kept with the accounts */
+                /* the list in its new order, from the top */
+                useidx();
+                msgtop = 0;
+                msgsel = -1;
+                listshown = 0;
+                drawlist();
 
             }
             break;

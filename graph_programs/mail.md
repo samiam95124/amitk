@@ -135,8 +135,16 @@ is not on offer.
 # Options
 
 Config/Options opens a box of check boxes. What each says is kept with
-the accounts, so it holds next time. Threaded mode is the first of
-them.
+the accounts, so it holds next time.
+
+Threaded mode, which is on to begin with, gathers the list into
+conversations. A thread is the messages with one subject, once the Re:
+and Fwd: and any tags in brackets are taken off the front. The thread
+begins with its first message and the replies follow it, oldest first,
+each standing in under the message it answers -- found by its
+In-Reply-To header, or under the first message when what it answers is
+not here. The threads stand newest first, by their newest message.
+Off, the list is every message on its own, newest first.
 
 # Searching
 

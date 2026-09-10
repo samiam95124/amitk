@@ -346,7 +346,7 @@ record is a line and has to stay one.
    a server keeping UTC sorted hours into the future. An index that is
    wrong is worse than none, since nothing would ever go back and look
    at the mailbox again. */
-#define IDXHEAD "ami-mail-index 2"
+#define IDXHEAD "ami-mail-index 3"
 
 static void idxfile(ami_long fold, char* fn, ami_long fnl)
 
@@ -428,6 +428,8 @@ static void idxwrite(FILE* f, const msgrec* m)
     idxput(f, m->from);
     idxput(f, m->subject);
     idxput(f, m->snip);
+    idxput(f, m->mid);
+    idxput(f, m->irt);
     fputc('\n', f);
 
 }
@@ -449,6 +451,8 @@ static int idxread(char* line, msgrec* m)
     p = idxget(p, m->from, sizeof(m->from));
     p = idxget(p, m->subject, sizeof(m->subject));
     p = idxget(p, m->snip, sizeof(m->snip));
+    p = idxget(p, m->mid, sizeof(m->mid));
+    p = idxget(p, m->irt, sizeof(m->irt));
 
     return (p && m->len > 0 && strlen(m->dig) == DIGLEN-1);
 
@@ -1963,6 +1967,45 @@ static void snipof(const char* text, char* snip, ami_long sn)
    headers and the beginning of the body, which is all the list shows --
    while len is the length of the whole thing, which is what reading it
    later will need. */
+/* the first <id> of a header, or its first word; and the last */
+static void firstid(const char* s, char* d, ami_long dl)
+
+{
+
+    const char* p = s;
+    const char* e;
+    ami_long    n;
+
+    while (*p == ' ' || *p == '\t') p++;
+    if (*p == '<') { e = strchr(p, '>'); if (e) e++; else e = p+strlen(p); }
+    else { e = p; while (*e && *e != ' ' && *e != '\t' && *e != ',') e++; }
+    n = e-p;
+    if (n > dl-1) n = dl-1;
+    memcpy(d, p, n);
+    d[n] = 0;
+
+}
+
+static void lastid(const char* s, char* d, ami_long dl)
+
+{
+
+    const char* p = s;
+    const char* last = NULL;
+
+    while (*p) {
+
+        while (*p == ' ' || *p == '\t' || *p == ',') p++;
+        if (!*p) break;
+        last = p;
+        if (*p == '<') { p = strchr(p, '>'); if (!p) break; p++; }
+        else while (*p && *p != ' ' && *p != '\t' && *p != ',') p++;
+
+    }
+    if (last) firstid(last, d, dl); else *d = 0;
+
+}
+
 static void fillrec(msgrec* m, const char* msg, ami_long have, ami_long len,
                     ami_long off, const char* dig)
 
@@ -1983,6 +2026,22 @@ static void fillrec(msgrec* m, const char* msg, ami_long have, ami_long len,
         copystr(m->subject, "(no subject)", sizeof(m->subject));
     findheader(msg, "Date", date, sizeof(date));
     m->date = parsedate(date, m->when, sizeof(m->when));
+    /* what it is and what it answers, for the threads: the message id,
+       and the first id of In-Reply-To, or the last of References when
+       there is no In-Reply-To */
+    {
+
+        char ids[MAXSTR*2];
+
+        if (!findheader(msg, "Message-ID", ids, sizeof(ids))) *ids = 0;
+        firstid(ids, m->mid, sizeof(m->mid));
+        if (findheader(msg, "In-Reply-To", ids, sizeof(ids)))
+            firstid(ids, m->irt, sizeof(m->irt));
+        else if (findheader(msg, "References", ids, sizeof(ids)))
+            lastid(ids, m->irt, sizeof(m->irt));
+        else *m->irt = 0;
+
+    }
     /* only what the list will show: see decodepart */
     text = textof(msg, have, SNIPPET*2);
     snipof(text, m->snip, sizeof(m->snip));
@@ -2041,7 +2100,7 @@ ami_long idxdoing = -1;   /* the folder being read just now */
 ami_long wrkgo;      /* a fetch is running on the other thread */
 char failsaid[MAXSTR*3];
 char sentsaid[MAXSTR]; /* and what went right */
-ami_long threaded;     /* the Options box: messages shown by thread */
+ami_long threaded = TRUE; /* the Options box: messages shown by thread */
 ami_long sendfail;         /* and whether it was a send that failed */
 ami_long failwait;
 
@@ -4976,19 +5035,311 @@ int resfile(const char* leaf, char* path, ami_long pl)
 
 }
 
+/*******************************************************************************
+
+Threads
+
+In threaded mode the list is the folder's messages gathered into
+conversations: a thread is the messages with one subject, once the
+Re: and Fwd: and the tags in brackets are taken off the front, and
+within a thread a message stands under the one it answers, found by
+its In-Reply-To, or under the thread's first message when what it
+answers is not here. The threads stand newest first, by their newest
+message, and within a thread the first message comes first and the
+replies follow it, oldest first, each with its own replies under it.
+
+The list the display draws is then a copy of the index in that order,
+with two arrays beside it: where each row stands in the index, for the
+moves, and how deep it is, for the drawing. Not threaded, the list is
+the index itself, and both arrays are NULL.
+
+*******************************************************************************/
+
+ami_long* viewidx;
+int*      viewdepth;
+static msgrec*  view;
+static ami_long viewmax;
+
+/* the subject with its answering and forwarding prefixes taken off, in
+   one case, hashed: the same for every message of a thread */
+static unsigned long long subjkey(const msgrec* m)
+
+{
+
+    const char* p = m->subject;
+    unsigned long long h = 1469598103934665603ULL;
+    int sp = FALSE, any = FALSE;
+
+    while (*p) {
+
+        while (*p == ' ' || *p == '\t') p++;
+        if (*p == '[') { /* a tag: [EXTERNAL], [list-name] */
+
+            const char* e = strchr(p, ']');
+
+            if (!e) break;
+            p = e+1;
+            continue;
+
+        }
+        if ((!strncasecmp(p, "re", 2) || !strncasecmp(p, "fw", 2) ||
+             !strncasecmp(p, "aw", 2) || !strncasecmp(p, "sv", 2)) &&
+            (p[2] == ':' || (tolower((unsigned char)p[2]) == 'd' && p[3] == ':') ||
+             (p[2] == '[' && strchr(p, ':') && strchr(p, ':') < p+8))) {
+
+            p = strchr(p, ':')+1;
+            continue;
+
+        }
+        break;
+
+    }
+    for (; *p; p++) {
+
+        int c = tolower((unsigned char)*p);
+
+        if (c == ' ' || c == '\t') { sp = TRUE; continue; }
+        if (sp && any) { h ^= ' '; h *= 1099511628211ULL; }
+        sp = FALSE;
+        any = TRUE;
+        h ^= (unsigned char)c;
+        h *= 1099511628211ULL;
+
+    }
+    if (!any) { /* no subject: a thread of its own, keyed by its id */
+
+        for (p = m->mid; *p; p++) { h ^= (unsigned char)*p; h *= 1099511628211ULL; }
+        h ^= 0x5a;
+
+    }
+
+    return (h);
+
+}
+
+static unsigned long long strhash(const char* p)
+
+{
+
+    unsigned long long h = 1469598103934665603ULL;
+
+    for (; *p; p++) { h ^= (unsigned char)*p; h *= 1099511628211ULL; }
+
+    return (h);
+
+}
+
+typedef struct { unsigned long long key; ami_long i; } tkey;
+
+static int bytkey(const void* a, const void* b)
+
+{
+
+    const tkey* x = a;
+    const tkey* y = b;
+
+    if (x->key != y->key) return (x->key < y->key? -1: 1);
+
+    return (x->i < y->i? -1: x->i > y->i);
+
+}
+
+/* the threaded view of a folder, built whole */
+static void threadview(ami_long fold)
+
+{
+
+    msgrec*   idx = folders[fold].idx;
+    ami_long  n = folders[fold].idxct;
+    tkey*     subj;      /* messages by subject key, then by date */
+    tkey*     ids;       /* messages by their id, for the answers to find */
+    ami_long* parent;
+    ami_long* first;     /* a message's first child */
+    ami_long* next;      /* and the next child of its parent */
+    ami_long* thread;    /* the thread each message is in: its root */
+    ami_long* stack;
+    tkey*     roots;     /* the threads, by their newest date */
+    ami_long  i, j, k, out, nroot;
+
+    if (n > viewmax) {
+
+        viewmax = n+1024;
+        view = realloc(view, viewmax*sizeof(msgrec));
+        viewidx = realloc(viewidx, viewmax*sizeof(ami_long));
+        viewdepth = realloc(viewdepth, viewmax*sizeof(int));
+        if (!view || !viewidx || !viewdepth) { fprintf(stderr, "Out of memory\n"); exit(1); }
+
+    }
+    if (!n) { msgs = view; msgct = 0; return; }
+    subj = getmem(n*sizeof(tkey));
+    ids = getmem(n*sizeof(tkey));
+    parent = getmem(n*sizeof(ami_long));
+    first = getmem(n*sizeof(ami_long));
+    next = getmem(n*sizeof(ami_long));
+    thread = getmem(n*sizeof(ami_long));
+    stack = getmem(n*sizeof(ami_long));
+    roots = getmem(n*sizeof(tkey));
+    for (i = 0; i < n; i++) {
+
+        subj[i].key = subjkey(&idx[i]);
+        subj[i].i = i;
+        ids[i].key = *idx[i].mid? strhash(idx[i].mid): 0;
+        ids[i].i = i;
+        parent[i] = -1;
+        first[i] = -1;
+        next[i] = -1;
+
+    }
+    qsort(ids, n, sizeof(tkey), bytkey);
+    /* the thread of each message: the oldest of its subject is its root */
+    qsort(subj, n, sizeof(tkey), bytkey);
+    for (i = 0; i < n; i = j) {
+
+        ami_long root = subj[i].i;
+
+        for (j = i; j < n && subj[j].key == subj[i].key; j++)
+            if (idx[subj[j].i].date < idx[root].date) root = subj[j].i;
+        for (j = i; j < n && subj[j].key == subj[i].key; j++)
+            thread[subj[j].i] = root;
+
+    }
+    /* what each answers, when that is here and in the same thread; else
+       the root, and the root answers nothing */
+    for (i = 0; i < n; i++) {
+
+        ami_long p = -1;
+
+        if (thread[i] == i) continue;
+        if (*idx[i].irt) {
+
+            unsigned long long key = strhash(idx[i].irt);
+            ami_long lo = 0, hi = n-1;
+
+            while (lo <= hi) {
+
+                ami_long mid = (lo+hi)/2;
+
+                if (ids[mid].key == key) { p = ids[mid].i; break; }
+                if (ids[mid].key < key) lo = mid+1; else hi = mid-1;
+
+            }
+            if (p >= 0 && (thread[p] != thread[i] || p == i)) p = -1;
+
+        }
+        if (p < 0) p = thread[i];
+        parent[i] = p;
+
+    }
+    /* a reply that answers its own descendant would make a ring; walk up
+       from each and cut any ring at the root */
+    for (i = 0; i < n; i++) {
+
+        ami_long p = parent[i], steps = 0;
+
+        while (p >= 0 && steps++ < n) { if (p == i) { parent[i] = thread[i]; break; } p = parent[p]; }
+        if (steps >= n) parent[i] = thread[i];
+
+    }
+    /* the children of each, oldest first: linked in from the newest
+       down so that each list comes out in date order */
+    {
+
+        tkey* bydt = getmem(n*sizeof(tkey));
+
+        for (i = 0; i < n; i++) { bydt[i].key = (unsigned long long)idx[i].date; bydt[i].i = i; }
+        qsort(bydt, n, sizeof(tkey), bytkey);
+        for (k = n-1; k >= 0; k--) {
+
+            i = bydt[k].i;
+            if (parent[i] >= 0) { next[i] = first[parent[i]]; first[parent[i]] = i; }
+
+        }
+        free(bydt);
+
+    }
+    /* the threads, by their newest message, newest first */
+    nroot = 0;
+    for (i = 0; i < n; i++) if (thread[i] == i) { roots[nroot].key = 0; roots[nroot].i = i; nroot++; }
+    {
+
+        /* the newest date of each thread, by root */
+        unsigned long long* newest = getmem(n*sizeof(unsigned long long));
+
+        for (i = 0; i < n; i++) newest[i] = 0;
+        for (i = 0; i < n; i++)
+            if ((unsigned long long)idx[i].date > newest[thread[i]])
+                newest[thread[i]] = (unsigned long long)idx[i].date;
+        for (j = 0; j < nroot; j++) roots[j].key = ~newest[roots[j].i];
+        free(newest);
+
+    }
+    qsort(roots, nroot, sizeof(tkey), bytkey);
+    /* the rows: each thread walked from its root, a message before its
+       replies, the replies oldest first */
+    out = 0;
+    for (j = 0; j < nroot; j++) {
+
+        ami_long sp = 0;
+        ami_long r = roots[j].i;
+
+        stack[sp++] = r;
+        viewdepth[out] = 0;
+        while (sp) {
+
+            ami_long m = stack[--sp];
+            ami_long c, d = 0, cnt = 0;
+
+            /* depth is the parent's plus one */
+            if (m != r) { ami_long q = parent[m]; while (q >= 0 && q != r) { d++; q = parent[q]; } d++; }
+            view[out] = idx[m];
+            viewidx[out] = m;
+            viewdepth[out] = (int)d;
+            out++;
+            /* the children go on the stack newest first, so that the
+               oldest is taken next */
+            for (c = first[m]; c >= 0; c = next[c]) cnt++;
+            for (k = cnt-1; k >= 0; k--) {
+
+                ami_long c2 = first[m], t;
+
+                for (t = 0; t < k; t++) c2 = next[c2];
+                stack[sp++] = c2;
+
+            }
+
+        }
+
+    }
+    free(subj); free(ids); free(parent); free(first); free(next);
+    free(thread); free(stack); free(roots);
+    msgs = view;
+    msgct = out;
+
+}
+
 /* The list the display draws is the selected folder's index -- not a
-   copy of it, and not one built for the purpose. This points the two at
-   each other, and is called wherever either can move: the array is
-   grown as mail arrives, and growing it can move it. Every caller holds
-   the lock, which is what makes that safe. */
+   copy of it, and not one built for the purpose -- unless the threads
+   are on, when it is the index in thread order (threadview). This
+   points the list at the folder, and is called wherever either can
+   move: the array is grown as mail arrives, and growing it can move
+   it. Every caller holds the lock, which is what makes that safe. */
 void useidx(void)
 
 {
 
     if (foldsel >= 0 && foldsel < foldct) {
 
-        msgs = folders[foldsel].idx;
-        msgct = folders[foldsel].idxct;
+        if (threaded) threadview(foldsel);
+        else {
+
+            msgs = folders[foldsel].idx;
+            msgct = folders[foldsel].idxct;
+            free(viewidx); viewidx = NULL;
+            free(viewdepth); viewdepth = NULL;
+            free(view); view = NULL;
+            viewmax = 0;
+
+        }
 
     } else { msgs = NULL; msgct = 0; }
 

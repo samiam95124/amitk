@@ -625,7 +625,18 @@ static void popact(int row)
        write out again, and the display stays live while it does. The
        folder is read again after, and the worker says how many went. */
     for (m = 0, n = 0; m < msgct; m++) n += set[m];
-    movask(foldsel, dst, set, msgct);
+    /* the set is over the list's rows; the worker wants it over the
+       folder's index, which the threads have put in another order */
+    if (viewidx) {
+
+        char* iset = getmem(folders[foldsel].idxct? folders[foldsel].idxct: 1);
+
+        memset(iset, 0, folders[foldsel].idxct);
+        for (m = 0; m < msgct; m++) if (set[m]) iset[viewidx[m]] = TRUE;
+        movask(foldsel, dst, iset, folders[foldsel].idxct);
+        free(iset);
+
+    } else movask(foldsel, dst, set, msgct);
     free(set);
     msgsel = -1;
     msgct = 0;
@@ -1794,12 +1805,12 @@ typedef struct {
 
 } rowpiece;
 
-static int rowpieces(const msgrec* m, int dx, rowpiece* pc)
+static int rowpieces(const msgrec* m, int dx, int depth, rowpiece* pc)
 
 {
 
     int n = 0;
-    int x = catx+8;
+    int x = catx+8+depth*ami_strsiz(listwf, "0")*2; /* a reply stands in */
 
     ami_bold(listwf, TRUE);
     pc[n].x = x;
@@ -1858,7 +1869,7 @@ static void drawmsg(int i, int y)
     {
 
         rowpiece pc[2];
-        int      n = rowpieces(m, datex, pc);
+        int      n = rowpieces(m, datex, viewdepth? viewdepth[i]: 0, pc);
         int      k;
 
         for (k = 0; k < n; k++) {
@@ -1907,8 +1918,8 @@ static void drawtail(int i, int y, int olddx)
     int      on, nn, k, x0;
     char     s[MAXSTR];
 
-    on = rowpieces(m, olddx, op);
-    nn = rowpieces(m, datex, np);
+    on = rowpieces(m, olddx, viewdepth? viewdepth[i]: 0, op);
+    nn = rowpieces(m, datex, viewdepth? viewdepth[i]: 0, np);
     /* where the two drawings part: a piece one has and the other has
        not, or the first character that differs; alike throughout, the
        divider before the date is the first thing that moved */
@@ -4714,6 +4725,12 @@ static void optevent(ami_evtrec* er)
                 threaded = !threaded;
                 ami_selectwidget(optwf, OPTTHREAD, threaded);
                 writeaccount(); /* kept with the accounts */
+                /* the list in its new order, from the top */
+                useidx();
+                msgtop = 0;
+                msgsel = -1;
+                listshown = 0;
+                drawlist();
 
             }
             break;

@@ -36,6 +36,7 @@ think about, and nothing in a front end should ever take the lock again.
 #define MAXFOLDER 200   /* folders on the server */
 #define MAXMSG    20000 /* messages indexed in one folder */
 #define SNIPPET   400   /* characters of the message kept for the list */
+#define IDLEN     120   /* of a Message-ID kept for threading */
 #define DEFLIMIT  200   /* messages fetched from a folder, most recent first */
 #define MAXSRV    8     /* accounts */
 #define DEFPOLL   15    /* seconds between looks at the servers */
@@ -57,6 +58,8 @@ typedef struct {
     char snip[SNIPPET];   /* the start of the message */
     char when[40];        /* the date, shown the way mail readers show it */
     ami_long date;            /* the date, for sorting */
+    char mid[IDLEN];      /* its Message-ID, for the replies to find it */
+    char irt[IDLEN];      /* and the Message-ID it replies to, if any */
 
 } msgrec;
 
@@ -179,6 +182,9 @@ extern ami_long failwait;
 extern ami_long sendfail;        /* and whether it was a send that failed */
 extern char sentsaid[MAXSTR]; /* and what went right */
 extern ami_long threaded;        /* the Options box: messages shown by thread */
+extern ami_long* viewidx;        /* threaded: where each row of the list stands
+                                    in the folder's index; NULL when not */
+extern int*      viewdepth;      /* and how deep in its thread; NULL when not */
 
 /*******************************************************************************
 
