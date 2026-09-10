@@ -1033,7 +1033,6 @@ static int        xltwin[MAXFIL*2+1]; /* window equivalence table, includes
                                          negatives and 0 */
 static metptr     xltmnu[MAXFIL*2+1]; /* menu entry equivalence table */
 static ami_long   filwin[MAXFIL]; /* file to window equivalence table */
-static int        esck;           /* previous key was escape */
 static fontptr    fntlst;         /* list of fonts */
 static int        fntcnt;         /* number of fonts */
 static FT_Library ftlibrary;     /* FreeType library instance */
@@ -13205,10 +13204,7 @@ static void xwinevt(winptr win, ami_evtrec* er, pd_evt* e, int* keep)
                 case XKB_KEY_BackSpace: er->etype = ami_etdelcb; break;
                 case XKB_KEY_Tab:       er->etype = ami_ettab; break;
                 case XKB_KEY_Return:    er->etype = ami_etenter; break;
-                case XKB_KEY_Escape:    if (esck)
-                                       { er->etype = ami_etcan; esck = FALSE; }
-                                   else esck = TRUE;
-                                   break;
+                case XKB_KEY_Escape:    er->etype = ami_etcan; break;
                 case XKB_KEY_Delete:    if (shiftl || shiftr) er->etype = ami_etdel;
                                    else if (ctrll || ctrlr) er->etype = ami_etdell;
                                    else er->etype = ami_etdelcf;
@@ -17592,7 +17588,6 @@ static void ami_init_graphics(int argc, char *argv[])
     altr = FALSE;
     capslock = FALSE;
 
-    esck = FALSE; /* set no previous escape */
 
     /* set "configuration" XWindow font capabilities */
     cfgcap = BIT(xcmedium) | BIT(xcbold) | BIT(xcdemibold) | BIT(xcdark) |
