@@ -2791,6 +2791,10 @@ static ami_long wighit(wigptr wg, ami_long lx, ami_long ly); /* forward */
 static void wigdrag(void); /* forward */
 static void clspops(int downto); /* forward */
 static void wigdrw(wigptr wg); /* forward */
+static int  menselkey(ami_long etype);   /* forward: menu select mode */
+static void menselpops(void);
+static int  menselstart(void);
+static void menselmouse(winptr win);
 static void mbarsiz(winptr win); /* forward */
 static void fronttree(winptr win); /* forward */
 static void intsetpos(winptr win, ami_long x, ami_long y); /* forward */
@@ -5463,6 +5467,7 @@ static void intevent(FILE* f)
             break;
         case ami_etmouba:  /* mouse button assertion */
             win = fndtop(mousex, mousey); /* find the enclosing window */
+            menselmouse(win); /* a click ends the keyboard's turn at a menu */
             /* a click outside the open popups dismisses them */
             if (popcnt) {
 
@@ -5815,6 +5820,11 @@ static void intevent(FILE* f)
         case ami_etprints:  /* print screen */
         case ami_etfun:     /* function key */
         case ami_etmenu:    /* display menu */
+            /* the keyboard at a menu takes its keys, and the menu key
+               puts it there: see menu select mode below */
+            if (menselkey(ev.etype)) break;
+            if (ev.etype == ami_etmenu && menselstart()) break;
+            if (ev.etype == ami_etcan && popcnt) { menselpops(); break; } /* cancel closes what the mouse opened */
             win = curfocus; /* get the focus window (if any) */
             if (win) {
 
@@ -9911,6 +9921,227 @@ static void frmenu(ami_menuptr m)
 
 }
 
+/*******************************************************************************
+
+Menu select mode
+
+The keyboard at a window's menu, as doc/menu_select.md has it. The menu
+key -- alt-F12, which no emulator or desktop claims -- puts the
+keyboard at the first title of the bar, which stands reversed as an open
+title does. Left and Right walk the bar and stop at its ends. Down, or
+Return, opens the pulldown under the title and picks its first row; Up
+and Down walk a list; Right opens the submenu of a row that has one, and
+Left closes the list the keyboard is in and comes back out to what
+opened it. Return on a row is the item chosen: the window gets the same
+menu event a click would have sent, and the mode ends. Cancel ends it
+with nothing chosen, and so does a click, which then does what a click
+does.
+
+*******************************************************************************/
+
+static int      mensel;      /* the keyboard is at a menu */
+static winptr   menselwin;   /* the window whose bar it is at */
+static ami_long menselidx;   /* the title picked on the bar, 1 based */
+
+/* a bar title's start column, and how many titles there are */
+static ami_long mbarcol(wigptr wg, ami_long idx)
+
+{
+
+    ami_menuptr p;
+    ami_long    x = 1;
+
+    for (p = wg->mitems; p && idx > 1; p = p->next, idx--) x += strlen(p->face)+2;
+
+    return (x);
+
+}
+
+static ami_long mbarcount(wigptr wg)
+
+{
+
+    ami_menuptr p;
+    ami_long    n = 0;
+
+    for (p = wg->mitems; p; p = p->next) n++;
+
+    return (n);
+
+}
+
+/* the mode starts at the first title of the bar of the focus window, or
+   of the nearest window up from it that has one; FALSE when none does */
+static int menselstart(void)
+
+{
+
+    winptr w = curfocus;
+
+    while (w && !w->mbar) w = w->parwin;
+    if (!w) return (FALSE);
+    clspops(0);
+    mensel = TRUE;
+    menselwin = w;
+    menselidx = 1;
+    w->mbar->sel = mbarcol(w->mbar, 1);
+    wigdrw(w->mbar);
+
+    return (TRUE);
+
+}
+
+/* the mode ends: the lists go and the bar is at rest */
+static void menselend(void)
+
+{
+
+    if (!mensel) return;
+    clspops(0);
+    if (menselwin->mbar) { menselwin->mbar->sel = 0; wigdrw(menselwin->mbar); }
+    mensel = FALSE;
+    menselwin = NULL;
+
+}
+
+/* a click ends the mode. On the bar or a list the click acts on the menu
+   and tidies the bar itself; anywhere else the bar is put at rest here. */
+static void menselmouse(winptr win)
+
+{
+
+    wigptr bar;
+
+    if (!mensel) return;
+    bar = menselwin->mbar;
+    mensel = FALSE;
+    menselwin = NULL;
+    if (bar && !(win && win->widget &&
+                 (win->wig->typ == wtmenubar || win->wig->typ == wtpopup))) {
+
+        clspops(0);
+        bar->sel = 0;
+        wigdrw(bar);
+
+    }
+
+}
+
+/* the popups the mouse opened go, and the bar they hang from is at rest */
+static void menselpops(void)
+
+{
+
+    wigptr owner = popcnt? popstk[0]->owner: NULL;
+
+    clspops(0);
+    if (owner && owner->typ == wtmenubar) { owner->sel = 0; wigdrw(owner); }
+
+}
+
+/* The pulldown under the title picked opens, or the submenu of the row
+   picked in the list the keyboard is in, and its first row is picked. A
+   row without a submenu, or a disabled one, opens nothing. */
+static void menselopen(void)
+
+{
+
+    wigptr      bar = menselwin->mbar;
+    wigptr      pop;
+    ami_menuptr item;
+    char**      strs;
+    ami_long    n, i;
+
+    if (!popcnt) {
+
+        item = mennth(bar->mitems, menselidx);
+        if (!item || !item->branch || !menenb(menselwin, item->id)) return;
+        n = mencol(menselwin, item->branch, &strs);
+        pop = opnpop(menselwin, absx(bar->win)+bar->sel-1, absy(bar->win)+1,
+                     strs, n, bar, item->branch, NULL);
+
+    } else {
+
+        pop = popstk[popcnt-1];
+        item = mennth(pop->mitems, pop->sel);
+        if (!item || !item->branch || !menenb(menselwin, item->id)) return;
+        n = mencol(menselwin, item->branch, &strs);
+        pop = opnpop(menselwin, absx(pop->win)+pop->win->pmaxx-1,
+                     absy(pop->win)+pop->sel-1, strs, n, bar, item->branch, NULL);
+
+    }
+    for (i = 0; i < n; i++) free(strs[i]);
+    free(strs);
+    pop->sel = 1;
+    wigdrw(pop);
+
+}
+
+/* a key while the mode is on: TRUE if the key was one of the mode's */
+static int menselkey(ami_long etype)
+
+{
+
+    wigptr      bar, pop;
+    ami_menuptr item;
+
+    if (!mensel) return (FALSE);
+    bar = menselwin->mbar;
+    pop = popcnt? popstk[popcnt-1]: NULL;
+    switch (etype) {
+
+        case ami_etcan: menselend(); return (TRUE);
+        case ami_etleft:
+            if (pop) clspops(popcnt-1); /* out of this list, to what opened it */
+            else if (menselidx > 1) {
+
+                menselidx--;
+                bar->sel = mbarcol(bar, menselidx);
+                wigdrw(bar);
+
+            }
+            return (TRUE);
+        case ami_etright:
+            if (pop) menselopen();
+            else if (menselidx < mbarcount(bar)) {
+
+                menselidx++;
+                bar->sel = mbarcol(bar, menselidx);
+                wigdrw(bar);
+
+            }
+            return (TRUE);
+        case ami_etup:
+            if (pop && pop->sel > 1) { pop->sel--; wigdrw(pop); }
+            return (TRUE);
+        case ami_etdown:
+            if (!pop) menselopen();
+            else if (pop->sel < pop->listn) { pop->sel++; wigdrw(pop); }
+            return (TRUE);
+        case ami_etenter:
+            item = pop? mennth(pop->mitems, pop->sel): mennth(bar->mitems, menselidx);
+            if (!item) return (TRUE);
+            if (item->branch) menselopen();
+            else if (menenb(menselwin, item->id)) {
+
+                /* the item chosen: what a click on it sends */
+                ami_evtrec er;
+                winptr     w = menselwin;
+
+                memset(&er, 0, sizeof(er));
+                er.etype = ami_etmenus;
+                er.menuid = item->id;
+                menselend();
+                intsendevent(w, &er);
+
+            }
+            return (TRUE);
+        default: return (FALSE);
+
+    }
+
+}
+
 static void imenu(FILE* f, ami_menuptr m)
 
 {
@@ -9919,6 +10150,13 @@ static void imenu(FILE* f, ami_menuptr m)
     wigptr wg;
     ami_long   id;
 
+    if (mensel && menselwin == win) { /* the menu goes: the keyboard's turn at it is over */
+
+        clspops(0);
+        mensel = FALSE;
+        menselwin = NULL;
+
+    }
     if (win->mbar) { /* remove the previous bar */
 
         wigptr* lp = &win->wiglst;

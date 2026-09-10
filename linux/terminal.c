@@ -372,7 +372,7 @@ static char *keytab[ami_etterm+1+MAXFKEY] = {
     "",                     /* print block */
     "",                     /* print screen */
     "",                     /* function key */
-    "",                     /* display menu */
+    "\33\133\62\64\73\63\176", /* display menu          (alt-F12: no emulator or desktop claims it) */
     "",                     /* mouse button assertion */
     "",                     /* mouse button deassertion */
     /* mouse move is just the leader for the mouse move/assert message. The
