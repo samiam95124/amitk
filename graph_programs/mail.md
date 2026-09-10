@@ -209,6 +209,12 @@ right depends on the mail, and the count is what makes it a choice
 rather than a guess. Escape, or a click anywhere else, puts the menu
 away.
 
+A search result has the same menu, and it acts in the folder the result
+was found in: the counts are of that folder, and the move is out of it.
+The results are made afresh once the move is done, so what was moved
+is shown where it went. A result found before a move can no longer be
+acted on, and the menu says so; searching again puts that right.
+
 # What kind of mail this is
 
 Every message is given a category, shown in its own column. The rules

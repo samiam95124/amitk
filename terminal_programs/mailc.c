@@ -355,7 +355,12 @@ static FILE* popwf;      /* the menu, NULL when closed */
 static int   popmsg;     /* the message it is for */
 static int   poprow = -1; /* the entry under the mouse */
 static int   poprowh;    /* the height of an entry */
-static int   popx, popy, popw, poph; /* where it stands in the main window */
+static int   popx, popy, popw, poph; /* where it stands in its parent */
+static ami_long      popfold;   /* the folder the menu acts in */
+static const msgrec* popmsgs;   /* that folder's messages, as the menu counts them */
+static int           popmsgct;
+static int           popsrc;    /* the menu is over the search results */
+static int           srcredo;   /* the search is run again once a move is done */
 /* the entries: what each does, its face, and what it works on */
 #define MAXPOP 10
 enum { POP_READ, POP_TRASH, POP_DOMAIN, POP_NAME, POP_TO, POP_THREAD };
@@ -369,6 +374,9 @@ typedef struct {
 } poprec;
 static poprec popent[MAXPOP];
 static void openmsg(int i); /* forward: Read on the menu */
+static void openmsgin(ami_long fold, const msgrec* m); /* forward: Read on a result's menu */
+static FILE* srcwf;    /* the search window, declared with the search below */
+static int   srclistup;
 static int    popct;
 
 /* The part of an address that says who sent it, for gathering their
@@ -506,8 +514,10 @@ static void popdraw(void)
 
 }
 
-/* open the menu for a message, beside the mouse */
-static void popopen(int i, int x, int y)
+/* Build the menu for message i of the folder the menu was set to act
+   in, and open it in its parent at x, y in the parent's coordinates.
+   The entries count what each would gather from that folder. */
+static void popbuild(int i, FILE* parent, int x, int y)
 
 {
 
@@ -517,10 +527,9 @@ static void popopen(int i, int x, int y)
     char name[60];
     int  n, m;
 
-    popclose();
     popmsg = i;
     popct = 0;
-    copystr(nm, msgs[i].from, sizeof(nm));
+    copystr(nm, popmsgs[i].from, sizeof(nm));
     /* read it, and the one message to the local Trash */
     popent[popct].kind = POP_READ;
     copystr(popent[popct].lab, "Read", MAXSTR);
@@ -532,9 +541,9 @@ static void popopen(int i, int x, int y)
     /* everything from that place. Say what it will gather, since the
        sender's name and what their mail comes from are not always the
        same word. */
-    senderkey(msgs[i].addr, key, sizeof(key));
-    for (m = 0, n = 0; m < msgct; m++) if (fromsender(&msgs[m], key)) n++;
-    sendername(key, msgs[i].from, name, sizeof(name));
+    senderkey(popmsgs[i].addr, key, sizeof(key));
+    for (m = 0, n = 0; m < popmsgct; m++) if (fromsender(&popmsgs[m], key)) n++;
+    sendername(key, popmsgs[i].from, name, sizeof(name));
     popent[popct].kind = POP_DOMAIN;
     copystr(popent[popct].arg, key, MAXSTR);
     copystr(popent[popct].who, name, sizeof(popent[popct].who));
@@ -545,17 +554,17 @@ static void popopen(int i, int x, int y)
        name keeps a person who writes through LinkedIn out of the
        LinkedIn folder. Both are offered, with what each would take,
        because which is wanted depends on the sender. */
-    for (m = 0, n = 0; m < msgct; m++) if (!strcmp(msgs[m].from, msgs[i].from)) n++;
+    for (m = 0, n = 0; m < popmsgct; m++) if (!strcmp(popmsgs[m].from, popmsgs[i].from)) n++;
     popent[popct].kind = POP_NAME;
-    copystr(popent[popct].arg, msgs[i].from, MAXSTR);
+    copystr(popent[popct].arg, popmsgs[i].from, MAXSTR);
     copystr(popent[popct].who, nm, sizeof(popent[popct].who));
     snprintf(popent[popct].lab, MAXSTR, "Local folder for \"%s\" (%d here)", nm, n);
     popct++;
     /* everything of this thread: the conversation, wherever its
        messages came from */
-    for (m = 0, n = 0; m < msgct; m++) if (samethread(&msgs[m], &msgs[i])) n++;
+    for (m = 0, n = 0; m < popmsgct; m++) if (samethread(&popmsgs[m], &popmsgs[i])) n++;
     popent[popct].kind = POP_THREAD;
-    copystr(popent[popct].who, msgs[i].subject, sizeof(popent[popct].who));
+    copystr(popent[popct].who, popmsgs[i].subject, sizeof(popent[popct].who));
     snprintf(popent[popct].lab, MAXSTR, "Local folder for this thread (%d here)", n);
     popct++;
     /* and by whom it went to: one entry for each address on its To
@@ -563,7 +572,7 @@ static void popopen(int i, int x, int y)
        kind of its own */
     {
 
-        const char* p = msgs[i].to;
+        const char* p = popmsgs[i].to;
 
         while (*p && popct < MAXPOP) {
 
@@ -574,7 +583,7 @@ static void popopen(int i, int x, int y)
             while (*p && *p != ',') { if (k < (int)sizeof(addr)-1) addr[k++] = *p; p++; }
             addr[k] = 0;
             if (!*addr) continue;
-            for (m = 0, n = 0; m < msgct; m++) if (toholds(msgs[m].to, addr)) n++;
+            for (m = 0, n = 0; m < popmsgct; m++) if (toholds(popmsgs[m].to, addr)) n++;
             popent[popct].kind = POP_TO;
             copystr(popent[popct].arg, addr, MAXSTR);
             copystr(popent[popct].who, addr, sizeof(popent[popct].who));
@@ -590,18 +599,15 @@ static void popopen(int i, int x, int y)
         if ((int)strlen(popent[k].lab) > w) w = (int)strlen(popent[k].lab);
     w += 4;      /* the frame and a space each side */
     h = popct+2; /* the entries inside the frame */
-    /* The menu is a child of the main window, not of the list: a child
-       is clipped by its parent, and a menu opened near the bottom of
-       the list would be cut off by it. The mouse position arrives in
-       the list's coordinates, so it is shifted by where the list sits. */
-    x += listx;
-    y += listy;
-    if (x+w > ami_maxx(stdout)) x = ami_maxx(stdout)-w;
-    if (y+h > ami_maxy(stdout)) y = ami_maxy(stdout)-h;
+    /* The menu is a child of its parent window, not of a list pane: a
+       child is clipped by its parent, and a menu opened near the bottom
+       of the list would be cut off by it. */
+    if (x+w > ami_maxx(parent)) x = ami_maxx(parent)-w;
+    if (y+h > ami_maxy(parent)) y = ami_maxy(parent)-h;
     if (x < 0) x = 0;
     if (y < 0) y = 0;
     popx = x; popy = y; popw = w; poph = h;
-    ami_openwin(&stdin, &popwf, stdout, POPWIN);
+    ami_openwin(&stdin, &popwf, parent, POPWIN);
     ami_frame(popwf, FALSE);
     ami_auto(popwf, FALSE);
     ami_curvis(popwf, FALSE);
@@ -611,6 +617,48 @@ static void popopen(int i, int x, int y)
        the list it belongs to is a menu nobody can see */
     ami_front(popwf);
     popdraw();
+
+}
+
+/* open the menu for a message of the list, beside the mouse. The
+   mouse position arrives in the list's coordinates, so it is shifted by
+   where the list sits in the main window, which the menu is a child of. */
+static void popopen(int i, int x, int y)
+
+{
+
+    popclose();
+    popfold = foldsel;
+    popmsgs = msgs;
+    popmsgct = msgct;
+    popsrc = FALSE;
+    popbuild(i, stdout, x+listx, y+listy);
+
+}
+
+/* Open the menu for a search result, in the search window. The result
+   is a copy of the message's index entry taken when the search ran, so
+   the entry is found again in the folder it names: the menu counts and
+   moves over that folder, as it does over the list's. A message that
+   has gone since the search cannot be acted on from an old result. */
+static void popsrcopen(int r, int x, int y)
+
+{
+
+    ami_long f = srcfold[r];
+    int      k;
+
+    popclose();
+    if (f < 0 || f >= foldct || !folders[f].idxok) { fail("That folder has no index yet"); return; }
+    for (k = 0; k < folders[f].idxct; k++)
+        if (folders[f].idx[k].off == srcres[r].off &&
+            folders[f].idx[k].len == srcres[r].len) break;
+    if (k >= folders[f].idxct) { fail("That message has moved since the search: search again"); return; }
+    popfold = f;
+    popmsgs = folders[f].idx;
+    popmsgct = folders[f].idxct;
+    popsrc = TRUE;
+    popbuild(k, srcwf, x, y);
 
 }
 
@@ -628,26 +676,31 @@ static void popact(int row)
     const poprec* e;
 
     popclose();
-    if (foldsel < 0 || i < 0 || i >= msgct || row < 0 || row >= popct) return;
+    if (popfold < 0 || i < 0 || i >= popmsgct || row < 0 || row >= popct) return;
     e = &popent[row];
-    if (e->kind == POP_READ) { openmsg(i); return; }
-    set = getmem(msgct);
-    memset(set, 0, msgct);
+    if (e->kind == POP_READ) {
+
+        if (popsrc) openmsgin(popfold, &popmsgs[i]); else openmsg(i);
+        return;
+
+    }
+    set = getmem(popmsgct);
+    memset(set, 0, popmsgct);
     copystr(who, e->who, sizeof(who));
     switch (e->kind) {
 
         case POP_TRASH: set[i] = TRUE; break;
         case POP_DOMAIN: /* everything from that place */
-            for (m = 0; m < msgct; m++) if (fromsender(&msgs[m], e->arg)) set[m] = TRUE;
+            for (m = 0; m < popmsgct; m++) if (fromsender(&popmsgs[m], e->arg)) set[m] = TRUE;
             break;
         case POP_NAME: /* everything from that name */
-            for (m = 0; m < msgct; m++) if (!strcmp(msgs[m].from, e->arg)) set[m] = TRUE;
+            for (m = 0; m < popmsgct; m++) if (!strcmp(popmsgs[m].from, e->arg)) set[m] = TRUE;
             break;
         case POP_TO: /* everything that went to that address */
-            for (m = 0; m < msgct; m++) if (toholds(msgs[m].to, e->arg)) set[m] = TRUE;
+            for (m = 0; m < popmsgct; m++) if (toholds(popmsgs[m].to, e->arg)) set[m] = TRUE;
             break;
         case POP_THREAD: /* the conversation */
-            for (m = 0; m < msgct; m++) if (samethread(&msgs[m], &msgs[i])) set[m] = TRUE;
+            for (m = 0; m < popmsgct; m++) if (samethread(&popmsgs[m], &popmsgs[i])) set[m] = TRUE;
             break;
         default: break;
 
@@ -657,26 +710,37 @@ static void popact(int row)
     /* The worker moves them: a mailbox of gigabytes takes a while to
        write out again, and the display stays live while it does. The
        folder is read again after, and the worker says how many went. */
-    for (m = 0, n = 0; m < msgct; m++) n += set[m];
+    for (m = 0, n = 0; m < popmsgct; m++) n += set[m];
     /* the set is over the list's rows; the worker wants it over the
        folder's index, which the threads have put in another order */
-    if (viewidx) {
+    if (!popsrc && viewidx) {
 
-        char* iset = getmem(folders[foldsel].idxct? folders[foldsel].idxct: 1);
+        char* iset = getmem(folders[popfold].idxct? folders[popfold].idxct: 1);
 
-        memset(iset, 0, folders[foldsel].idxct);
-        for (m = 0; m < msgct; m++) if (set[m]) iset[viewidx[m]] = TRUE;
-        movask(foldsel, dst, iset, folders[foldsel].idxct);
+        memset(iset, 0, folders[popfold].idxct);
+        for (m = 0; m < popmsgct; m++) if (set[m]) iset[viewidx[m]] = TRUE;
+        movask(popfold, dst, iset, folders[popfold].idxct);
         free(iset);
 
-    } else movask(foldsel, dst, set, msgct);
+    } else movask(popfold, dst, set, popmsgct);
     free(set);
-    msgsel = -1;
-    msgct = 0;
-    idxfold = -1;
-    idxwant = foldsel;
+    /* the list is emptied while its folder is moved out of and read
+       again; a move out of some other folder, from a search result,
+       leaves the list as it is */
+    if (popfold == foldsel) {
+
+        msgsel = -1;
+        msgct = 0;
+        idxfold = -1;
+        idxwant = foldsel;
+
+    }
+    /* the results name the folder each message was found in, and
+       the ones moved are not there any more: the search is run again
+       once the move is done */
+    if (srcwf && srclistup) srcredo = TRUE;
     kickworker();
-    drawlist();
+    if (popfold == foldsel) drawlist();
     drawfolders();
     snprintf(movnote, sizeof(movnote), "%d message%s to %s", n,
              n == 1? "": "s", who);
@@ -3947,6 +4011,7 @@ static void srcclose(void)
     int i;
 
     if (!srcwf) return;
+    if (popwf && popsrc) popclose(); /* its menu goes first: a child */
     for (i = SRCFROM; i <= SRCWILD; i++) ami_killwidget(srcwf, i);
     fclose(srcwf);
     srcwf = NULL;
@@ -4128,6 +4193,21 @@ static void srcevent(ami_evtrec* er)
 
 {
 
+    /* A click while the menu is open, as the list takes one: on an
+       entry it takes the entry, anywhere else it puts the menu away. */
+    if (popwf && popsrc && er->etype == ami_etmouba) {
+
+        if (er->amoubn == 1 && srcmx >= popx && srcmx < popx+popw &&
+            srcmy >= popy && srcmy < popy+poph) {
+
+            int r = srcmy-popy-2;
+
+            if (r >= 0 && r < popct) popact(r); else popclose();
+
+        } else popclose();
+        return;
+
+    }
     switch (er->etype) {
 
         case ami_etterm: srcclose(); break; /* the window closed, not the program */
@@ -4185,6 +4265,20 @@ static void srcevent(ami_evtrec* er)
                 if (i == srcsel && t-srcclickms < DBLMS)
                     { srcopenrow(i); srcclickms = 0; }
                 else { srcpickrow(i); srcclickms = t; }
+
+            } else if ((er->amoubn == 2 || er->amoubn == 3) && srclistup &&
+                       srcmx >= srcx0 && srcmx <= srcx1-srcsbw &&
+                       srcmy >= srcy0 && srcmy <= srcy1) {
+
+                /* the second button: the message menu, as on the list */
+                int i = srctop+(srcmy-srcy0);
+
+                if (i >= 0 && i < srcct) {
+
+                    srcpickrow(i);
+                    popsrcopen(i, srcmx, srcmy);
+
+                }
 
             }
             break;
@@ -4577,6 +4671,15 @@ static void fetchpick(void)
        back -- that it had gone, or why it had not -- was never looked
        at, and a message that never left looked exactly like one that
        did. */
+    /* a move asked from the results, or with results up, is done and
+       the folder read again: the results are made afresh */
+    if (srcredo && !wrkbusy && idxwant < 0 && !movwant && !movbusy &&
+        !*wrkwhat) {
+
+        srcredo = FALSE;
+        if (srcwf) srcgo();
+
+    }
     if (timerrun && !fetching && !wrkgo && !wrkbusy && idxwant < 0 &&
         !sendwant && !movwant && !movbusy && !srcwant && !srcbusy && !srcdone && !failwait &&
         !*sentsaid && !*wrkwhat) {
@@ -4907,7 +5010,7 @@ int main(int argc, char* argv[])
 
             if (er.etype == ami_etcan) { popclose(); continue; }
             if (er.etype == ami_etmouba && er.winid != POPWIN &&
-                er.winid != LISTWIN) { popclose(); continue; }
+                er.winid != LISTWIN && er.winid != SRCWIN) { popclose(); continue; }
 
         }
         if (er.winid == HELPWIN) { helpevent(&er); continue; }
