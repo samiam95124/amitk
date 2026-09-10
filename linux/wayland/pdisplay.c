@@ -3123,6 +3123,12 @@ static uint32_t keysymof(pd_display* d, uint32_t code)
 
     }
     if (!d->keymap) return (0);
+    /* Through the state, which knows the modifiers: shift-8 is an
+       asterisk, not an 8. Read at level 0 of the keymap it was an 8
+       whatever was held, and no shifted punctuation could be typed;
+       letters alone came out capital, since the graphics layer upcases
+       them itself when it sees the shift key down. */
+    if (d->xst) return (xkb_state_key_get_one_sym(d->xst, code));
     n = xkb_keymap_key_get_syms_by_level(d->keymap, code, 0, 0, &syms);
     if (n < 1) return (0);
     return (syms[0]);
@@ -3135,6 +3141,11 @@ static void keyevt(pd_display* d, pd_etype t, uint32_t xkc, uint32_t time)
 
     w = keywin(d);
     if (!w) return;
+    /* The rig's keys come with no modifier events, so the state is told
+       of them here; a real keyboard's modifiers arrive from the seat and
+       are not counted twice */
+    if (d->injfd >= 0 && d->xst)
+        xkb_state_update_key(d->xst, xkc, t == pd_etkeydown? XKB_KEY_DOWN: XKB_KEY_UP);
     mkevt(&e, t, w);
     e.code = xkc;
     e.keysym = keysymof(d, xkc);
