@@ -1467,7 +1467,7 @@ static void drawbanner(int x0)
     /* the name, at the left, set in the middle of the band */
     if (!x0) {
 
-        ami_fcolor(banwf, ami_yellow); /* the name, in yellow */
+        ami_fcolor(banwf, ami_magenta); /* the name, in magenta */
         ami_cursorg(banwf, 16, (banh-ami_chrsizy(banwf))/2);
         {   /* it keeps to the room the picture leaves it: at a large
                point size in a small window the name is wider than the
