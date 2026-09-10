@@ -147,8 +147,8 @@ the keyboard to the folders and Right to the list, and each does
 nothing if it is there already. The mouse carries the keyboard with it:
 a click on a folder or on a message puts the keyboard at that pane.
 
-The menu bar is worked from the keys too. F11, or on the desktop Alt
-pressed and let go by itself, puts the keyboard at Compose, shown as a
+The menu bar is worked from the keys too. Alt F12, or on the desktop
+Alt pressed and let go by itself, puts the keyboard at Compose, shown as a
 menu entry is shown under the mouse. Left and Right walk the bar; Down
 or Return opens the entry's list and Up and Down walk that; Return
 chooses. Escape leaves the menu, whether the keys or the mouse opened
