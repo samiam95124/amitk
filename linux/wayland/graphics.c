@@ -1027,6 +1027,7 @@ static int        pascreen;       /* current screen */
 static int        ctrll, ctrlr;   /* control key active */
 static int        shiftl, shiftr; /* shift key active */
 static int        altl, altr;     /* alt key active */
+static int        altalone;       /* alt went down and nothing else has since */
 static int        capslock;       /* caps lock key active */
 static filptr     opnfil[MAXFIL]; /* open files table */
 static int        xltwin[MAXFIL*2+1]; /* window equivalence table, includes
@@ -6516,6 +6517,201 @@ static void menu_release_all(metptr mp, metptr skip)
 
 }
 
+/** ****************************************************************************
+
+Menu select mode
+
+The keyboard at a window's menu, as doc/menu_select.md has it. The menu
+key -- Alt by itself, as Windows has it -- puts the keyboard at the first
+entry of the menu bar, which is shown pressed, the way the mouse shows
+the entry it is on. Left and Right walk the bar and stop at its ends.
+Down, or Return, opens the pulldown of the entry and picks its first
+item; Up and Down walk a pulldown; Right opens the submenu of an item
+that has one, and Left closes the list the keyboard is in and comes
+back out to what opened it. Return on an item is the item chosen: the
+program gets the same menu event a click would have sent, and the mode
+ends. Cancel ends it with nothing chosen. A click anywhere ends it too,
+and then does what a click does.
+
+The keys arrive here through the event chain, addressed to the window of
+the entry picked, so that pulldowns are opened and closed where the
+mouse opens and closes them, and not under the screen lock the key
+handler holds.
+
+*******************************************************************************/
+
+#define MENSELMAX 16 /* levels of menu the keyboard can be down */
+
+static winptr menselwin;              /* the window whose menu the keyboard is at, NULL when it is not */
+static metptr menselpath[MENSELMAX];  /* the entry picked at each level; [0] on the bar */
+static int    mensellev;              /* the level the keyboard is at */
+
+/* show an entry picked, and at rest again */
+static void menselhi(metptr mp)
+
+{
+
+    if (mp && mp->wf) { mp->pressed = TRUE; dec->menupaint(mp, decmpress); }
+
+}
+
+static void menselun(metptr mp)
+
+{
+
+    if (mp && mp->wf && mp->pressed) menu_release(mp);
+
+}
+
+/* the mode ends: the pulldowns go and the bar is at rest */
+static void menselend(void)
+
+{
+
+    if (!menselwin) return;
+    if (menselwin->metlst) {
+
+        remmen(menselwin->metlst);
+        menu_release_all(menselwin->metlst, NULL);
+
+    }
+    menselwin = NULL;
+    mensellev = 0;
+
+}
+
+/* the mode starts at a prime entry of a bar */
+static void menselstart(metptr mp)
+
+{
+
+    winptr win;
+
+    menselend();
+    if (!mp || !mp->prime || !mp->parent) return;
+    win = txt2win(mp->parent);
+    if (!win || !win->metlst) return;
+    remmen(win->metlst); /* whatever the mouse had open */
+    menu_release_all(win->metlst, NULL);
+    menselwin = win;
+    mensellev = 0;
+    menselpath[0] = mp;
+    menselhi(mp);
+
+}
+
+/* the entry before this one in its list, or NULL at the head */
+static metptr menselprev(metptr first, metptr mp)
+
+{
+
+    metptr p = first;
+
+    if (!p || p == mp) return (NULL);
+    while (p && p->next != mp) p = p->next;
+
+    return (p);
+
+}
+
+/* the pick moves to another entry of the same list */
+static void menselmove(metptr np)
+
+{
+
+    if (!np) return;
+    menselun(menselpath[mensellev]);
+    menselpath[mensellev] = np;
+    menselhi(np);
+
+}
+
+/* the pulldown of the entry picked opens, and its first item is picked */
+static void menselopen(metptr mp)
+
+{
+
+    if (!mp->branch || mensellev+1 >= MENSELMAX) return;
+    menu_press(mp); /* shows it pressed and opens its list beside it */
+    mensellev++;
+    menselpath[mensellev] = mp->branch;
+    menselhi(mp->branch);
+
+}
+
+/* the list the keyboard is in closes, and it is back at what opened it */
+static void menselclose(void)
+
+{
+
+    metptr par;
+
+    if (mensellev == 0) return;
+    par = menselpath[mensellev-1];
+    remmen(par->branch);
+    remmen(par->frame);
+    mensellev--;
+
+}
+
+/* a key while the mode is on: TRUE if the key was one of the mode's */
+static int menselkey(ami_long etype)
+
+{
+
+    metptr     mp, first;
+    ami_evtrec er;
+
+    if (!menselwin) return (FALSE);
+    mp = menselpath[mensellev];
+    first = mensellev? menselpath[mensellev-1]->branch: menselwin->metlst;
+    switch (etype) {
+
+        case ami_etcan: menselend(); return (TRUE);
+        case ami_etleft:
+            if (mensellev == 0) menselmove(menselprev(first, mp));
+            else menselclose();
+            return (TRUE);
+        case ami_etright:
+            if (mensellev == 0) menselmove(mp->next);
+            else if (mp->branch) menselopen(mp);
+            return (TRUE);
+        case ami_etup:
+            if (mensellev > 0) menselmove(menselprev(first, mp));
+            return (TRUE);
+        case ami_etdown:
+            if (mensellev == 0) { if (mp->branch) menselopen(mp); }
+            else menselmove(mp->next);
+            return (TRUE);
+        case ami_etenter:
+            if (mp->branch) menselopen(mp);
+            else if (mp->ena) {
+
+                /* the item chosen: what a click on it sends */
+                memset(&er, 0, sizeof(er));
+                er.etype = ami_etmenus;
+                er.menuid = mp->id;
+                ami_sendevent(mp->evtfil, &er);
+                menselend();
+
+            }
+            return (TRUE);
+        default: return (FALSE);
+
+    }
+
+}
+
+/* the keys the mode takes, for the key handler to address to it */
+static int menselkeys(ami_long etype)
+
+{
+
+    return (etype == ami_etcan || etype == ami_etleft || etype == ami_etright ||
+            etype == ami_etup || etype == ami_etdown || etype == ami_etenter);
+
+}
+
 static void menu_event(ami_evtrec* ev)
 
 {
@@ -6526,12 +6722,23 @@ static void menu_event(ami_evtrec* ev)
 
     /* if not our window, send it on */
     mp = xltmnu[ev->winid+MAXFIL]; /* get possible menu entry */
+    /* a click while the keyboard is at the menu ends that: on a menu entry
+       the entry is left as it is for the click to act on, anywhere else
+       the pulldowns go */
+    if (menselwin && ev->etype == ami_etmouba) {
+
+        if (mp) { menselwin = NULL; mensellev = 0; }
+        else menselend();
+
+    }
     if (!mp) menu_event_oeh(ev); /* pass on if not a menu entry */
     else { /* handle it here */
 
         par = NULL; /* set no parent (floating menu) */
         if (mp->parent) par = txt2win(mp->parent); /* index parent window */
-        if (ev->etype == ami_etredraw) { /* redraw the window */
+        if (ev->etype == ami_etmenu) menselstart(mp); /* the menu key: the keyboard comes to the bar */
+        else if (menselwin && menselkeys(ev->etype)) menselkey(ev->etype);
+        else if (ev->etype == ami_etredraw) { /* redraw the window */
 
             dec->menupaint(mp, decmexpose); /* repaint the entry */
 
@@ -13181,6 +13388,9 @@ static void xwinevt(winptr win, ami_evtrec* er, pd_evt* e, int* keep)
 
         ks = e->keysym; /* the layer translates through xkb */
         er->etype = ami_etchar; /* place default code */
+        /* alt by itself is the menu key: any other key down while it is
+           held makes it a modifier instead */
+        if (ks != XKB_KEY_Alt_L && ks != XKB_KEY_Alt_R) altalone = FALSE;
         fwin = win; /* set parent to self */
         if (!fwin) fwin = win->parwin; /* set parent of child window */
         fwin = fndfocus(fwin); /* find focus window */
@@ -13313,11 +13523,15 @@ static void xwinevt(winptr win, ami_evtrec* er, pd_evt* e, int* keep)
                 case XKB_KEY_Shift_R:   shiftr = TRUE; break; /* Right shift */
                 case XKB_KEY_Control_L: ctrll = TRUE; break;  /* Left control */
                 case XKB_KEY_Control_R: ctrlr = TRUE; break;  /* Right control */
-                case XKB_KEY_Alt_L:     altl = TRUE; break;  /* Left alt */
-                case XKB_KEY_Alt_R:     altr = TRUE; break;  /* Right alt */
+                case XKB_KEY_Alt_L:     altl = TRUE; altalone = TRUE; break;  /* Left alt */
+                case XKB_KEY_Alt_R:     altr = TRUE; altalone = TRUE; break;  /* Right alt */
                 case XKB_KEY_Caps_Lock: capslock = !capslock; /* Caps lock */
 
             }
+            /* the keyboard at the menu: its keys go to the entry picked,
+               where the menu code acts on them outside this lock */
+            if (menselwin && menselkeys(er->etype))
+                er->winid = menselpath[mensellev]->wid;
             if (er->etype != ami_etchar)
                 *keep = TRUE; /* a control was found */
 
@@ -13336,6 +13550,21 @@ static void xwinevt(winptr win, ami_evtrec* er, pd_evt* e, int* keep)
             case XKB_KEY_Control_R: ctrlr = FALSE; break;  /* Right control */
             case XKB_KEY_Alt_L:     altl = FALSE; break;  /* Left alt */
             case XKB_KEY_Alt_R:     altr = FALSE; break;  /* Right alt */
+
+        }
+        /* alt pressed and released by itself: the menu key. It goes to
+           the first entry of the bar of the nearest window up that has
+           one, where the keyboard takes the menu; a window without a
+           menu is told of the key and may do as it likes with it. */
+        if ((ks == XKB_KEY_Alt_L || ks == XKB_KEY_Alt_R) && altalone) {
+
+            winptr w = win;
+
+            altalone = FALSE;
+            while (w && !w->metlst) w = w->parwin;
+            er->etype = ami_etmenu;
+            er->winid = w? w->metlst->wid: win->wid;
+            *keep = TRUE;
 
         }
 
