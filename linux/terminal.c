@@ -160,6 +160,7 @@ extern char *program_invocation_short_name;
 #define SECOND    10000       /* 1 second time (using 100us timer */
 #define ALLOWUTF8             /* enable UTF-8 encoding */
 #define HOVERTIME (1*SECOND)  /* hover timeout, 1 second */ 
+#define ESCTIME   (SECOND/20) /* a lone Escape is the key after this, 50 ms */
 #define RESPTIME  (15*SECOND) /* default response time limit */
 
 /*
@@ -702,6 +703,8 @@ static scnatt   attr;        /* current writing attribute */
 static int    scroll;
 static int    hover;       /* current state of hover */
 static int    hovsev;      /* hover timer event */
+static int    escsev;      /* the lone Escape timer event */
+static int    escarmed;    /* it is set: an Escape waits to be told apart */
 static int    blksev;      /* finish blink event */
 static int    respsev;     /* response check event */
 static int    respto;      /* response has timed out */
@@ -2444,6 +2447,7 @@ static void ievent(void)
 
             }
             ttlogb((unsigned char)keybuf[keylen-1]);
+            escarmed = FALSE; /* whatever came, the Escape is not alone now */
             if (mousts == mnone) { /* do table matching */
 
                 pmatch = 0; /* set no partial matches */
@@ -2483,6 +2487,19 @@ static void ievent(void)
                         }
 
                     }
+
+                }
+                /* An Escape by itself is the head of every key sequence
+                   and the Escape key as well. A terminal writes a
+                   sequence in one burst, so the rest of one arrives at
+                   once, and a person cannot follow one key with another
+                   in fifty milliseconds: an Escape that is still alone
+                   when the timer fires was the key, and cancels. Escape
+                   Escape within the time still matches its own entry. */
+                if (pmatch && keylen == 1 && keybuf[0] == '\33') {
+
+                    escarmed = TRUE;
+                    escsev = system_event_addsetim(escsev, ESCTIME, FALSE);
 
                 }
                 if (!pmatch) {
@@ -2621,6 +2638,21 @@ static void ievent(void)
                 evtfnd = TRUE; /* set event found */
                 enquepaevt(&er); /* send to queue */
                 hover = FALSE; /* remove hover status */
+
+            }
+            /* the lone Escape: nothing followed it in the time, so it was
+               the key and not the head of a sequence */
+            if (!evtfnd && sev.lse == escsev && escarmed) {
+
+                escarmed = FALSE;
+                if (keylen == 1 && keybuf[0] == '\33' && mousts == mnone) {
+
+                    er.etype = ami_etcan;
+                    evtfnd = TRUE;
+                    enquepaevt(&er);
+                    keylen = 0;
+
+                }
 
             }
 
