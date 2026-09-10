@@ -6702,6 +6702,22 @@ static int menselkey(ami_long etype)
 
 }
 
+/* The menu key: the event goes to the first entry of the bar of the
+   nearest window up that has one, where the keyboard takes the menu; a
+   window without a menu is told of the key and may do as it likes with
+   it. */
+static void menselkeyev(winptr win, ami_evtrec* er)
+
+{
+
+    winptr w = win;
+
+    while (w && !w->metlst) w = w->parwin;
+    er->etype = ami_etmenu;
+    er->winid = w? w->metlst->wid: win->wid;
+
+}
+
 /* the keys the mode takes, for the key handler to address to it */
 static int menselkeys(ami_long etype)
 
@@ -13460,7 +13476,6 @@ static void xwinevt(winptr win, ami_evtrec* er, pd_evt* e, int* keep)
                 case XKB_KEY_F8:
                 case XKB_KEY_F9:
                 case XKB_KEY_F10:
-                case XKB_KEY_F11:
                 case XKB_KEY_F12:
                     /* X11 gives us all 12 function keys for our use, plus
                        are sequential */
@@ -13523,6 +13538,7 @@ static void xwinevt(winptr win, ami_evtrec* er, pd_evt* e, int* keep)
                 case XKB_KEY_Shift_R:   shiftr = TRUE; break; /* Right shift */
                 case XKB_KEY_Control_L: ctrll = TRUE; break;  /* Left control */
                 case XKB_KEY_Control_R: ctrlr = TRUE; break;  /* Right control */
+                case XKB_KEY_F11:       menselkeyev(win, er); break; /* the menu key */
                 case XKB_KEY_Alt_L:     altl = TRUE; altalone = TRUE; break;  /* Left alt */
                 case XKB_KEY_Alt_R:     altr = TRUE; altalone = TRUE; break;  /* Right alt */
                 case XKB_KEY_Caps_Lock: capslock = !capslock; /* Caps lock */
@@ -13558,12 +13574,8 @@ static void xwinevt(winptr win, ami_evtrec* er, pd_evt* e, int* keep)
            menu is told of the key and may do as it likes with it. */
         if ((ks == XKB_KEY_Alt_L || ks == XKB_KEY_Alt_R) && altalone) {
 
-            winptr w = win;
-
             altalone = FALSE;
-            while (w && !w->metlst) w = w->parwin;
-            er->etype = ami_etmenu;
-            er->winid = w? w->metlst->wid: win->wid;
+            menselkeyev(win, er);
             *keep = TRUE;
 
         }

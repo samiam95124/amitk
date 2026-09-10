@@ -7015,6 +7015,22 @@ static int menselkey(ami_long etype)
 
 }
 
+/* The menu key: the event goes to the first entry of the bar of the
+   nearest window up that has one, where the keyboard takes the menu; a
+   window without a menu is told of the key and may do as it likes with
+   it. */
+static void menselkeyev(winptr win, ami_evtrec* er)
+
+{
+
+    winptr w = win;
+
+    while (w && !w->metlst) w = w->parwin;
+    er->etype = ami_etmenu;
+    er->winid = w? w->metlst->wid: win->wid;
+
+}
+
 /* the keys the mode takes, for the key handler to address to it */
 static int menselkeys(ami_long etype)
 
@@ -13783,7 +13799,6 @@ static void xwinevt(winptr win, ami_evtrec* er, XEvent* e, int* keep)
                 case XK_F8:
                 case XK_F9:
                 case XK_F10:
-                case XK_F11:
                 case XK_F12:
                     /* X11 gives us all 12 function keys for our use, plus
                        are sequential */
@@ -13846,6 +13861,7 @@ static void xwinevt(winptr win, ami_evtrec* er, XEvent* e, int* keep)
                 case XK_Shift_R:   shiftr = TRUE; break; /* Right shift */
                 case XK_Control_L: ctrll = TRUE; break;  /* Left control */
                 case XK_Control_R: ctrlr = TRUE; break;  /* Right control */
+                case XK_F11:       menselkeyev(win, er); break; /* the menu key */
                 case XK_Alt_L:     altl = TRUE; altalone = TRUE; break;  /* Left alt */
                 case XK_Alt_R:     altr = TRUE; altalone = TRUE; break;  /* Right alt */
                 case XK_Caps_Lock: capslock = !capslock; /* Caps lock */
@@ -13883,12 +13899,8 @@ static void xwinevt(winptr win, ami_evtrec* er, XEvent* e, int* keep)
            menu is told of the key and may do as it likes with it. */
         if ((ks == XK_Alt_L || ks == XK_Alt_R) && altalone) {
 
-            winptr w = win;
-
             altalone = FALSE;
-            while (w && !w->metlst) w = w->parwin;
-            er->etype = ami_etmenu;
-            er->winid = w? w->metlst->wid: win->wid;
+            menselkeyev(win, er);
             *keep = TRUE;
 
         }

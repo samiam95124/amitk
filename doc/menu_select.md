@@ -15,11 +15,11 @@ menu mode is handled entirely by the windowing code in Ami. The net effect is
 as if the mouse was used to select a menu item.
 ## As implemented
 
-The menu select key is the one that produces the display menu event,
-ami_etmenu. On Wayland and X11 that is Alt pressed and released by
-itself, as Windows has it; Alt held while another key is pressed is a
-modifier as before. On a terminal it is F11, since xterm keeps F10 for
-itself. A window without a menu is handed the event and may do as it
+The menu select key is F11, which produces the display menu event,
+ami_etmenu; F10, the desktops' choice, is kept by xterm for itself. On
+Wayland and X11, Alt pressed and released by itself is the same key, as
+Windows has it; Alt held while another key is pressed is a modifier as
+before. A window without a menu is handed the event and may do as it
 likes with it.
 
 The highlight is the pressed look of a menu entry on the desktops, and
