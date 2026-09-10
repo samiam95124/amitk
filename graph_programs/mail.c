@@ -34,25 +34,16 @@
 * reports the conversation with the server to stderr, with the password        *
 * held back.                                                                   *
 *                                                                              *
-* The account is given in the Petit-Ami configuration, under a branch of its   *
-* own, which puts it in petit_ami.cfg beside the program, in the user's path,  *
-* or in the current directory, as config defines:                              *
+* The accounts are given in the Config/Servers form and kept in the store's    *
+* account file, ~/.amimail/account, one "server <name>" block each with the   *
+* imap and smtp hosts and ports, the user, the password and the limit, and    *
+* the program's own settings before them. For Gmail the password is not the   *
+* account password but an application password, which Google issues per       *
+* program to an account that has two step verification turned on. Since that  *
+* file then holds a password, it is written so that only its owner can read   *
+* it, and the program says so if it finds it otherwise.                        *
 *                                                                              *
-*     begin mail                                                               *
-*         imap     imap.gmail.com                                              *
-*         imapport 993                                                         *
-*         smtp     smtp.gmail.com                                              *
-*         smtpport 465                                                         *
-*         user     someone@gmail.com                                           *
-*         pass     abcdefghijklmnop                                            *
-*         limit    200                                                         *
-*         store    /home/someone/.amimail                                      *
-*     end                                                                      *
-*                                                                              *
-* For Gmail the password is not the account password but an application        *
-* password, which Google issues per program to an account that has two step    *
-* verification turned on. Since that file then holds a password, this warns    *
-* if it is one that anybody but its owner can read.                            *
+* How the program is put together is in mail_theops.txt, beside this file.    *
 *                                                                              *
 *******************************************************************************/
 
