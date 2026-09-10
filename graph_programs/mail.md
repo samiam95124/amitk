@@ -100,7 +100,10 @@ The picture is `mail.bmp`, kept beside the program. A bitmap, because
 that is the one form the library reads. Replace it with another and the
 banner follows it: the band is as tall as the picture is, so a smaller
 picture makes a smaller banner. If it is missing the banner is the name
-alone, which is a banner still.
+alone, which is a banner still. `mail.png` is the same picture made
+square, for the desktop's launcher and task bar, and `mail.desktop` is
+the launcher entry that names it, to be copied to
+`~/.local/share/applications`.
 
 # Folders
 
@@ -120,17 +123,37 @@ click a message to make one.
 
 The list shows, for each message: who it is from, what kind of mail it
 is, the subject, as much of the message as fits, and when it arrived.
-A click picks one; a double click, or Return, opens it in a window of
-its own.
+The top one is picked when a folder is shown; a click picks another,
+and a double click, or Return, opens the pick in a window of its own.
 
-The wheel moves one message a notch. The arrows, the page keys and the
-scroll bar all work. In an open message the wheel moves three lines,
-since text is not read a message at a time.
+The wheel moves one message a notch. The page keys and the scroll bar
+move the list. In an open message the wheel moves three lines, since
+text is not read a message at a time.
 
 Mail is not text any more, so there is enough MIME here to read it:
 encoded subject lines, quoted printable, base64, multipart gone into for
 the plain text part, and html with the tags taken out where plain text
 is not on offer.
+
+## The keyboard
+
+The folders and the list each mark their pick: in green at the pane
+the keyboard is at, in cyan at the other. The program comes up with the
+keyboard at the list, on the first message of the first folder, so it
+can be worked from the keys from the start. Up and Down move the mark
+of the pane the keyboard is at. At the folders, moving the mark shows
+the folder; at the list, Return opens the message marked. Left takes
+the keyboard to the folders and Right to the list, and each does
+nothing if it is there already. The mouse carries the keyboard with it:
+a click on a folder or on a message puts the keyboard at that pane.
+
+The menu bar is worked from the keys too. Alt F12, or on the desktop
+Alt pressed and let go by itself, puts the keyboard at Compose, shown as a
+menu entry is shown under the mouse. Left and Right walk the bar; Down
+or Return opens the entry's list and Up and Down walk that; Return
+chooses. Escape leaves the menu, whether the keys or the mouse opened
+it. Escape also closes the search form, the server form, the options
+box, the help window, a message's menu, and a message being read.
 
 # Options
 
@@ -172,8 +195,8 @@ period beside it is how far either side of that day to look. The folder
 box offers every folder or all of them, and the box below asks for
 messages that carry an attachment.
 
-The sender, subject, size and date are answered from the index, which
-is quick. To, the words and the attachment are answered from the
+The sender, To, subject, size and date are answered from the index,
+which is quick. The words and the attachment are answered from the
 messages themselves, which are read from the store one by one; the line
 under the buttons says which folder is being read and how far it has
 got. A search that is asked again before it is done drops what it was
@@ -244,8 +267,10 @@ program can read it, and this one can read theirs.
 Beside each mailbox are two small files. One remembers how far that
 folder has been read from the server, so fetching again takes only what
 is new. The other is the index: a line for every message saying where it
-is in the mailbox and how long it is, what it is, who it is from, what
-it is about, when it came and the start of what it says.
+is in the mailbox and how long it is, what it is, who it is from and
+who to, what it is about, when it came, the start of what it says, and
+its message id and the id of the message it answers, which is what the
+threads are built from.
 
 The index is what the list is drawn from and what the store is searched
 by, and it is written as the mail arrives. Without one, showing a folder
