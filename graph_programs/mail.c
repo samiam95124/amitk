@@ -273,6 +273,22 @@ static int   readmax;
 static void drawlist(void);     /* forward */
 static void drawfolders(void);
 static void showfolder(int i);
+
+/* The keyboard at the panes. The folders and the list each mark their
+   pick in cyan; the pane the keyboard is at marks it in green instead,
+   and there the arrows move the pick. Left and Right take the keyboard
+   from one pane to the other. The keyboard is nowhere until an arrow
+   is pressed, so a program driven by the mouse looks as it did. */
+static int kbdfocus;   /* the keyboard is at a pane */
+static int kbdpane;    /* which: FOLDWIN or LISTWIN */
+
+static ami_color markcolor(int pane)
+
+{
+
+    return (kbdfocus && kbdpane == pane? ami_green: ami_cyan);
+
+}
 static void drawread(void);
 static void layout(int whole);
 static void drawfolders(void);
@@ -1742,7 +1758,7 @@ static void drawfoldline(int i, int y, int w)
 
     /* its own ground: the mark if it is the one being read, white if it
        is not */
-    ami_fcolor(foldwf, i == foldsel? ami_cyan: ami_white);
+    ami_fcolor(foldwf, i == foldsel? markcolor(FOLDWIN): ami_white);
     ami_frect(foldwf, 2, y-2, w-2, y+chrh);
     ami_fcolor(foldwf, ami_black);
     copystr(nm, folders[i].show, MAXSTR);
@@ -1948,7 +1964,7 @@ static void drawmsg(int i, int y)
 
     if (i == msgsel) {
 
-        ami_fcolor(listwf, ami_cyan);
+        ami_fcolor(listwf, markcolor(LISTWIN));
         ami_frect(listwf, 0, y-2, w, y+rowh-4);
         ami_fcolor(listwf, ami_black);
 
@@ -2049,7 +2065,7 @@ static void drawtail(int i, int y, int olddx)
 
     }
     if (x0 < 0) x0 = 0;
-    ami_fcolor(listwf, i == msgsel? ami_cyan: ami_white);
+    ami_fcolor(listwf, i == msgsel? markcolor(LISTWIN): ami_white);
     ami_frect(listwf, x0, y-2, w, y+rowh-4);
     ami_fcolor(listwf, ami_black);
     for (k = 0; k < nn; k++) {
@@ -5235,6 +5251,63 @@ static void showfolder(int i)
 
 }
 
+/* the keyboard goes to a pane: the marks change colour to say so */
+static void setkbd(int pane)
+
+{
+
+    if (kbdfocus && kbdpane == pane) return;
+    kbdfocus = TRUE;
+    kbdpane = pane;
+    if (foldsel >= 0) drawfolders();
+    if (msgsel >= 0) drawrow(msgsel);
+
+}
+
+/* The keys at the main window and its panes, wherever the library
+   sends them. Up and Down move the pick of the pane the keyboard is at,
+   and bring it into view; Return opens the message picked; Left and
+   Right move the keyboard between the panes, and do nothing if it is
+   there already. TRUE if the key was one of these. */
+static int mainkeys(ami_evtrec* er)
+
+{
+
+    int d, i;
+
+    switch (er->etype) {
+
+        case ami_etleft: setkbd(FOLDWIN); return (TRUE);
+        case ami_etright: setkbd(LISTWIN); return (TRUE);
+        case ami_etup:
+        case ami_etdown:
+            d = er->etype == ami_etup? -1: 1;
+            if (!kbdfocus) setkbd(LISTWIN); /* the first arrow: the list */
+            if (kbdpane == FOLDWIN) {
+
+                i = foldsel+d;
+                if (i >= 0 && i < foldct) showfolder(i);
+
+            } else if (msgct) {
+
+                i = msgsel < 0? msgtop: msgsel+d;
+                if (i < 0) i = 0;
+                if (i >= msgct) i = msgct-1;
+                selectmsg(i);
+                if (i < msgtop) { msgtop = i; showlist(); }
+                else if (i >= msgtop+listvis()) { msgtop = i-listvis()+1; showlist(); }
+
+            }
+            return (TRUE);
+        case ami_etenter:
+            if (kbdfocus && kbdpane == LISTWIN && msgsel >= 0) { openmsg(msgsel); return (TRUE); }
+            return (FALSE);
+        default: return (FALSE);
+
+    }
+
+}
+
 /*******************************************************************************
 
 Main
@@ -5443,6 +5516,11 @@ int main(int argc, char* argv[])
                 er.winid != LISTWIN && er.winid != SRCWIN) { popclose(); continue; }
 
         }
+        /* the keys at the main window and its panes: the keyboard is
+           the program's, whichever pane the library hands them to */
+        if ((er.winid == MAINWIN || er.winid == FOLDWIN ||
+             er.winid == LISTWIN || er.winid == BANWIN) && !popwf &&
+            mainkeys(&er)) continue;
         if (er.winid == HELPWIN) { helpevent(&er); continue; }
         if (er.winid == SRCWIN) { srcevent(&er); continue; }
         if (er.winid == CMPWIN) { cmpevent(&er); continue; }

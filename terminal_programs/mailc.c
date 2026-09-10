@@ -260,6 +260,38 @@ static int   readmax;
 static void drawlist(void);     /* forward */
 static void drawfolders(void);
 static void showfolder(int i);
+
+/* The keyboard at the panes. The folders and the list each stand their
+   pick in reverse video; the pane the keyboard is at stands it on green
+   instead, and there the arrows move the pick. Left and Right take the
+   keyboard from one pane to the other. The keyboard is nowhere until an
+   arrow is pressed, so a program driven by the mouse looks as it did. */
+static int kbdfocus;   /* the keyboard is at a pane */
+static int kbdpane;    /* which: FOLDWIN or LISTWIN */
+
+/* the mark on, for a pane's pick, and off again */
+static void markon(FILE* f, int pane)
+
+{
+
+    if (kbdfocus && kbdpane == pane) {
+
+        ami_bcolor(f, ami_green);
+        ami_fcolor(f, ami_black);
+
+    } else ami_reverse(f, TRUE);
+
+}
+
+static void markoff(FILE* f)
+
+{
+
+    ami_reverse(f, FALSE);
+    ami_bcolor(f, ami_white);
+    ami_fcolor(f, ami_black);
+
+}
 static void drawread(void);
 static void layout(void);
 static void drawfolders(void);
@@ -1634,7 +1666,7 @@ static void drawfoldline(int i, int y, int w)
     cw = *cnt? (int)strlen(cnt)+2: 0;
     /* the one being read stands in reverse video, which is what a
        terminal has instead of a coloured bar */
-    ami_reverse(foldwf, i == foldsel);
+    if (i == foldsel) markon(foldwf, FOLDWIN); else markoff(foldwf);
     ami_cursor(foldwf, 1, y);
     for (k = 0; k < w; k++) fputc(' ', foldwf);
     clipstr(foldwf, nm, w-2-cw);
@@ -1646,7 +1678,7 @@ static void drawfoldline(int i, int y, int w)
         fprintf(foldwf, "%s", cnt);
 
     }
-    ami_reverse(foldwf, FALSE);
+    markoff(foldwf);
 
 }
 
@@ -1764,7 +1796,7 @@ static void drawmsg(int i, int y)
 
     /* the whole row printed over, its own ground included; the one that
        is selected stands in reverse video */
-    ami_reverse(listwf, i == msgsel);
+    if (i == msgsel) markon(listwf, LISTWIN); else markoff(listwf);
     ami_cursor(listwf, 1, y);
     for (k = 0; k < w; k++) fputc(' ', listwf);
     /* the sender, bold, in its column */
@@ -1808,7 +1840,7 @@ static void drawmsg(int i, int y)
     fputc('|', listwf);
     ami_cursor(listwf, datex-1, y);
     fputc('|', listwf);
-    ami_reverse(listwf, FALSE);
+    markoff(listwf);
 
 }
 
@@ -4875,6 +4907,63 @@ static void showfolder(int i)
 
 }
 
+/* the keyboard goes to a pane: the marks change colour to say so */
+static void setkbd(int pane)
+
+{
+
+    if (kbdfocus && kbdpane == pane) return;
+    kbdfocus = TRUE;
+    kbdpane = pane;
+    if (foldsel >= 0) drawfolders();
+    if (msgsel >= 0) drawrow(msgsel);
+
+}
+
+/* The keys at the main window and its panes, wherever the library
+   sends them. Up and Down move the pick of the pane the keyboard is at,
+   and bring it into view; Return opens the message picked; Left and
+   Right move the keyboard between the panes, and do nothing if it is
+   there already. TRUE if the key was one of these. */
+static int mainkeys(ami_evtrec* er)
+
+{
+
+    int d, i;
+
+    switch (er->etype) {
+
+        case ami_etleft: setkbd(FOLDWIN); return (TRUE);
+        case ami_etright: setkbd(LISTWIN); return (TRUE);
+        case ami_etup:
+        case ami_etdown:
+            d = er->etype == ami_etup? -1: 1;
+            if (!kbdfocus) setkbd(LISTWIN); /* the first arrow: the list */
+            if (kbdpane == FOLDWIN) {
+
+                i = foldsel+d;
+                if (i >= 0 && i < foldct) showfolder(i);
+
+            } else if (msgct) {
+
+                i = msgsel < 0? msgtop: msgsel+d;
+                if (i < 0) i = 0;
+                if (i >= msgct) i = msgct-1;
+                selectmsg(i);
+                if (i < msgtop) { msgtop = i; showlist(); }
+                else if (i >= msgtop+listvis()) { msgtop = i-listvis()+1; showlist(); }
+
+            }
+            return (TRUE);
+        case ami_etenter:
+            if (kbdfocus && kbdpane == LISTWIN && msgsel >= 0) { openmsg(msgsel); return (TRUE); }
+            return (FALSE);
+        default: return (FALSE);
+
+    }
+
+}
+
 /*******************************************************************************
 
 Main
@@ -5061,6 +5150,11 @@ int main(int argc, char* argv[])
                 er.winid != LISTWIN && er.winid != SRCWIN) { popclose(); continue; }
 
         }
+        /* the keys at the main window and its panes: the keyboard is
+           the program's, whichever pane the library hands them to */
+        if ((er.winid == MAINWIN || er.winid == FOLDWIN ||
+             er.winid == LISTWIN || er.winid == BANWIN) && !popwf &&
+            mainkeys(&er)) continue;
         if (er.winid == HELPWIN) { helpevent(&er); continue; }
         if (er.winid == CMPWIN) { cmpevent(&er); continue; }
         if (er.winid == SRVWIN) { srvevent(&er); continue; }

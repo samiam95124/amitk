@@ -123,9 +123,19 @@ is, the subject, as much of the message as fits, and when it arrived.
 A click picks one; a double click, or Return, opens it in a window of
 its own.
 
-The wheel moves one message a notch. The arrows, the page keys and the
-scroll bar all work. In an open message the wheel moves three lines,
-since text is not read a message at a time.
+The wheel moves one message a notch. The page keys and the scroll bar
+move the list. In an open message the wheel moves three lines, since
+text is not read a message at a time.
+
+## The keyboard
+
+The folders and the list each mark their pick in cyan. Press an arrow
+and the keyboard is at one of them: the mark there turns green, and
+Up and Down move it. At the folders, moving the mark shows the folder;
+at the list, Return opens the message marked. Left takes the keyboard
+to the folders and Right to the list, and each does nothing if it is
+there already. The keyboard is nowhere until an arrow is pressed, so
+the program worked by the mouse looks as it always did.
 
 Mail is not text any more, so there is enough MIME here to read it:
 encoded subject lines, quoted printable, base64, multipart gone into for
