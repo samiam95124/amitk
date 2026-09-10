@@ -2861,7 +2861,8 @@ static void srvevent(ami_evtrec* er)
 
     switch (er->etype) {
 
-        case ami_etterm: srvclose(); break;
+        case ami_etterm: srvclose(); break; /* the form closed, not the program */
+        case ami_etcan: srvclose(); break;  /* Escape: the same */
 
         case ami_etredraw:
         case ami_etresize: srvlay(); break;
@@ -3678,6 +3679,7 @@ static void helpevent(ami_evtrec* er)
     switch (er->etype) {
 
         case ami_etterm:   /* the window was closed, not the program */
+        case ami_etcan:    /* Escape: the same */
         case ami_etbutton: helpclose(); break;
 
         case ami_etresize:
