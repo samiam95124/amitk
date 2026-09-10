@@ -9926,7 +9926,7 @@ static void frmenu(ami_menuptr m)
 Menu select mode
 
 The keyboard at a window's menu, as doc/menu_select.md has it. The menu
-key -- F11 on a terminal, since xterm keeps F10 for itself -- puts the
+key -- alt-F12, which no emulator or desktop claims -- puts the
 keyboard at the first title of the bar, which stands reversed as an open
 title does. Left and Right walk the bar and stop at its ends. Down, or
 Return, opens the pulldown under the title and picks its first row; Up

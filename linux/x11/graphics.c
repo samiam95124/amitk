@@ -13795,6 +13795,8 @@ static void xwinevt(winptr win, ami_evtrec* er, XEvent* e, int* keep)
 
                 case XK_Insert:    er->etype = ami_etinsertt; break;
 
+                case XK_F12:       if (altl || altr) { menselkeyev(win, er); break; } /* alt-F12: the menu key */
+                                   /* fallthrough: by itself, a function key with the rest */
                 case XK_F1:
                 case XK_F2:
                 case XK_F3:
@@ -13805,7 +13807,7 @@ static void xwinevt(winptr win, ami_evtrec* er, XEvent* e, int* keep)
                 case XK_F8:
                 case XK_F9:
                 case XK_F10:
-                case XK_F12:
+                case XK_F11:
                     /* X11 gives us all 12 function keys for our use, plus
                        are sequential */
                     er->etype = ami_etfun; /* function key */
@@ -13867,7 +13869,6 @@ static void xwinevt(winptr win, ami_evtrec* er, XEvent* e, int* keep)
                 case XK_Shift_R:   shiftr = TRUE; break; /* Right shift */
                 case XK_Control_L: ctrll = TRUE; break;  /* Left control */
                 case XK_Control_R: ctrlr = TRUE; break;  /* Right control */
-                case XK_F11:       menselkeyev(win, er); break; /* the menu key */
                 case XK_Alt_L:     altl = TRUE; altalone = TRUE; break;  /* Left alt */
                 case XK_Alt_R:     altr = TRUE; altalone = TRUE; break;  /* Right alt */
                 case XK_Caps_Lock: capslock = !capslock; /* Caps lock */
