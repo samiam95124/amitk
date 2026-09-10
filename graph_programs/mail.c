@@ -277,16 +277,16 @@ static void showfolder(int i);
 /* The keyboard at the panes. The folders and the list each mark their
    pick in cyan; the pane the keyboard is at marks it in green instead,
    and there the arrows move the pick. Left and Right take the keyboard
-   from one pane to the other. The keyboard is nowhere until an arrow
-   is pressed, so a program driven by the mouse looks as it did. */
-static int kbdfocus;   /* the keyboard is at a pane */
-static int kbdpane;    /* which: FOLDWIN or LISTWIN */
+   from one pane to the other, and a click on a pick takes it there
+   too. It starts at the list, on the first message of the first
+   folder, so the program comes up ready to be worked from the keys. */
+static int kbdpane = LISTWIN; /* where the keyboard is: FOLDWIN or LISTWIN */
 
 static ami_color markcolor(int pane)
 
 {
 
-    return (kbdfocus && kbdpane == pane? ami_green: ami_cyan);
+    return (kbdpane == pane? ami_green: ami_cyan);
 
 }
 static void drawread(void);
@@ -5263,8 +5263,7 @@ static void setkbd(int pane)
 
 {
 
-    if (kbdfocus && kbdpane == pane) return;
-    kbdfocus = TRUE;
+    if (kbdpane == pane) return;
     kbdpane = pane;
     if (foldsel >= 0) drawfolders();
     if (msgsel >= 0) drawrow(msgsel);
@@ -5289,7 +5288,6 @@ static int mainkeys(ami_evtrec* er)
         case ami_etup:
         case ami_etdown:
             d = er->etype == ami_etup? -1: 1;
-            if (!kbdfocus) setkbd(LISTWIN); /* the first arrow: the list */
             if (kbdpane == FOLDWIN) {
 
                 i = foldsel+d;
@@ -5307,7 +5305,6 @@ static int mainkeys(ami_evtrec* er)
             }
             return (TRUE);
         case ami_etenter:
-            if (!kbdfocus) return (FALSE); /* the list's own Return */
             if (kbdpane == LISTWIN && msgsel >= 0) openmsg(msgsel);
             return (TRUE); /* at the folders it does nothing */
         default: return (FALSE);
