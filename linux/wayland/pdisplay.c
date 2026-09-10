@@ -2667,6 +2667,9 @@ static void mktoplevel(pd_display* d, pd_win* win)
     t->xtop = xdg_surface_get_toplevel(t->xsurf);
     xdg_toplevel_add_listener(t->xtop, &xtop_lis, win);
     xdg_toplevel_set_title(t->xtop, win->title? win->title: "ami");
+    /* the program's name is its id: a desktop file of that name gives it
+       an icon and a place in the launcher */
+    xdg_toplevel_set_app_id(t->xtop, program_invocation_short_name);
     wl_surface_commit(t->surf); /* the no-buffer commit of the handshake */
     wl_display_flush(d->dpy);
 }
