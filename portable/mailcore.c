@@ -2516,31 +2516,50 @@ ami_long localfolder(const char* show)
 }
 
 /* Move messages out of a folder's file and into another's. The set says
-   which, by index in the folder's message list. The blocks are moved
-   whole and verbatim -- separator line to trailing blank -- so nothing
-   is reencoded, requoted or otherwise touched on the way. */
+   which, by index in the folder's index. The blocks are moved whole and
+   verbatim -- separator line to trailing blank -- so nothing is
+   reencoded, requoted or otherwise touched on the way.
+
+   The file is streamed, a line at a time, and never held whole: a
+   mailbox of four gigabytes was read into memory entire and written
+   out again, which is what made a move from the inbox look like
+   nothing happening. Which message a block is, is found from where it
+   begins, by looking that offset up in the index sorted by offset. */
+
+typedef struct { ami_long off; ami_long i; } offrec;
+
+static int byoff(const void* a, const void* b)
+
+{
+
+    const offrec* x = a;
+    const offrec* y = b;
+
+    return (x->off < y->off? -1: x->off > y->off);
+
+}
+
+#define MOVELINE 65536 /* a line is taken in pieces this long */
+
 ami_long movelocal(ami_long fold, const char* dstfile, const char* set)
 
 {
 
-    FILE* f;
-    FILE* out;
-    FILE* dst;
-    char  tmp[MAXSTR*2+8];
-    char* buf;
-    ami_long  n;
-    ami_long  i, start, blkstart;
-    ami_long  moved = 0;
+    FILE*    f;
+    FILE*    out;
+    FILE*    dst;
+    FILE*    cur;
+    char     tmp[MAXSTR*2+8];
+    char*    line;
+    offrec*  offs;
+    ami_long n, i;
+    ami_long pos = 0;
+    ami_long moved = 0;
+    int      atstart = TRUE;  /* the next read begins a line */
+    int      prevblank = TRUE; /* the line before was blank: a separator may follow */
 
     f = fopen(folders[fold].file, "r");
     if (!f) return (0);
-    fseek(f, 0, SEEK_END);
-    n = ftell(f);
-    fseek(f, 0, SEEK_SET);
-    buf = getmem(n+1);
-    n = fread(buf, 1, n, f);
-    buf[n] = 0;
-    fclose(f);
     snprintf(tmp, sizeof(tmp), "%s/movetmp", store);
     out = fopen(tmp, "w");
     dst = fopen(dstfile, "a");
@@ -2548,63 +2567,59 @@ ami_long movelocal(ami_long fold, const char* dstfile, const char* set)
 
         if (out) fclose(out);
         if (dst) fclose(dst);
-        free(buf);
+        fclose(f);
         fail("The move could not open its files");
-
         return (0);
 
     }
-    /* walk the separators exactly as the indexing does, so the blocks
-       here are the messages there */
-    start = -1;
-    blkstart = 0;
-    for (i = 0; i < n; i++) {
+    /* the index by offset, for finding a block's message */
+    n = folders[fold].idxct;
+    offs = getmem((n? n: 1)*sizeof(offrec));
+    for (i = 0; i < n; i++) { offs[i].off = folders[fold].idx[i].off; offs[i].i = i; }
+    qsort(offs, n, sizeof(offrec), byoff);
+    line = getmem(MOVELINE);
+    cur = out;
+    wrkmax = n;
+    wrkpos = 0;
+    while (fgets(line, MOVELINE, f)) {
 
-        int atsep = !strncmp(buf+i, "From ", 5) &&
-                    (i == 0 || (i >= 2 && buf[i-1] == '\n' &&
-                                (buf[i-2] == '\n' ||
-                                 (buf[i-2] == '\r' && i >= 3 &&
-                                  buf[i-3] == '\n'))));
+        ami_long len = strlen(line);
+        int      whole = len && line[len-1] == '\n';
 
-        if (atsep) {
+        /* a separator: "From " at the start of a line, after a blank one
+           or at the start of the file, exactly as the indexing takes it */
+        if (atstart && prevblank && !strncmp(line, "From ", 5)) {
 
-            if (start >= 0) { /* the block that just ended */
+            /* the message begins past this line; whose is it? */
+            ami_long start = pos+len;
+            ami_long lo = 0, hi = n-1, m = -1;
 
-                ami_long m;
+            while (lo <= hi) {
 
-                for (m = 0; m < msgct; m++) if (msgs[m].off == start) break;
-                if (m < msgct && set[m]) {
+                ami_long mid = (lo+hi)/2;
 
-                    fwrite(buf+blkstart, 1, i-blkstart, dst);
-                    moved++;
-
-                } else fwrite(buf+blkstart, 1, i-blkstart, out);
+                if (offs[mid].off == start) { m = offs[mid].i; break; }
+                if (offs[mid].off < start) lo = mid+1; else hi = mid-1;
 
             }
-            blkstart = i;
-            while (i < n && buf[i] != '\n') i++;
-            start = i+1;
+            if (m >= 0 && set[m]) { cur = dst; moved++; } else cur = out;
+            wrkpos++;
 
         }
-        while (i < n && buf[i] != '\n') i++;
+        fwrite(line, 1, len, cur);
+        pos += len;
+        if (atstart) prevblank = whole && (len == 1 || (len == 2 && line[0] == '\r'));
+        else if (whole) prevblank = FALSE;
+        atstart = whole;
+        if (wrkstop) break;
 
     }
-    if (start >= 0) { /* the last block */
-
-        ami_long m;
-
-        for (m = 0; m < msgct; m++) if (msgs[m].off == start) break;
-        if (m < msgct && set[m]) {
-
-            fwrite(buf+blkstart, 1, n-blkstart, dst);
-            moved++;
-
-        } else fwrite(buf+blkstart, 1, n-blkstart, out);
-
-    }
-    free(buf);
+    free(line);
+    free(offs);
+    fclose(f);
     fclose(dst);
     fclose(out);
+    if (wrkstop) { remove(tmp); return (0); }
     rename(tmp, folders[fold].file);
     /* This mailbox has been written out again without the messages that
        left it, so everything after the first of them sits somewhere
@@ -2615,6 +2630,73 @@ ami_long movelocal(ami_long fold, const char* dstfile, const char* set)
     return (moved);
 
 }
+
+/* The move as the worker does it: the front end asks, with the set of
+   messages to go and the folder they go to, and the worker moves them,
+   drops the index of the folder they left for reading again, and says
+   how many went. The set is the worker's from the ask on. */
+static ami_long movfold, movdst, movn;
+static char*    movset;
+ami_long        movwant;
+ami_long        movbusy;
+
+void movask(ami_long fold, ami_long dst, const char* set, ami_long n)
+
+{
+
+    free(movset);
+    movset = getmem(n? n: 1);
+    memcpy(movset, set, n);
+    movn = n;
+    movfold = fold;
+    movdst = dst;
+    movwant = TRUE;
+
+}
+
+void servemove(void)
+
+{
+
+    ami_long fold, dst, moved;
+    char*    set;
+    char     to[MAXSTR];
+
+    if (!movwant) return;
+    dlock(); /* the ask, under the lock the front end wrote it under */
+    fold = movfold;
+    dst = movdst;
+    set = movset;
+    movset = NULL;
+    movwant = FALSE;
+    movbusy = TRUE;
+    copystr(to, folders[dst].show, sizeof(to));
+    dunlock();
+    snprintf(wrkwhat, sizeof(wrkwhat), "Moving to %.400s", to);
+    moved = movelocal(fold, folders[dst].file, set);
+    free(set);
+    wrkwhat[0] = 0;
+    wrkpos = 0;
+    wrkmax = 0;
+    dlock();
+    /* The counts are worked out rather than counted again: what left
+       this folder arrived in that one. The folder itself is read again,
+       since its file has just changed under the list. */
+    folders[fold].msgs -= moved;
+    if (folders[fold].msgs < 0) folders[fold].msgs = 0;
+    folders[dst].msgs += moved;
+    folders[fold].dirty = TRUE;
+    folders[dst].dirty = TRUE;
+    idxwant = fold;
+    wrkfolds = TRUE;
+    snprintf(sentsaid, sizeof(sentsaid), "%lld message%s moved to %s -- "
+             "locally; the server is not touched", AMI_LONG_CAST(moved),
+             moved == 1? "": "s", to);
+    movbusy = FALSE;
+    dunlock();
+
+}
+
 /*******************************************************************************
 
 Talking to the IMAP server
@@ -4208,7 +4290,7 @@ void fetchrun(void)
        timer setting the pace: that apparatus existed only to give the
        display a turn between messages, and the display has a thread of
        its own now. */
-    while (!wrkdone && !wrkstop) { servesend(); serveindex(); fetchstep(); }
+    while (!wrkdone && !wrkstop) { servesend(); servemove(); serveindex(); fetchstep(); }
 
 }
 
@@ -4304,6 +4386,7 @@ void mailwork(void)
 
         wrkbusy = TRUE;
         servesend();
+        servemove(); /* before the index: the move drops it, the reading remakes it */
         serveindex();
         if (wrkgo) {
 

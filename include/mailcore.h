@@ -250,6 +250,10 @@ void  idxgiveback(void);
 void  useidx(void);          /* point the list at the selected folder */
 ami_long  localfolder(const char* who);
 ami_long  movelocal(ami_long fold, const char* dst, const char* set);
+void      movask(ami_long fold, ami_long dst, const char* set, ami_long n);
+void      servemove(void);
+extern ami_long movwant; /* a move is asked for */
+extern ami_long movbusy; /* and being made, by the worker */
 char* getmsg(ami_long fold, ami_long i);
 void  smtpcheck(void);
 void  sendmail(const char* to, const char* cc, const char* subject,

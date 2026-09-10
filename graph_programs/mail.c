@@ -242,6 +242,7 @@ static int   listpart;          /* and the list's */
 static ami_long sbw;               /* scroll bar thickness */
 static int   listrows;          /* message lines the list holds */
 static ami_long clickms;        /* when the list was last clicked */
+static char  keepsaid[MAXSTR];  /* what the worker said, kept for when it is done */
 static int   foldy[MAXFOLDER];  /* where each folder was drawn, for clicks */
 static int   foldon[MAXFOLDER]; /* and whether it is drawn at all */
 static int   foldcnt[MAXFOLDER]; /* the count each line shows */
@@ -389,7 +390,53 @@ static void senderkey(const char* addr, char* key, int kl)
     for (i = 0; personal[i]; i++)
         if (!strcasecmp(at+1, personal[i]))
             { copystr(key, addr, kl); return; } /* a person, not a sender */
-    copystr(key, at+1, kl);
+    /* The domain, less whatever it is a part of: selections.aliexpress.com
+       and notice.aliexpress.com are one sender, aliexpress.com. The last
+       two labels are kept, or three where the second is itself a suffix
+       under a country, as co.uk. */
+    {
+
+        const char* d = at+1;
+        const char* labels[64];
+        int         n = 0;
+        const char* p = d;
+
+        labels[n++] = p;
+        while (*p && n < 64) { if (*p == '.') labels[n++] = p+1; p++; }
+        if (n >= 3) {
+
+            const char* last = labels[n-1];
+            const char* second = labels[n-2];
+            int keep = 2;
+
+            if (strlen(last) == 2 &&
+                (!strncasecmp(second, "co.", 3) || !strncasecmp(second, "com.", 4) ||
+                 !strncasecmp(second, "org.", 4) || !strncasecmp(second, "net.", 4) ||
+                 !strncasecmp(second, "ac.", 3) || !strncasecmp(second, "gov.", 4) ||
+                 !strncasecmp(second, "edu.", 4))) keep = 3;
+            d = labels[n-keep];
+
+        }
+        copystr(key, d, kl);
+
+    }
+
+}
+
+
+/* What to call a sender's folder: a domain by its own name, aliexpress
+   for aliexpress.com; a person, whose key is their address, by the name
+   they write under. */
+static void sendername(const char* key, const char* from, char* name, int nl)
+
+{
+
+    const char* dot;
+
+    if (strchr(key, '@')) { copystr(name, from, nl); return; }
+    dot = strchr(key, '.');
+    if (dot && dot-key < nl-1) { memcpy(name, key, dot-key); name[dot-key] = 0; }
+    else copystr(name, key, nl);
 
 }
 
@@ -468,8 +515,15 @@ static void popopen(int i, int x, int y)
             for (m = 0; m < msgct; m++) if (fromsender(&msgs[m], key)) n++;
 
         }
-        snprintf(poplab[1], sizeof(poplab[1]),
-                 "Local folder for %s (%d here)", key, n);
+        {
+
+            char name[60];
+
+            sendername(key, msgs[i].from, name, sizeof(name));
+            snprintf(poplab[1], sizeof(poplab[1]),
+                     "Local folder for %s (%d here)", name, n);
+
+        }
         /* And by the name they show, which is not the same thing: a
            domain gathers eight sorts of Facebook notice into one folder,
            and a name keeps a person who writes through LinkedIn out of
@@ -527,8 +581,8 @@ static void popact(int row)
 
     char* set;
     int   dst;
-    int   moved;
     int   i = popmsg;
+    int   m, n;
     char  msg[MAXSTR];
     char  who[60];
 
@@ -544,18 +598,15 @@ static void popact(int row)
 
     } else if (row == 1) { /* everything from that place */
 
-        int m;
         char key[100];
 
         senderkey(msgs[i].addr, key, sizeof(key));
         for (m = 0; m < msgct; m++)
             if (fromsender(&msgs[m], key)) set[m] = TRUE;
-        copystr(who, msgs[i].from, sizeof(who));
+        sendername(key, msgs[i].from, who, sizeof(who));
         dst = localfolder(who);
 
     } else { /* everything from that name */
-
-        int m;
 
         for (m = 0; m < msgct; m++)
             if (!strcmp(msgs[m].from, msgs[i].from)) set[m] = TRUE;
@@ -564,27 +615,21 @@ static void popact(int row)
 
     }
     if (dst < 0) { free(set); fail("No room for another folder"); return; }
-    moved = movelocal(foldsel, folders[dst].file, set);
+    /* The worker moves them: a mailbox of gigabytes takes a while to
+       write out again, and the display stays live while it does. The
+       folder is read again after, and the worker says how many went. */
+    for (m = 0, n = 0; m < msgct; m++) n += set[m];
+    movask(foldsel, dst, set, msgct);
     free(set);
     msgsel = -1;
-    /* The counts are worked out rather than counted again: what left
-       this folder arrived in that one, and counting means reading every
-       mailbox in the store through -- gigabytes, to learn a number
-       already known. The folder itself is read again by the worker,
-       since its file has just changed under the list. */
-    folders[foldsel].msgs -= moved;
-    if (folders[foldsel].msgs < 0) folders[foldsel].msgs = 0;
-    folders[dst].msgs += moved;
-    folders[foldsel].dirty = TRUE;
-    folders[dst].dirty = TRUE;
     msgct = 0;
     idxfold = -1;
     idxwant = foldsel;
     kickworker();
     drawlist();
     drawfolders();
-    snprintf(msg, sizeof(msg), "%d message%s moved to %s -- locally; the "
-             "server is not touched", moved, moved == 1? "": "s", who);
+    snprintf(msg, sizeof(msg), "Moving %d message%s to %s...", n,
+             n == 1? "": "s", who);
     status(msg);
 
 }
@@ -4767,7 +4812,15 @@ static void fetchpick(void)
         statprog(wrkpos, wrkmax);
 
     }
-    if (*sentsaid) { status(sentsaid); *sentsaid = 0; }
+    if (*sentsaid) {
+
+        /* said now, and again when the worker is done: the reading of
+           a folder that follows a move writes its progress over it */
+        status(sentsaid);
+        copystr(keepsaid, sentsaid, sizeof(keepsaid));
+        *sentsaid = 0;
+
+    }
     if (failwait) {
 
         failwait = FALSE;
@@ -4828,11 +4881,12 @@ static void fetchpick(void)
        at, and a message that never left looked exactly like one that
        did. */
     if (timerrun && !fetching && !wrkgo && !wrkbusy && idxwant < 0 &&
-        !sendwant && !srcwant && !srcbusy && !srcdone &&
+        !sendwant && !movwant && !movbusy && !srcwant && !srcbusy && !srcdone &&
         !failwait && !*sentsaid && !*wrkwhat) {
 
         ami_killtimer(stdout, TIMFETCH);
         timerrun = FALSE;
+        if (*keepsaid) { status(keepsaid); *keepsaid = 0; } /* the last word */
 
     }
 
