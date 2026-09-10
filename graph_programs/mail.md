@@ -120,8 +120,8 @@ click a message to make one.
 
 The list shows, for each message: who it is from, what kind of mail it
 is, the subject, as much of the message as fits, and when it arrived.
-A click picks one; a double click, or Return, opens it in a window of
-its own.
+The top one is picked when a folder is shown; a click picks another,
+and a double click, or Return, opens the pick in a window of its own.
 
 The wheel moves one message a notch. The page keys and the scroll bar
 move the list. In an open message the wheel moves three lines, since
@@ -134,8 +134,10 @@ and the keyboard is at one of them: the mark there turns green, and
 Up and Down move it. At the folders, moving the mark shows the folder;
 at the list, Return opens the message marked. Left takes the keyboard
 to the folders and Right to the list, and each does nothing if it is
-there already. The keyboard is nowhere until an arrow is pressed, so
-the program worked by the mouse looks as it always did.
+there already. The mouse carries the keyboard with it: a click on a
+folder or on a message puts the keyboard at that pane. It is nowhere
+until an arrow is pressed or a pick is clicked, so the program looks
+as it always did until it is touched.
 
 Mail is not text any more, so there is enough MIME here to read it:
 encoded subject lines, quoted printable, base64, multipart gone into for

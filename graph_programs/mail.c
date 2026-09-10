@@ -4927,7 +4927,7 @@ static void optevent(ami_evtrec* er)
                 /* the list in its new order, from the top */
                 useidx();
                 msgtop = 0;
-                msgsel = -1;
+                msgsel = msgct? 0: -1;
                 listshown = 0;
                 drawlist();
 
@@ -5174,7 +5174,13 @@ static void fetchpick(void)
         }
 
     }
-    if (list) { drawlist(); drawfolders(); } /* the worker read a folder */
+    if (list) { /* the worker read a folder */
+
+        if (msgsel < 0 && msgct) msgsel = 0; /* the top message, to begin with */
+        drawlist();
+        drawfolders();
+
+    }
     if (done) {
 
         /* Reading a folder means reading its whole mailbox, so it is
@@ -5246,6 +5252,7 @@ static void showfolder(int i)
         kickworker();
 
     }
+    msgsel = msgct? 0: -1; /* the top message is the pick to begin with */
     drawfolders();
     drawlist();
 
@@ -5300,8 +5307,9 @@ static int mainkeys(ami_evtrec* er)
             }
             return (TRUE);
         case ami_etenter:
-            if (kbdfocus && kbdpane == LISTWIN && msgsel >= 0) { openmsg(msgsel); return (TRUE); }
-            return (FALSE);
+            if (!kbdfocus) return (FALSE); /* the list's own Return */
+            if (kbdpane == LISTWIN && msgsel >= 0) openmsg(msgsel);
+            return (TRUE); /* at the folders it does nothing */
         default: return (FALSE);
 
     }
@@ -5602,7 +5610,7 @@ int main(int argc, char* argv[])
                     for (i = 0; i < foldct; i++)
                         if (mpy >= foldy[i]-2 && mpy < foldy[i]+chrh+2)
                             best = i;
-                    if (best >= 0) showfolder(best);
+                    if (best >= 0) { setkbd(FOLDWIN); showfolder(best); }
                     break;
 
                 }
@@ -5701,6 +5709,7 @@ int main(int argc, char* argv[])
                                opens it */
                             ami_long t = msnow();
 
+                            setkbd(LISTWIN); /* the click carries the keyboard */
                             if (i == msgsel && t-clickms < DBLMS)
                                 { openmsg(i); clickms = 0; }
                             else { selectmsg(i); clickms = t; }
@@ -5713,6 +5722,7 @@ int main(int argc, char* argv[])
                         i = msgtop+(mpy-4)/rowh;
                         if (i >= 0 && i < msgct) {
 
+                            setkbd(LISTWIN);
                             selectmsg(i);
                             popopen(i, mpx, mpy);
 
