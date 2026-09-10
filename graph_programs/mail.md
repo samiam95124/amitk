@@ -132,6 +132,12 @@ encoded subject lines, quoted printable, base64, multipart gone into for
 the plain text part, and html with the tags taken out where plain text
 is not on offer.
 
+# Options
+
+Config/Options opens a box of check boxes. What each says is kept with
+the accounts, so it holds next time. Threaded mode is the first of
+them.
+
 # Searching
 
 Search, on the menu bar, opens a form modelled on the one behind the

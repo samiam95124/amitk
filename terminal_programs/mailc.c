@@ -102,6 +102,7 @@
 #define BANWIN    8 /* the banner across the top */
 #define CMPWIN    9 /* the compose window */
 #define SRCWIN   10 /* the search form */
+#define OPTWIN   11 /* the options box */
 
 /* its widgets, numbered within it */
 #define HELPFIND  1 /* the search entry */
@@ -158,6 +159,11 @@ static void kickworker(void);
 #define MENUCHECK (AMI_SMMAX+4) /* check that mail could be sent */
 #define MENUSRV   (AMI_SMMAX+5) /* the server form */
 #define MENUSEARCH (AMI_SMMAX+10) /* the search form */
+#define MENUOPT   (AMI_SMMAX+11) /* the options box */
+
+/* the options box */
+#define OPTTHREAD 1 /* messages shown by thread */
+#define OPTCLOSE  2 /* close it */
 
 /* the search form */
 #define SRCFROM   1 /* the sender holds */
@@ -4166,6 +4172,93 @@ static void srcpick(void)
 
 /*******************************************************************************
 
+The options
+
+A box of check boxes, opened from Config. What each box says is kept in
+the account file with the accounts, so it is there next time.
+
+*******************************************************************************/
+
+static FILE* optwf; /* the window, NULL when not open */
+
+static void optlay(void)
+
+{
+
+    fprintf(optwf, "\f"); /* the boxes say it all; the title says what they are */
+
+}
+
+static void optclose(void)
+
+{
+
+    if (!optwf) return;
+    ami_killwidget(optwf, OPTTHREAD); /* the widgets first: see closeread */
+    ami_killwidget(optwf, OPTCLOSE);
+    fclose(optwf);
+    optwf = NULL;
+
+}
+
+static void optopen(void)
+
+{
+
+    ami_long wx, wy, chrw, cw, ch, bw, bh, x, y;
+
+    if (optwf) { ami_front(optwf); return; }
+    ami_openwin(&stdin, &optwf, NULL, OPTWIN);
+    ami_title(optwf, "Options");
+    ami_buffer(optwf, FALSE);
+    ami_auto(optwf, FALSE);
+    ami_curvis(optwf, FALSE);
+    chrw = 1;
+    ami_checkboxsiz(optwf, "Threaded mode", &cw, &ch);
+    ami_buttonsiz(optwf, "Close", &bw, &bh);
+    ami_winclient(optwf, chrw*36, 2+ch+1+bh+1, &wx, &wy,
+                  BIT(ami_wmframe) | BIT(ami_wmsysbar));
+    ami_setsiz(optwf, wx, wy);
+    ami_setpos(optwf, 4, 3);
+    x = 3;
+    y = 2;
+    ami_checkbox(optwf, x, y, x+cw-1, y+ch-1, "Threaded mode", OPTTHREAD);
+    ami_selectwidget(optwf, OPTTHREAD, threaded);
+    y += ch+1;
+    ami_button(optwf, ami_maxx(optwf)-2-bw, y, ami_maxx(optwf)-3, y+bh-1,
+               "Close", OPTCLOSE);
+    optlay();
+
+}
+
+/* an event with the options box's id on it */
+static void optevent(ami_evtrec* er)
+
+{
+
+    switch (er->etype) {
+
+        case ami_etterm: optclose(); break; /* the box closed, not the program */
+        case ami_etredraw:
+        case ami_etresize: optlay(); break;
+        case ami_etbutton: optclose(); break;
+        case ami_etchkbox:
+            if (er->ckbxid == OPTTHREAD) {
+
+                threaded = !threaded;
+                ami_selectwidget(optwf, OPTTHREAD, threaded);
+                writeaccount(); /* kept with the accounts */
+
+            }
+            break;
+        default: break;
+
+    }
+
+}
+
+/*******************************************************************************
+
 The menu
 
 *******************************************************************************/
@@ -4225,6 +4318,8 @@ static void setupmenu(void)
     /* as in the spreadsheet, the branch is hung on after the standard
        menu is built, since building it clears the branch link */
     newmenu(&mp, FALSE, FALSE, OFF, MENUSRV, "Servers...");
+    appendmenu(&ma->branch, mp);
+    newmenu(&mp, FALSE, FALSE, OFF, MENUOPT, "Options...");
     appendmenu(&ma->branch, mp);
     newmenu(&mp, FALSE, FALSE, ON, MENUFOLD, "Refresh Folder List");
     appendmenu(&ma->branch, mp);
@@ -4741,6 +4836,7 @@ int main(int argc, char* argv[])
         if (er.winid == HELPWIN) { helpevent(&er); continue; }
         if (er.winid == CMPWIN) { cmpevent(&er); continue; }
         if (er.winid == SRVWIN) { srvevent(&er); continue; }
+        if (er.winid == OPTWIN) { optevent(&er); continue; }
         if (er.winid == SRCWIN) { srcevent(&er); continue; }
         if (er.winid == READWIN) {
 
@@ -5015,6 +5111,7 @@ int main(int argc, char* argv[])
                 switch (er.menuid) {
 
                     case MENUSRV: srvopen(); break;
+                    case MENUOPT: optopen(); break;
                     case MENUSEARCH: srcopen(); break;
 
                     case MENUCOMP:
@@ -5104,7 +5201,7 @@ int main(int argc, char* argv[])
        A terminate for the reader closed the reader, not the program. */
     } while (!mailquit &&
              (er.etype != ami_etterm || er.winid == READWIN ||
-              er.winid == SRVWIN || er.winid == HELPWIN ||
+              er.winid == SRVWIN || er.winid == OPTWIN || er.winid == HELPWIN ||
               er.winid == CMPWIN || er.winid == SRCWIN));
     done:
     /* The lock is held here, so the worker is not in the middle of
@@ -5121,6 +5218,7 @@ int main(int argc, char* argv[])
     helpclose();
     srvclose();
     srcclose();
+    optclose();
     closeread();
     cmpclose();
     dunlock();

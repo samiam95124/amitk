@@ -178,6 +178,7 @@ extern char failsaid[MAXSTR*3]; /* what went wrong, for the front end to show */
 extern ami_long failwait;
 extern ami_long sendfail;        /* and whether it was a send that failed */
 extern char sentsaid[MAXSTR]; /* and what went right */
+extern ami_long threaded;        /* the Options box: messages shown by thread */
 
 /*******************************************************************************
 

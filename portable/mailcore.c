@@ -916,6 +916,7 @@ void readaccount(void)
         if (!strcasecmp(p, "end")) { r = NULL; continue; }
         if (!strcasecmp(p, "poll")) { pollsec = atol(v); continue; }
         if (!strcasecmp(p, "sendfrom")) { sendsrv = atol(v); continue; }
+        if (!strcasecmp(p, "threaded")) { threaded = atol(v); continue; }
         if (!r) { /* the old form: settings before any server line */
 
             if (srvct >= MAXSRV) break;
@@ -970,6 +971,7 @@ void writeaccount(void)
     fprintf(f, "# Mail accounts. Written by the Config form in mail.\n");
     fprintf(f, "poll %lld\n", AMI_LONG_CAST(pollsec));
     fprintf(f, "sendfrom %lld\n", AMI_LONG_CAST(sendsrv));
+    fprintf(f, "threaded %lld\n", AMI_LONG_CAST(threaded));
     for (i = 0; i < srvct; i++) {
 
         fprintf(f, "\nserver %s\n", servers[i].name);
@@ -2039,6 +2041,7 @@ ami_long idxdoing = -1;   /* the folder being read just now */
 ami_long wrkgo;      /* a fetch is running on the other thread */
 char failsaid[MAXSTR*3];
 char sentsaid[MAXSTR]; /* and what went right */
+ami_long threaded;     /* the Options box: messages shown by thread */
 ami_long sendfail;         /* and whether it was a send that failed */
 ami_long failwait;
 
