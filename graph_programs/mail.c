@@ -4557,6 +4557,7 @@ static void srcevent(ami_evtrec* er)
     switch (er->etype) {
 
         case ami_etterm: srcclose(); break; /* the window closed, not the program */
+        case ami_etcan: srcclose(); break;  /* Escape: the same */
         case ami_etresize: srcplace(); srclay(); break;
         case ami_etredraw: srclay(); break;
         case ami_etbutton:
@@ -4720,6 +4721,7 @@ static void optevent(ami_evtrec* er)
     switch (er->etype) {
 
         case ami_etterm: optclose(); break; /* the box closed, not the program */
+        case ami_etcan: optclose(); break;  /* Escape: the same */
         case ami_etredraw:
         case ami_etresize: optlay(); break;
         case ami_etbutton: optclose(); break;
@@ -5244,6 +5246,17 @@ int main(int argc, char* argv[])
         /* Every event names the window it came from. The reader is a
            window of its own and the panes are windows of their own, so
            this one loop serves them all. */
+        /* The message menu goes away on Escape, wherever the keys are,
+           and on a click anywhere but on it: a menu nobody wants is put
+           away without choosing from it. The list places a click for
+           itself, since the menu may stand over it. */
+        if (popwf) {
+
+            if (er.etype == ami_etcan) { popclose(); continue; }
+            if (er.etype == ami_etmouba && er.winid != POPWIN &&
+                er.winid != LISTWIN) { popclose(); continue; }
+
+        }
         if (er.winid == HELPWIN) { helpevent(&er); continue; }
         if (er.winid == SRCWIN) { srcevent(&er); continue; }
         if (er.winid == CMPWIN) { cmpevent(&er); continue; }
