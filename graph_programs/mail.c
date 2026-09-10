@@ -1467,7 +1467,7 @@ static void drawbanner(int x0)
     /* the name, at the left, set in the middle of the band */
     if (!x0) {
 
-        ami_fcolorc(banwf, rgb(40), rgb(40), rgb(60));
+        ami_fcolor(banwf, ami_yellow); /* the name, in yellow */
         ami_cursorg(banwf, 16, (banh-ami_chrsizy(banwf))/2);
         {   /* it keeps to the room the picture leaves it: at a large
                point size in a small window the name is wider than the
@@ -1490,7 +1490,7 @@ static void drawbanner(int x0)
     /* Two lines under it, which is what says the banner is not part of
        what is below it. */
     y = banh-4;
-    ami_fcolorc(banwf, rgb(120), rgb(120), rgb(140));
+    ami_fcolor(banwf, ami_blue); /* the double rule, blue like the dividers */
     ami_linewidth(banwf, 2);
     ami_line(banwf, x0? x0: 1, y, ami_maxxg(banwf), y);
     ami_line(banwf, x0? x0: 1, y+4, ami_maxxg(banwf), y+4);
@@ -1695,7 +1695,7 @@ static void divider(FILE* f, int x1, int y1, int x2, int y2)
 
 {
 
-    ami_fcolorc(f, rgb(180), rgb(180), rgb(180));
+    ami_fcolor(f, ami_blue); /* the separators are blue, as the banner's rule is */
     ami_linewidth(f, 2);
     ami_line(f, x1, y1, x2, y2);
     ami_linewidth(f, 1);
