@@ -1686,6 +1686,12 @@ void pd_windel(pd_win* win)
     if (d->igrab == win) d->igrab = NULL;
     ULK(d);
     droptop(d, win);
+    /* What the child covered is drawn again without it: the area is
+       marked damaged before the child leaves the tree, so the next
+       composition repaints it from what stands beneath. Left unmarked,
+       a closed menu stayed on the screen until something else drew
+       there -- a click or Escape closed it at once, and it lingered. */
+    if (win->parent && win->parent != &d->root) windmg(win, 0, 0, win->w, win->h);
     TREEWR(); /* out of the tree: no walk reaches it after this */
     unlinkchild(win);
     TREEUN();
