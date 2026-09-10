@@ -368,6 +368,7 @@ static FILE* popwf;      /* the menu, NULL when closed */
 static int   popmsg;     /* the message it is for */
 static int   poprow = -1; /* the entry under the mouse */
 static int   poprowh;    /* the height of an entry */
+static int   popx, popy, popw, poph; /* where it stands in the main window */
 static char  poplab[3][MAXSTR]; /* the entries' faces */
 
 /* The part of an address that says who sent it, for gathering their
@@ -565,6 +566,7 @@ static void popopen(int i, int x, int y)
     if (y+h > ami_maxyg(stdout)) y = ami_maxyg(stdout)-h;
     if (x < 0) x = 0;
     if (y < 0) y = 0;
+    popx = x; popy = y; popw = w; poph = h;
     ami_openwin(&stdin, &popwf, stdout, POPWIN);
     ami_frame(popwf, FALSE);
     ami_auto(popwf, FALSE);
@@ -5377,7 +5379,26 @@ int main(int argc, char* argv[])
                the menu sends this pane a nohover -- so the menu was
                destroyed either as it was born or the moment the mouse
                set off towards it. */
-            if (popwf && er.etype == ami_etmouba) { popclose(); continue; }
+            if (popwf && er.etype == ami_etmouba) {
+
+                /* A click while the menu is open: on an entry it takes
+                   the entry, though the click came to the list -- the
+                   menu had not been told of the pointer's crossing and
+                   knew no row -- and anywhere else it puts the menu
+                   away. */
+                int px = mpx+listx, py = mpy+listy;
+
+                if (er.amoubn == 1 && px >= popx && px < popx+popw &&
+                    py >= popy && py < popy+poph) {
+
+                    int r = (py-popy-3)/(poprowh? poprowh: 1);
+
+                    if (r >= 0 && r < 3) popact(r); else popclose();
+
+                } else popclose();
+                continue;
+
+            }
             switch (er.etype) {
 
                 case ami_etmoumovg: mpx = er.moupxg; mpy = er.moupyg; break;
