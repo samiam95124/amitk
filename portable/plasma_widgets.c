@@ -105,7 +105,13 @@ static enum { /* debug levels */
 /* A list row is the font and a third, which is the proportion Breeze keeps
    between its row height and its text. The sizing call, the drawing and the
    hit test all measure rows with this, and so cannot fall out of step. */
-#define LSTROW(f) (ami_chrsizy(f)*1.35)
+/* A list row is the font and a third, and a list keeps half a line of
+   margin above its first row. Both are whole pixels: a box is sized by
+   the one and drawn by the other, and when the row was a fraction the
+   size, truncated to a pixel, came out a fraction short of the rows
+   drawn against it, and a box made for three entries showed two. */
+#define LSTROW(f) ((ami_long)(ami_chrsizy(f)*1.35))
+#define LSTMARGIN(f) (ami_chrsizy(f)/2)
 
 /* macro to make a color from RGB values */
 #define RGB(r, g, b) (r<<16|g<<8|b)
@@ -2721,7 +2727,7 @@ static ami_long listbox_vis(wigptr wg)
 
 {
 
-    ami_long n = (ami_maxyg(wg->wf)-ami_chrsizy(wg->wf)*0.5)/ami_chrsizy(wg->wf);
+    ami_long n = (ami_maxyg(wg->wf)-LSTMARGIN(wg->wf))/LSTROW(wg->wf);
 
     return (n < 1? 1: n);
 
@@ -2818,7 +2824,7 @@ static void listbox_line_idx(wigptr wg, ami_long idx)
     sp = wg->strlst; /* index top of stringlist */
     sc = 1; /* set first string */
     while (sp && sc < wg->top) { sp = sp->next; sc++; } /* to the view */
-    y = ami_chrsizy(wg->wf)*0.5; /* space to first string */
+    y = LSTMARGIN(wg->wf); /* space to first string */
     while (sp && sc < idx) { /* walk to the target line */
 
         y += LSTROW(wg->wf); /* next line */
@@ -2854,7 +2860,7 @@ static void listbox_draw(
     sp = wg->strlst; /* index top of stringlist */
     sc = 1; /* set first string */
     while (sp && sc < wg->top) { sp = sp->next; sc++; } /* to the view */
-    y = ami_chrsizy(wg->wf)*0.5; /* space to first string */
+    y = LSTMARGIN(wg->wf); /* space to first string */
     while (sp && y+LSTROW(wg->wf) <= ami_maxyg(wg->wf)) {
 
         listbox_line(wg, sp, sc, y); /* paint this line */
@@ -2958,7 +2964,7 @@ static void listbox_event(
         sp = wg->strlst; /* index top of string list */
         sc = 1; /* set first string */
         while (sp && sc < wg->top) { sp = sp->next; sc++; } /* to the view */
-        y = ami_chrsizy(wg->wf)*0.5; /* space to first string */
+        y = LSTMARGIN(wg->wf); /* space to first string */
         wg->ss = 0; /* set no string selected */
         while (sp && y+LSTROW(wg->wf) <= ami_maxyg(wg->wf)) {
 
@@ -5751,9 +5757,7 @@ static void ilistboxsizg(
 
     }
     *w = maxp+ami_chrsizy(win0); /* set width */
-    *h = lc*LSTROW(win0)+ami_chrsizy(win0)*0.5;
-    /* set height: a row is the font and a third, and the box
-       keeps half a line of margin */
+    *h = lc*LSTROW(win0)+LSTMARGIN(win0); /* the rows, and the margin above them */
 
 }
 
