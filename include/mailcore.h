@@ -60,6 +60,7 @@ typedef struct {
     ami_long date;            /* the date, for sorting */
     char mid[IDLEN];      /* its Message-ID, for the replies to find it */
     char irt[IDLEN];      /* and the Message-ID it replies to, if any */
+    char to[MAXSTR];      /* who it went to: the addresses, comma-separated */
 
 } msgrec;
 
@@ -274,6 +275,8 @@ char* getmsgin(ami_long fold, const msgrec* m);
 int   hasattach(const char* msg, ami_long len);
 ami_long parseday(const char* s);
 void whenof(ami_long t, char* show, ami_long sn);
+int  samethread(const msgrec* a, const msgrec* b); /* one subject, Re: and Fwd: aside */
+int  toholds(const char* to, const char* addr);    /* the address is on the To list */
 void  storefolders(ami_long srv);
 int   getfolders(ami_long srv);
 void  imapclose(void);

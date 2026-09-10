@@ -356,7 +356,20 @@ static int   popmsg;     /* the message it is for */
 static int   poprow = -1; /* the entry under the mouse */
 static int   poprowh;    /* the height of an entry */
 static int   popx, popy, popw, poph; /* where it stands in the main window */
-static char  poplab[3][MAXSTR]; /* the entries' faces */
+/* the entries: what each does, its face, and what it works on */
+#define MAXPOP 10
+enum { POP_READ, POP_TRASH, POP_DOMAIN, POP_NAME, POP_TO, POP_THREAD };
+typedef struct {
+
+    int  kind;
+    char lab[MAXSTR]; /* the face */
+    char arg[MAXSTR]; /* the domain key, the address, the name */
+    char who[80];     /* the folder it would make */
+
+} poprec;
+static poprec popent[MAXPOP];
+static void openmsg(int i); /* forward: Read on the menu */
+static int    popct;
 
 /* The part of an address that says who sent it, for gathering their
    mail together. That is the domain and not the whole address: LinkedIn
@@ -484,10 +497,10 @@ static void popdraw(void)
         fputc('|', popwf);
 
     }
-    for (i = 0; i < 3; i++) {
+    for (i = 0; i < popct; i++) {
 
         ami_cursor(popwf, 3, 2+i);
-        fprintf(popwf, "%s", poplab[i]);
+        fprintf(popwf, "%s", popent[i].lab);
 
     }
 
@@ -498,62 +511,85 @@ static void popopen(int i, int x, int y)
 
 {
 
-    int w, h;
+    int  w, h, k;
     char nm[60];
+    char key[100];
+    char name[60];
+    int  n, m;
 
     popclose();
     popmsg = i;
+    popct = 0;
     copystr(nm, msgs[i].from, sizeof(nm));
-    snprintf(poplab[0], sizeof(poplab[0]), "Move to local Trash");
+    /* read it, and the one message to the local Trash */
+    popent[popct].kind = POP_READ;
+    copystr(popent[popct].lab, "Read", MAXSTR);
+    popct++;
+    popent[popct].kind = POP_TRASH;
+    copystr(popent[popct].lab, "Move to local Trash", MAXSTR);
+    copystr(popent[popct].who, "Trash", sizeof(popent[popct].who));
+    popct++;
+    /* everything from that place. Say what it will gather, since the
+       sender's name and what their mail comes from are not always the
+       same word. */
+    senderkey(msgs[i].addr, key, sizeof(key));
+    for (m = 0, n = 0; m < msgct; m++) if (fromsender(&msgs[m], key)) n++;
+    sendername(key, msgs[i].from, name, sizeof(name));
+    popent[popct].kind = POP_DOMAIN;
+    copystr(popent[popct].arg, key, MAXSTR);
+    copystr(popent[popct].who, name, sizeof(popent[popct].who));
+    snprintf(popent[popct].lab, MAXSTR, "Local folder for %s (%d here)", name, n);
+    popct++;
+    /* And by the name they show, which is not the same thing: a domain
+       gathers eight sorts of Facebook notice into one folder, and a
+       name keeps a person who writes through LinkedIn out of the
+       LinkedIn folder. Both are offered, with what each would take,
+       because which is wanted depends on the sender. */
+    for (m = 0, n = 0; m < msgct; m++) if (!strcmp(msgs[m].from, msgs[i].from)) n++;
+    popent[popct].kind = POP_NAME;
+    copystr(popent[popct].arg, msgs[i].from, MAXSTR);
+    copystr(popent[popct].who, nm, sizeof(popent[popct].who));
+    snprintf(popent[popct].lab, MAXSTR, "Local folder for \"%s\" (%d here)", nm, n);
+    popct++;
+    /* everything of this thread: the conversation, wherever its
+       messages came from */
+    for (m = 0, n = 0; m < msgct; m++) if (samethread(&msgs[m], &msgs[i])) n++;
+    popent[popct].kind = POP_THREAD;
+    copystr(popent[popct].who, msgs[i].subject, sizeof(popent[popct].who));
+    snprintf(popent[popct].lab, MAXSTR, "Local folder for this thread (%d here)", n);
+    popct++;
+    /* and by whom it went to: one entry for each address on its To
+       line, since mail to a list, or to an old address of yours, is a
+       kind of its own */
     {
 
-        char key[100];
-        int n;
+        const char* p = msgs[i].to;
 
-        /* Say what it will gather, since the sender's name and what
-           their mail comes from are not always the same word. */
-        senderkey(msgs[i].addr, key, sizeof(key));
-        n = 0;
-        {
+        while (*p && popct < MAXPOP) {
 
-            int m;
+            char addr[MAXSTR];
 
-            for (m = 0; m < msgct; m++) if (fromsender(&msgs[m], key)) n++;
-
-        }
-        {
-
-            char name[60];
-
-            sendername(key, msgs[i].from, name, sizeof(name));
-            snprintf(poplab[1], sizeof(poplab[1]),
-                     "Local folder for %s (%d here)", name, n);
+            k = 0;
+            while (*p == ' ' || *p == ',') p++;
+            while (*p && *p != ',') { if (k < (int)sizeof(addr)-1) addr[k++] = *p; p++; }
+            addr[k] = 0;
+            if (!*addr) continue;
+            for (m = 0, n = 0; m < msgct; m++) if (toholds(msgs[m].to, addr)) n++;
+            popent[popct].kind = POP_TO;
+            copystr(popent[popct].arg, addr, MAXSTR);
+            copystr(popent[popct].who, addr, sizeof(popent[popct].who));
+            snprintf(popent[popct].lab, MAXSTR, "Local folder for to %s (%d here)", addr, n);
+            popct++;
 
         }
-        /* And by the name they show, which is not the same thing: a
-           domain gathers eight sorts of Facebook notice into one folder,
-           and a name keeps a person who writes through LinkedIn out of
-           the LinkedIn folder. Both are offered, with what each would
-           take, because which is wanted depends on the sender. */
-        n = 0;
-        {
-
-            int m;
-
-            for (m = 0; m < msgct; m++)
-                if (!strcmp(msgs[m].from, msgs[i].from)) n++;
-
-        }
-        snprintf(poplab[2], sizeof(poplab[2]),
-                 "Local folder for \"%s\" (%d here)", nm, n);
 
     }
     poprowh = 1; /* an entry is a row */
-    w = (int)strlen(poplab[0]);
-    if ((int)strlen(poplab[1]) > w) w = (int)strlen(poplab[1]);
-    if ((int)strlen(poplab[2]) > w) w = (int)strlen(poplab[2]);
+    w = 0;
+    for (k = 0; k < popct; k++)
+        if ((int)strlen(popent[k].lab) > w) w = (int)strlen(popent[k].lab);
     w += 4;      /* the frame and a space each side */
-    h = 3+2;     /* three entries inside the frame */
+    h = popct+2; /* the entries inside the frame */
     /* The menu is a child of the main window, not of the list: a child
        is clipped by its parent, and a menu opened near the bottom of
        the list would be cut off by it. The mouse position arrives in
@@ -588,36 +624,35 @@ static void popact(int row)
     int   i = popmsg;
     int   m, n;
     char  msg[MAXSTR];
-    char  who[60];
+    char  who[80];
+    const poprec* e;
 
     popclose();
-    if (foldsel < 0 || i < 0 || i >= msgct) return;
+    if (foldsel < 0 || i < 0 || i >= msgct || row < 0 || row >= popct) return;
+    e = &popent[row];
+    if (e->kind == POP_READ) { openmsg(i); return; }
     set = getmem(msgct);
     memset(set, 0, msgct);
-    if (row == 0) { /* this one message, to the local trash */
+    copystr(who, e->who, sizeof(who));
+    switch (e->kind) {
 
-        set[i] = TRUE;
-        dst = localfolder("Trash");
-        copystr(who, "Trash", sizeof(who));
-
-    } else if (row == 1) { /* everything from that place */
-
-        char key[100];
-
-        senderkey(msgs[i].addr, key, sizeof(key));
-        for (m = 0; m < msgct; m++)
-            if (fromsender(&msgs[m], key)) set[m] = TRUE;
-        sendername(key, msgs[i].from, who, sizeof(who));
-        dst = localfolder(who);
-
-    } else { /* everything from that name */
-
-        for (m = 0; m < msgct; m++)
-            if (!strcmp(msgs[m].from, msgs[i].from)) set[m] = TRUE;
-        copystr(who, msgs[i].from, sizeof(who));
-        dst = localfolder(who);
+        case POP_TRASH: set[i] = TRUE; break;
+        case POP_DOMAIN: /* everything from that place */
+            for (m = 0; m < msgct; m++) if (fromsender(&msgs[m], e->arg)) set[m] = TRUE;
+            break;
+        case POP_NAME: /* everything from that name */
+            for (m = 0; m < msgct; m++) if (!strcmp(msgs[m].from, e->arg)) set[m] = TRUE;
+            break;
+        case POP_TO: /* everything that went to that address */
+            for (m = 0; m < msgct; m++) if (toholds(msgs[m].to, e->arg)) set[m] = TRUE;
+            break;
+        case POP_THREAD: /* the conversation */
+            for (m = 0; m < msgct; m++) if (samethread(&msgs[m], &msgs[i])) set[m] = TRUE;
+            break;
+        default: break;
 
     }
+    dst = localfolder(who);
     if (dst < 0) { free(set); fail("No room for another folder"); return; }
     /* The worker moves them: a mailbox of gigabytes takes a while to
        write out again, and the display stays live while it does. The
@@ -4997,7 +5032,7 @@ int main(int argc, char* argv[])
 
                     ami_long r = er.moupy-2; /* the frame, then a row each */
 
-                    poprow = r >= 0 && r < 3? r: -1;
+                    poprow = r >= 0 && r < popct? r: -1;
                     break;
 
                 }
@@ -5038,7 +5073,7 @@ int main(int argc, char* argv[])
 
                     int r = py-popy-2;
 
-                    if (r >= 0 && r < 3) popact(r); else popclose();
+                    if (r >= 0 && r < popct) popact(r); else popclose();
 
                 } else popclose();
                 continue;

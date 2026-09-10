@@ -187,19 +187,27 @@ key opens the form.
 
 # The second mouse button
 
-On a message, three things, all of them local:
+On a message, a menu. Read opens it. The rest move mail into local
+folders, and only local ones; the server is never touched:
 
 - **Move to local Trash** -- that message, to a local folder called
-  Trash. Not the server's Trash, which is untouched.
+  Trash. Not the server's Trash.
 - **Local folder for a place** -- everything in this folder from that
-  domain. LinkedIn writes from four addresses and they are all LinkedIn.
+  sender's domain, less whatever it is a part of. LinkedIn writes from
+  four addresses and they are all linkedin.
 - **Local folder for a name** -- everything from that display name.
   Facebook writes under eight of them, one per friend, and sometimes
   that is what you want kept apart.
+- **Local folder for this thread** -- the conversation: everything with
+  this subject, Re: and Fwd: aside, whoever wrote it.
+- **Local folder for to an address** -- one for each address on the
+  message's To line: everything that went to that address. Mail to a
+  list, or to an old address of yours, is a kind of its own.
 
 The menu says how many messages each would take, because which one is
-right depends on the sender, and the count is what makes it a choice
-rather than a guess. The menu is cancelled by the next click.
+right depends on the mail, and the count is what makes it a choice
+rather than a guess. Escape, or a click anywhere else, puts the menu
+away.
 
 # What kind of mail this is
 

@@ -346,7 +346,7 @@ record is a line and has to stay one.
    a server keeping UTC sorted hours into the future. An index that is
    wrong is worse than none, since nothing would ever go back and look
    at the mailbox again. */
-#define IDXHEAD "ami-mail-index 3"
+#define IDXHEAD "ami-mail-index 4"
 
 static void idxfile(ami_long fold, char* fn, ami_long fnl)
 
@@ -430,6 +430,7 @@ static void idxwrite(FILE* f, const msgrec* m)
     idxput(f, m->snip);
     idxput(f, m->mid);
     idxput(f, m->irt);
+    idxput(f, m->to);
     fputc('\n', f);
 
 }
@@ -453,6 +454,7 @@ static int idxread(char* line, msgrec* m)
     p = idxget(p, m->snip, sizeof(m->snip));
     p = idxget(p, m->mid, sizeof(m->mid));
     p = idxget(p, m->irt, sizeof(m->irt));
+    p = idxget(p, m->to, sizeof(m->to));
 
     return (p && m->len > 0 && strlen(m->dig) == DIGLEN-1);
 
@@ -2040,6 +2042,41 @@ static void fillrec(msgrec* m, const char* msg, ami_long have, ami_long len,
         else if (findheader(msg, "References", ids, sizeof(ids)))
             lastid(ids, m->irt, sizeof(m->irt));
         else *m->irt = 0;
+
+    }
+    /* who it went to: the addresses alone, in one case, comma-separated,
+       for the menu that gathers by recipient and the search's To */
+    {
+
+        char hdr[MAXSTR*4];
+        char one[MAXSTR], addr[MAXSTR];
+        const char* p;
+        ami_long n = 0;
+
+        *m->to = 0;
+        if (findheader(msg, "To", hdr, sizeof(hdr))) {
+
+            p = hdr;
+            while (*p) {
+
+                ami_long k = 0;
+
+                while (*p == ' ' || *p == ',') p++;
+                while (*p && *p != ',') { if (k < (ami_long)sizeof(one)-1) one[k++] = *p; p++; }
+                one[k] = 0;
+                trim(one);
+                if (!*one) continue;
+                addrof(one, addr, sizeof(addr));
+                if (!*addr) continue;
+                for (k = 0; addr[k]; k++) addr[k] = tolower((unsigned char)addr[k]);
+                if (n+strlen(addr)+3 >= sizeof(m->to)) break;
+                if (n) { m->to[n++] = ','; m->to[n++] = ' '; }
+                strcpy(m->to+n, addr);
+                n += strlen(addr);
+
+            }
+
+        }
 
     }
     /* only what the list will show: see decodepart */
@@ -4771,12 +4808,12 @@ static int srcmatch(ami_long fold, const msgrec* m, const srcrec* a)
     if (a->sizeop == 2 && m->len >= a->sizeval) return (FALSE);
     if (a->within && (m->date < a->date-a->within ||
                       m->date > a->date+a->within)) return (FALSE);
-    if (!*a->to && !*a->words && !*a->nowords && !a->attach) return (TRUE);
+    if (*a->to && !personeq(a->to, m->to, a->wild)) return (FALSE);
+    if (!*a->words && !*a->nowords && !a->attach) return (TRUE);
     /* what only the message answers */
     raw = getmsgin(fold, m);
     if (!raw) return (FALSE);
     if (!findheader(raw, "To", to, sizeof(to))) *to = 0;
-    if (*a->to && !personeq(a->to, to, a->wild)) ok = FALSE;
     if (ok && a->attach && !hasattach(raw, strlen(raw))) ok = FALSE;
     if (ok && (*a->words || *a->nowords)) {
 
@@ -5117,6 +5154,36 @@ static unsigned long long subjkey(const msgrec* m)
     }
 
     return (h);
+
+}
+
+/* the two are of one thread: one subject, Re: and Fwd: aside */
+int samethread(const msgrec* a, const msgrec* b)
+
+{
+
+    return (subjkey(a) == subjkey(b));
+
+}
+
+/* the address is one of those the message went to */
+int toholds(const char* to, const char* addr)
+
+{
+
+    const char* p = to;
+    ami_long    n = strlen(addr);
+
+    if (!n) return (FALSE);
+    while (*p) {
+
+        while (*p == ' ' || *p == ',') p++;
+        if (!strncasecmp(p, addr, n) && (p[n] == 0 || p[n] == ',')) return (TRUE);
+        while (*p && *p != ',') p++;
+
+    }
+
+    return (FALSE);
 
 }
 
