@@ -491,8 +491,10 @@ for t in $tests; do
         continue
 
     fi
-    # the event file that applies, for the test's automatic run
+    # the event file that applies, for the test's automatic run: named
+    # from the root, since a test may run from a sandbox of its own
     AUTO_EVENT_FILE="$(findfile "$t" "$t.evt")"
+    [ -n "$AUTO_EVENT_FILE" ] && AUTO_EVENT_FILE="$root/$AUTO_EVENT_FILE"
     export AUTO_EVENT_FILE
     runtest "$t"
     if [ "$remote" = "1" ]; then
