@@ -2545,6 +2545,36 @@ extra width, extra height, and offset to client of the child window.
 
 *******************************************************************************/
 
+/* The frame's extents as the window manager publishes them, in
+   _NET_FRAME_EXTENTS: left, right, top, bottom. TRUE when it does. */
+static int frmextents(Window xw, long* l, long* r, long* t, long* b)
+
+{
+
+    Atom           prop, type;
+    int            fmt;
+    unsigned long  n, after;
+    unsigned char* data = NULL;
+    int            ok = FALSE;
+
+    XWLOCK();
+    prop = XInternAtom(padisplay, "_NET_FRAME_EXTENTS", False);
+    if (XGetWindowProperty(padisplay, xw, prop, 0, 4, False, XA_CARDINAL,
+                           &type, &fmt, &n, &after, &data) == Success &&
+        data && n == 4 && fmt == 32) {
+
+        *l = ((long*)data)[0]; *r = ((long*)data)[1];
+        *t = ((long*)data)[2]; *b = ((long*)data)[3];
+        ok = TRUE;
+
+    }
+    if (data) XFree(data);
+    XWUNLOCK();
+
+    return (ok);
+
+}
+
 void fndfrmdif(Window xw, int* ew, int* eh, int* ox, int* oy)
 
 {
@@ -2553,10 +2583,25 @@ void fndfrmdif(Window xw, int* ew, int* eh, int* ox, int* oy)
     Window            pw, rw;
     Window*           cwl;
     unsigned          ncw;
+    long              l, r, t, b;
 
+    /* The manager that says what its frame takes is believed: a manager
+       that does not reparent, as KWin under Xwayland does not, leaves the
+       window a child of the root, and the difference measured below is
+       then the difference from the screen. */
+    if (frmextents(xw, &l, &r, &t, &b)) {
+
+        *ew = l+r;
+        *eh = t+b;
+        *ox = l;
+        *oy = t;
+        return;
+
+    }
     /* get frame measurements */
     XWLOCK();
     XQueryTree(padisplay, xw, &rw, &pw, &cwl, &ncw);
+    if (cwl) XFree(cwl);
     XGetWindowAttributes(padisplay, pw, &xpwga);
     XGetWindowAttributes(padisplay, xw, &xwga);
     XWUNLOCK();
@@ -2620,6 +2665,18 @@ void fndfrm(void)
        processing instead of dropping */
     waitxmap(wh, snc);
 
+    /* The manager writes the frame's extents on the window as it takes
+       it up, a moment after the map: the measurement waits that moment,
+       half a second at most, and a manager that never writes them is
+       measured the old way. */
+    {
+
+        long l, r, t, b;
+        int  i;
+
+        for (i = 0; i < 50 && !frmextents(wh, &l, &r, &t, &b); i++) usleep(10000);
+
+    }
     /* get frame measurements */
     fndfrmdif(wh, &frmextwdt[frmcfgall], &frmexthgt[frmcfgall],
                   &frmoffx[frmcfgall], &frmoffy[frmcfgall]);
@@ -14489,6 +14546,30 @@ static void rigroot(int x, int y, int* rx, int* ry)
 
 }
 
+/* is the input focus in the target's tree already: the target itself,
+   or a widget of its that a click put the focus on */
+static int rigfocused(void)
+
+{
+
+    Window  fw, rw, pw, *cwl, target = rigwin();
+    int     rev;
+    unsigned ncw;
+
+    XGetInputFocus(padisplay, &fw, &rev);
+    while (fw && fw != target && fw != PointerRoot) {
+
+        if (!XQueryTree(padisplay, fw, &rw, &pw, &cwl, &ncw)) return (FALSE);
+        if (cwl) XFree(cwl);
+        if (fw == rw || pw == rw) return (FALSE); /* up to the root: not ours */
+        fw = pw;
+
+    }
+
+    return (fw == target);
+
+}
+
 static void rigline(char* ln)
 
 {
@@ -14496,7 +14577,10 @@ static void rigline(char* ln)
     int a, x, y, rx, ry;
 
     XWLOCK();
-    if (!strncmp(ln, "key", 3)) /* a key goes to the focus: the target's */
+    /* A key goes to the focus. The target is given it unless the focus is
+       in its tree already: a click has put it on a widget of the target,
+       and taking it back would send the keys past the widget. */
+    if (!strncmp(ln, "key", 3) && !rigfocused())
         XSetInputFocus(padisplay, rigwin(), RevertToParent, CurrentTime);
     if (sscanf(ln, "key %d", &a) == 1) {
 
@@ -16148,10 +16232,18 @@ static void getsizg_ivf(FILE* f, ami_long* x, ami_long* y)
 #ifdef WAITWMR
     /* if wait for window manager is set, ask the WM what the size is */
     XWLOCK();
-    /* find parent */
-    XQueryTree(padisplay, win->xwhan, &rw, &pw, &cwl, &ncw);
-    /* get parent parameters */
-    XGetWindowAttributes(padisplay, pw, &xwa);
+    if (win->parwin) {
+
+        /* a child: what its parent holds it in */
+        XQueryTree(padisplay, win->xwhan, &rw, &pw, &cwl, &ncw);
+        if (cwl) XFree(cwl);
+        XGetWindowAttributes(padisplay, pw, &xwa);
+
+    } else
+        /* a top level window: its own size, as granted, and the frame the
+           manager puts round it. Not its parent's: a manager that does not
+           reparent leaves that the root, which is the screen. */
+        XGetWindowAttributes(padisplay, win->xmwhan, &xwa);
     XWUNLOCK();
     *x = xwa.width+win->pfw;
     *y = xwa.height+win->pfh;
@@ -16283,11 +16375,37 @@ static void setsizg_ivf(FILE* f, ami_long x, ami_long y)
                configure applies synchronously and grants what was asked,
                and a request that changes nothing sends no notify at all,
                so waiting on a child is waiting on silence. */
-            if (win->parwin || !waitxevt(ConfigureNotify, win->xmwhan, snc, &e)) {
+            if (win->parwin) {
 
-                /* no answer: stand on the computed client size */
                 e.xconfigure.width = xwc.width;
                 e.xconfigure.height = xwc.height;
+
+            } else {
+
+                /* A manager answers in its own time and its own order: a
+                   request it will not grant gets a synthetic notify with
+                   the size unchanged, and the grant of an earlier request
+                   can arrive after the notify for this one. So the wait
+                   goes on until a notify carries what was asked, and
+                   otherwise the last one seen within the bound stands. */
+                XEvent last;
+                int    got = FALSE;
+
+                while (waitxevt(ConfigureNotify, win->xmwhan, snc, &e)) {
+
+                    last = e;
+                    got = TRUE;
+                    if (e.xconfigure.width == xwc.width &&
+                        e.xconfigure.height == xwc.height) break;
+
+                }
+                if (got) e = last;
+                else { /* no answer: stand on the computed client size */
+
+                    e.xconfigure.width = xwc.width;
+                    e.xconfigure.height = xwc.height;
+
+                }
 
             }
         }
