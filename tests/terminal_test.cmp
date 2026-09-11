@@ -71470,6 +71470,30 @@ joystick: 1 button deassert:  8
 
 
                                  Joystick test
+                                                                frame 38.22
+               Move the joystick(s) X, Y and Z, and hit buttons
+joystick:   1 x: 9223372036854775807 y: 9223372036854775807 z: 92233720368547758
+07            4:           0 5:           0 6:           0
+                                       *****************************************
+                                       *****************************************
+                                       *****************************************
+                                       *****************************************
+                                       *****************************************
+                                       *****************************************
+
+
+
+
+
+
+
+joystick: 1 button deassert:  8
+
+
+
+
+
+                                 Joystick test
                                                                    frame 38
                Move the joystick(s) X, Y and Z, and hit buttons
 joystick:   1 x: 9223372036854775807 y: 9223372036854775807 z: 92233720368547758
@@ -71948,6 +71972,30 @@ Mouse button assert, mouse: 1 button: 3
 
 
 Mouse button deassert, mouse: 1 button: 3
+
+                                  Mouse test
+                                                                frame 39.20
+                        Move the mouse, and hit buttons
+
+
+
+
+
+
+
+
+
+                                       <- Mouse 1
+
+
+
+
+
+
+
+
+
+
 
                                   Mouse test
                                                                    frame 39

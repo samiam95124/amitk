@@ -72,8 +72,8 @@ either the test, or in some cases, graphics.c/widget.c changes.
 The module is tests/auto_event.c, linked into the picture tests and, built
 with AUTO_EVENT_TERMINAL for the terminal's event set, into the terminal
 tests. The file is named after its test, tests/graphics_test.evt,
-tests/terminal_test.evt or tests/window_test.evt, and is committed beside it
-as an input. A run given a
+tests/terminal_test.evt, tests/window_test.evt or tests/widget_test.evt, and
+is committed beside it as an input. A run given a
 capture file takes the event file from the capture file's directory, since
 the regression runs the terminal tests from tests/terminal; terminal_testc,
 the same test on the console library, takes terminal_test's file. Lines hold one statement each, '#' starts a comment:
@@ -85,6 +85,8 @@ the same test on the console library, takes terminal_test's file. Lines hold one
     sync <frame>[.<step>]   hold the events after it until the test is on that
                             frame, and that step of it if given
     window <id>             the window the events that follow carry (1 to start)
+    wait <ms>               let the program run for that long, its events its
+                            own, then a step: what time did, a progress bar
     keyboardoff, mouseoff, joystickoff
                             drop the events of the real keyboard, mouse or
                             joystick, so a device on the desk cannot join a test
@@ -130,3 +132,49 @@ Each capture carries its label, "frame N" or "frame N.S", as the PNG title
 (screen_capture_label, before screen_capture), so testviewer's shifted arrows
 step between whole frames in a picture stream the way they do in a text
 standard.
+
+## The seat
+
+Where the display carries a seat rig, which the Wayland layer does (its
+PD_INPUT fifo, made for headless compositors), the mouse and key events of
+the file are not handed to the program but put in at the seat, as if a person
+made them. A move goes to the point named, in the client area of the main
+window; a button press or release goes to the pointer's place; a key goes to
+whatever holds the keyboard focus. The display routes them the way it routes
+a real seat's input: the hit test finds the leaf window under the point, a
+widget's face or the client area, with hover, focus and crossings as for a
+person, and the program gets what the widget sends. So
+
+    moumovg 1 264 251
+    mouba 1 1
+    moubd 1 1
+
+presses whatever is at 264,251, and widget_test's file works its buttons,
+scroll bars and number boxes that way, the coordinates read off the pictures
+of the standard, which is the calibration doc/auto_events.md anticipated.
+Keys are given as keycodes, so a character is a key of the US layout: letters,
+digits and the unshifted punctuation, with a held shift for the rest.
+
+After each such line the module waits a fixed moment, 200 ms, handing the
+program every event the line provokes, and then a beat: auto_event_step()
+says one when the line has run its course, and that is when a test captures
+a step. The moment is fixed rather than a quiet interval because a program
+with the frame timer on is never quiet.
+
+Focus follows the seat's clicks as it does a person's: a press leaves the
+keyboard with the widget pressed, so a file clicks the main window before the
+return that is to end a chapter, and clicks a number box's field before the
+return that is to send its value. The module opens the seat itself, a fifo
+of its own named to the display in PD_INPUT, on the first mouse or key
+event; where there is no rig, the remote client, the terminal, the
+framebuffer, or PD_INPUT is already someone else's, the events go to the
+program directly as before, and the widget and menu events always do. While
+the rig's fifo is open the rig holds the seat: the display ignores the
+compositor's own pointer and keyboard, crossings and focus included, so a
+run on a live desktop is not joined by the hand on the desk and the focus a
+click gave a widget stays put. With the seat in use keyboardoff and mouseoff
+are moot.
+
+A frame the test passes without running its pattern, as a selected range
+does, leaves the frame's events in the file: they are skipped to the next
+sync, and counted at the end.

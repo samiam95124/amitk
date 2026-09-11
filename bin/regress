@@ -361,8 +361,12 @@ runtest()
         # capture module appends each to the file named after it, and that
         # file is the listing they are judged on. Each test is given its
         # own, so two runs beside each other do not write over one another.
+        # Fifteen minutes. The event files drive every widget with a
+        # settling wait after each line, and widget_test takes six or
+        # seven of them; five minutes cut it off in its thirty-first
+        # frame, and a standard taken from a cut run passed a cut run.
         rm -f "$(outof "$1")"
-        timeout 300 "$(binof "$1")" auto "$(outof "$1")" < /dev/null \
+        timeout 900 "$(binof "$1")" auto "$(outof "$1")" < /dev/null \
             > "tests/$1.out" 2>&1
         ;;
 

@@ -127,6 +127,7 @@ extern void auto_event_name(const char* fn);
 extern void auto_event_beside(const char* capfile, const char* name);
 extern void auto_event_frame(int frame, int step);
 extern int  auto_event_ready(void);
+extern int  auto_event_step(void);
 extern void auto_event(FILE* f, ami_evtrec* er);
 
 #define EVENTNAME "window_test.evt"    /* the events of the automatic run */
@@ -994,7 +995,7 @@ int main(int argc, char* argv[])
                          ami_menusel(tw, 10, sblue); break;
 
             }
-            if (autorun) frmstep(); /* the selection as reported */
+            if (autorun && auto_event_step()) frmstep(); /* the selection as reported */
 
         }
 
@@ -1065,7 +1066,7 @@ int main(int argc, char* argv[])
                 case AMI_SMMAX+3:     fprintf(tw, "three\n"); break;
 
             }
-            if (autorun) frmstep(); /* the selection as reported */
+            if (autorun && auto_event_step()) frmstep(); /* the selection as reported */
 
         }
 

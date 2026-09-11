@@ -252,6 +252,7 @@ extern void auto_event_name(const char* fn);
 extern void auto_event_beside(const char* capfile, const char* name);
 extern void auto_event_frame(int frame, int step);
 extern int  auto_event_ready(void);
+extern int  auto_event_step(void);
 extern void auto_event(FILE* f, ami_evtrec* er);
 extern ami_long auto_mouse(FILE* f);
 extern ami_long auto_mousebutton(FILE* f, ami_long m);
@@ -1791,7 +1792,7 @@ int main(int argc, char *argv[])
                 }
 
             }
-            if (autorun && er.etype != ami_etenter) frmstep(); /* the report */
+            if (autorun && auto_event_step()) frmstep(); /* the report */
 
         } while (er.etype != ami_etenter && (!autorun || auto_event_ready()));
         frmmark(); /* capture the joystick as reported */
@@ -1851,7 +1852,7 @@ int main(int argc, char *argv[])
                 prtcen(ami_maxy(stdout), "Mouse test");
 
             }
-            if (autorun && er.etype != ami_etenter) frmstep(); /* the report */
+            if (autorun && auto_event_step()) frmstep(); /* the report */
 
         } while (er.etype != ami_etenter && (!autorun || auto_event_ready()));
         frmmark(); /* capture what the mouse did */
