@@ -2788,7 +2788,7 @@ void servemove(void)
     folders[dst].dirty = TRUE;
     idxwant = fold;
     wrkfolds = TRUE;
-    snprintf(sentsaid, sizeof(sentsaid), "%lld message%s moved to %s -- "
+    snprintf(sentsaid, sizeof(sentsaid), "%lld message%s moved to %.400s -- "
              "locally; the server is not touched", AMI_LONG_CAST(moved),
              moved == 1? "": "s", to);
     movbusy = FALSE;

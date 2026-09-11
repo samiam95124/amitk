@@ -620,7 +620,7 @@ static void popbuild(int i, FILE* parent, int x, int y)
             popent[popct].kind = POP_TO;
             copystr(popent[popct].arg, addr, MAXSTR);
             copystr(popent[popct].who, addr, sizeof(popent[popct].who));
-            snprintf(popent[popct].lab, MAXSTR, "Local folder for to %s (%d here)", addr, n);
+            snprintf(popent[popct].lab, MAXSTR, "Local folder for to %.400s (%d here)", addr, n);
             popct++;
 
         }
@@ -777,7 +777,7 @@ static void popact(int row)
     drawfolders();
     snprintf(movnote, sizeof(movnote), "%d message%s to %s", n,
              n == 1? "": "s", who);
-    snprintf(msg, sizeof(msg), "Moving %s...", movnote);
+    snprintf(msg, sizeof(msg), "Moving %.480s...", movnote);
     status(msg);
 
 }
@@ -2573,7 +2573,7 @@ static void printread(void)
     fputs(readtext, f);
     if (*readtext && readtext[strlen(readtext)-1] != '\n') fputc('\n', f);
     fclose(f);
-    snprintf(cmd, sizeof(cmd), "lp %s", path);
+    snprintf(cmd, sizeof(cmd), "lp %.480s", path);
     ami_execw(cmd, &e);
     remove(path);
     if (e) {
@@ -2582,7 +2582,7 @@ static void printread(void)
         return;
 
     }
-    snprintf(msg, sizeof(msg), "Sent to the printer: %s", *redsubj? redsubj: "(no subject)");
+    snprintf(msg, sizeof(msg), "Sent to the printer: %.450s", *redsubj? redsubj: "(no subject)");
     status(msg);
 
 }
@@ -2693,8 +2693,8 @@ static void srvlay(void)
 
         char n[80];
 
-        snprintf(n, sizeof(n), "account %d of %d", srvedit+1,
-                 srvct > srvedit? srvct: srvedit+1);
+        snprintf(n, sizeof(n), "account %lld of %lld", AMI_LONG_CAST(srvedit+1),
+                 AMI_LONG_CAST(srvct > srvedit? srvct: srvedit+1));
         ami_fcolorc(srvwf, rgb(110), rgb(110), rgb(110));
         ami_cursor(srvwf, chrw*2, y+bh+chrh/2);
         fprintf(srvwf, "%s", n);
@@ -2718,17 +2718,17 @@ static void srvload(void)
 
     }
     ami_putwidgettext(srvwf, SRVNAME, servers[srvedit].name);
-    sprintf(num, "%d", pollsec);
+    sprintf(num, "%lld", AMI_LONG_CAST(pollsec));
     ami_putwidgettext(srvwf, SRVPOLL, num);
     ami_putwidgettext(srvwf, SRVIMAP, servers[srvedit].imap);
-    sprintf(num, "%d", servers[srvedit].imapport);
+    sprintf(num, "%lld", AMI_LONG_CAST(servers[srvedit].imapport));
     ami_putwidgettext(srvwf, SRVIPORT, num);
     ami_putwidgettext(srvwf, SRVSMTP, servers[srvedit].smtp);
-    sprintf(num, "%d", servers[srvedit].smtpport);
+    sprintf(num, "%lld", AMI_LONG_CAST(servers[srvedit].smtpport));
     ami_putwidgettext(srvwf, SRVSPORT, num);
     ami_putwidgettext(srvwf, SRVUSER, servers[srvedit].user);
     ami_putwidgettext(srvwf, SRVPASS, servers[srvedit].pass);
-    sprintf(num, "%d", servers[srvedit].limit);
+    sprintf(num, "%lld", AMI_LONG_CAST(servers[srvedit].limit));
     ami_putwidgettext(srvwf, SRVLIMIT, num);
 
 }
@@ -3918,7 +3918,7 @@ static void srcdraw(void)
         else copystr(when, m->when, sizeof(when));
         ami_reverse(srcwf, i == srcsel);
         foldname(srcfold[i], fold, sizeof(fold));
-        snprintf(s, sizeof(s), "%-12.12s %-20.20s %-16.16s %s", when, m->from,
+        snprintf(s, sizeof(s), "%-12.12s %-20.20s %-16.16s %.400s", when, m->from,
                  fold, m->subject);
         n = (int)strlen(s);
         if (n > w) n = w;
