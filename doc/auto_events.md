@@ -193,12 +193,20 @@ pointer motion moves the desktop's own pointer, since the compositor is
 told of it as emulated input. A run on a live desktop is therefore best
 left alone while it goes.
 
-## The standards
+## The standards and the event files
 
 The picture standards are of a desktop and a backend: the Wayland module
 draws its own frames at the buffer's scale and the X module has the window
-manager's, so the same test draws two looks on one desktop. They live under
-tests/linux_compare by desktop and backend, gnome/wayland, gnome/x11,
-plasma/wayland and plasma/x11, each holding <test>.cmp; bin/regress picks
-the desktop from XDG_CURRENT_DESKTOP and the backend from the symbols the
-test's binary links, and a set that is not there yet is made with --update.
+manager's, so the same test draws two looks on one desktop. And an event
+file whose points were read off one backend's pictures does not serve the
+other, since the client and its font differ. So the tree under tests forks
+by platform, desktop and backend, tests/linux/plasma/wayland and its kin,
+and a standard, <test>.cmp, or an event file, <test>.evt, is looked for
+from the most particular directory that applies up to tests itself: a file
+that holds for every backend of a desktop sits at the desktop, one that
+holds everywhere sits at the top, and one that is a backend's own sits at
+the backend. bin/regress picks the desktop from XDG_CURRENT_DESKTOP and the
+backend from the symbols the test's binary links, hands the event file it
+found to the test in AUTO_EVENT_FILE, and writes a picture standard at the
+backend with --update; a run the event file did not carry through, one that
+skipped events or was left waiting, is refused as a standard.

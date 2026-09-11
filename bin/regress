@@ -27,9 +27,8 @@
 # (pdftest) is of the platform too: pdfgraph decides arc segment counts from
 # an angle scaled by LONG_MAX, and an exact quarter arc lands on the boundary
 # one way with a 32 bit long and the other with 64. Those tests keep a
-# standard per platform, in the platform's own directory:
-# tests/windows_compare/<test>.cmp, tests/linux_compare/<test>.cmp,
-# tests/macosx_compare/<test>.cmp. The tests that do are listed in plattests
+# standard per platform, in the platform's own directory: tests/windows,
+# tests/linux, tests/macosx. The tests that do are listed in plattests
 # below; the rest share one standard across the platforms, tests/<test>.cmp.
 #
 # The print tests, txttest and pdftest, print into a file, and that is what
@@ -60,15 +59,19 @@
 # The picture standards are of a desktop's look -- the frame the screen tests
 # size themselves against, the menus, the theme -- and of a backend's, since
 # the Wayland module draws its own frames at the buffer's scale and the X
-# module has the window manager's, so on Linux they live under the platform
-# directory by desktop and backend: tests/linux_compare/gnome/wayland,
-# gnome/x11, plasma/wayland and plasma/x11, each holding <test>.cmp. The
+# module has the window manager's. So the tree under tests forks by
+# platform, then desktop, then backend: tests/linux/gnome/wayland,
+# tests/linux/gnome/x11, tests/linux/plasma/wayland, tests/linux/plasma/x11.
+# A standard, <test>.cmp, and an event file, <test>.evt, are looked for
+# from the most particular directory that applies up to tests itself, and
+# the first found serves: a file that holds for every backend of a desktop
+# sits at the desktop, one that holds everywhere sits at the top, and one
+# that is a backend's own sits at the backend. --update writes a picture
+# standard at the backend and a platform standard at the platform. The
 # desktop is chosen the way the decorations choose themselves, from
 # XDG_CURRENT_DESKTOP, and the backend is read off the test's own binary,
-# which links XOpenDisplay or wl_display_connect and not both. A set that
-# is not there yet is told to make itself with --update. Windows and Mac OS X
-# draw one look each: tests/windows_compare/<test>.cmp,
-# tests/macosx_compare/<test>.cmp.
+# which links XOpenDisplay or wl_display_connect and not both. Windows and
+# Mac OS X draw one look each and fork no further.
 #
 # The picture tests write their screens, a stream of PNGs, to tests/<test>.img;
 # a picture run that fails is kept as tests/<test>.fail-<stamp>.img, so the
@@ -105,10 +108,10 @@ cd "$root" || exit 1
 # Unix; the Unix ports name their programs alike.
 case "$(uname -s)" in
 
-MINGW*|MSYS*|CYGWIN*) plat="windows"; cmpdir="tests/windows_compare" ;;
-Darwin)               plat="";        cmpdir="tests/macosx_compare" ;;
-FreeBSD)              plat="";        cmpdir="tests/freebsd_compare" ;;
-*)                    plat="";        cmpdir="tests/linux_compare" ;;
+MINGW*|MSYS*|CYGWIN*) plat="windows"; cmpdir="tests/windows" ;;
+Darwin)               plat="";        cmpdir="tests/macosx" ;;
+FreeBSD)              plat="";        cmpdir="tests/freebsd" ;;
+*)                    plat="";        cmpdir="tests/linux" ;;
 
 esac
 plattests=" services_test pdftest "
@@ -408,7 +411,35 @@ backendof() {
 
 }
 
-# the directory a screen test's standard lives in
+# The directories that apply to a test, most particular first: the
+# backend's, the desktop's, the platform's, and tests itself. A standard
+# or an event file is the first found along them.
+dirsof() {
+
+    if [ -n "$desk" ]; then
+
+        b="$(backendof "$(binof "$1")")"
+        [ -n "$b" ] && echo "$cmpdir/$desk/$b"
+        echo "$cmpdir/$desk"
+
+    fi
+    echo "$cmpdir"
+    echo "tests"
+
+}
+
+# the file of that name that applies to the test, or nothing
+findfile() {
+
+    for d in $(dirsof "$1"); do
+
+        if [ -f "$d/$2" ]; then echo "$d/$2"; return; fi
+
+    done
+
+}
+
+# where --update writes a screen test's standard: the backend's directory
 stddir() {
 
     if [ -n "$desk" ]; then echo "$cmpdir/$desk/$(backendof "$(binof "$1")")"
@@ -460,6 +491,11 @@ for t in $tests; do
         continue
 
     fi
+    # the event file that applies, for the test's automatic run: named
+    # from the root, since a test may run from a sandbox of its own
+    AUTO_EVENT_FILE="$(findfile "$t" "$t.evt")"
+    [ -n "$AUTO_EVENT_FILE" ] && AUTO_EVENT_FILE="$root/$AUTO_EVENT_FILE"
+    export AUTO_EVENT_FILE
     runtest "$t"
     if [ "$remote" = "1" ]; then
 
@@ -496,15 +532,26 @@ for t in $tests; do
             continue
 
         fi
-        std="$(stddir "$t")/$t.cmp"
+        std="$(findfile "$t" "$t.cmp")"
         if [ "$update" = "1" ]; then
 
+            # a run the event file did not carry through is no standard:
+            # a standard taken from a cut run passes a cut run
+            if grep -q 'were skipped\|left waiting' "tests/$t.out" 2>/dev/null; then
+
+                echo "$t: *** not regenerated *** the run was cut: $(grep 'were skipped\|left waiting' "tests/$t.out" | head -1)"
+                fails=$((fails+1))
+                continue
+
+            fi
+            std="$(stddir "$t")/$t.cmp"
             mkdir -p "$(dirname "$std")"
             cp "$out" "$std"
             echo "$t: $std regenerated, please review with bin/testviewer"
 
-        elif [ ! -f "$std" ]; then
+        elif [ -z "$std" ]; then
 
+            std="$(stddir "$t")/$t.cmp"
             {
                 echo "no $std: this platform${desk:+, desktop and backend} has no standard for $t yet"
                 echo "make one with: bin/regress --update $t, then review it"
@@ -542,11 +589,17 @@ for t in $tests; do
     fi
     # the standard: this platform's own where the test keeps one per platform;
     # terminal_testc is terminal_test through windowc, and shares its standard
-    std="tests/$t.cmp"
-    case "$plattests" in
-    *" $t "*) std="$cmpdir/$t.cmp" ;;
-    esac
-    if [ "$t" = "terminal_testc" ]; then std="tests/terminal_test.cmp"; fi
+    if [ "$t" = "terminal_testc" ]; then std="$(findfile terminal_test terminal_test.cmp)"
+    else std="$(findfile "$t" "$t.cmp")"
+    fi
+    if [ -z "$std" ]; then # none yet: where --update puts one
+
+        std="tests/$t.cmp"
+        case "$plattests" in
+        *" $t "*) std="$cmpdir/$t.cmp" ;;
+        esac
+
+    fi
     out="$(outof "$t")"
     if [ ! -f "$out" ]; then
 

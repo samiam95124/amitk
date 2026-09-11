@@ -423,6 +423,11 @@ static void fill(void)
     if (!opened) {
 
         opened = 1;
+        /* the file the regression chose, from the tree of standards by
+           platform, desktop and backend, over the one named beside the
+           capture */
+        if (getenv("AUTO_EVENT_FILE") && *getenv("AUTO_EVENT_FILE"))
+            strncpy(fn, getenv("AUTO_EVENT_FILE"), sizeof(fn)-1);
         if (fn[0]) ef = fopen(fn, "r");
         trace = getenv("AUTO_EVENT_TRACE") != NULL;
 
