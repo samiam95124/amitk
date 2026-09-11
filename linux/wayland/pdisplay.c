@@ -2627,8 +2627,14 @@ static void xtconf(void* data, struct xdg_toplevel* xt, int32_t w, int32_t h,
     if (act != t->activated) {
 
         t->activated = act;
-        mkevt(&e, act? pd_etfocus: pd_etnofocus, win);
-        enq(d, &e);
+        /* the focus goes with the activation, unless the rig holds the
+           seat: then the desktop's comings and goings are not the test's */
+        if (d->injfd < 0) {
+
+            mkevt(&e, act? pd_etfocus: pd_etnofocus, win);
+            enq(d, &e);
+
+        }
 
     }
     topulk(t);
@@ -2844,6 +2850,8 @@ static void ptrenter(void* data, struct wl_pointer* p, uint32_t serial,
     pd_win*     win;
     int         x, y;
 
+    if (d->injfd >= 0) return; /* the rig holds the seat */
+
     (void)p;
     d->inserial = serial;
     d->enterserial = serial;
@@ -2861,6 +2869,8 @@ static void ptrleave(void* data, struct wl_pointer* p, uint32_t serial,
                      struct wl_surface* surf)
 {
     pd_display* d = data;
+
+    if (d->injfd >= 0) return; /* the rig holds the seat */
 
     (void)p; (void)serial; (void)surf;
     /* A press in flight cannot follow the pointer off the surface: the
@@ -2901,6 +2911,9 @@ static void ptrmotion(void* data, struct wl_pointer* p, uint32_t time,
     int         x, y;
     pd_evt      e;
 
+    if (p && d->injfd >= 0) return; /* the rig holds the seat: its own
+                                        calls pass no pointer */
+
     (void)p;
     d->ptrx = wl_fixed_to_double(sx)*d->scale;
     d->ptry = wl_fixed_to_double(sy)*d->scale;
@@ -2931,6 +2944,9 @@ static void ptrbutton(void* data, struct wl_pointer* p, uint32_t serial,
     pd_win*     t;
     int         x, y, b;
     pd_evt      e;
+
+    if (p && d->injfd >= 0) return; /* the rig holds the seat: its own
+                                        calls pass no pointer */
 
     (void)p;
     d->inserial = serial;
@@ -3014,6 +3030,8 @@ static void ptraxis(void* data, struct wl_pointer* p, uint32_t time,
     int         x, y, b;
     pd_evt      e;
 
+    if (d->injfd >= 0) return; /* the rig holds the seat */
+
     (void)p;
     if (axis != WL_POINTER_AXIS_VERTICAL_SCROLL) return;
     b = wl_fixed_to_double(value) < 0? 4: 5;
@@ -3086,6 +3104,8 @@ static void kbenter(void* data, struct wl_keyboard* k, uint32_t serial,
     pd_win*     win;
     pd_evt      e;
 
+    if (d->injfd >= 0) return; /* the rig holds the seat */
+
     (void)k; (void)keys;
     d->inserial = serial;
     win = surf? wl_surface_get_user_data(surf): NULL;
@@ -3098,6 +3118,8 @@ static void kbleave(void* data, struct wl_keyboard* k, uint32_t serial,
 {
     pd_display* d = data;
     pd_evt      e;
+
+    if (d->injfd >= 0) return; /* the rig holds the seat */
 
     (void)k; (void)serial; (void)surf;
     if (d->kbdtop) { mkevt(&e, pd_etnofocus, d->kbdtop); enq(d, &e); }
@@ -3169,6 +3191,8 @@ static void kbkey(void* data, struct wl_keyboard* k, uint32_t serial,
     pd_display* d = data;
     uint32_t xkc;
     struct itimerspec its;
+
+    if (d->injfd >= 0) return; /* the rig holds the seat */
 
     (void)k;
     d->inserial = serial;
@@ -3456,12 +3480,18 @@ Rig input injection
 PD_INPUT (or AMI_WL_INPUT) names a fifo; lines arriving there synthesize
 input as if the seat delivered it, which is what lets a compositor
 without virtual input protocols (headless weston) drive interactive
-tests. Commands:
+tests. While the fifo is open the rig holds the seat: the compositor's own
+pointer and keyboard, their crossings and focus included, are ignored, so
+a run on a live desktop is not joined by the hand on the desk, and the
+focus a test's click gave a widget stays where the click put it. Commands:
     key <xkeycode>        press and release
     keydown <xkeycode>    press only
     keyup <xkeycode>      release only
     move <x> <y>          pointer motion, surface coordinates
     btn <1|2|3> <x> <y>   move, press, release
+    target <n>            the pointer and keyboard go to the nth mapped
+                          toplevel, counted from 0 in the order they were
+                          made: a program with more than one window
 
 *******************************************************************************/
 
@@ -3581,7 +3611,11 @@ static void injpoll(pd_display* d)
 
         fn = rigenv("PD_INPUT", "AMI_WL_INPUT");
         if (!fn) return;
-        d->injfd = open(fn, O_RDONLY|O_NONBLOCK);
+        /* Read and write: a fifo opened to read alone reports end of file
+           whenever its last writer closes, and the poll then wakes for
+           nothing without end. A reader that is also a writer never sees
+           the end. */
+        d->injfd = open(fn, O_RDWR|O_NONBLOCK);
         if (d->injfd < 0) return;
         memset(&ev, 0, sizeof(ev));
         ev.events = EPOLLIN;

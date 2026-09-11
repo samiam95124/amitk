@@ -368,6 +368,7 @@ extern void auto_event_name(const char* fn);
 extern void auto_event_beside(const char* capfile, const char* name);
 extern void auto_event_frame(int frame, int step);
 extern int  auto_event_ready(void);
+extern int  auto_event_step(void);
 extern void auto_event(FILE* f, ami_evtrec* er);
 
 #define EVENTNAME "graphics_test.evt"  /* the events of the automatic run */
@@ -3720,7 +3721,7 @@ int main(int argc, char* argv[])
         if (er.etype == ami_etright) ami_scrollg(stdout, 1, 0);
         if (er.etype == ami_etleft) ami_scrollg(stdout, -1, 0);
         if (er.etype == ami_etterm) longjmp(terminate_buf, 1);
-        if (autorun && er.etype != ami_etenter) frmstep();
+        if (autorun && auto_event_step()) frmstep();
 
     } while (er.etype != ami_etenter && (!autorun || auto_event_ready()));
     frmmark(); /* capture where the scrolling left it */
@@ -3750,7 +3751,7 @@ int main(int argc, char* argv[])
 
         }
         if (er.etype == ami_etterm) longjmp(terminate_buf, 1);
-        if (autorun && er.etype != ami_etenter) frmstep();
+        if (autorun && auto_event_step()) frmstep();
 
     } while (er.etype != ami_etenter && (!autorun || auto_event_ready()));
     frmmark(); /* capture what the mouse drew */
@@ -3818,7 +3819,6 @@ int main(int argc, char* argv[])
         int vox = 0, voy = 0;
         ami_evtrec er;
         int done = 0;
-        int applied = 0; /* a key was applied: the redraw is a step */
 
         /* initial offset: center the drawing */
         vox = (int)(ww/2 - (cx-1) * vsx);
@@ -3879,7 +3879,6 @@ int main(int argc, char* argv[])
                 prtcen(2, sb);
             }
             prtcen(ami_maxy(stdout), "View drawing scale test");
-            if (autorun && applied) frmstep(); /* the view after the key */
             /* restore the current scale for next redraw */
             ami_viewscale(stdout, vsx, vsy);
             ami_viewoffg(stdout, vox, voy);
@@ -3887,7 +3886,14 @@ int main(int argc, char* argv[])
                run goes on only while the file has one for it */
             if ((autorun && !auto_event_ready()) || framenum < tstlo)
                 { done = 1; continue; }
-            do { auto_event(stdin, &er); } while (er.etype != ami_etenter &&
+            do {
+
+                auto_event(stdin, &er);
+                /* a line of the file has done its work: the view as redrawn
+                   after the key is a step */
+                if (autorun && auto_event_step()) frmstep();
+
+            } while (er.etype != ami_etenter &&
                 er.etype != ami_etterm && er.etype != ami_etpagu &&
                 er.etype != ami_etpagd && er.etype != ami_etup &&
                 er.etype != ami_etdown && er.etype != ami_etleft &&
@@ -3895,7 +3901,6 @@ int main(int argc, char* argv[])
                 er.etype != ami_etendl);
             if (er.etype == ami_etterm) longjmp(terminate_buf, 1);
             else if (er.etype == ami_etenter) done = 1;
-            applied = !done;
             if (er.etype == ami_etpagu) {
 
                 vsx *= 1.25f;

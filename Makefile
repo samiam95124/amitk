@@ -1649,8 +1649,8 @@ graphics_test_gtk: tests/graphics_test_gtk.c
 	    $(shell pkg-config --cflags --libs gtk4) -lm \
 	    -o bin/graphics_test_gtk
 
-widget_testw: $(GLIBSWD) tests/widget_test.c
-	$(CC) $(CFLAGS) tests/widget_test.c \
+widget_testw: $(GLIBSWD) tests/widget_test.c tests/auto_event.o
+	$(CC) $(CFLAGS) tests/widget_test.c tests/auto_event.o \
 	    $(GLIBSW) $(WLLIBS) -lasound -lfluidsynth -lssl -lcrypto -lstdc++ \
 	    -lfreetype -lfontconfig -lm -lpthread -o bin/widget_testw
 
@@ -1785,16 +1785,16 @@ endif
 # Test windows widget compliant output
 #
 ifeq ($(OSTYPE),Darwin)
-widget_test: $(GLIBSD) tests/widget_test.c $(GSCREEN_CAPTURE_OBJ)
-	$(CC) $(CFLAGS) tests/widget_test.c $(GSCREEN_CAPTURE_OBJ) $(GLIBS) \
+widget_test: $(GLIBSD) tests/widget_test.c tests/auto_event.o $(GSCREEN_CAPTURE_OBJ)
+	$(CC) $(CFLAGS) tests/widget_test.c tests/auto_event.o $(GSCREEN_CAPTURE_OBJ) $(GLIBS) \
 	    -o bin/widget_test
 else ifeq ($(OSTYPE),Windows_NT)
-widget_test: $(GLIBSD) tests/widget_test.c $(GSCREEN_CAPTURE_OBJ)
-	$(CC) $(CFLAGS) tests/widget_test.c $(GSCREEN_CAPTURE_OBJ) $(GLIBS) \
+widget_test: $(GLIBSD) tests/widget_test.c tests/auto_event.o $(GSCREEN_CAPTURE_OBJ)
+	$(CC) $(CFLAGS) tests/widget_test.c tests/auto_event.o $(GSCREEN_CAPTURE_OBJ) $(GLIBS) \
 	    -lpng -lz -o bin/widget_test
 else
-widget_test: $(GLIBSD) tests/widget_test.c $(GSCREEN_CAPTURE_OBJ)
-	$(CC) $(CFLAGS) tests/widget_test.c $(GSCREEN_CAPTURE_OBJ) $(GLIBS) \
+widget_test: $(GLIBSD) tests/widget_test.c tests/auto_event.o $(GSCREEN_CAPTURE_OBJ)
+	$(CC) $(CFLAGS) tests/widget_test.c tests/auto_event.o $(GSCREEN_CAPTURE_OBJ) $(GLIBS) \
 	    $(XLIBS) -o bin/widget_test
 endif
 
@@ -1937,10 +1937,10 @@ endif
 #
 ifeq ($(OSTYPE),Windows_NT)
 # the client carries the sound API itself, so the sound module stays out
-widget_testr: tests/widget_test.c portable/graph_client.o \
+widget_testr: tests/widget_test.c tests/auto_event.o portable/graph_client.o \
 	stub/screen_capture_stub.o windows/services.o windows/network.o \
 	utils/config.o utils/option.o windows/stdio.o
-	$(CC) $(CFLAGS) tests/widget_test.c portable/graph_client.o \
+	$(CC) $(CFLAGS) tests/widget_test.c tests/auto_event.o portable/graph_client.o \
 	    stub/screen_capture_stub.o windows/services.o windows/network.o \
 	    utils/config.o utils/option.o windows/stdio.o \
 	    -lwinmm -lssl -lcrypto -lws2_32 -lcrypt32 -o bin/widget_testr
@@ -1950,19 +1950,19 @@ else ifeq ($(OSTYPE),Darwin)
 # constructors in LINK ORDER (priorities are ignored), so the base modules
 # come before graph_client.o: its constructor opens sockets, and the network
 # constructor clears the per-descriptor table. Base first, layers after.
-widget_testr: tests/widget_test.c macosx/stdio.o macosx/services.o \
+widget_testr: tests/widget_test.c tests/auto_event.o macosx/stdio.o macosx/services.o \
 	macosx/network.o utils/config.o utils/option.o \
 	portable/graph_client.o stub/screen_capture_stub.o
-	$(CC) $(CFLAGS) tests/widget_test.c macosx/stdio.o macosx/services.o \
+	$(CC) $(CFLAGS) tests/widget_test.c tests/auto_event.o macosx/stdio.o macosx/services.o \
 	    macosx/network.o utils/config.o utils/option.o \
 	    portable/graph_client.o stub/screen_capture_stub.o \
 	    $(SSL_LIBS) -framework CoreFoundation -framework CoreGraphics \
 	    -framework ImageIO -framework CoreMIDI -framework AudioToolbox \
 	    -framework IOKit -lm -lpthread -o bin/widget_testr
 else
-widget_testr: tests/widget_test.c portable/graph_client.o \
+widget_testr: tests/widget_test.c tests/auto_event.o portable/graph_client.o \
 	stub/screen_capture_stub.o
-	$(CC) $(CFLAGS) tests/widget_test.c portable/graph_client.o \
+	$(CC) $(CFLAGS) tests/widget_test.c tests/auto_event.o portable/graph_client.o \
 	    stub/screen_capture_stub.o $(LINUXSTDIO) linux/services.o \
 	    utils/config.o utils/option.o linux/network.o \
 	    -lssl -lcrypto -lm -lpthread -o bin/widget_testr
@@ -2603,9 +2603,9 @@ hellofb: $(GLIBSFBM) hello/hello.c linux/framebuffer/framebuffer.o
 	$(CC) $(CFLAGS) hello/hello.c linux/framebuffer/framebuffer.o \
 	    $(GLIBSFBM) $(FBMLIBS) -o bin/hellofb
 
-widget_testfb: $(GLIBSFBM) tests/widget_test.c linux/framebuffer/framebuffer.o \
+widget_testfb: $(GLIBSFBM) tests/widget_test.c tests/auto_event.o linux/framebuffer/framebuffer.o \
 	linux/wayland/screen_capture.o
-	$(CC) $(CFLAGS) tests/widget_test.c linux/wayland/screen_capture.o \
+	$(CC) $(CFLAGS) tests/widget_test.c tests/auto_event.o linux/wayland/screen_capture.o \
 	    linux/framebuffer/framebuffer.o \
 	    $(GLIBSFBM) $(FBMLIBS) -o bin/widget_testfb
 
@@ -2620,9 +2620,9 @@ hellofbm: $(GLIBSFBM) hello/hello.c linux/framebuffer/fbmock.o
 	$(CC) $(CFLAGS) hello/hello.c linux/framebuffer/fbmock.o \
 	    $(GLIBSFBM) $(FBMLIBS) -o bin/hellofbm
 
-widget_testfbmk: $(GLIBSFBM) tests/widget_test.c linux/framebuffer/fbmock.o \
+widget_testfbmk: $(GLIBSFBM) tests/widget_test.c tests/auto_event.o linux/framebuffer/fbmock.o \
 	linux/wayland/screen_capture.o
-	$(CC) $(CFLAGS) tests/widget_test.c linux/wayland/screen_capture.o \
+	$(CC) $(CFLAGS) tests/widget_test.c tests/auto_event.o linux/wayland/screen_capture.o \
 	    linux/framebuffer/fbmock.o \
 	    $(GLIBSFBM) $(FBMLIBS) -o bin/widget_testfbmk
 

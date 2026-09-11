@@ -110,12 +110,29 @@ static int framenum = 0; /* current frame number */
 
 extern void screen_capture(void);
 extern void screen_capture_name(const char* fn);
+extern void screen_capture_label(const char* s);
+extern void auto_event_name(const char* fn);
+extern void auto_event_beside(const char* capfile, const char* name);
+extern void auto_event_frame(int frame, int step);
+extern int  auto_event_ready(void);
+extern int  auto_event_step(void);
+extern void auto_event(FILE* f, ami_evtrec* er);
+
+#define EVENTNAME "widget_test.evt"    /* the events of the automatic run */
+#define EVENTFILE "tests/" EVENTNAME   /* where they are from the repository */
+
+static int stepnum; /* the step within the frame being drawn */
+static int wholecap; /* the frame was captured whole */
+static void frmstep(void);
 
 /* "widget_test auto" walks every screen with no input at all, capturing
    each, and exits at the end: this is how the regression runs it. Widgets
    are windows of their own and paint from events, so an automatic run
    pumps events for a moment to let the screen settle before capturing it,
-   then answers the wait with a return. */
+   then answers the wait with a return. The widgets are worked by the events
+   of tests/widget_test.evt (see doc/auto_events.md), put in at the display's
+   seat as a person's clicks and keys, each line captured as a step of the
+   frame; "widget_test events" takes the file in an interactive run too. */
 static int autorun = FALSE;
 
 #define AUTOSETL 3000 /* settle time before a capture, 100us units */
@@ -144,10 +161,20 @@ static void nextevt(ami_evtrec* er)
 
 {
 
+    char labbuf[40];
+
     if (autorun) {
 
+        /* a line of the event file has run its course: the screen shows
+           what it did, a step of the frame */
+        if (auto_event_step()) frmstep();
+        /* the event file's events, while it has them for this frame */
+        if (auto_event_ready()) { auto_event(stdin, er); return; }
         autosettle();
+        sprintf(labbuf, "frame %d", framenum);
+        screen_capture_label(labbuf);
         screen_capture();
+        wholecap = TRUE;
         /* the return the screen waits for, from the main window: a wait
            that takes only its own window's return must see one */
         er->etype = ami_etenter;
@@ -156,7 +183,28 @@ static void nextevt(ami_evtrec* er)
         return;
 
     }
-    ami_event(stdin, er);
+    auto_event(stdin, er); /* the user's, or the file's where it has them */
+
+}
+
+/* A step of a frame, in an automatic run: the screen after a line of the
+   event file has done its work, stamped in the title as the frame is, with
+   the step as a fraction, frame 2.1, 2.2 and so on, so the frame count
+   itself is untouched. */
+static void frmstep(void)
+
+{
+
+    char titlebuf[80];
+
+    stepnum++;
+    sprintf(titlebuf, "widget_test: frame %d.%d", framenum, stepnum);
+    ami_title(stdout, titlebuf);
+    autosettle();
+    sprintf(titlebuf, "frame %d.%d", framenum, stepnum);
+    screen_capture_label(titlebuf);
+    screen_capture();
+    auto_event_frame(framenum, stepnum);
 
 }
 
@@ -169,7 +217,22 @@ static void setframe(void)
 
     char titlebuf[80];
 
+    /* a chapter the event file drove to its end, its last wait answered
+       by the file's own return, has not been captured whole: it is, as it
+       stands, before the next chapter clears it */
+    if (autorun && stepnum && !wholecap) {
+
+        if (auto_event_step()) frmstep(); /* the last line's step */
+        autosettle();
+        sprintf(titlebuf, "frame %d", framenum);
+        screen_capture_label(titlebuf);
+        screen_capture();
+
+    }
     framenum++;
+    stepnum = 0; /* the frame's steps count from one */
+    wholecap = FALSE;
+    auto_event_frame(framenum, 0);
     sprintf(titlebuf, "widget_test: frame %d", framenum);
     ami_title(stdout, titlebuf);
 
@@ -228,9 +291,17 @@ int main(int argc, char* argv[])
 
         autorun = TRUE;
         ami_autohold(FALSE);
-        if (argc > 2) screen_capture_name(argv[2]);
+        auto_event_name(EVENTFILE);
+        if (argc > 2) {
 
-    }
+            /* the capture file, and the event file beside it */
+            screen_capture_name(argv[2]);
+            auto_event_beside(argv[2], EVENTNAME);
+
+        }
+
+    } else if (argc > 1 && !strcmp(argv[1], "events"))
+        auto_event_name(EVENTFILE); /* the file in an interactive run */
 
     ami_curvis(stdout, FALSE);
     printf("Widget test vs. 0.1\n");

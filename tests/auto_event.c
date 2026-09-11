@@ -17,6 +17,9 @@
 *                          that frame, and that step of it if given.           *
 *   window <id>            The window the events that follow carry, 1 to      *
 *                          start.                                              *
+*   wait <ms>              Let the program run for that many milliseconds,     *
+*                          its events its own, then a beat: a step captured    *
+*                          of what time did, a progress bar or a clock.        *
 *   keyboardoff, mouseoff, joystickoff                                         *
 *                          Drop the events of the real keyboard, mouse or      *
 *                          joystick, so a device on the desk cannot join a     *
@@ -36,6 +39,23 @@
 * hold for the run: the file is read to its first sync on the test's first     *
 * ask, whether that is for a device or for an event. A device set aside is     *
 * set aside here, in the test: its events are skipped on their way from Ami.   *
+*                                                                              *
+* On a display with a seat rig (the Wayland layer's PD_INPUT fifo), the mouse  *
+* and key events of the file are not handed to the program but put in at the   *
+* seat, as if a person made them: a move goes to the point named, in the       *
+* client area of the main window, a button press or release to the pointer's  *
+* place, and a key to whatever holds the focus. The display routes them the    *
+* way it routes a real seat's, so a click at a widget's place presses the       *
+* widget, with hover, focus and crossings as for a person, and the program     *
+* gets what the widget sends. After each such line the module waits a moment   *
+* for what it provokes, handing the program every event that comes, and then   *
+* a beat: auto_event_step() says one when the line has run its course, which   *
+* is when a test captures a step. Keys are given as keycodes, so a character   *
+* is a key of the US layout, letters, digits and the unshifted punctuation.    *
+* Where there is no rig (the remote client, the terminal, the framebuffer) the *
+* events go to the program directly, as the widget and menu events always do.  *
+* While the seat is in use the rig holds it, and the display ignores the       *
+* desk's own pointer and keyboard: keyboardoff and mouseoff are moot.          *
 *                                                                              *
 * A number is written plain, or as max, -max, max/n or -max/n for the largest  *
 * value of the type and fractions of it, which is the range of a joystick's    *
@@ -70,10 +90,15 @@
 #include <terminal.h>
 #else
 #include <graphics.h>
+#include <localdefs.h>
+#include <sys/types.h>
+#include <sys/stat.h>
+#include <fcntl.h>
+#include <unistd.h>
 #endif
 
 #define MAXPAR 7   /* most parameters an event takes (joymov) */
-#define MAXLIN 250 /* longest line */
+#define MAXLIN 1000 /* longest line */
 
 /* the event names and the count of parameters each takes */
 typedef struct { const char* name; ami_evtcod code; int npar; } evtent;
@@ -151,6 +176,27 @@ static ami_long   nmoubut = -1;
 static ami_long   njoybut = -1;
 static ami_long   njoyaxis = -1;
 static int        trace;        /* report events given */
+static int        draining;     /* a seat line is running its course */
+static int        beat;         /* a line has run its course: a step */
+static int        skipping;     /* the events of a frame passed by are
+                                   skipped, to the next sync */
+static int        skipped;      /* events skipped that way */
+
+#ifndef AUTO_EVENT_TERMINAL
+/* The seat rig lives in the Wayland display layer: its presence in the
+   link says there is one. The remote client and the framebuffer have none */
+extern void pd_evtpost(void) __attribute__((weak));
+
+static int        seatfd = -1;  /* the rig fifo, written here */
+static int        seattry;      /* the seat was tried */
+static char       seatfn[80];   /* the fifo's name */
+static int        cwox, cwoy;   /* the client area's offset in the window */
+static int        ptrx = 1;     /* the pointer, client coordinates */
+static int        ptry = 1;
+#endif
+#define SEATTIM 10   /* the timer the wait after a seat line, or a wait line, runs on */
+#define SEATSET 2000 /* the wait after a seat line, in 100us: 200ms from the line */
+static ami_long   waitms;       /* a wait line pending: its milliseconds */
 
 /* report a fault in the file and stop: the file is part of the test */
 
@@ -293,6 +339,16 @@ static void parse(char* ln)
         return;
 
     }
+    if (!strcmp(name, "wait")) {
+
+        /* wait <ms>: the program runs, then a beat */
+        waitms = strtol(s, &s, 10);
+        while (isspace((unsigned char)*s)) s++;
+        if (*s || waitms < 1) fault("bad wait", ln);
+        have = 1; /* it takes a turn as an event does */
+        return;
+
+    }
     /* the real devices set aside or let through */
     if (!strcmp(name, "keyboardoff") || !strcmp(name, "keyboardon") ||
         !strcmp(name, "mouseoff") || !strcmp(name, "mouseon") ||
@@ -381,6 +437,12 @@ static void fill(void)
         if (!fgets(ln, MAXLIN, ef)) { fclose(ef); ef = NULL; return; }
         lineno++;
         parse(ln);
+        if (skipping) {
+
+            if (synced) skipping = 0; /* the next frame's block: read on */
+            else if (have) { have = 0; skipped++; }
+
+        }
 
     }
 
@@ -392,6 +454,10 @@ static int dropped(ami_evtrec* er)
 
 {
 
+#ifndef AUTO_EVENT_TERMINAL
+    if (seatfd >= 0 && er->etype != ami_etjoyba && er->etype != ami_etjoybd &&
+        er->etype != ami_etjoymov) return (0); /* the seat's are the file's */
+#endif
     if (er->etype >= ami_etchar && er->etype <= ami_etmenu) return (dropkbd);
     if (er->etype == ami_etmouba || er->etype == ami_etmoubd ||
 #ifndef AUTO_EVENT_TERMINAL
@@ -457,6 +523,24 @@ void auto_event_frame(int frame, int step)
 
 {
 
+    if (frame != curf) {
+
+        /* a new frame: a line of the last one still running its course is
+           let go, its beat with it, and the rest of the last frame's events,
+           read ahead or still in the file, are skipped to the next sync:
+           a test running a selected range asks after them without running
+           the pattern they were for */
+        if (draining) ami_killtimer(stdout, SEATTIM);
+        draining = 0;
+        beat = 0;
+        if (ef && !synced) {
+
+            skipping = 1;
+            if (have) { have = 0; skipped++; }
+
+        }
+
+    }
     curf = frame;
     curs = step;
 
@@ -468,27 +552,257 @@ int auto_event_ready(void)
 
 {
 
+    if (draining) return (1);
     fill();
     return (have);
 
 }
 
-/* The next event: from the file if one is ready, else from Ami. */
+#ifndef AUTO_EVENT_TERMINAL
+
+/* The seat: opened at the first mouse or key event, when the display layer
+   carries a rig. A fifo of this process's own is made and named to the
+   layer in PD_INPUT, which the layer opens at its next look for input; the
+   client area's place in the window is taken from the frame's extents, the
+   border being half the width and the rest the title. */
+
+static int seatopen(void)
+
+{
+
+    ami_long wx, wy;
+
+    if (seattry) return (seatfd >= 0);
+    seattry = 1;
+    if (!pd_evtpost || getenv("PD_INPUT") || getenv("AMI_WL_INPUT"))
+        return (0); /* no rig, or one in other hands */
+    sprintf(seatfn, "/tmp/ami_seat.%d", (int)getpid());
+    unlink(seatfn);
+    if (mkfifo(seatfn, 0600)) return (0);
+    seatfd = open(seatfn, O_RDWR|O_NONBLOCK);
+    if (seatfd < 0) { unlink(seatfn); return (0); }
+    setenv("PD_INPUT", seatfn, 1);
+    ami_winclientg(stdout, 0, 0, &wx, &wy,
+                   BIT(ami_wmframe)|BIT(ami_wmsize)|BIT(ami_wmsysbar));
+    cwox = (int)wx/2;
+    cwoy = (int)wy-(int)wx/2;
+    if (trace) fprintf(stderr, "auto_event: seat %s, client at %d,%d\n",
+                       seatfn, cwox, cwoy);
+
+    return (1);
+
+}
+
+static void seatline(const char* ln)
+
+{
+
+    if (trace) fprintf(stderr, "auto_event: seat: %s", ln);
+    if (write(seatfd, ln, strlen(ln)) < 0) fault("seat write failed", ln);
+
+}
+
+/* the X keycode of a character on the US layout, and whether it wants a
+   shift; 0 for none */
+
+static int keycode(int c, int* shift)
+
+{
+
+    static const char* rows[] = {
+        "1234567890-=", "qwertyuiop[]", "asdfghjkl;'`", "\\zxcvbnm,./" };
+    static const int  base[] = { 10, 24, 38, 51 };
+    static const char* upper = "!@#$%^&*()_+QWERTYUIOP{}ASDFGHJKL:\"~|ZXCVBNM<>?";
+    static const char* lower = "1234567890-=qwertyuiop[]asdfghjkl;'`\\zxcvbnm,./";
+    const char* u;
+    int i;
+
+    *shift = 0;
+    if (c == ' ') return (65);
+    u = strchr(upper, c);
+    if (u && c) { *shift = 1; c = lower[u-upper]; }
+    for (i = 0; i < 4; i++) {
+
+        const char* r = strchr(rows[i], c);
+
+        if (r && c) return (base[i]+(int)(r-rows[i]));
+
+    }
+
+    return (0);
+
+}
+
+/* the keycode of a key event, 0 for none */
+
+static int keyof(ami_evtcod e)
+
+{
+
+    switch (e) {
+
+        case ami_etenter:   return (36);
+        case ami_etdelcb:   return (22);
+        case ami_etdelcf:   return (119);
+        case ami_ettab:     return (23);
+        case ami_etup:      return (111);
+        case ami_etdown:    return (116);
+        case ami_etleft:    return (113);
+        case ami_etright:   return (114);
+        case ami_ethomel:   return (110);
+        case ami_etendl:    return (115);
+        case ami_etpagu:    return (112);
+        case ami_etpagd:    return (117);
+        case ami_etinsertt: return (118);
+        default:            return (0);
+
+    }
+
+}
+
+/* Put the pending event in at the seat if it is one the seat can make:
+   1 when it went that way, 0 when it is the program's directly. */
+
+static int seatput(void)
+
+{
+
+    char ln[80];
+    int  k, shift;
+
+    switch (pend.etype) {
+
+        case ami_etmoumovg:
+        case ami_etmoumov:
+        case ami_etmouba:
+        case ami_etmoubd:
+        case ami_etchar:
+            break;
+        default:
+            if (!keyof(pend.etype)) return (0);
+
+    }
+    if (!seatopen()) return (0);
+    ami_timer(stdout, SEATTIM, SEATSET, FALSE); /* the moment for the line */
+    switch (pend.etype) {
+
+        case ami_etmoumovg:
+            ptrx = (int)pend.moupxg;
+            ptry = (int)pend.moupyg;
+            sprintf(ln, "move %d %d\n", cwox+ptrx-1, cwoy+ptry-1);
+            seatline(ln);
+            break;
+        case ami_etmoumov: /* character cells: their centers */
+            ptrx = (int)((pend.moupx-1)*ami_chrsizx(stdout)+ami_chrsizx(stdout)/2+1);
+            ptry = (int)((pend.moupy-1)*ami_chrsizy(stdout)+ami_chrsizy(stdout)/2+1);
+            sprintf(ln, "move %d %d\n", cwox+ptrx-1, cwoy+ptry-1);
+            seatline(ln);
+            break;
+        case ami_etmouba:
+            sprintf(ln, "btndown %d %d %d\n", (int)pend.amoubn, cwox+ptrx-1, cwoy+ptry-1);
+            seatline(ln);
+            break;
+        case ami_etmoubd:
+            sprintf(ln, "btnup %d %d %d\n", (int)pend.dmoubn, cwox+ptrx-1, cwoy+ptry-1);
+            seatline(ln);
+            break;
+        case ami_etchar:
+            k = keycode((unsigned char)pend.echar, &shift);
+            if (!k) fault("no key for the character", "char");
+            if (shift) seatline("keydown 50\n");
+            sprintf(ln, "key %d\n", k);
+            seatline(ln);
+            if (shift) seatline("keyup 50\n");
+            break;
+        default:
+            sprintf(ln, "key %d\n", keyof(pend.etype));
+            seatline(ln);
+
+    }
+
+    return (1);
+
+}
+
+#else
+
+static int seatput(void) { return (0); }
+
+#endif
+
+/* the wait after a seat line, or of a wait line: a fixed moment, armed as
+   the line goes in, during which the program's events come to it one by
+   one; the moment's end is the beat. Fixed, not quiet, since a program
+   with the frame timer on is never quiet. */
+
+static void seatdrain(FILE* f, ami_evtrec* er)
+
+{
+
+    do { ami_event(f, er); } while (dropped(er));
+    if (trace) fprintf(stderr, "auto_event: drain: event %d window %d\n",
+                       (int)er->etype, (int)er->winid);
+    if (er->etype == ami_ettim && er->timnum == SEATTIM) {
+
+        draining = 0;
+        beat = 1;
+
+    }
+
+}
+
+/* The next event: from the file if one is ready, else from Ami. A mouse or
+   key event of the file goes in at the seat where there is one, and what
+   it provokes comes back through Ami. */
 
 void auto_event(FILE* f, ami_evtrec* er)
 
 {
 
+    if (draining) { seatdrain(f, er); return; }
     fill();
     if (have) {
 
-        *er = pend;
-        have = 0;
         if (trace) fprintf(stderr, "auto_event: line %d: event %d at frame %d.%d\n",
-                           lineno, (int)er->etype, curf, curs);
+                           lineno, (int)pend.etype, curf, curs);
+        have = 0;
+        if (waitms) {
+
+            /* a wait line: the program runs its course for the moment */
+            ami_timer(stdout, SEATTIM, waitms*10, FALSE);
+            waitms = 0;
+            draining = 1;
+            seatdrain(f, er);
+
+        } else if (seatput()) {
+
+            draining = 1;
+            seatdrain(f, er);
+
+        } else {
+
+            *er = pend;
+            beat = 1; /* the program has it: a step */
+
+        }
 
     } else do { ami_event(f, er); } /* the devices set aside are skipped */
     while (dropped(er));
+
+}
+
+/* A line of the file has run its course since the last ask: the program has
+   been given what it provoked, and the screen shows the result. Once. */
+
+int auto_event_step(void)
+
+{
+
+    int b = beat;
+
+    beat = 0;
+
+    return (b);
 
 }
 
@@ -500,6 +814,19 @@ static void auto_event_fini(void)
 
 {
 
+#ifndef AUTO_EVENT_TERMINAL
+    if (seatfd >= 0) { close(seatfd); unlink(seatfn); }
+#endif
+    /* skipped events are reported where the seat is in use: without one a
+       key that would have gone to a widget ends a pattern's loop early,
+       and its leftovers are skipped as a matter of course */
+#ifndef AUTO_EVENT_TERMINAL
+    if (skipped && (seatfd >= 0 || trace))
+#else
+    if (skipped && trace)
+#endif
+        fprintf(stderr, "auto_event: %s: %d events of frames passed by were skipped\n",
+                fn, skipped);
     if (ef && !synced && !have) fill(); /* see if anything is left */
     if (!ef && !have) return; /* used up */
     if (synced && syncs < 0)
