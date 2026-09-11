@@ -58,14 +58,17 @@
 # needs the room. Its standard is its own, tests/window_testc.cmp.
 #
 # The picture standards are of a desktop's look -- the frame the screen tests
-# size themselves against, the menus, the theme -- so they live in the
-# platform's directory too, and on Linux, where GNOME and Plasma draw through
-# different decoration modules, each desktop keeps a set of its own:
-# tests/linux_compare/<test>.gnome.cmp and tests/linux_compare/<test>.plasma.cmp.
-# The set is chosen the way the decorations choose themselves, from
-# XDG_CURRENT_DESKTOP, and a desktop that has no set yet is told to make one
-# with --update. Windows and Mac OS X draw one look each:
-# tests/windows_compare/<test>.cmp, tests/macosx_compare/<test>.cmp.
+# size themselves against, the menus, the theme -- and of a backend's, since
+# the Wayland module draws its own frames at the buffer's scale and the X
+# module has the window manager's, so on Linux they live under the platform
+# directory by desktop and backend: tests/linux_compare/gnome/wayland,
+# gnome/x11, plasma/wayland and plasma/x11, each holding <test>.cmp. The
+# desktop is chosen the way the decorations choose themselves, from
+# XDG_CURRENT_DESKTOP, and the backend is read off the test's own binary,
+# which links XOpenDisplay or wl_display_connect and not both. A set that
+# is not there yet is told to make itself with --update. Windows and Mac OS X
+# draw one look each: tests/windows_compare/<test>.cmp,
+# tests/macosx_compare/<test>.cmp.
 #
 # The picture tests write their screens, a stream of PNGs, to tests/<test>.img;
 # a picture run that fails is kept as tests/<test>.fail-<stamp>.img, so the
@@ -387,11 +390,32 @@ case "$(uname -s)" in
 
 MINGW*|MSYS*|CYGWIN*|Darwin) desk="" ;;
 *) case "$XDG_CURRENT_DESKTOP" in
-   *KDE*) desk=".plasma" ;;
-   *)     desk=".gnome" ;;
+   *KDE*) desk="plasma" ;;
+   *)     desk="gnome" ;;
    esac ;;
 
 esac
+
+# the backend a screen test's binary was built with, which qualifies its
+# standard beside the desktop: read off the symbols it links, since the
+# Makefile's choice leaves no other mark
+backendof() {
+
+    if nm "$1" 2>/dev/null | grep -q ' wl_display_connect$'; then echo wayland
+    elif nm "$1" 2>/dev/null | grep -q ' XOpenDisplay$'; then echo x11
+    else echo ""
+    fi
+
+}
+
+# the directory a screen test's standard lives in
+stddir() {
+
+    if [ -n "$desk" ]; then echo "$cmpdir/$desk/$(backendof "$(binof "$1")")"
+    else echo "$cmpdir"
+    fi
+
+}
 
 fails=0
 for t in $tests; do
@@ -472,16 +496,17 @@ for t in $tests; do
             continue
 
         fi
-        std="$cmpdir/$t$desk.cmp"
+        std="$(stddir "$t")/$t.cmp"
         if [ "$update" = "1" ]; then
 
+            mkdir -p "$(dirname "$std")"
             cp "$out" "$std"
             echo "$t: $std regenerated, please review with bin/testviewer"
 
         elif [ ! -f "$std" ]; then
 
             {
-                echo "no $std: this platform${desk:+ and desktop} has no standard for $t yet"
+                echo "no $std: this platform${desk:+, desktop and backend} has no standard for $t yet"
                 echo "make one with: bin/regress --update $t, then review it"
             } > "tests/$t.dif"
             echo "$t: *** fail *** (see tests/$t.dif)"

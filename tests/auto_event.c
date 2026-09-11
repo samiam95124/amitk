@@ -186,6 +186,7 @@ static int        skipped;      /* events skipped that way */
 /* The seat rig lives in the Wayland display layer: its presence in the
    link says there is one. The remote client and the framebuffer have none */
 extern void pd_evtpost(void) __attribute__((weak));
+extern int  x11_seat __attribute__((weak)); /* the X module's rig, through XTest */
 
 static int        seatfd = -1;  /* the rig fifo, written here */
 static int        seattry;      /* the seat was tried */
@@ -574,7 +575,7 @@ static int seatopen(void)
 
     if (seattry) return (seatfd >= 0);
     seattry = 1;
-    if (!pd_evtpost || getenv("PD_INPUT") || getenv("AMI_WL_INPUT"))
+    if ((!pd_evtpost && !&x11_seat) || getenv("PD_INPUT") || getenv("AMI_WL_INPUT"))
         return (0); /* no rig, or one in other hands */
     sprintf(seatfn, "/tmp/ami_seat.%d", (int)getpid());
     unlink(seatfn);
@@ -582,10 +583,17 @@ static int seatopen(void)
     seatfd = open(seatfn, O_RDWR|O_NONBLOCK);
     if (seatfd < 0) { unlink(seatfn); return (0); }
     setenv("PD_INPUT", seatfn, 1);
-    ami_winclientg(stdout, 0, 0, &wx, &wy,
-                   BIT(ami_wmframe)|BIT(ami_wmsize)|BIT(ami_wmsysbar));
-    cwox = (int)wx/2;
-    cwoy = (int)wy-(int)wx/2;
+    /* the point named is in the client area; the Wayland surface carries
+       its own frame around that, the X window is the client area itself */
+    if (&x11_seat) cwox = cwoy = 0;
+    else {
+
+        ami_winclientg(stdout, 0, 0, &wx, &wy,
+                       BIT(ami_wmframe)|BIT(ami_wmsize)|BIT(ami_wmsysbar));
+        cwox = (int)wx/2;
+        cwoy = (int)wy-(int)wx/2;
+
+    }
     if (trace) fprintf(stderr, "auto_event: seat %s, client at %d,%d\n",
                        seatfn, cwox, cwoy);
 

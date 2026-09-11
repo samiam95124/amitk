@@ -73,6 +73,7 @@
 #include <X11/Xlib.h>
 #include <X11/keysym.h>
 #include <X11/Xutil.h>
+#include <X11/extensions/XTest.h>
 #include <X11/Xatom.h>
 #include <X11/cursorfont.h>
 #include <X11/extensions/shape.h>
@@ -1254,6 +1255,24 @@ static int        stdchrx;        /* standard/reference character size x */
 static int        stdchry;        /* standard/reference character size y */
 static int        errflg;         /* an error has been flagged */
 static int        dspsev;         /* XWindows display system event */
+
+/* The seat rig, as the Wayland layer has it: PD_INPUT (or AMI_WL_INPUT)
+   names a fifo whose lines synthesize input, put in at the X server
+   through the XTest extension, so they arrive as a person's would, with
+   the crossings, focus and hit testing the server does. The commands are
+   the Wayland rig's: key, keydown and keyup with an X keycode; move,
+   btn, btndown and btnup with a point in the target window; target n for
+   the nth top level window made; conf w h to size it. What XTest cannot
+   do is hold the seat: a hand on the desk during a run is not kept out. */
+int x11_seat = 1;                 /* for the event module: the rig is here */
+static int        rigfd = -1;     /* the fifo */
+static int        rigsev;         /* its system event */
+static char       rigbuf[256];    /* a line being gathered */
+static int        riglen;
+#define RIGTOPS 16
+static Window     rigtops[RIGTOPS]; /* the top level windows, as made */
+static int        rigtopct;
+static int        rigtarget;      /* which of them the rig is aimed at */
 static sevtptr    sidtab[MAXSID]; /* system event table */
 static int        xerrbyp;        /* bypass the xerror() handler */
 static int        evtcnt;         /* count of PA event diagnostics output */
@@ -5778,6 +5797,9 @@ static Window createwindow(Window parent, int x, int y, int w, int h)
     XWLOCK();
     wh = XCreateWindow(padisplay, parent, 0, 0, w, h, 0, CopyFromParent,
                       InputOutput, CopyFromParent, 0, NULL);
+    /* a top level window is one the rig can be aimed at */
+    if (parent == RootWindow(padisplay, pascreen) && rigtopct < RIGTOPS)
+        rigtops[rigtopct++] = wh;
 
     /* advertise our PID so external tools (e.g. screen_capture) can find
        our windows reliably via EWMH _NET_WM_PID */
@@ -14443,6 +14465,111 @@ static void xwinget(ami_evtrec* er, int* keep)
 
 }
 
+/* the window the rig is aimed at: the target, or the first made */
+static Window rigwin(void)
+
+{
+
+    if (rigtarget >= 0 && rigtarget < rigtopct) return (rigtops[rigtarget]);
+    if (rigtopct) return (rigtops[0]);
+
+    return (RootWindow(padisplay, pascreen));
+
+}
+
+/* a point in the target window, as the server wants it: on the root */
+static void rigroot(int x, int y, int* rx, int* ry)
+
+{
+
+    Window child;
+
+    if (!XTranslateCoordinates(padisplay, rigwin(), RootWindow(padisplay, pascreen),
+                               x, y, rx, ry, &child)) { *rx = x; *ry = y; }
+
+}
+
+static void rigline(char* ln)
+
+{
+
+    int a, x, y, rx, ry;
+
+    XWLOCK();
+    if (!strncmp(ln, "key", 3)) /* a key goes to the focus: the target's */
+        XSetInputFocus(padisplay, rigwin(), RevertToParent, CurrentTime);
+    if (sscanf(ln, "key %d", &a) == 1) {
+
+        XTestFakeKeyEvent(padisplay, a, True, CurrentTime);
+        XTestFakeKeyEvent(padisplay, a, False, CurrentTime);
+
+    } else if (sscanf(ln, "keydown %d", &a) == 1)
+        XTestFakeKeyEvent(padisplay, a, True, CurrentTime);
+    else if (sscanf(ln, "keyup %d", &a) == 1)
+        XTestFakeKeyEvent(padisplay, a, False, CurrentTime);
+    else if (sscanf(ln, "move %d %d", &x, &y) == 2) {
+
+        rigroot(x, y, &rx, &ry);
+        XTestFakeMotionEvent(padisplay, pascreen, rx, ry, CurrentTime);
+
+    } else if (sscanf(ln, "btn %d %d %d", &a, &x, &y) == 3) {
+
+        rigroot(x, y, &rx, &ry);
+        XTestFakeMotionEvent(padisplay, pascreen, rx, ry, CurrentTime);
+        XTestFakeButtonEvent(padisplay, a, True, CurrentTime);
+        XTestFakeButtonEvent(padisplay, a, False, CurrentTime);
+
+    } else if (sscanf(ln, "btndown %d %d %d", &a, &x, &y) == 3) {
+
+        rigroot(x, y, &rx, &ry);
+        XTestFakeMotionEvent(padisplay, pascreen, rx, ry, CurrentTime);
+        XTestFakeButtonEvent(padisplay, a, True, CurrentTime);
+
+    } else if (sscanf(ln, "btnup %d %d %d", &a, &x, &y) == 3) {
+
+        rigroot(x, y, &rx, &ry);
+        XTestFakeMotionEvent(padisplay, pascreen, rx, ry, CurrentTime);
+        XTestFakeButtonEvent(padisplay, a, False, CurrentTime);
+
+    } else if (sscanf(ln, "target %d", &a) == 1) rigtarget = a;
+    else if (sscanf(ln, "conf %d %d", &x, &y) == 2)
+        XResizeWindow(padisplay, rigwin(), x, y);
+    XFlush(padisplay);
+    XWUNLOCK();
+
+}
+
+/* The rig's fifo: opened when its name appears, which may be after
+   startup, since the event module names it on the first event it puts
+   in; read a line at a time, whenever the wait wakes for it. Read and
+   write, as the Wayland layer opens it: a reader alone sees end of file
+   whenever a writer closes. */
+static void rigpoll(void)
+
+{
+
+    const char* fn;
+    char        c;
+
+    if (rigfd < 0) {
+
+        fn = getenv("PD_INPUT");
+        if (!fn) fn = getenv("AMI_WL_INPUT");
+        if (!fn) return;
+        rigfd = open(fn, O_RDWR|O_NONBLOCK);
+        if (rigfd < 0) return;
+        rigsev = system_event_addseinp(rigfd);
+
+    }
+    while (read(rigfd, &c, 1) == 1) {
+
+        if (c == '\n') { rigbuf[riglen] = 0; riglen = 0; rigline(rigbuf); }
+        else if (riglen < (int)sizeof(rigbuf)-1) rigbuf[riglen++] = c;
+
+    }
+
+}
+
 static void ievent(FILE* f, ami_evtrec* er)
 
 {
@@ -14464,6 +14591,7 @@ static void ievent(FILE* f, ami_evtrec* er)
     dfid = ConnectionNumber(padisplay); /* find XWindow display fid */
     do {
 
+        rigpoll(); /* the seat rig, if one has been named since */
         /* check XWindows event queue before we wait on system events */
         xwinget(er, &keep);
         if (!keep) {
@@ -14482,6 +14610,7 @@ static void ievent(FILE* f, ami_evtrec* er)
                     if (dequepaevt(er)) keep = TRUE;
 
                 } else if (sev.lse == dspsev) xwinget(er, &keep);
+                else if (rigfd >= 0 && sev.lse == rigsev) rigpoll();
                 else if (sidtab[sev.lse-1] && sidtab[sev.lse-1]->joy && joyenb)
                     /* process joystick event */
                     joyevt(er,  &keep, joytab[sidtab[sev.lse-1]->joy-1]);

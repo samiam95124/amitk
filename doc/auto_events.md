@@ -136,9 +136,9 @@ standard.
 ## The seat
 
 Where the display carries a seat rig, which the Wayland layer does (its
-PD_INPUT fifo, made for headless compositors), the mouse and key events of
-the file are not handed to the program but put in at the seat, as if a person
-made them. A move goes to the point named, in the client area of the main
+PD_INPUT fifo, made for headless compositors) and the X module does through
+the XTest extension, the mouse and key events of the file are not handed to
+the program but put in at the seat, as if a person made them. A move goes to the point named, in the client area of the main
 window; a button press or release goes to the pointer's place; a key goes to
 whatever holds the keyboard focus. The display routes them the way it routes
 a real seat's input: the hit test finds the leaf window under the point, a
@@ -178,3 +178,27 @@ are moot.
 A frame the test passes without running its pattern, as a selected range
 does, leaves the frame's events in the file: they are skipped to the next
 sync, and counted at the end.
+
+### The X seat
+
+The X module reads the same fifo and the same commands, and puts them in
+at the X server through XTest, so that they arrive as a person's would,
+with the server's own hit testing, crossings and focus. The point named is
+in the X window itself, which is the client area, so the event module adds
+no frame offset there; a key is preceded by giving the target window the
+input focus, since the server sends keys to the focus and a test window
+does not have it by right. Two things XTest cannot do: it cannot hold the
+seat, so a hand on the desk during a run joins it, and under Xwayland its
+pointer motion moves the desktop's own pointer, since the compositor is
+told of it as emulated input. A run on a live desktop is therefore best
+left alone while it goes.
+
+## The standards
+
+The picture standards are of a desktop and a backend: the Wayland module
+draws its own frames at the buffer's scale and the X module has the window
+manager's, so the same test draws two looks on one desktop. They live under
+tests/linux_compare by desktop and backend, gnome/wayland, gnome/x11,
+plasma/wayland and plasma/x11, each holding <test>.cmp; bin/regress picks
+the desktop from XDG_CURRENT_DESKTOP and the backend from the symbols the
+test's binary links, and a set that is not there yet is made with --update.

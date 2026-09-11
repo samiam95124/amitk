@@ -498,7 +498,7 @@ ifeq ($(OSTYPE),Windows_NT)
 # libX11 is not linked.
 XLIBS = -lpng -lz
 else
-XLIBS = -lX11 -lpng -lz
+XLIBS = -lX11 -lXtst -lpng -lz
 endif
 
 #
@@ -647,7 +647,7 @@ else ifeq ($(OSTYPE),FreeBSD)
 	PLIBS += -L/usr/local/lib -lasound -lfluidsynth -lm -lpthread -lssl -lcrypto
 	CLIBS += -L/usr/local/lib -lasound -lfluidsynth -lm -lpthread -lssl -lcrypto
 	GLIBS += -L/usr/local/lib -lasound -lfluidsynth -lm -lpthread -lssl -lcrypto \
-	         -lX11 -lfreetype -lfontconfig
+	         -lX11 -lXtst -lfreetype -lfontconfig
 	PLIBSD +=
     CLIBSD +=
 	GLIBSD +=
@@ -673,7 +673,7 @@ else
 	GLIBS += -lasound -lfluidsynth -lssl -lcrypto -lstdc++ \
 	         -lfreetype -lfontconfig -lpng -lz -lm -lpthread
     else
-	GLIBS += -lasound -lfluidsynth -lssl -lcrypto -lstdc++ -lX11 \
+	GLIBS += -lasound -lfluidsynth -lssl -lcrypto -lstdc++ -lX11 -lXtst \
 	         -lfreetype -lfontconfig -lm -lpthread
     endif
 
@@ -686,7 +686,7 @@ else
 	CLIBS += linux/sound.o linux/fluidsynthplug.o linux/dumpsynthplug.o \
 	         -lasound -lfluidsynth -lm -lpthread -lssl -lcrypto
 	GLIBS += linux/sound.o linux/fluidsynthplug.o linux/dumpsynthplug.o \
-	         -lasound -lfluidsynth -lm -lpthread -lssl -lcrypto -lX11 \
+	         -lasound -lfluidsynth -lm -lpthread -lssl -lcrypto -lX11 -lXtst \
 	         -lfreetype -lfontconfig
 	PLIBSD += linux/sound.o linux/fluidsynthplug.o linux/dumpsynthplug.o
 	CLIBSD += linux/sound.o linux/fluidsynthplug.o linux/dumpsynthplug.o
