@@ -1210,15 +1210,15 @@ else
 # The linux build uses fluidsynth, and uses a series of runtime plug-ins
 # to do things like midi to wave conversion.
 #
-lib/petit_ami_plain.so: $(LINUXSTDIO) linux/services.o linux/network.o utils/config.o \
+lib/petit_ami_plain.so: $(LINUXSTDIO) linux/services.o $(CRASHDUMP_OBJ) linux/network.o utils/config.o \
     utils/option.o
-	$(CC) -shared $(LINUXSTDIO) linux/services.o linux/network.o utils/config.o \
+	$(CC) -shared $(LINUXSTDIO) linux/services.o $(CRASHDUMP_OBJ) linux/network.o utils/config.o \
 		utils/option.o -o lib/petit_ami_plain.so
 	
-lib/petit_ami_term.so: $(LINUXSTDIO) linux/services.o linux/network.o \
+lib/petit_ami_term.so: $(LINUXSTDIO) linux/services.o $(CRASHDUMP_OBJ) linux/network.o \
 	linux/terminal.o $(WINDOWC) linux/system_event.o utils/config.o utils/option.o \
     cpp/terminal.o cpp/sound.o cpp/services.o cpp/network.o
-	$(CC) -shared $(LINUXSTDIO) linux/services.o linux/network.o \
+	$(CC) -shared $(LINUXSTDIO) linux/services.o $(CRASHDUMP_OBJ) linux/network.o \
 		linux/terminal.o $(WINDOWC) linux/system_event.o utils/config.o \
 		utils/option.o  cpp/terminal.o cpp/sound.o cpp/services.o cpp/network.o -lstdc++ -o lib/petit_ami_term.so
 	
@@ -1228,19 +1228,19 @@ lib/petit_ami_term.so: $(LINUXSTDIO) linux/services.o linux/network.o \
 # and the managed configurations can exist at once: they were previously the
 # same file, and building one silently replaced the other.
 #
-lib/petit_ami_termc.so: $(LINUXSTDIO) linux/services.o linux/network.o \
+lib/petit_ami_termc.so: $(LINUXSTDIO) linux/services.o $(CRASHDUMP_OBJ) linux/network.o \
 	linux/terminal.o portable/windowc.o linux/system_event.o utils/config.o \
 	utils/option.o cpp/terminal.o cpp/sound.o cpp/services.o cpp/network.o
-	$(CC) -shared $(LINUXSTDIO) linux/services.o linux/network.o \
+	$(CC) -shared $(LINUXSTDIO) linux/services.o $(CRASHDUMP_OBJ) linux/network.o \
 		linux/terminal.o portable/windowc.o linux/system_event.o \
 		utils/config.o utils/option.o cpp/terminal.o cpp/sound.o cpp/services.o cpp/network.o -lstdc++ \
 		-o lib/petit_ami_termc.so
 
-lib/petit_ami_graph.so: $(LINUXSTDIO) linux/services.o linux/network.o \
+lib/petit_ami_graph.so: $(LINUXSTDIO) linux/services.o $(CRASHDUMP_OBJ) linux/network.o \
 	linux/x11/graphics.o linux/system_event.o \
 	portable/gnome_widgets.o portable/plasma_widgets.o portable/widget_base.o utils/config.o utils/option.o cpp/terminal.o cpp/sound.o cpp/services.o cpp/network.o \
 	cpp/graphics.o
-	$(CC) -shared $(LINUXSTDIO) linux/services.o linux/network.o \
+	$(CC) -shared $(LINUXSTDIO) linux/services.o $(CRASHDUMP_OBJ) linux/network.o \
 		linux/x11/graphics.o linux/system_event.o \
 		portable/gnome_widgets.o portable/plasma_widgets.o portable/widget_base.o utils/config.o utils/option.o cpp/terminal.o cpp/sound.o cpp/services.o cpp/network.o \
 		cpp/graphics.o -lstdc++ -o lib/petit_ami_graph.so
@@ -1283,8 +1283,27 @@ lib/sound.o: linux/sound.o linux/fluidsynthplug.o linux/dumpsynthplug.o
 	ld -r -o lib/sound.o \
 	    linux/sound.o linux/fluidsynthplug.o linux/dumpsynthplug.o
 
+# CRASHDUMP: a program that takes a fatal signal reports it, with the
+# stack of the thread that took it, before the core is made; see
+# linux/crashdump.c. On by default on Linux. It links the programs with
+# --export-dynamic so the stack carries names. CRASHDUMP=0 leaves it out.
+ifndef CRASHDUMP
+    CRASHDUMP=1
+endif
+ifeq ($(CRASHDUMP),1)
+    ifneq ($(OSTYPE),Windows_NT)
+    ifneq ($(OSTYPE),Darwin)
+        CRASHDUMP_OBJ = linux/crashdump.o
+        CFLAGS += -Wl,--export-dynamic
+    endif
+    endif
+endif
+
+linux/crashdump.o: linux/crashdump.c Makefile
+	$(CC) $(CFLAGS) -c linux/crashdump.c -o linux/crashdump.o
+
 # the model cores
-CORE_COMMON = $(LINUXSTDIO) linux/services.o utils/config.o utils/option.o
+CORE_COMMON = $(LINUXSTDIO) linux/services.o utils/config.o utils/option.o $(CRASHDUMP_OBJ)
 
 lib/plain_core.o: $(CORE_COMMON) cpp/sound.o cpp/services.o cpp/network.o
 	ld -r -o lib/plain_core.o $(CORE_COMMON) cpp/sound.o cpp/services.o cpp/network.o
@@ -2458,6 +2477,10 @@ help:
 	@echo "                      -march=native for the last measure"
 	@echo "  LINK_TYPE=static|dynamic"
 	@echo "                      library linkage, default static"
+	@echo "  CRASHDUMP=1|0       a fatal signal is reported with the stack"
+	@echo "                      of the thread that took it, before the"
+	@echo "                      core; default 1 on Linux (see"
+	@echo "                      linux/crashdump.c)"
 	@echo "  STDIO_SOURCE=stdio  stdio override source selection"
 	@echo ""
 	@echo "The Wayland test rig, given in the environment:"
