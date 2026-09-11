@@ -332,7 +332,12 @@ void wb_widget(
     ami_curvis(wp->wf, FALSE); /* a widget face never shows a cursor */
     ami_frame(wp->wf, FALSE);  /* the widget is nothing but its face */
     ami_setposg(wp->wf, x1, y1); /* place at position */
-    ami_setsizg(wp->wf, x2-x1, y2-y1); /* set size */
+    /* The rectangle is inclusive, as every caller makes it: a widget sized
+       by its own sizing call is placed at x1, y1, x1+w-1, y1+h-1, and the
+       library's own menus size the same way. Made x2-x1 by y2-y1 the
+       window was a pixel short each way, and a list box made for three
+       rows had room to draw two. */
+    ami_setsizg(wp->wf, x2-x1+1, y2-y1+1); /* set size */
     ami_binvis(wp->wf); /* no background writes */
     wp->enb = TRUE; /* set is enabled */
     wp->px = x1; /* set widget position in parent */
