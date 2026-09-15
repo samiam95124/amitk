@@ -301,6 +301,9 @@ static void net_abort(void)
 
 {
 
+    /* under diagnosis, die where it happened: the crash dump reports the
+       stack of this thread, and the core holds the rest */
+    if (getenv("AMI_ERRABORT")) abort();
     if (in_condes) _exit(1); /* slam abort */
     else exit(1); /* planned abort */
 

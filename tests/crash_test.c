@@ -12,6 +12,11 @@
 *     crash_test stack      recurse without end (a stack overflow: SIGSEGV     *
 *                           on the guard page, reported from the alternate    *
 *                           stack)                                             *
+*     crash_test error      a library error: the services module is asked to  *
+*                           run an empty command. Without AMI_ERRABORT in the *
+*                           environment that is a message and an exit, no     *
+*                           dump; with it the module aborts where it is and   *
+*                           the dump shows the stack.                          *
 *                                                                              *
 * Each is a function of its own, called through two more, so the dump's       *
 * frames read innermost first as the fault, the caller, the caller's caller,  *
@@ -23,6 +28,8 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <localdefs.h>
+#include <services.h>
 
 static volatile int zero;      /* set from main: the compiler cannot see it is zero */
 static volatile int* nowhere;  /* and this null */
@@ -33,6 +40,8 @@ static int fetch(void) { return (*nowhere); }
 
 static int descend(int n) { char pad[4096]; pad[0] = (char)n; return (descend(n+1)+pad[0]); }
 
+static int liberror(void) { ami_long e; ami_execw("", &e); return ((int)e); }
+
 static int middle(const char* how)
 
 {
@@ -40,6 +49,7 @@ static int middle(const char* how)
     if (!strcmp(how, "null")) return (fetch());
     if (!strcmp(how, "abort")) abort();
     if (!strcmp(how, "stack")) return (descend(0));
+    if (!strcmp(how, "error")) return (liberror());
 
     return (divide(100));
 

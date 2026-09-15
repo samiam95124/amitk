@@ -25,6 +25,13 @@
 * the environment turns it off in a program built with it, for a debugger    *
 * that wants the signal raw.                                                   *
 *                                                                              *
+* The library's own errors -- "File is not attached to a window" and the      *
+* rest -- are reported by each module's error routine, which says its piece   *
+* and exits: no signal, so no dump. With AMI_ERRABORT set in the environment  *
+* every module aborts there instead, and the abort comes through here like    *
+* any other fault: the stack of the thread that raised the error, and a       *
+* core. That is the switch for an error that only turns up in a long run.     *
+*                                                                              *
 * The handler runs on a stack of its own, so a stack overflow is reported     *
 * like any other fault rather than faulting again in the report.              *
 *                                                                              *
