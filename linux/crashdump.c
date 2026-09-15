@@ -119,6 +119,8 @@ static void symbolic(void* const* frames, int n)
     char  offs[MAXFRAMES][2+sizeof(uintptr_t)*2+1];
     int   ac = 0, i, k;
     pid_t pid;
+    uintptr_t last = 0;
+    int   same = 0;
 
     if (!exebase || !*exepath || access("/usr/bin/addr2line", X_OK)) return;
     argv[ac++] = "addr2line";
@@ -135,6 +137,10 @@ static void symbolic(void* const* frames, int n)
         if (a < exebase || a >= exeend) continue; /* another module's */
         a -= exebase;
         a--; /* the call, not the return: the return may be the next line */
+        /* a recursion fills the stack with one frame: it is given
+           once, and the count of times it repeats is said instead */
+        if (a == last) { same++; continue; }
+        last = a;
         {   /* hex, by hand */
             char* b = offs[k]+sizeof(offs[k])-1;
             uintptr_t v = a;
@@ -148,7 +154,9 @@ static void symbolic(void* const* frames, int n)
     }
     argv[ac] = NULL;
     if (!k) return;
-    put("\n  by line, the program's own frames (offsets in the program):\n");
+    put("\n  by line, the program's own frames (offsets in the program");
+    if (same) { put(", "); putdec(same); put(" repeats of a frame left out"); }
+    put("):\n");
     pid = fork();
     if (pid == 0) {
 
@@ -163,6 +171,22 @@ static void symbolic(void* const* frames, int n)
         while (waitpid(pid, &st, 0) < 0 && errno == EINTR) ;
 
     }
+
+}
+
+/* the frames as glibc names them, a recursion's repeats folded to one */
+static void rawlist(void* const* frames, int n)
+
+{
+
+    void* uniq[MAXFRAMES];
+    int   i, k = 0, same = 0;
+
+    for (i = 0; i < n; i++)
+        if (i && frames[i] == frames[i-1]) same++;
+        else uniq[k++] = frames[i];
+    backtrace_symbols_fd(uniq, k, 2);
+    if (same) { put("  ("); putdec(same); put(" repeats of a frame left out)\n"); }
 
 }
 
@@ -193,8 +217,8 @@ static void crashhandler(int sig, siginfo_t* si, void* uc)
     n = backtrace(frames, MAXFRAMES);
     /* the first two frames are this handler and the trampoline the
        kernel returns through: the fault is the frame after them */
-    if (n > 2) { backtrace_symbols_fd(frames+2, n-2, 2); symbolic(frames+2, n-2); }
-    else { backtrace_symbols_fd(frames, n, 2); symbolic(frames, n); }
+    if (n > 2) { rawlist(frames+2, n-2); symbolic(frames+2, n-2); }
+    else { rawlist(frames, n); symbolic(frames, n); }
     put("  (the core file, if one is kept, holds the rest)\n\n");
     /* the signal takes its course: the default action, and the core */
     memset(&sa, 0, sizeof(sa));

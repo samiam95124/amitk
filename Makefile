@@ -2062,6 +2062,10 @@ termg: $(GLIBSD) tests/term.c
 hello: $(CLIBSD) hello/hello.c
 	$(CC) $(CFLAGS) hello/hello.c $(CLIBS) -o bin/hello
 
+# dies on purpose, to show the crash dump: see tests/crash_test.c
+crash_test: $(PLIBSD) tests/crash_test.c
+	$(CC) $(CFLAGS) tests/crash_test.c $(PLIBS) -o bin/crash_test
+
 hellog: $(GLIBSD) hello/hello.c
 	$(CC) $(CFLAGS) hello/hello.c $(GLIBS) -o bin/hellog
 
