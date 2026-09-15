@@ -450,6 +450,9 @@ static void error(string s)
     fprintf(stderr, "\nError: Sound: %s\n", s);
     fflush(stderr);
 
+    /* under diagnosis, die where it happened: the crash dump reports the
+       stack of this thread, and the core holds the rest */
+    if (getenv("AMI_ERRABORT")) abort();
     exit(1);
 
 }
