@@ -407,7 +407,7 @@ typedef struct winrec {
        MMRESULT han; /* handle for timer */
        int      rep; /* timer repeat flag */
 
-    } timers[10];
+    } timers[AMI_MAXTIM+1];   /* by handle, 1 to AMI_MAXTIM */
     int      focus;           /* screen in focus */
     pict     pictbl[MAXPIC];  /* loadable pictures table */
     int      bufmod;          /* buffered screen mode */
@@ -459,7 +459,9 @@ typedef enum {
     imqfindrep, /* query find/replace */
     imqfont,    /* query font */
     imupdown,   /* up/down control */
-    imwidget,  /* general purpose widget handler */
+    imwidget,   /* general purpose widget handler */
+    imopnwin,   /* open a standard window */
+    imclswin,   /* close a standard window */
 
 } imcode;
 
@@ -554,8 +556,20 @@ typedef struct imrec { /* intermessage record */
             HWND    wigscl; /* handle to superclass window */
 
         };
+        struct { /* imopnwin, imclswin */
+
+            int     owflg; /* window style flags */
+            HWND    owpar; /* parent window handle */
+            HWND    owhan; /* the window: made by the open, destroyed by the close */
+            int     owj1c; /* joystick 1 was captured */
+            int     owj2c; /* joystick 2 was captured */
+
+        };
 
     };
+    /* set by the display thread when it has served the request: each
+       request waits on its own, so several threads can be asking at once */
+    HANDLE done;
 
 } imrec, *imptr;
 
@@ -648,7 +662,6 @@ static filptr opnfil[MAXFIL]; /* open files table */
 static int xltwin[MAXFIL]; /* window equivalence table */
 static int filwin[MAXFIL]; /* file to window equivalence table */
 
-static int       fi;           /* index for files table */
 static int       fend;         /* end of program ordered flag */
 static int       fautohold;    /* automatic hold on exit flag */
 static char*     pgmnam;       /* program name string */
@@ -661,8 +674,6 @@ static int       sysfhigh;     /* natural pixel height of the stock terminal
                                   font, used to decide when the terminal font
                                   must be substituted with a scalable font */
 static ami_evtrec er;           /* event record */
-static int       r;            /* result holder */
-static int       b;            /* int result holder */
 static eqeptr    eqefre;       /* free event queuing entry list */
 static wigptr    wigfre;       /* free widget entry list */
 /* message input queue */
@@ -679,7 +690,6 @@ static int       imsgout;      /* ouput pointer */
 static HANDLE    imsgrdy;      /* message ready event */
 /* this array stores color choices from the user in the color pick dialog */
 static COLORREF  gcolorsav[16];
-static int       i;            /* index for that */
 static int       fndrepmsg;    /* message assignment for find/replace */
 static HWND      fndrepwin;    /* active modeless find/replace dialog, or NULL */
 static HWND      dispwin;      /* handle to display thread window */
@@ -690,15 +700,6 @@ static HANDLE    threadhdl;    /* windows thread handle */
 static HWND      mainwin;      /* handle to main thread dummy window */
 static int       mainthreadid; /* main thread id */
 /* This block communicates with the subthread to create standard windows. */
-static int       stdwinflg;    /* flags */
-static int       stdwinx;      /* x position */
-static int       stdwiny;      /* y position */
-static int       stdwinw;      /* width */
-static int       stdwinh;      /* height */
-static HWND      stdwinpar;    /* parent */
-static HWND      stdwinwin;    /* window window handle */
-static int       stdwinj1c;    /* joystick 1 capture */
-static int       stdwinj2c;    /* joystick 1 capture */
 /* lock for all global structures */
 CRITICAL_SECTION mainlock;     /* main task lock */
 static imptr     freitm;       /* intratask message free list */
@@ -1014,6 +1015,10 @@ static void wrterr(char* es)
 
 }
 
+/* the crash dump module's report of the stack, where the build has it: an
+   error is reported with where the program was when the module found it */
+extern void ami_dumpstack(void) __attribute__((weak));
+
 /*******************************************************************************
 
 Print graph error string
@@ -1033,6 +1038,7 @@ static void grawrterr(char* es)
         fprintf(stderr, "\nError: Graphics: ");
         fprintf(stderr, es);
         fprintf(stderr, "\n");
+        if (ami_dumpstack) ami_dumpstack(); /* and where it was found */
 
     }
     lockmain(); /* resume exclusive access */
@@ -1195,6 +1201,7 @@ static void winerr(void)
     fprintf(stderr, "\nError: Graph: Windows error: ");
     fprintf(stderr, "%s", (char*)lpMsgBuf);
     fprintf(stderr, "\n");
+    if (ami_dumpstack) ami_dumpstack(); /* and where it was found */
     lockmain(); /* resume exclusive access */
 
     /* under diagnosis, die where it happened: the crash dump reports the
@@ -1992,6 +1999,7 @@ static void getmsg(MSG* msg)
 
 {
 
+    int b; /* int result holder */
     int   f; /* found message flag */
     DWORD r; /* result */
 
@@ -2067,6 +2075,7 @@ static void igetmsg(MSG* msg)
 
 {
 
+    int b; /* int result holder */
     int   f; /* found message flag */
     DWORD r; /* result */
 
@@ -2115,7 +2124,15 @@ static void getitm(imptr* p)
         *p = freitm; /* index that */
         freitm = freitm->next; /* gap out of free list */
 
-    } else *p = imalloc(sizeof(struct imrec)); /* else get a new one */
+    } else { /* else get a new one */
+
+        *p = imalloc(sizeof(struct imrec));
+        /* the event the requester waits on, set when the display thread has
+           served the request; one per record, kept with it */
+        (*p)->done = CreateEvent(NULL, FALSE, FALSE, NULL);
+        if (!(*p)->done) winerr(); /* process windows error */
+
+    }
     (*p)->next = NULL; /* clear next */
 
 }
@@ -2920,14 +2937,14 @@ static void chgcur(winptr win)
 
 /*******************************************************************************
 
-Create font from current attributes
+Create font for a screen
 
-Creates a font using the attrbutes in the current update screen, and sets the
-metrics for the font.
+Creates a font using the attributes of the given screen, and sets the
+metrics for the font. newfont() does so for the current update screen.
 
 *******************************************************************************/
 
-static void newfont(winptr win)
+static void newfontscn(winptr win, scnptr sc)
 
 {
 
@@ -2938,12 +2955,10 @@ static void newfont(winptr win)
     HGDIOBJ    sf; /* system fixed font object */
     int        b;
     int        attrc;
-    scnptr     sc;
     HGDIOBJ    rv;
     int        esc; /* escapement angle in tenths of a degree */
 
 
-    sc = win->screens[win->curupd-1];
     if (sc->font) { /* there is a font */
 
        /* get the current font out of the DCs */
@@ -2951,7 +2966,7 @@ static void newfont(winptr win)
        if (!sf) winerr(); /* process windows error */
        rv = SelectObject(sc->bdc, sf);
        if (rv == HGDI_ERROR) winerr();
-       if (indisp(win)) {
+       if (sc == win->screens[win->curdsp-1]) {
 
             rv = SelectObject(win->devcon, sf);
             if (rv == HGDI_ERROR) winerr();
@@ -2980,7 +2995,7 @@ static void newfont(winptr win)
         rv = SelectObject(sc->bdc, sf);
         if (rv == HGDI_ERROR) winerr();
         /* select to screen dc */
-        if (indisp(win)) {
+        if (sc == win->screens[win->curdsp-1]) {
 
             rv = SelectObject(win->devcon, sf); /* process error */
             if (rv == HGDI_ERROR) winerr();
@@ -3007,7 +3022,7 @@ static void newfont(winptr win)
         rv = SelectObject(sc->bdc, sc->font);
         if (rv == HGDI_ERROR) winerr();
         /* select to screen DC */
-        if (indisp(win)) {
+        if (sc == win->screens[win->curdsp-1]) {
 
             rv = SelectObject(win->devcon, sc->font); /* process error */
             if (rv == HGDI_ERROR) winerr();
@@ -3016,7 +3031,7 @@ static void newfont(winptr win)
 
     } else {
 
-        attrc = win->screens[win->curupd-1]->attr; /* copy attribute */
+        attrc = sc->attr; /* copy attribute */
         w = FW_REGULAR;
         if (BIT(saxlight) & attrc) w = FW_EXTRALIGHT;
         else if (BIT(salight) & attrc) w = FW_LIGHT;
@@ -3030,12 +3045,12 @@ static void newfont(winptr win)
                           OUT_TT_ONLY_PRECIS, CLIP_DEFAULT_PRECIS,
                           FQUALITY, DEFAULT_PITCH,
                           sc->cfont->face);
-        if (!win->screens[win->curupd-1]->font) winerr(); /* process windows error */
+        if (!sc->font) winerr(); /* process windows error */
         /* select to buffer DC */
-        rv = SelectObject(win->screens[win->curupd-1]->bdc, sc->font);
+        rv = SelectObject(sc->bdc, sc->font);
         if (rv == HGDI_ERROR) winerr();
         /* select to screen DC */
-        if (indisp(win)) {
+        if (sc == win->screens[win->curdsp-1]) {
 
             rv = SelectObject(win->devcon, sc->font); /* process error */
             if (rv == HGDI_ERROR) winerr();
@@ -3043,11 +3058,11 @@ static void newfont(winptr win)
         }
 
     }
-    b = GetTextMetrics(win->screens[win->curupd-1]->bdc, &tm); /* get the standard metrics */
+    b = GetTextMetrics(sc->bdc, &tm); /* get the standard metrics */
     if (!b) winerr(); /* process windows error */
     /* Calculate line spacing */
     win->linespace = tm.tmHeight;
-    win->screens[win->curupd-1]->lspc = win->linespace;
+    sc->lspc = win->linespace;
     /* Calculate character spacing. For fixed pitch fonts the advance width
        is the cell width; tmMaxCharWidth can exceed it on TrueType fonts
        (widest glyph ink, not advance), which oversizes the character grid
@@ -3056,11 +3071,20 @@ static void newfont(winptr win)
     else win->charspace = tm.tmMaxCharWidth;
     /* set cursor width */
     win->curspace = tm.tmAveCharWidth;
-    win->screens[win->curupd-1]->cspc = win->charspace;
+    sc->cspc = win->charspace;
     /* calculate baseline offset */
     win->baseoff = win->linespace-tm.tmDescent-1;
     /* change cursor to match new font/size */
-    if (indisp(win)) chgcur(win);
+    if (sc == win->screens[win->curdsp-1]) chgcur(win);
+
+}
+
+/* the font of the current update screen, from its attributes */
+static void newfont(winptr win)
+
+{
+
+    newfontscn(win, win->screens[win->curupd-1]);
 
 }
 
@@ -3386,9 +3410,9 @@ static void iniscn(winptr win, scnptr sc)
     win->bufy = win->gmaxy;
     win->bufxg = win->gmaxxg;
     win->bufyg = win->gmaxyg;
-    newfont(win); /* create font for buffer */
+    newfontscn(win, sc); /* create font for the buffer */
     /* set non-braindamaged stretch mode */
-    r = SetStretchBltMode(win->screens[win->curupd-1]->bdc, HALFTONE);
+    r = SetStretchBltMode(sc->bdc, HALFTONE);
     if (!r) winerr(); /* process windows error */
     /* set pen to foreground */
     sc->fpen = makfpen(sc);
@@ -3452,7 +3476,33 @@ static void disscn(winptr win, scnptr sc)
 
 {
 
-    /* need to do disposals here */
+    HGDIOBJ hb; /* the buffer bitmap */
+
+    if (!sc) return; /* a screen never made: nothing to dispose of */
+    /* What the screen made goes with it: the buffer bitmap comes out of its
+       device context and both are deleted, then the pens, the brush and the
+       font. An object still selected into the window's device context, where
+       this is the display screen, is put out of it first, since an object
+       in use cannot be deleted. */
+    if (win->screens[win->curdsp-1] == sc && win->devcon) {
+
+        SelectObject(win->devcon, GetStockObject(BLACK_PEN));
+        SelectObject(win->devcon, GetStockObject(NULL_BRUSH));
+        SelectObject(win->devcon, GetStockObject(SYSTEM_FIXED_FONT));
+
+    }
+    if (sc->bdc) {
+
+        hb = SelectObject(sc->bdc, sc->bhn); /* the old bitmap back, ours out */
+        if (hb && hb != HGDI_ERROR) DeleteObject(hb);
+        DeleteDC(sc->bdc);
+        sc->bdc = NULL;
+
+    }
+    if (sc->fpen) { DeleteObject(sc->fpen); sc->fpen = NULL; }
+    if (sc->fbrush) { DeleteObject(sc->fbrush); sc->fbrush = NULL; }
+    if (sc->fspen) { DeleteObject(sc->fspen); sc->fspen = NULL; }
+    if (sc->font) { DeleteObject(sc->font); sc->font = NULL; }
 
 }
 
@@ -3684,8 +3734,8 @@ static void icursorg(winptr win, ami_long x, ami_long y)
 
 {
 
-    if (win->screens[win->curupd-1]->autof)
-        error(eatopos); /* cannot perform with auto on */
+    /* positioning by pixel is allowed with auto on, as on the other
+       platforms: it is justified text that auto rules out */
     if (x != win->screens[win->curupd-1]->curxg ||
         y != win->screens[win->curupd-1]->curyg)  {
 
@@ -6079,7 +6129,9 @@ static void isetpixel(winptr win, ami_long x, ami_long y)
         /* paint buffer */
         r = SetPixel(win->screens[win->curupd-1]->bdc, x-1, y-1,
                      win->screens[win->curupd-1]->fcrgb);
-        if (r == -1) winerr(); /* process windows error */
+        /* a point outside the buffer is refused with no error set: that is
+           a pixel clipped away, not a fault */
+        if (r == (COLORREF)-1 && GetLastError()) winerr(); /* process windows error */
 
     }
     /* paint screen */
@@ -6088,7 +6140,8 @@ static void isetpixel(winptr win, ami_long x, ami_long y)
         if (!win->visible) winvis(win); /* make sure we are displayed */
         curoff(win);
         r = SetPixel(win->devcon, x-1, y-1, win->screens[win->curupd-1]->fcrgb);
-        if (r == -1) winerr(); /* process windows error */
+        /* a point off the window is refused with no error set: clipped, not a fault */
+        if (r == (COLORREF)-1 && GetLastError()) winerr(); /* process windows error */
         curon(win);
 
     }
@@ -6890,7 +6943,7 @@ static void iwritejust(winptr win, const char* s, ami_long n)
 
     if (strlen(s) > 1000) error(estrtl);
     sc = win->screens[win->curupd-1];
-    if (sc->cfont->sys) error(ejstsys); /* cannot perform on system font */
+    /* the system font justifies like any other, as on the other platforms */
     if (sc->autof) error(eatopos); /* cannot perform with auto on */
     off = 0; /* set no subscript offset */
     if (BIT(sasubs) & sc->attr) off = trunc(win->linespace*0.35);
@@ -6969,6 +7022,7 @@ static ami_long ijustpos(winptr win, const char* s, ami_long p, ami_long n)
 
 {
 
+    int r; /* result holder */
     int         off; /* offset to character */
     int         w;   /* minimum string size */
     GCP_RESULTS ra;  /* placement info record */
@@ -8827,32 +8881,23 @@ static void eventsover_ivf(ami_pevthan eh,  ami_pevthan* oeh)
 
 Wait for intratask message
 
-Waits for the given intratask message. Discards any other messages or
-intratask messages. The im is returned back to free, which matches the common
-use of im to just return the entry as acknowledgement.
+Waits for the display thread to serve the given request, which it signals on
+the request's own event, so several threads can each wait on their own. The
+main lock is given up for the wait: the display thread takes it as it serves
+the request. The record is the caller's to read, and then to release.
 
 *******************************************************************************/
 
-static void waitim(imcode m, imptr* ip)
+static void waitim(imptr ip)
 
 {
 
-    int done; /* done flag */
-    MSG msg;  /* message */
+    DWORD r;
 
-    done = FALSE; /* set not done */
-    do {
-
-        igetmsg(&msg); /* get next message */
-        if (msg.message == UM_IM) { /* receive im */
-
-            *ip = (imptr)msg.wParam; /* get im pointer */
-            if ((*ip)->im == m) done = TRUE; /* found it */
-            putitm(*ip); /* release im entry */
-
-        }
-
-    } while (!done); /* until message found */
+    unlockmain(); /* end exclusive access */
+    r = WaitForSingleObject(ip->done, INFINITE); /* the request is served */
+    lockmain(); /* start exclusive access */
+    if (r != WAIT_OBJECT_0) winerr(); /* process windows error */
 
 }
 
@@ -8885,19 +8930,18 @@ static void CALLBACK timeout(UINT id, UINT msg, DWORD_PTR usr, DWORD_PTR dw1,
     int fn; /* logical file number */
     HWND wh; /* window handle */
 
+    /* Validate the file, and do nothing if it is wrong or closed: a timer
+       can mature after its window has gone, and must not crash on that.
+       The lock is released on every path: a return with it held, once,
+       stopped every other thread for good, this being the multimedia
+       timer's thread, which never gave it back. */
+    wh = NULL;
     lockmain(); /* start exclusive access */
     fn = usr/AMI_MAXTIM; /* get lfn multiplexed in user data */
-    /* Validate it, but do nothing if wrong. We just don"t want to crash on
-       errors here. */
-    if (fn >= 0 && fn < MAXFIL)  /* valid lfn */
-       if (opnfil[fn]) /* file is defined */
-          if (opnfil[fn]->win) { /* file has window context */
-
+    if (fn >= 0 && fn < MAXFIL && opnfil[fn] && opnfil[fn]->win)
         wh = opnfil[fn]->win->winhan; /* get window handle */
-        unlockmain(); /* end exclusive access */
-        putmsg(wh, WM_TIMER, usr%AMI_MAXTIM /* multiplexed timer number*/, 0);
-
-    } else unlockmain(); /* end exclusive access */
+    unlockmain(); /* end exclusive access */
+    if (wh) putmsg(wh, WM_TIMER, usr%AMI_MAXTIM /* multiplexed timer number*/, 0);
 
 }
 
@@ -8938,6 +8982,9 @@ static void itimer(winptr win, /* file to send event to */
     /* We need both the timer number, and the window number in the handler,
       but we only have a single callback parameter available. So we mux
       them together in a word. */
+    /* a timer still under the handle, rearmed, would run on beside the new
+       one and post its events */
+    if (win->timers[i].han) timeKillEvent(win->timers[i].han);
     win->timers[i].han = timeSetEvent(mt, 0, timeout, lf*AMI_MAXTIM+i, tf);
     if (!win->timers[i].han) error(etimacc); /* no timer available */
     win->timers[i].rep = r; /* set timer repeat flag */
@@ -8979,6 +9026,7 @@ static void ikilltimer(winptr win, /* file to kill timer on */
     if (i < 1 || i > AMI_MAXTIM) error(etimnum); /* bad timer number */
     r = timeKillEvent(win->timers[i].han); /* kill timer */
     if (r) error(etimacc); /* error */
+    win->timers[i].han = 0; /* set no active timer */
 
 }
 
@@ -9010,6 +9058,8 @@ of the blanking interval.
 static void iframetimer(winptr win, ami_long lf, ami_long e)
 
 {
+
+    int r; /* result holder */
 
     if (e) { /* enable framing timer */
 
@@ -10173,8 +10223,8 @@ static void kilwin(HWND wh)
 
 {
 
-    MSG  msg; /* intertask message */
-    BOOL b;
+    imptr ip; /* intratask request */
+    BOOL  b;
 
     if (GetCurrentThreadId() == GetWindowThreadProcessId(dispwin, NULL)) {
 
@@ -10186,12 +10236,14 @@ static void kilwin(HWND wh)
         return;
 
     }
-    stdwinwin = wh; /* place window handle */
+    getitm(&ip); /* get a im pointer */
+    ip->im = imclswin; /* set is window close */
+    ip->owhan = wh; /* the window to close */
     /* order window to close */
-    b = PostMessage(dispwin, UM_CLSWIN, 0, 0);
+    b = PostMessage(dispwin, UM_IM, (WPARAM)ip, 0);
     if (!b) winerr(); /* process windows error */
-    /* Wait for window close. */
-    do { igetmsg(&msg); } while (msg.message != UM_WINCLS);
+    waitim(ip); /* wait for window close */
+    putitm(ip); /* release im */
 
 }
 
@@ -10265,7 +10317,7 @@ static void opnwin(int fn, int pfn)
     winptr     win;  /* window pointer */
     winptr     pwin; /* parent window pointer */
     int        f;    /* window creation flags */
-    MSG        msg;  /* intertask message */
+    imptr      ip;   /* intratask request */
     HGDIOBJ    rv;
 
     win = lfn2win(fn); /* get a pointer to the window */
@@ -10313,7 +10365,7 @@ static void opnwin(int fn, int pfn)
     win->sysbar = TRUE; /* set system bar on */
     win->sizests = 0; /* clear last size status word */
     /* clear timer repeat array */
-    for (ti = 0; ti < 10; ti++) {
+    for (ti = 0; ti <= AMI_MAXTIM; ti++) {
 
        win->timers[ti].han = 0; /* set no active timer */
        win->timers[ti].rep = FALSE; /* set no repeat */
@@ -10331,20 +10383,17 @@ static void opnwin(int fn, int pfn)
     f = WS_OVERLAPPEDWINDOW | WS_CLIPCHILDREN;
     /* add flags for child window */
     if (win->parhan) f |= WS_CHILD | WS_CLIPSIBLINGS;
-    /* Create the window, using display task. */
-    stdwinflg = f;
-    stdwinx = 0x80000000;
-    stdwiny = 0x80000000;
-    stdwinw = 0x80000000;
-    stdwinh = 0x80000000;
-    stdwinpar = win->parhan;
+    /* Create the window, using display task: a request of this window's
+       own, so windows opened by several threads at once keep apart. */
+    getitm(&ip); /* get a im pointer */
+    ip->im = imopnwin; /* set is window open */
+    ip->owflg = f;
+    ip->owpar = win->parhan;
     /* order window to start */
-    b = PostMessage(dispwin, UM_MAKWIN, 0, 0);
+    b = PostMessage(dispwin, UM_IM, (WPARAM)ip, 0);
     if (!b) winerr(); /* process windows error */
-    /* Wait for window start. */
-    do { igetmsg(&msg); } while (msg.message != UM_WINSTR);
-    win->winhan = stdwinwin; /* get the new handle */
-    if (!win->winhan) winerr(); /* process windows error */
+    waitim(ip); /* wait for window start */
+    win->winhan = ip->owhan; /* get the new handle */
 
     /* Joysticks were captured with the window open. Set status of joysticks.
 
@@ -10353,10 +10402,12 @@ static void opnwin(int fn, int pfn)
       the joystick messages. This needs testing. */
 
     win->numjoy = 0; /* clear joystick counter */
-    win->joy1cap = stdwinj1c; /* set joystick 1 capture status */
+    win->joy1cap = ip->owj1c; /* set joystick 1 capture status */
     win->numjoy = win->numjoy+win->joy1cap; /* count that */
-    win->joy2cap = stdwinj2c; /* set joystick 1 capture status */
+    win->joy2cap = ip->owj2c; /* set joystick 2 capture status */
     win->numjoy = win->numjoy+win->joy2cap; /* count that */
+    putitm(ip); /* release im */
+    if (!win->winhan) winerr(); /* process windows error */
 
     /* create a device context for the window */
     win->devcon = GetDC(win->winhan); /* get device context */
@@ -10532,12 +10583,23 @@ static void clswin(int fn)
 {
 
     int    r;   /* result holder */
-    int    b;   /* int result holder */
     winptr win; /* window pointer */
 
     win = lfn2win(fn); /* get a pointer to the window */
-    b = ReleaseDC(win->winhan, win->devcon); /* release device context */
-    if (!b) winerr(); /* process error */
+    /* the window's timers go with it: one maturing after the close would
+       find the file gone, or another window's under a reused number */
+    for (r = 1; r <= AMI_MAXTIM; r++)
+        if (win->timers[r].han) { timeKillEvent(win->timers[r].han); win->timers[r].han = 0; }
+    if (win->frmrun) { timeKillEvent(win->frmhan); win->frmrun = FALSE; }
+    /* The window is on its way out: no more drawing to it. The display
+       thread can be asked to paint it while its close is in train below,
+       since the window and its record are still there for a paint to find,
+       and restore() draws only what is visible. */
+    win->visible = FALSE;
+    /* The device context is the window's own (the class has CS_OWNDC) and
+       goes with the window: it is not released here. A release of it did
+       nothing for a private context by the book, and failed outright from
+       a thread other than the one that got it, which the abort path is. */
     /* release the joysticks; a release can fail if the joystick was
        disconnected while captured, which is not an error worth stopping
        the program at window close */
@@ -10713,16 +10775,15 @@ static void iopenwin(FILE** infile, FILE** outfile, ami_long pfn, ami_long wid)
     ifn = fndfil(*infile); /* find previous open input side */
     if (ifn < 0) { /* no other input file, open new */
 
-        /* open input file */
-        unlockmain(); /* end exclusive access */
+        /* open input file. The lock is held across the open: the file
+           number the C library hands back must be reserved in the tables
+           before another thread's open can be given the same one. */
         *infile = fopen("nul", "r"); /* open null as read only */
-        lockmain(); /* start exclusive access */
         if (!*infile) error(enoopn); /* can't open */
         setvbuf(*infile, NULL, _IONBF, 0); /* turn off buffering */
 
     }
-    /* open output file */
-    unlockmain(); /* end exclusive access */
+    /* open output file, the lock held for the same reason */
     *outfile = fopen("nul", "w");
     ofn = fileno(*outfile); /* get logical file no. */
     if (ofn == -1) error(esystem);
@@ -10770,6 +10831,7 @@ static void isizbufg(winptr win, ami_long x, ami_long y)
 
 {
 
+    int b; /* int result holder */
     RECT cr; /* client rectangle holder */
     int si;  /* index for current display screen */
 
@@ -10802,13 +10864,15 @@ static void isizbufg(winptr win, ami_long x, ami_long y)
     }
     win->screens[win->curdsp-1] = imalloc(sizeof(scncon));
     iniscn(win, win->screens[win->curdsp-1]); /* initalize screen buffer */
-    restore(win, TRUE); /* update to screen */
     if (win->curdsp != win->curupd) { /* also create the update buffer */
 
-        win->screens[win->curupd-1] = imalloc(sizeof(scncon)); /* get the display screen */
+        win->screens[win->curupd-1] = imalloc(sizeof(scncon));
         iniscn(win, win->screens[win->curupd-1]); /* initalize screen buffer */
 
     }
+    /* update to screen: after both buffers are there, since the restore
+       places the cursor by the update buffer */
+    restore(win, TRUE);
 
 }
 
@@ -10984,6 +11048,7 @@ static void createmenu(winptr win, ami_menuptr m, HMENU* mh)
 
 {
 
+    int b; /* int result holder */
     HMENU sm;  /* submenu handle */
     int   f;   /* menu flags */
     int   inx; /* index number for this menu */
@@ -11660,6 +11725,7 @@ static void iwinclientg(winptr win, ami_long cx, ami_long cy, ami_long* wx, ami_
 
 {
 
+    int b; /* int result holder */
     RECT cr; /* client rectangle holder */
     int fl;  /* flag */
 
@@ -11770,6 +11836,8 @@ static void iframe(winptr win, ami_long e)
 
 {
 
+    int b; /* int result holder */
+    int r; /* result holder */
     int  fl1; /* flag */
     RECT cr;  /* client rectangle holder */
 
@@ -12278,7 +12346,7 @@ static HWND createwidget(winptr win, wigtyp typ, ami_long x1, ami_long y1, ami_l
     b = PostMessage(dispwin, UM_IM, (WPARAM)ip, 0);
     if (!b) winerr(); /* process windows error */
     /* Wait for widget start, this also keeps our window going. */
-    waitim(imwidget, &ip); /* wait for the return */
+    waitim(ip); /* wait for the return */
     wh = ip->wigwin; /* place handle to widget */
     ifree(ip->wigcls); /* release class string */
     ifree(ip->wigtxt); /* release face text string */
@@ -12555,6 +12623,7 @@ static void isizwidgetg(winptr win, ami_long id,  ami_long x, ami_long y)
 
 {
 
+    int b; /* int result holder */
     wigptr wp; /* widget pointer */
 
     wp = fndwig(win, id); /* find widget */
@@ -12600,6 +12669,7 @@ static void iposwidgetg(winptr win, ami_long id, ami_long x, ami_long y)
 
 {
 
+    int b; /* int result holder */
     wigptr wp; /* widget pointer */
 
     wp = fndwig(win, id); /* find widget */
@@ -13797,6 +13867,7 @@ static void inumselboxg(winptr win, ami_long x1, ami_long y1, ami_long x2, ami_l
 
 {
 
+    int r; /* result holder */
     imptr  ip;  /* intratask message pointer */
     wigptr wp;  /* widget pointer */
     BOOL   br;  /* result */
@@ -13835,7 +13906,7 @@ static void inumselboxg(winptr win, ami_long x1, ami_long y1, ami_long x2, ami_l
     ip->udpos = l;
     br = PostMessage(dispwin, UM_IM, (WPARAM)ip, 0);
     if (!br) winerr(); /* process windows error */
-    waitim(imupdown, &ip); /* wait for the return */
+    waitim(ip); /* wait for the return */
     wp->han = ip->udhan; /* place control handle */
     wp->han2 = ip->udbuddy; /* place buddy handle */
     putitm(ip); /* release im */
@@ -14383,6 +14454,7 @@ static void getsizlin(char* s, LPSIZE sz)
 
 {
 
+    int b; /* int result holder */
     HDC dc;
 
     dc = GetWindowDC(NULL); /* get screen dc */
@@ -15047,6 +15119,7 @@ static void uselesswidget(winptr win)
 
 {
 
+    int b; /* int result holder */
     imptr ip; /* intratask message pointer */
 
     getitm(&ip); /* get a im pointer */
@@ -15065,7 +15138,7 @@ static void uselesswidget(winptr win)
     b = PostMessage(dispwin, UM_IM, (WPARAM)ip, 0);
     if (!b) winerr(); /* process windows error */
     /* Wait for widget start, this also keeps our window going. */
-    waitim(imwidget, &ip); /* wait for the return */
+    waitim(ip); /* wait for the return */
     kilwin(ip->wigwin); /* kill widget */
     ifree(ip->wigcls); /* release class string */
     ifree(ip->wigtxt); /* release face text string */
@@ -15442,7 +15515,7 @@ static void alert_ivf(char* title, char* message)
     ip->altmsg = message;
     b = PostMessage(dialogwin, UM_IM, (WPARAM)ip, 0);
     if (!b) winerr(); /* process windows error */
-    waitim(imalert, &ip); /* wait for the return */
+    waitim(ip); /* wait for the return */
     unlockmain(); /* end exclusive access */
 
 }
@@ -15472,7 +15545,7 @@ static void querycolor_ivf(ami_long* r, ami_long* g, ami_long* b)
     ip->clrblue = *b;
     br = PostMessage(dialogwin, UM_IM, (WPARAM)ip, 0);
     if (!br) winerr(); /* process windows error */
-    waitim(imqcolor, &ip); /* wait for the return */
+    waitim(ip); /* wait for the return */
     *r = ip->clrred; /* set new colors */
     *g = ip->clrgreen;
     *b = ip->clrblue;
@@ -15513,7 +15586,7 @@ static void queryopen_ivf(char* s, ami_long sl)
     ip->opnfil = str(s); /* copy input string */
     br = PostMessage(dialogwin, UM_IM, (WPARAM)ip, 0);
     if (!br) winerr(); /* process windows error */
-    waitim(imqopen, &ip); /* wait for the return */
+    waitim(ip); /* wait for the return */
     cpycrit(s, sl, ip->opnfil); /* copy result to critical buffer */
     ifree(ip->opnfil); /* free the temp string */
     putitm(ip); /* release im */
@@ -15553,7 +15626,7 @@ static void querysave_ivf(char* s, ami_long sl)
     ip->opnfil = str(s); /* set input string */
     br = PostMessage(dialogwin, UM_IM, (WPARAM)ip, 0);
     if (!br)  winerr(); /* process windows error */
-    waitim(imqsave, &ip); /* wait for the return */
+    waitim(ip); /* wait for the return */
     cpycrit(s, sl, ip->savfil); /* copy result to critical buffer */
     ifree(ip->savfil); /* free the temp string */
     putitm(ip); /* release im */
@@ -15604,7 +15677,7 @@ static void queryfind_ivf(char* s, ami_long sl, ami_long* opt)
     ip->fndopt = *opt; /* set options */
     br = PostMessage(dialogwin, UM_IM, (WPARAM)ip, 0);
     if (!br) winerr(); /* process windows error */
-    waitim(imqfind, &ip); /* wait for the return */
+    waitim(ip); /* wait for the return */
     cpycrit(s, sl, ip->fndstr); /* copy result to critical buffer */
     ifree(ip->fndstr); /* free the temp string */
     *opt = ip->fndopt; /* set output options */
@@ -15649,7 +15722,7 @@ static void queryfindrep_ivf(char* s, ami_long sl, char* r, ami_long rl, ami_lon
     ip->fnropt = *opt; /* set options */
     br = PostMessage(dialogwin, UM_IM, (WPARAM)ip, 0);
     if (!br) winerr(); /* process windows error */
-    waitim(imqfindrep, &ip); /* wait for the return */
+    waitim(ip); /* wait for the return */
     cpycrit(s, sl, ip->fnrsch); /* copy find result to critical buffer */
     ifree(ip->fnrsch); /* free the temp string */
     cpycrit(r, rl, ip->fnrrep); /* copy replace result to critical buffer */
@@ -15726,7 +15799,7 @@ static void iqueryfont(winptr win, ami_long* fc, ami_long* s, ami_long* fr, ami_
     /* send request */
     b = PostMessage(dialogwin, UM_IM, (WPARAM)ip, 0);
     if (!b) winerr(); /* process windows error */
-    waitim(imqfont, &ip); /* wait for the return */
+    waitim(ip); /* wait for the return */
     /* pull back the output parameters */
     *fc = fndfntnum(win, ip->fntstr); /* find font from list */
     *effect = ip->fnteff; /* effects */
@@ -15857,7 +15930,7 @@ static LRESULT CALLBACK wndproc(HWND hwnd, UINT imsg, WPARAM wparam,
         lockmain(); /* start exclusive access */
         /* get the logical output file from Windows handle */
         ofn = hwn2lfn(hwnd);
-        if (ofn) { /* there is a window */
+        if (ofn >= 0) { /* there is a window */
 
             win = lfn2win(ofn); /* index window from output file */
             if (win->bufmod) restore(win, FALSE); /* perform selective update */
@@ -15887,7 +15960,7 @@ static LRESULT CALLBACK wndproc(HWND hwnd, UINT imsg, WPARAM wparam,
         lockmain(); /* start exclusive access */
         /* get the logical output file from Windows handle */
         ofn = hwn2lfn(hwnd);
-        if (ofn) { /* there is a window */
+        if (ofn >= 0) { /* there is a window */
 
             win = lfn2win(ofn); /* index window from output file */
             /* activate caret */
@@ -15908,7 +15981,7 @@ static LRESULT CALLBACK wndproc(HWND hwnd, UINT imsg, WPARAM wparam,
         lockmain(); /* start exclusive access */
         /* get the logical output file from Windows handle */
         ofn = hwn2lfn(hwnd);
-        if (ofn) { /* there is a window */
+        if (ofn >= 0) { /* there is a window */
 
            win = lfn2win(ofn); /* index window from output file */
            win->focus = FALSE; /* set screen not in focus */
@@ -15918,36 +15991,6 @@ static LRESULT CALLBACK wndproc(HWND hwnd, UINT imsg, WPARAM wparam,
         }
         unlockmain(); /* end exclusive access */
         putmsg(hwnd, imsg, wparam, lparam); /* copy to main thread */
-        r = 0;
-
-    } else if (imsg == UM_MAKWIN) { /* create standard window */
-
-        /* create the window */
-        stdwinwin = CreateWindow("StdWin", pgmnam, stdwinflg,
-                                  stdwinx, stdwiny, stdwinw, stdwinh,
-                                  stdwinpar, 0, GetModuleHandle(NULL), NULL);
-
-        stdwinj1c = FALSE; /* set no joysticks */
-        stdwinj2c = FALSE;
-        if (joyenb) {
-
-            r = joySetCapture(stdwinwin, JOYSTICKID1, 33, FALSE);
-            stdwinj1c = r == 0; /* set joystick 1 was captured */
-            r = joySetCapture(stdwinwin, JOYSTICKID2, 33, FALSE);
-            stdwinj2c = r == 0; /* set joystick 1 was captured */
-
-        }
-
-        /* signal we started window */
-        iputmsg(0, UM_WINSTR, 0, 0);
-        r = 0;
-
-    } else if (imsg == UM_CLSWIN) { /* close standard window */
-
-        b = DestroyWindow(stdwinwin); /* remove window from screen */
-
-        /* signal we closed window */
-        iputmsg(0, UM_WINCLS, 0, 0);
         r = 0;
 
     } else if (imsg == WM_ERASEBKGND) {
@@ -15989,6 +16032,27 @@ static LRESULT CALLBACK wndproc(HWND hwnd, UINT imsg, WPARAM wparam,
         ip = (imptr)wparam; /* get im pointer */
         switch (ip->im) { /* im type */
 
+            case imopnwin: /* open a standard window */
+                ip->owhan = CreateWindow("StdWin", pgmnam, ip->owflg,
+                                         CW_USEDEFAULT, CW_USEDEFAULT,
+                                         CW_USEDEFAULT, CW_USEDEFAULT,
+                                         ip->owpar, 0, GetModuleHandle(NULL), NULL);
+                ip->owj1c = FALSE; /* set no joysticks */
+                ip->owj2c = FALSE;
+                if (joyenb && ip->owhan) {
+
+                    r = joySetCapture(ip->owhan, JOYSTICKID1, 33, FALSE);
+                    ip->owj1c = r == 0; /* set joystick 1 was captured */
+                    r = joySetCapture(ip->owhan, JOYSTICKID2, 33, FALSE);
+                    ip->owj2c = r == 0; /* set joystick 2 was captured */
+
+                }
+                SetEvent(ip->done); /* the requester goes on */
+                break;
+            case imclswin: /* close a standard window */
+                DestroyWindow(ip->owhan); /* remove window from screen */
+                SetEvent(ip->done); /* the requester goes on */
+                break;
             case imupdown: /* create up/down control */
                 ip->udbuddy =
                     CreateWindowEx(WS_EX_LEFT | WS_EX_CLIENTEDGE,
@@ -16008,7 +16072,7 @@ static LRESULT CALLBACK wndproc(HWND hwnd, UINT imsg, WPARAM wparam,
                     /*ip->udx, ip->udy, ip->udcx-udw-1, ip->udcy,*/
                     ip->udpar, (HMENU)(INT_PTR)ip->udid, ip->udinst, NULL);
                 /* signal complete */
-                iputmsg(0, UM_IM, wparam, 0);
+                SetEvent(ip->done); /* the requester goes on */
                 break;
 
             case imwidget: /* create widget */
@@ -16018,7 +16082,7 @@ static LRESULT CALLBACK wndproc(HWND hwnd, UINT imsg, WPARAM wparam,
                                           ip->wigh, ip->wigpar, (HMENU)(INT_PTR)ip->wigid,
                                           ip->wigmod, NULL);
                 /* signal we started widget */
-                iputmsg(0, UM_IM, wparam, 0);
+                SetEvent(ip->done); /* the requester goes on */
                 break;
 
         }
@@ -16248,7 +16312,7 @@ static LRESULT CALLBACK wndprocdialog(HWND hwnd, UINT imsg, WPARAM wparam,
                 r = MessageBox(0, ip->altmsg, ip->alttit,
                                MB_OK | MB_SETFOREGROUND);
                 /* signal complete */
-                iputmsg(0, UM_IM, wparam, 0);
+                SetEvent(ip->done); /* the requester goes on */
                 break;
 
             case imqcolor:
@@ -16268,7 +16332,7 @@ static LRESULT CALLBACK wndprocdialog(HWND hwnd, UINT imsg, WPARAM wparam,
                 /* set resulting color */
                 win2rgb(cr.rgbResult, &ip->clrred, &ip->clrgreen, &ip->clrblue);
                 /* signal complete */
-                iputmsg(0, UM_IM, wparam, 0);
+                SetEvent(ip->done); /* the requester goes on */
                 break;
 
             case imqopen:
@@ -16334,7 +16398,7 @@ static LRESULT CALLBACK wndprocdialog(HWND hwnd, UINT imsg, WPARAM wparam,
 
                 }
                 /* signal complete */
-                iputmsg(0, UM_IM, wparam, 0);
+                SetEvent(ip->done); /* the requester goes on */
                 break;
 
             case imqfind:
@@ -16492,7 +16556,7 @@ static LRESULT CALLBACK wndprocdialog(HWND hwnd, UINT imsg, WPARAM wparam,
 
                 }
                 /* signal complete */
-                iputmsg(0, UM_IM, wparam, 0);
+                SetEvent(ip->done); /* the requester goes on */
                 break;
 
         }
@@ -16538,7 +16602,7 @@ static LRESULT CALLBACK wndprocdialog(HWND hwnd, UINT imsg, WPARAM wparam,
         }
         ifree(frrp); /* release find/replace entry */
         /* signal complete */
-        iputmsg(0, UM_IM, (WPARAM)ip, 0);
+        SetEvent(ip->done); /* the requester goes on */
 
     } else r = DefWindowProc(hwnd, imsg, wparam, lparam);
 
@@ -16802,6 +16866,8 @@ static void ami_init_graph()
 
 {
 
+    int b; /* int result holder */
+    int r; /* result holder */
     int       i;
     int       fi;
     int       ofn, ifn;
