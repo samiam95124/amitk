@@ -154,7 +154,7 @@ static enum { /* debug levels */
 #define STDCHRY   12
 #define MAXLIN    250   /* maximum length of input bufferred line */
 #define MAXCON    10    /* number of screen contexts */
-#define MAXTAB    50    /* total number of tabs possible per screen */
+#define MAXTAB    250   /* total number of tabs possible per screen */
 #define MAXPIC    50    /* total number of loadable pictures */
 #define FHEIGHT   15    /* default font height, matches Windows "system" default */
 #define FQUALITY  NONANTIALIASED_QUALITY /* font writing quality */
@@ -419,6 +419,9 @@ typedef struct winrec {
     int      sysbar;          /* system bar on/off */
     int      sizests;         /* last resize status save */
     int      visible;         /* window is visible */
+    int      resizing;        /* a geometry change is in train, the main lock
+                                 dropped for it: a paint the display thread
+                                 runs meanwhile may fail in GDI transiently */
 
 } winrec, *winptr;
 
@@ -3113,7 +3116,14 @@ static int gditransient(void)
 
 {
 
-    return (GetLastError() == 0);
+    /* A GDI call under a concurrent resize can fail two transient ways: with
+       no error set at all (the classic sign of GDI under a window in flux),
+       or with an invalid handle, when the window or its context is being
+       reconfigured on another thread. A restore is a repaint, always
+       reissued, so either is a skip rather than a fault. */
+    DWORD e = GetLastError();
+
+    return (e == 0 || e == ERROR_INVALID_HANDLE);
 
 }
 
@@ -3158,7 +3168,7 @@ static void rstskip(winptr win)
 
 /* bail out of a restore pass if the failure is transient */
 #define RSTCHK(failed) \
-    if (failed) { if (gditransient()) { rstskip(win); return; } winerr(); }
+    if (failed) { if (win->resizing || gditransient()) { rstskip(win); return; } winerr(); }
 
 static void restore(winptr win,   /* window to restore */
                     int    whole) /* whole or part window */
@@ -10378,6 +10388,7 @@ static void opnwin(int fn, int pfn)
     win->curdsp = 1; /* set current display screen */
     win->curupd = 1; /* set current update screen */
     win->visible = FALSE; /* set not visible */
+    win->resizing = 0; /* no geometry change in train */
     /* now perform windows setup */
     /* set flags for window create */
     f = WS_OVERLAPPEDWINDOW | WS_CLIPCHILDREN;
@@ -10831,6 +10842,8 @@ static void isizbufg(winptr win, ami_long x, ami_long y)
 
 {
 
+    win->resizing++; /* a geometry change begins: paints are tolerant */
+
     int b; /* int result holder */
     RECT cr; /* client rectangle holder */
     int si;  /* index for current display screen */
@@ -10874,6 +10887,7 @@ static void isizbufg(winptr win, ami_long x, ami_long y)
        places the cursor by the update buffer */
     restore(win, TRUE);
 
+    win->resizing--; /* the geometry change is done */
 }
 
 static void sizbufg_ivf(FILE* f, ami_long x, ami_long y)
@@ -10923,6 +10937,8 @@ freed.
 static void ibuffer(winptr win, ami_long e)
 
 {
+
+    win->resizing++; /* a geometry change begins: paints are tolerant */
 
     int  si; /* index for current display screen */
     BOOL b;  /* result */
@@ -10991,6 +11007,7 @@ static void ibuffer(winptr win, ami_long e)
 
     }
 
+    win->resizing--; /* the geometry change is done */
 }
 
 static void buffer_ivf(FILE* f, ami_long e)
@@ -11532,6 +11549,8 @@ static void isetsizg(winptr win, ami_long x, ami_long y)
 
 {
 
+    win->resizing++; /* a geometry change begins: paints are tolerant */
+
     BOOL b; /* result holder */
 
     unlockmain(); /* end exclusive access */
@@ -11539,6 +11558,7 @@ static void isetsizg(winptr win, ami_long x, ami_long y)
     lockmain(); /* start exclusive access */
     if (!b) winerr(); /* process windows error */
 
+    win->resizing--; /* the geometry change is done */
 }
 
 static void setsizg_ivf(FILE* f, ami_long x, ami_long y)
@@ -11606,6 +11626,8 @@ static void isetposg(winptr win, ami_long x, ami_long y)
 
 {
 
+    win->resizing++; /* a geometry change begins: paints are tolerant */
+
     BOOL b; /* result holder */
 
     unlockmain(); /* end exclusive access */
@@ -11613,6 +11635,7 @@ static void isetposg(winptr win, ami_long x, ami_long y)
     lockmain(); /* start exclusive access */
     if (!b) winerr(); /* process windows error */
 
+    win->resizing--; /* the geometry change is done */
 }
 
 static void setposg_ivf(FILE* f, ami_long x, ami_long y)
@@ -11836,6 +11859,8 @@ static void iframe(winptr win, ami_long e)
 
 {
 
+    win->resizing++; /* a geometry change begins: paints are tolerant */
+
     int b; /* int result holder */
     int r; /* result holder */
     int  fl1; /* flag */
@@ -11882,6 +11907,7 @@ static void iframe(winptr win, ami_long e)
     lockmain(); /* start exclusive access */
     if (!b) winerr(); /* process windows error */
 
+    win->resizing--; /* the geometry change is done */
 }
 
 static void frame_ivf(FILE* f, ami_long e)
@@ -11908,6 +11934,8 @@ Turns the window sizing on and off.
 static void isizable(winptr win, ami_long e)
 
 {
+
+    win->resizing++; /* a geometry change begins: paints are tolerant */
 
     int  fl1; /* flag */
     RECT cr;  /* client rectangle holder */
@@ -11960,6 +11988,7 @@ static void isizable(winptr win, ami_long e)
 
     }
 
+    win->resizing--; /* the geometry change is done */
 }
 
 static void sizable_ivf(FILE* f, ami_long e)
@@ -11986,6 +12015,8 @@ Turns the system bar on and off.
 static void isysbar(winptr win, ami_long e)
 
 {
+
+    win->resizing++; /* a geometry change begins: paints are tolerant */
 
     int  fl1; /* flag */
     RECT cr;  /* client rectangle holder */
@@ -12038,6 +12069,7 @@ static void isysbar(winptr win, ami_long e)
 
     }
 
+    win->resizing--; /* the geometry change is done */
 }
 
 static void sysbar_ivf(FILE* f, ami_long e)
