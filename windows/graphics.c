@@ -10617,6 +10617,7 @@ static void clswin(int fn)
     if (win->joy1cap) r = joyReleaseCapture(JOYSTICKID1);
     if (win->joy2cap) r = joyReleaseCapture(JOYSTICKID2);
     kilwin(win->winhan); /* kill window */
+    win->devcon = NULL; /* the window's own context went with it */
 
 }
 
@@ -10641,9 +10642,19 @@ static void clsfil(int fn)
     filptr fp;
 
     fp = opnfil[fn];
-    /* release all of the screen buffers */
+    /* release all of the screen buffers, their GDI objects first: left
+       standing, a closed window's contexts, bitmaps, pens, brushes and fonts
+       counted against the process's ten thousand until they ran out */
     for (si = 0; si < MAXCON; si++)
-        if (fp->win->screens[si]) ifree(fp->win->screens[si]);
+        if (fp->win->screens[si]) {
+
+            disscn(fp->win, fp->win->screens[si]);
+            ifree(fp->win->screens[si]);
+
+        }
+    /* and the pictures still loaded, for the same reason */
+    for (si = 0; si < MAXPIC; si++)
+        if (fp->win->pictbl[si].han) idelpict(fp->win, si+1);
     ifree(fp->win); /* release the window data */
     fp->win = NULL; /* set end open */
     fp->inw = FALSE;
