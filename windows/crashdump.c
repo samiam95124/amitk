@@ -31,10 +31,11 @@
 * wants the exception raw.                                                     *
 *                                                                              *
 * The library's own errors are reported by each module's error routine, which *
-* says its piece and exits: no exception, so no dump. With AMI_ERRABORT set   *
-* in the environment every module aborts there instead, and the abort comes   *
-* through here like any other fault: the stack of the thread that raised the  *
-* error. That is the switch for an error that only turns up in a long run.    *
+* says its piece and exits: no exception, so no dump of its own. A routine    *
+* that wants the stack with its message calls ami_dumpstack(), through a weak *
+* reference so that a build without this module calls nothing; the graphics  *
+* module does. With AMI_ERRABORT set in the environment every module aborts   *
+* there instead, and the abort comes through here like any other fault.       *
 *                                                                              *
 * A stack overflow leaves the thread no room to report in, so the main thread *
 * is given a guaranteed reserve for the handler at the start; a thread of the *
@@ -446,6 +447,28 @@ static void aborthandler(int sig)
     }
     signal(SIGABRT, SIG_DFL);
     raise(SIGABRT);
+
+}
+
+/* The stack of the calling thread, on the error channel, for a module's
+   error routine: where the program was when the module found the error.
+   The program goes on to whatever the routine does next. Called through a
+   weak reference, so a build without the module calls nothing. */
+void ami_dumpstack(void)
+
+{
+
+    CONTEXT   cx;
+    uintptr_t frames[MAXFRAMES];
+    int       n;
+
+    put("  stack, innermost first:\n");
+    symup();
+    RtlCaptureContext(&cx);
+    n = walk(&cx, frames, MAXFRAMES);
+    /* the first frame is this routine: the caller is the frames after */
+    if (n > 1) { rawlist(frames+1, n-1); symbolic(frames+1, n-1, 0); }
+    put("\n");
 
 }
 
