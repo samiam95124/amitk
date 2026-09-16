@@ -1518,6 +1518,85 @@ void select_ivf(FILE* f, ami_long u, ami_long d)
 
 /*******************************************************************************
 
+Place visible character
+
+Places one byte of visible text at the cursor, and moves the cursor right. The
+text is UTF-8, as on the other platforms: a byte of 0xc0 and above starts a
+sequence, the bytes 0x80 to 0xbf continue it, and the cell takes the character
+when the sequence is complete, the cursor having moved at its start as for any
+character. The console holds UTF-16, so the character goes in as one unit of
+that; a character beyond the basic plane shows as the replacement character. A
+stray continuation byte, or a sequence cut short by another start, is dropped.
+
+*******************************************************************************/
+
+static unsigned char utfseq[4]; /* the sequence in progress */
+static int           utflen;    /* its length, from the start byte; 0 for none */
+static int           utfcnt;    /* bytes of it received */
+static COORD         utfxy;     /* the cell it goes in; X < 0 for none */
+static WORD          utfattr;   /* the attributes at its start */
+
+static void plcvis(scnptr sc, unsigned char c)
+
+{
+
+    char          cb;  /* character output buffer */
+    WCHAR         wc;  /* the character, UTF-16 */
+    WORD          ab;  /* attribute output buffer */
+    DWORD         len; /* length dummy */
+    COORD         xy;
+    unsigned long cp;  /* code point */
+    int           i;
+
+    if (c >= 0x80 && c < 0xc0) { /* a continuation byte */
+
+        if (!utflen) return; /* stray: dropped */
+        utfseq[utfcnt++] = c;
+        if (utfcnt < utflen) return; /* more to come */
+        /* complete: decode, and place at the cell the start was given */
+        cp = utfseq[0] & (0x7f >> utflen);
+        for (i = 1; i < utflen; i++) cp = cp << 6 | (utfseq[i] & 0x3f);
+        utflen = 0;
+        if (utfxy.X < 0) return; /* the start was out of bounds */
+        wc = cp > 0xffff ? 0xfffd : (WCHAR)cp;
+        WriteConsoleOutputCharacterW(sc->han, &wc, 1, utfxy, &len);
+        WriteConsoleOutputAttribute(sc->han, &utfattr, 1, utfxy, &len);
+        return;
+
+    }
+    utflen = 0; /* any other byte ends a sequence in progress */
+    if (c >= 0xf8) return; /* not a UTF-8 byte: dropped */
+    if (c >= 0xc0) { /* a start byte: the cell is claimed, the bytes follow */
+
+        utflen = c >= 0xf0 ? 4 : c >= 0xe0 ? 3 : 2;
+        utfcnt = 1;
+        utfseq[0] = c;
+        utfxy.X = -1;
+        if (icurbnd(sc)) { /* cursor in bounds */
+
+            utfxy.X = sc->curx-1;
+            utfxy.Y = sc->cury+sc->offy-1;
+            utfattr = sc->sattr;
+
+        }
+
+    } else if (icurbnd(sc)) { /* cursor in bounds */
+
+        cb = c; /* place character in buffer */
+        ab = sc->sattr; /* place attribute in buffer */
+        /* write character */
+        xy.X = sc->curx-1;
+        xy.Y = sc->cury+sc->offy-1;
+        WriteConsoleOutputCharacter(sc->han, &cb, 1, xy, &len);
+        WriteConsoleOutputAttribute(sc->han, &ab, 1, xy, &len);
+
+    }
+    iright(); /* move cursor right */
+
+}
+
+/*******************************************************************************
+
 Place next terminal character
 
 Places the given character to the current cursor position using the current
@@ -1528,16 +1607,11 @@ that, and in any case an emulator would be layered above that.
 
 *******************************************************************************/
 
-static void plcchr(char c)
+static void plcchr(unsigned char c)
 
 {
 
-    int    b;   /* int return */
-    char   cb;  /* character output buffer */
-    WORD   ab;  /* attribute output buffer */
-    DWORD  len; /* length dummy */
     scnptr sc;  /* screen context pointer */
-    COORD  xy;
 
     sc = screens[curupd-1];
     /* handle special character cases first */
@@ -1555,22 +1629,7 @@ static void plcchr(char c)
     } else if (c == '\b') ileft(); /* back space, move left */
     else if (c == '\f') iclear(sc); /* clear screen */
     else if (c == '\t') itab(); /* process tab */
-    else if (c >= ' ' && c != 0x7f) { /* character is visible */
-
-        if (icurbnd(sc)) { /* cursor in bounds */
-
-            cb = c; /* place character in buffer */
-            ab = sc->sattr; /* place attribute in buffer */
-            /* write character */
-            xy.X = sc->curx-1;
-            xy.Y = sc->cury+sc->offy-1;
-            b = WriteConsoleOutputCharacter(sc->han, &cb, 1, xy, &len);
-            b = WriteConsoleOutputAttribute(sc->han, &ab, 1, xy, &len);
-
-        }
-        iright(); /* move cursor right */
-
-    }
+    else if (c >= ' ' && c != 0x7f) plcvis(sc, c); /* character is visible */
 
 }
 
@@ -2763,10 +2822,7 @@ void wrtstrn_ivf(FILE* f, char *s, ami_long n)
 
 {
 
-    WORD   ab;  /* attribute output buffer */
-    DWORD  len; /* length dummy */
     scnptr sc;  /* screen context pointer */
-    COORD  xy;
 
     sc = screens[curupd-1];
     /* The call is disallowed with auto on: a run is a straight lay of
@@ -2775,17 +2831,7 @@ void wrtstrn_ivf(FILE* f, char *s, ami_long n)
     if (sc->autof) error(estrauto);
     while (n > 0) {
 
-        if (icurbnd(sc)) { /* cursor in bounds */
-
-            ab = sc->sattr; /* place attribute in buffer */
-            /* write character */
-            xy.X = sc->curx-1;
-            xy.Y = sc->cury+sc->offy-1;
-            WriteConsoleOutputCharacter(sc->han, s, 1, xy, &len);
-            WriteConsoleOutputAttribute(sc->han, &ab, 1, xy, &len);
-
-        }
-        iright(); /* move cursor right */
+        plcvis(sc, (unsigned char)*s); /* place, and move cursor right */
         s++; /* next character */
         n--;
 

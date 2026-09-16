@@ -86,7 +86,7 @@ This timer supports frame rates up to * frames per second
 ..............................
 Framing timer test, measuring 10 occurances of the framing timer
 
-..........
+*
 
 Average time was: *00 Microseconds
 Minimum time was: *00 Microseconds

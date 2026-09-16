@@ -94,21 +94,29 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 #if defined(_WIN32)
 
 /* Windows has no glibc program_invocation_short_name. _pgmptr carries the full
-   path of the running program, so take the name off the end of it. */
+   path of the running program, so take the name off the end of it, and the
+   .exe off the name: the name as the other platforms have it. */
 
 static char* progshortname(void)
 
 {
 
-    char* p;
-    char* s;
+    static char nm[260];
+    char*       p;
+    char*       s;
+    size_t      l;
 
     s = _pgmptr; /* get program path */
     if (!s) return ("");
     /* step past any path in front of the name */
     for (p = s; *p; p++) if (*p == '\\' || *p == '/') s = p+1;
+    l = strlen(s);
+    if (l >= 4 && !_stricmp(s+l-4, ".exe")) l -= 4; /* drop the extension */
+    if (l >= sizeof(nm)) l = sizeof(nm)-1;
+    memcpy(nm, s, l);
+    nm[l] = 0;
 
-    return (s);
+    return (nm);
 
 }
 

@@ -423,7 +423,7 @@ static void timetest(void)
     if (framenum < tstlo) return; /* the timed runs skip outside the range */
     printf("Timer test, measuring minimum timer resolution, 100 samples\n\n");
     max = 0;
-    min = LONG_MAX;
+    min = AMI_LONG_MAX;
     total = 0;
     for (i = 1; i <= 100; i++) {
 
@@ -475,7 +475,7 @@ static void frametest(void)
     printf("Framing timer test, measuring 10 occurances of the framing timer\n\n");
     ami_frametimer(stdout, TRUE);
         max = 0;
-    min = LONG_MAX;
+    min = AMI_LONG_MAX;
     total = 0;
     for (i = 1; i <= 10; i++) {
 
@@ -509,8 +509,8 @@ static void plotjoy(ami_long line, ami_long joy)
     for (i = 1; i <= ami_maxx(stdout); i++) putchar(' '); /* clear line */
     if (joy < 0) {  /* plot left */
 
-        r = labs(joy);
-        x = ami_maxx(stdout)/2-floor(r*(ami_maxx(stdout)/2)/LONG_MAX+0.5);
+        r = -(double)joy;
+        x = ami_maxx(stdout)/2-floor(r*(ami_maxx(stdout)/2)/AMI_LONG_MAX+0.5);
         ami_cursor(stdout, x, line);
         while (x <= ami_maxx(stdout) / 2) {
 
@@ -522,7 +522,7 @@ static void plotjoy(ami_long line, ami_long joy)
     } else { /* plot right */
 
         r = joy;
-        x = (ami_long)floor(r * (ami_maxx(stdout) / 2) / LONG_MAX + ami_maxx(stdout) / 2 + 0.5);
+        x = (ami_long)floor(r * (ami_maxx(stdout) / 2) / AMI_LONG_MAX + ami_maxx(stdout) / 2 + 0.5);
         i = ami_maxx(stdout) / 2;
         ami_cursor(stdout, i, line);
         while (i <= x) {
