@@ -927,6 +927,9 @@ windows/graphics.o: windows/graphics.c include/graphics.h Makefile
 windows/screen_capture.o: windows/screen_capture.c Makefile
 	$(CC) $(CFLAGS) -c windows/screen_capture.c -o windows/screen_capture.o
 
+windows/terminal_capture.o: windows/terminal_capture.c Makefile
+	$(CC) $(CFLAGS) -c windows/terminal_capture.c -o windows/terminal_capture.o
+
 #
 # Mac OS X library components
 #
@@ -1571,14 +1574,16 @@ genwaveg: $(GLIBSD) sound_programs/genwave.c
 # Screen capture object (platform-dependent)
 #
 # SCREEN_CAPTURE_OBJ serves the terminal model programs, GSCREEN_CAPTURE_OBJ
-# the graphical ones. On Linux they part company: a graphical program's
-# capture is a picture, read from its own window; a terminal program's
-# screen belongs to the terminal emulator, and its capture is characters,
-# the page the terminal prints when asked (see linux/terminal_capture.c).
+# the graphical ones. On Linux and Windows they part company: a graphical
+# program's capture is a picture, read from its own window; a terminal
+# program's screen belongs to the terminal emulator, and its capture is
+# characters, the page the terminal prints when asked (see
+# linux/terminal_capture.c) or, on Windows, the console's screen buffer
+# (windows/terminal_capture.c).
 #
 ifeq ($(OSTYPE),Windows_NT)
-SCREEN_CAPTURE_OBJ = windows/screen_capture.o
-GSCREEN_CAPTURE_OBJ = $(SCREEN_CAPTURE_OBJ)
+SCREEN_CAPTURE_OBJ = windows/terminal_capture.o
+GSCREEN_CAPTURE_OBJ = windows/screen_capture.o
 else ifeq ($(OSTYPE),Darwin)
 SCREEN_CAPTURE_OBJ = macosx/screen_capture.o
 GSCREEN_CAPTURE_OBJ = $(SCREEN_CAPTURE_OBJ)
@@ -1609,11 +1614,6 @@ CLIBSC = $(subst ami_term.,ami_termc.,$(CLIBS))
 ifeq ($(OSTYPE),Darwin)
 terminal_test: $(CLIBSD) tests/terminal_test.c tests/auto_eventt.o $(SCREEN_CAPTURE_OBJ)
 	$(CC) $(CFLAGS) tests/terminal_test.c tests/auto_eventt.o $(SCREEN_CAPTURE_OBJ) $(CLIBS) -o bin/terminal_test
-else ifeq ($(OSTYPE),Windows_NT)
-# Windows screen capture uses GDI, not X11, so libpng/zlib are required but
-# libX11 is not linked.
-terminal_test: $(CLIBSD) tests/terminal_test.c tests/auto_eventt.o $(SCREEN_CAPTURE_OBJ)
-	$(CC) $(CFLAGS) tests/terminal_test.c tests/auto_eventt.o $(SCREEN_CAPTURE_OBJ) $(CLIBS) -lpng -lz -o bin/terminal_test
 else
 terminal_test: $(CLIBSD) tests/terminal_test.c tests/auto_eventt.o $(SCREEN_CAPTURE_OBJ)
 	$(CC) $(CFLAGS) tests/terminal_test.c tests/auto_eventt.o $(SCREEN_CAPTURE_OBJ) $(CLIBS) -o bin/terminal_test
@@ -1703,9 +1703,6 @@ endif
 ifeq ($(OSTYPE),Darwin)
 terminal_testc: $(LIBPFX)termc$(LIBEXT) tests/terminal_test.c tests/auto_eventt.o $(SCREEN_CAPTURE_OBJ)
 	$(CC) $(CFLAGS) tests/terminal_test.c tests/auto_eventt.o $(SCREEN_CAPTURE_OBJ) $(CLIBSC) -o bin/terminal_testc
-else ifeq ($(OSTYPE),Windows_NT)
-terminal_testc: $(LIBPFX)termc$(LIBEXT) tests/terminal_test.c tests/auto_eventt.o $(SCREEN_CAPTURE_OBJ)
-	$(CC) $(CFLAGS) tests/terminal_test.c tests/auto_eventt.o $(SCREEN_CAPTURE_OBJ) $(CLIBSC) -lpng -lz -o bin/terminal_testc
 else
 terminal_testc: $(LIBPFX)termc$(LIBEXT) tests/terminal_test.c tests/auto_eventt.o $(SCREEN_CAPTURE_OBJ)
 	$(CC) $(CFLAGS) tests/terminal_test.c tests/auto_eventt.o $(SCREEN_CAPTURE_OBJ) $(CLIBSC) -o bin/terminal_testc
@@ -1741,9 +1738,6 @@ endif
 ifeq ($(OSTYPE),Darwin)
 window_testc: $(LIBPFX)termc$(LIBEXT) tests/window_testc.c $(SCREEN_CAPTURE_OBJ)
 	$(CC) $(CFLAGS) tests/window_testc.c $(SCREEN_CAPTURE_OBJ) $(CLIBSC) -o bin/window_testc
-else ifeq ($(OSTYPE),Windows_NT)
-window_testc: $(LIBPFX)termc$(LIBEXT) tests/window_testc.c $(SCREEN_CAPTURE_OBJ)
-	$(CC) $(CFLAGS) tests/window_testc.c $(SCREEN_CAPTURE_OBJ) $(CLIBSC) -lpng -lz -o bin/window_testc
 else
 window_testc: $(LIBPFX)termc$(LIBEXT) tests/window_testc.c $(SCREEN_CAPTURE_OBJ)
 	$(CC) $(CFLAGS) tests/window_testc.c $(SCREEN_CAPTURE_OBJ) $(CLIBSC) -o bin/window_testc

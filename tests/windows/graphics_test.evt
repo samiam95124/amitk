@@ -1,0 +1,78 @@
+# Events for the automatic run of graphics_test on Windows: see
+# doc/auto_events.md, and tests/graphics_test.evt, whose events these are.
+# The syncs are Windows's: the font list test pages through the platform's
+# fonts, of which Windows has twenty pages more than the Linux desktops, so
+# every pattern after it is twenty frames on.
+
+# The real keyboard, mouse and joystick are set aside for the run
+keyboardoff
+mouseoff
+joystickoff
+
+# Graphical scrolling test: the arrows scroll the grid, ten steps each way
+sync 166
+up
+up
+up
+up
+up
+up
+up
+up
+up
+up
+down
+down
+down
+down
+down
+down
+down
+down
+down
+down
+left
+left
+left
+left
+left
+left
+left
+left
+left
+left
+right
+right
+right
+right
+right
+right
+right
+right
+right
+right
+enter
+
+# Graphical mouse movement test: the mouse draws a box and a diagonal
+sync 167
+moumovg 1 200 200
+moumovg 1 1100 200
+moumovg 1 1100 700
+moumovg 1 200 700
+moumovg 1 200 200
+moumovg 1 1100 700
+enter
+
+# View drawing scale test: zoom in twice and out once, pan left, right, up
+# and down
+sync 171
+pagu
+pagu
+pagd
+left
+left
+right
+up
+up
+down
+enter

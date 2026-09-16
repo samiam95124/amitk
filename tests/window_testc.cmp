@@ -7054,8 +7054,8 @@ Child windows place and remove 100 iterations * seconds
  ╠════════════════════════════════════════════════════════════════════════════════╣
  ║Child windows should all be closeder                                            ║
  ║                                                                                ║
- ║Child windows place and remove 100 iterations * seconds                  ║
- ║* per iteration                                                          ║
+ ║Child windows place and remove 100 iterations * seconds *║
+ ║* per iteration *║
  ║                                                                                ║
  ║                                                                                ║
  ║                                                                                ║

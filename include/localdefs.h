@@ -11,6 +11,8 @@
 #ifndef __LOCALDEFS_H__
 #define __LOCALDEFS_H__
 
+#include <limits.h>
+
 #ifdef __cplusplus
 extern "C" {
 #endif
@@ -41,6 +43,15 @@ typedef unsigned long      ami_ulong;
    satisfied everywhere and the width is the same everywhere. */
 #define AMI_LONG_CAST  (long long)
 #define AMI_ULONG_CAST (unsigned long long)
+
+/* The largest ami_long, which is the full scale of the values the API ratios to
+   the machine word, such as a joystick axis: the largest of the type ami_long
+   is on the host. */
+#ifdef _WIN64
+#define AMI_LONG_MAX LLONG_MAX
+#else
+#define AMI_LONG_MAX LONG_MAX
+#endif
 typedef unsigned char byte; /* byte */
 
 #ifdef __cplusplus

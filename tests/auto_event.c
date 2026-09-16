@@ -52,8 +52,9 @@
 * a beat: auto_event_step() says one when the line has run its course, which   *
 * is when a test captures a step. Keys are given as keycodes, so a character   *
 * is a key of the US layout, letters, digits and the unshifted punctuation.    *
-* Where there is no rig (the remote client, the terminal, the framebuffer) the *
-* events go to the program directly, as the widget and menu events always do.  *
+* Where there is no rig (the remote client, the terminal, the framebuffer,     *
+* Windows) the events go to the program directly, as the widget and menu       *
+* events always do.                                                            *
 * While the seat is in use the rig holds it, and the display ignores the       *
 * desk's own pointer and keyboard: keyboardoff and mouseoff are moot.          *
 *                                                                              *
@@ -91,6 +92,11 @@
 #else
 #include <graphics.h>
 #include <localdefs.h>
+#endif
+
+/* the seat rig is a fifo to the Wayland or X display layer: Windows has none */
+#if !defined(AUTO_EVENT_TERMINAL) && !defined(_WIN32)
+#define AUTO_EVENT_SEAT
 #include <sys/types.h>
 #include <sys/stat.h>
 #include <fcntl.h>
@@ -182,7 +188,7 @@ static int        skipping;     /* the events of a frame passed by are
                                    skipped, to the next sync */
 static int        skipped;      /* events skipped that way */
 
-#ifndef AUTO_EVENT_TERMINAL
+#ifdef AUTO_EVENT_SEAT
 /* The seat rig lives in the Wayland display layer: its presence in the
    link says there is one. The remote client and the framebuffer have none */
 extern void pd_evtpost(void) __attribute__((weak));
@@ -460,7 +466,7 @@ static int dropped(ami_evtrec* er)
 
 {
 
-#ifndef AUTO_EVENT_TERMINAL
+#ifdef AUTO_EVENT_SEAT
     if (seatfd >= 0 && er->etype != ami_etjoyba && er->etype != ami_etjoybd &&
         er->etype != ami_etjoymov) return (0); /* the seat's are the file's */
 #endif
@@ -512,10 +518,16 @@ void auto_event_beside(const char* capfile, const char* name)
 {
 
     const char* sl = strrchr(capfile, '/');
+#ifdef _WIN32
+    const char* bs = strrchr(capfile, '\\'); /* a Windows path */
+#endif
     size_t      dl = sl ? (size_t)(sl-capfile+1) : 0;
 
     char nm[250];
 
+#ifdef _WIN32
+    if (bs && (!sl || bs > sl)) { sl = bs; dl = (size_t)(sl-capfile+1); }
+#endif
     if (dl+strlen(name) >= sizeof(nm)) dl = 0; /* too long: the name alone */
     memcpy(nm, capfile, dl);
     strcpy(nm+dl, name);
@@ -564,7 +576,7 @@ int auto_event_ready(void)
 
 }
 
-#ifndef AUTO_EVENT_TERMINAL
+#ifdef AUTO_EVENT_SEAT
 
 /* The seat: opened at the first mouse or key event, when the display layer
    carries a rig. A fifo of this process's own is made and named to the
@@ -827,13 +839,13 @@ static void auto_event_fini(void)
 
 {
 
-#ifndef AUTO_EVENT_TERMINAL
+#ifdef AUTO_EVENT_SEAT
     if (seatfd >= 0) { close(seatfd); unlink(seatfn); }
 #endif
     /* skipped events are reported where the seat is in use: without one a
        key that would have gone to a widget ends a pattern's loop early,
        and its leftovers are skipped as a matter of course */
-#ifndef AUTO_EVENT_TERMINAL
+#ifdef AUTO_EVENT_SEAT
     if (skipped && (seatfd >= 0 || trace))
 #else
     if (skipped && trace)

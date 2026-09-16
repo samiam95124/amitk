@@ -47,7 +47,9 @@
 # the text tests, with the timing figures masked. It runs from the sandbox
 # tests/terminal, whose configuration turns the joysticks off, so the
 # standard is of no machine in particular. It is skipped where there is no
-# xterm or Xvfb. terminal_testc is the same test run through windowc over
+# xterm or Xvfb; on Windows it runs in a console of its own, sized alike, whose
+# screen buffer the capture reads (windows/terminal_capture.c).
+# terminal_testc is the same test run through windowc over
 # terminal, which presents the terminal API transparently when the program
 # opens no windows of its own, so it is judged against terminal_test's
 # standard: --update on either regenerates the one standard.
@@ -214,9 +216,11 @@ fi
 #   before is theirs too. The stars the timer test prints, one per event
 #   while it waits for each of its hundred samples, are masked on that
 #   page: an event beside the timer's, which the manager can add, is one
-#   more star
+#   more star. The dots of the framing timer test, one per event while it
+#   waits for each of its ten frames, are masked the same way
 # - the timing of window_testc's child window torture test, in seconds
-#   and per iteration
+#   and per iteration, with the blanks that pad the line out to the
+#   window's border: a wider figure takes its room from them
 #
 mask()
 {
@@ -243,8 +247,9 @@ mask()
         -e 's|^(\f?Scrolling speed: ).*|\1*|' \
         -e 's|^(\f?Buffer switch speed: ).*|\1*|' \
         -e '/^\f?Timer test, measuring/,/^Average time was:/ s|^\*+$|*|' \
-        -e 's|(place and remove [0-9]+ iterations )[0-9]+\.[0-9]+( seconds)|\1*\2|' \
-        -e 's|[0-9]+\.[0-9]+( per iteration)|*\1|'
+        -e '/^\f?Framing timer test, measuring/,/^Average time was:/ s|^\.+$|*|' \
+        -e 's|(place and remove [0-9]+ iterations )[0-9]+\.[0-9]+( seconds) +|\1*\2 *|' \
+        -e 's|[0-9]+\.[0-9]+( per iteration) +|*\1 *|'
 
 }
 
@@ -322,29 +327,59 @@ runtest()
         # The test runs in the sandbox, where the joysticks are configured
         # off and where the file its writethrough test makes lands.
         rm -f "tests/$1.lst" "tests/$1.dpy" tests/terminal/testfile
-        Xvfb -displayfd 3 -screen 0 800x600x24 3> "tests/$1.dpy" \
-            > /dev/null 2>&1 &
-        xvfbpid=$!
-        for i in 1 2 3 4 5 6 7 8 9 10 11 12 13 14 15 16 17 18 19 20; do
-            [ -s "tests/$1.dpy" ] && break
-            sleep 0.5
-        done
-        dpy=$(cat "tests/$1.dpy")
         geom=80x24
         if [ "$1" = "window_testc" ]; then geom=132x50; fi
-        if [ -n "$dpy" ]; then
-            (cd tests/terminal && \
-             DISPLAY=":$dpy" timeout 300 xterm -geometry "$geom" \
-                 -xrm "*printerCommand: cat >> $root/tests/$1.lst" \
-                 -xrm '*printAttributes: 0' \
-                 -xrm '*printerAutoClose: true' \
-                 -e "$root/$(binof "$1")" auto "$root/tests/$1.lst") \
-                 > "tests/$1.out" 2>&1
+        if [ "$plat" = "windows" ]; then
+
+            # Windows: a console of its own, sized alike, that the test
+            # draws in and the capture module reads the screen of (see
+            # windows/terminal_capture.c). bin/conrun.bat opens it and
+            # waits for the test; the console is the program's standard
+            # output, so only its standard error is kept. terminal_testc is
+            # given twenty minutes: windowc over the Windows terminal port
+            # scrolls the console character by character, and its walk
+            # takes a quarter of an hour.
+            lim=300
+            if [ "$1" = "terminal_testc" ]; then lim=1200; fi
+            timeout $lim "$(cygpath -u "$SYSTEMROOT")/System32/cmd.exe" //c "$(cygpath -w "$root/bin/conrun.bat")" \
+                "${geom%x*}" "${geom#*x}" "$(cygpath -w "$root/tests/terminal")" \
+                "$(cygpath -w "$root/$(binof "$1")")" \
+                "$(cygpath -w "$root/tests/$1.lst")" \
+                "$(cygpath -w "$root/tests/$1.out")"
+            if [ $? = 124 ]; then
+
+                # the limit kills the cmd that opened the console, not the
+                # test in it, which would walk on into the next test's turn
+                "$(cygpath -u "$SYSTEMROOT")/System32/taskkill.exe" //F //IM \
+                    "$(basename "$(binof "$1")")" > /dev/null 2>&1
+
+            fi
+
         else
-            echo "Xvfb did not start" > "tests/$1.out"
+
+            Xvfb -displayfd 3 -screen 0 800x600x24 3> "tests/$1.dpy" \
+                > /dev/null 2>&1 &
+            xvfbpid=$!
+            for i in 1 2 3 4 5 6 7 8 9 10 11 12 13 14 15 16 17 18 19 20; do
+                [ -s "tests/$1.dpy" ] && break
+                sleep 0.5
+            done
+            dpy=$(cat "tests/$1.dpy")
+            if [ -n "$dpy" ]; then
+                (cd tests/terminal && \
+                 DISPLAY=":$dpy" timeout 300 xterm -geometry "$geom" \
+                     -xrm "*printerCommand: cat >> $root/tests/$1.lst" \
+                     -xrm '*printAttributes: 0' \
+                     -xrm '*printerAutoClose: true' \
+                     -e "$root/$(binof "$1")" auto "$root/tests/$1.lst") \
+                     > "tests/$1.out" 2>&1
+            else
+                echo "Xvfb did not start" > "tests/$1.out"
+            fi
+            kill "$xvfbpid" 2> /dev/null
+            wait "$xvfbpid" 2> /dev/null
+
         fi
-        kill "$xvfbpid" 2> /dev/null
-        wait "$xvfbpid" 2> /dev/null
         rm -f "tests/$1.dpy" tests/terminal/testfile
         # blanks at the end of a line are not on the screen: the terminal
         # prints a line as far as it was written, and the manager paints
@@ -474,7 +509,8 @@ for t in $tests; do
         continue
 
     fi
-    if { [ "$t" = "terminal_test" ] || [ "$t" = "terminal_testc" ] || \
+    if [ -z "$plat" ] && \
+       { [ "$t" = "terminal_test" ] || [ "$t" = "terminal_testc" ] || \
          [ "$t" = "window_testc" ]; } && \
        { ! command -v xterm > /dev/null 2>&1 || \
          ! command -v Xvfb > /dev/null 2>&1; }; then
@@ -492,8 +528,18 @@ for t in $tests; do
 
     fi
     # the event file that applies, for the test's automatic run: named
-    # from the root, since a test may run from a sandbox of its own
-    AUTO_EVENT_FILE="$(findfile "$t" "$t.evt")"
+    # from the root, since a test may run from a sandbox of its own.
+    # terminal_testc is terminal_test through windowc, and takes its file
+    # as it takes its standard; a remote test is its test drawn through
+    # the server on this machine, and takes the test's file, since the
+    # frames the file syncs to are the display's, and the display is this
+    # platform's
+    case "$t" in
+    terminal_testc) evtof="terminal_test" ;;
+    graphics_testr|window_testr|widget_testr) evtof="${t%r}" ;;
+    *) evtof="$t" ;;
+    esac
+    AUTO_EVENT_FILE="$(findfile "$evtof" "$evtof.evt")"
     [ -n "$AUTO_EVENT_FILE" ] && AUTO_EVENT_FILE="$root/$AUTO_EVENT_FILE"
     export AUTO_EVENT_FILE
     runtest "$t"
