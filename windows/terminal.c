@@ -240,7 +240,7 @@ static struct {
     int han; /* handle for timer */
     int rep; /* timer repeat flag */
 
-} timers[10];
+} timers[AMI_MAXTIM+1]; /* by handle, 1 to AMI_MAXTIM */
 
 static CONSOLE_SCREEN_BUFFER_INFO bi; /* screen buffer info structure */
 static CONSOLE_CURSOR_INFO        ci; /* console cursor info structure */
@@ -2494,6 +2494,10 @@ static void itimer(ami_long i, /* timer handle */
     /* set repeat/one shot status */
     if (r) tf = tf | TIME_PERIODIC;
     else tf = tf | TIME_ONESHOT;
+    /* a timer still under the handle, rearmed, would run on beside the new
+       one and post its events; a one shot that has matured is gone already,
+       and the kill of it is refused, harmlessly */
+    if (timers[i].han) timeKillEvent(timers[i].han);
     timers[i].han = timeSetEvent(mt, 0, timeout, i, tf);
     timers[i].rep = r; /* set timer repeat flag */
     /* should check and return an error */
@@ -2523,8 +2527,10 @@ void killtimer_ivf(FILE* f, /* file to kill timer on */
 
     MMRESULT r; /* return value */
 
-    r = timeKillEvent(timers[i].han); /* kill timer */
+    if (timers[i].han) r = timeKillEvent(timers[i].han); /* kill timer */
     /* should check for return error */
+    timers[i].han = 0; /* set no active timer */
+    timers[i].rep = 0;
 
 }
 
@@ -3605,7 +3611,7 @@ static void ami_init_terminal(void)
     inpptr = -1; /* set no input line active */
     frmrun = 0; /* set framing timer not running */
     /* clear timer repeat array */
-    for (ti = 1; ti <= 10; ti++) {
+    for (ti = 1; ti <= AMI_MAXTIM; ti++) {
 
         timers[ti].han = 0; /* set no active timer */
         timers[ti].rep = 0; /* set no repeat */
