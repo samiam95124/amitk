@@ -73,6 +73,7 @@
 
 #include <windows.h>
 #include <limits.h>
+#include <stdlib.h>
 
 #include <services.h> /* the header for this file */
 
@@ -153,6 +154,9 @@ static void error(char *s)
 
     fprintf(stderr, "\nError: Services: %s\n", s);
 
+    /* under diagnosis, die where it happened: the crash dump reports the
+       stack of this thread */
+    if (getenv("AMI_ERRABORT")) abort();
     exit(1);
 
 }

@@ -300,6 +300,9 @@ static void netwrterr(const char* s)
     fprintf(stderr, "\nError: Network: %s\n", s);
 
     if (neterrhan) neterrhan(s);
+    /* under diagnosis, die where it happened: the crash dump reports the
+       stack of this thread */
+    if (getenv("AMI_ERRABORT")) abort();
     exit(1);
 
 }

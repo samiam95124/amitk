@@ -73,7 +73,7 @@ int main(int argc, char* argv[])
     const char* how = argc > 1? argv[1]: "divide";
 
     zero = argc-argc;     /* zero, but not to the compiler */
-    nowhere = (int*)(long)(argc-argc);
+    nowhere = (int*)(ami_long)(argc-argc);
 
     return (outer(how));
 
