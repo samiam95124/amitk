@@ -1095,16 +1095,43 @@ ifeq ($(OSTYPE),Windows_NT)
 # Windows cannot use .so files, but rather uses statically linked files that
 # reference .dlls at runtime.
 #
+# CRASHDUMP: a program that takes a fatal signal or exception reports it,
+# with the stack of the thread that took it, before it goes down; see
+# linux/crashdump.c and windows/crashdump.c. On by default on Linux and
+# Windows. Linux links the programs with --export-dynamic so the stack
+# carries names. CRASHDUMP=0 leaves it out. The library rules take the
+# object as a prerequisite, so it is settled here, ahead of them.
+#
+ifndef CRASHDUMP
+    CRASHDUMP=1
+endif
+ifeq ($(CRASHDUMP),1)
+    ifeq ($(OSTYPE),Windows_NT)
+        CRASHDUMP_OBJ = windows/crashdump.o
+    else ifneq ($(OSTYPE),Darwin)
+        CRASHDUMP_OBJ = linux/crashdump.o
+        CFLAGS += -Wl,--export-dynamic
+    endif
+endif
+
+linux/crashdump.o: linux/crashdump.c Makefile
+	$(CC) $(CFLAGS) -c linux/crashdump.c -o linux/crashdump.o
+
+windows/crashdump.o: windows/crashdump.c Makefile
+	$(CC) $(CFLAGS) -c windows/crashdump.c -o windows/crashdump.o
+
 lib/libami_plain.a: windows/services.o windows/sound.o windows/network.o \
-	utils/option.o utils/config.o windows/stdio.o
+	utils/option.o utils/config.o windows/stdio.o $(CRASHDUMP_OBJ)
 	ar rcs lib/libami_plain.a windows/services.o windows/sound.o \
-        windows/network.o utils/config.o utils/option.o windows/stdio.o
+        windows/network.o utils/config.o utils/option.o windows/stdio.o \
+        $(CRASHDUMP_OBJ)
 	
 lib/libami_term.a: windows/services.o windows/sound.o windows/network.o \
-    windows/terminal.o portable/txtterminal.o utils/config.o utils/option.o windows/stdio.o
+    windows/terminal.o portable/txtterminal.o utils/config.o utils/option.o windows/stdio.o \
+    $(CRASHDUMP_OBJ)
 	ar rcs lib/libami_term.a windows/services.o windows/sound.o \
 	    windows/network.o windows/terminal.o portable/txtterminal.o utils/config.o utils/option.o \
-	    windows/stdio.o
+	    windows/stdio.o $(CRASHDUMP_OBJ)
 	
 # The termc variant is the terminal library with the character mode window
 # manager (windowc) always included. windowc is constructor-registered and
@@ -1116,17 +1143,17 @@ lib/libami_term.a: windows/services.o windows/sound.o windows/network.o \
 #
 lib/libami_termc.a: windows/services.o windows/sound.o windows/network.o \
     windows/terminal.o portable/txtterminal.o portable/windowc.o utils/config.o utils/option.o \
-    windows/stdio.o
+    windows/stdio.o $(CRASHDUMP_OBJ)
 	ar rcs lib/libami_termc.a windows/services.o windows/sound.o \
 	    windows/network.o windows/terminal.o portable/txtterminal.o portable/windowc.o \
-	    utils/config.o utils/option.o windows/stdio.o
+	    utils/config.o utils/option.o windows/stdio.o $(CRASHDUMP_OBJ)
 	
 lib/libami_graph.a: windows/services.o windows/sound.o windows/network.o \
     windows/graphics.o portable/pdfgraph.o utils/config.o utils/option.o \
-    windows/stdio.o
+    windows/stdio.o $(CRASHDUMP_OBJ)
 	ar rcs lib/libami_graph.a windows/services.o windows/sound.o \
 	    windows/network.o windows/graphics.o portable/pdfgraph.o \
-	    utils/config.o utils/option.o windows/stdio.o
+	    utils/config.o utils/option.o windows/stdio.o $(CRASHDUMP_OBJ)
 	
 else ifeq ($(OSTYPE),Darwin)
 
@@ -1285,25 +1312,6 @@ lib/petit_ami_graph.so: $(LINUXSTDIO) linux/services.o $(CRASHDUMP_OBJ) linux/ne
 lib/sound.o: linux/sound.o linux/fluidsynthplug.o linux/dumpsynthplug.o
 	ld -r -o lib/sound.o \
 	    linux/sound.o linux/fluidsynthplug.o linux/dumpsynthplug.o
-
-# CRASHDUMP: a program that takes a fatal signal reports it, with the
-# stack of the thread that took it, before the core is made; see
-# linux/crashdump.c. On by default on Linux. It links the programs with
-# --export-dynamic so the stack carries names. CRASHDUMP=0 leaves it out.
-ifndef CRASHDUMP
-    CRASHDUMP=1
-endif
-ifeq ($(CRASHDUMP),1)
-    ifneq ($(OSTYPE),Windows_NT)
-    ifneq ($(OSTYPE),Darwin)
-        CRASHDUMP_OBJ = linux/crashdump.o
-        CFLAGS += -Wl,--export-dynamic
-    endif
-    endif
-endif
-
-linux/crashdump.o: linux/crashdump.c Makefile
-	$(CC) $(CFLAGS) -c linux/crashdump.c -o linux/crashdump.o
 
 # the model cores
 CORE_COMMON = $(LINUXSTDIO) linux/services.o utils/config.o utils/option.o $(CRASHDUMP_OBJ)
@@ -2475,10 +2483,11 @@ help:
 	@echo "                      -march=native for the last measure"
 	@echo "  LINK_TYPE=static|dynamic"
 	@echo "                      library linkage, default static"
-	@echo "  CRASHDUMP=1|0       a fatal signal is reported with the stack"
-	@echo "                      of the thread that took it, before the"
-	@echo "                      core; default 1 on Linux (see"
-	@echo "                      linux/crashdump.c). At run time"
+	@echo "  CRASHDUMP=1|0       a fatal signal or exception is reported with"
+	@echo "                      the stack of the thread that took it, before"
+	@echo "                      it goes down; default 1 on Linux and Windows"
+	@echo "                      (see linux/crashdump.c, windows/crashdump.c)."
+	@echo "                      At run time"
 	@echo "                      AMI_ERRABORT=1 in the environment makes"
 	@echo "                      a library error abort there, for the"
 	@echo "                      dump; AMI_CRASHDUMP=0 turns the dump off"

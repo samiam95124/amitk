@@ -66,6 +66,7 @@
 #include <string.h>
 #include <math.h>
 #include <stdio.h>
+#include <stdlib.h>
 #include <windows.h>
 #include <commctrl.h>
 
@@ -294,6 +295,9 @@ static void error(const string s)
 
     fprintf(stderr, "*** Sound: %s\n", s);
 
+    /* under diagnosis, die where it happened: the crash dump reports the
+       stack of this thread */
+    if (getenv("AMI_ERRABORT")) abort();
     exit(1);
 
 }

@@ -1161,6 +1161,9 @@ static void error(errcod e)
 
     }
 
+    /* under diagnosis, die where it happened: the crash dump reports the
+       stack of this thread */
+    if (getenv("AMI_ERRABORT")) abort();
     abortm(); /* abort module */
 
 }
@@ -1194,6 +1197,9 @@ static void winerr(void)
     fprintf(stderr, "\n");
     lockmain(); /* resume exclusive access */
 
+    /* under diagnosis, die where it happened: the crash dump reports the
+       stack of this thread */
+    if (getenv("AMI_ERRABORT")) abort();
     abortm(); /* abort module */
 
 }
