@@ -3188,6 +3188,9 @@ static void restore(winptr win,   /* window to restore */
     if (win->bufmod && win->visible)  { /* buffered mode is on, and visible */
 
         curoff(win); /* hide the cursor for drawing */
+        /* the transient test below reads the last error: a code left by an
+           earlier call on this thread must not pose as a fresh fault */
+        SetLastError(0);
         /* set colors and attributes */
         if (BIT(sarev) & sc->attr)  { /* reverse */
 
@@ -10617,7 +10620,12 @@ static void clswin(int fn)
     if (win->joy1cap) r = joyReleaseCapture(JOYSTICKID1);
     if (win->joy2cap) r = joyReleaseCapture(JOYSTICKID2);
     kilwin(win->winhan); /* kill window */
-    win->devcon = NULL; /* the window's own context went with it */
+    /* The window is gone, and its handle and its own device context with it.
+       Both are cleared here, not at the file's close, which comes later:
+       Windows can reuse the handle value at once for another window, and a
+       message for that window must not find this record by it. */
+    win->winhan = NULL;
+    win->devcon = NULL;
 
 }
 
