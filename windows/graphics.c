@@ -718,11 +718,12 @@ CRITICAL_SECTION mainlock;     /* main task lock: the gate above the leaf locks 
    nothing else while it waits. */
 static void lockwin(winptr win)   { EnterCriticalSection(&win->lock); }
 static void unlockwin(winptr win) { LeaveCriticalSection(&win->lock); }
-/* The display thread never waits for a window's lock: the owner of the window
-   may hold it while it waits on the display thread, inside a Windows call
-   that sends to the window, or closing it. The display thread tries the lock
-   and, finding the owner busy, leaves the paint for the next or the caret as
-   it is. */
+/* The event wait, a gate holder, tries a window's lock rather than waiting for
+   it, and defers the message when the owner is busy: the owner may be waiting
+   on the display thread, and the display thread on the gate, and a gate
+   holder that waited on the owner would close that ring. No thread holds a
+   window's lock across a wait on the display thread otherwise, so the display
+   thread's own handlers can take the lock outright. */
 static int  trylockwin(winptr win) { return (TryEnterCriticalSection(&win->lock) != 0); }
 static void locktbl(void)         { EnterCriticalSection(&tbllock); }
 static void unlocktbl(void)       { LeaveCriticalSection(&tbllock); }
@@ -736,6 +737,7 @@ static ami_pevthan evtshan;     /* single master event handler routine */
   is checked,  forces an immediate exit. This keeps faults from
   looping. */
 static int       dblflt;       /* double fault flag */
+static int       aborting;     /* the module is aborting: waits on the display thread are off */
 
 /* config settable runtime options */
 static int maxxd;     /* default window dimensions */
@@ -1089,6 +1091,7 @@ static void abortm(void)
     if (!dblflt)  { /* we haven"t already exited */
 
         dblflt = TRUE; /* set we already exited */
+        aborting = TRUE; /* the closes below post their destroys and do not wait */
         /* close all open files and windows */
         for (fi = 0; fi < MAXFIL; fi++)
             if (opnfil[fi] && opnfil[fi]->win)
@@ -3254,16 +3257,28 @@ static void winvis(winptr win)
 
     int    b;   /* int result holder */
     winptr par; /* parent window pointer */
+    int    pl;  /* the parent's logical file */
 
+    /* The caller holds this window's lock, and gets it back. It is released
+       before anything here that hands control to the display thread, the
+       parent's show and this window's, since the display thread's handlers
+       may want it, and a thread that waits on the display thread while
+       holding a window's lock can close a ring: a gate holder waiting on
+       that lock, the display thread waiting on the gate. */
+    pl = win->parlfn;
+    unlockwin(win); /* end exclusive access */
     /* If we are making a child window visible, we have to also force its
-       parent visible. This is recursive all the way up. */
-    if (win->parlfn >= 0) {
+       parent visible. This is recursive all the way up. The parent is
+       another window: its lock is taken only with this window's released,
+       so no thread holds two windows' locks at once. */
+    if (pl >= 0) {
 
-        par = lfn2win(win->parlfn); /* get parent data */
+        par = lfn2win(pl); /* get parent data */
+        lockwin(par);
         if (!par->visible) winvis(par); /* make visible if not */
+        unlockwin(par);
 
     }
-    unlockwin(win); /* end exclusive access */
     /* present the window */
     b = ShowWindow(win->winhan, SW_SHOWDEFAULT);
     /* send first paint message */
@@ -8744,7 +8759,21 @@ static void ievent(ami_long ifn, ami_evtrec* er)
 
             win = lfn2win(ofn); /* index window from output file */
             er->winid = filwin[ofn]; /* set window id */
-            lockwin(win); winevt(win, er, &msg, ofn, &keep); unlockwin(win); /* process messsage */
+            if (!trylockwin(win)) {
+
+                /* The window's owner holds its lock, and may be waiting on
+                   the display thread, which may be waiting on the gate held
+                   here: this thread must not wait on the owner, or the three
+                   close a ring. The message goes back to the end of the
+                   queue, to be taken when the owner is done, and the gate is
+                   let go a moment so that it can be. */
+                putmsg(msg.hwnd, msg.message, msg.wParam, msg.lParam);
+                unlockmain(); Sleep(1); lockmain();
+                continue; /* to the test of the loop, which goes round */
+
+            }
+            winevt(win, er, &msg, ofn, &keep); /* process messsage */
+            unlockwin(win);
             if (!keep) sigevt(er, &msg, &keep); /* if not found, try intertask signal */
 
         } else sigevt(er, &msg, &keep); /* process signal */
@@ -10216,6 +10245,11 @@ static void kilwin(HWND wh, winptr win)
     /* order window to close */
     b = PostMessage(dispwin, UM_IM, (WPARAM)ip, 0);
     if (!b) winerr(); /* process windows error */
+    /* An abort closes every window from whatever thread found the error, which
+       may hold a window's lock the display thread needs for the close: the
+       destroy is posted and not waited for, the process being on its way out.
+       The request record is not returned; it goes with the process. */
+    if (aborting) return;
     waitim(ip, win); /* wait for window close, the caller's lock released */
     putitm(ip); /* release im */
 
@@ -15949,15 +15983,8 @@ static LRESULT CALLBACK wndproc(HWND hwnd, UINT imsg, WPARAM wparam,
         if (ofn >= 0) { /* there is a window */
 
             win = lfn2win(ofn); /* index window from output file */
-            if (!trylockwin(win)) {
-
-                /* the owner is busy with the window: the region is validated
-                   by the default paint and asked for again, so this paint
-                   comes back after the messages queued ahead of it */
-                r = DefWindowProc(hwnd, imsg, wparam, lparam);
-                InvalidateRect(hwnd, NULL, FALSE);
-
-            } else {
+            lockwin(win); /* the window's lock, held with the gate */
+            {
 
             if (win->bufmod) restore(win, FALSE); /* perform selective update */
             else { /* main task will handle it */
@@ -15992,7 +16019,8 @@ static LRESULT CALLBACK wndproc(HWND hwnd, UINT imsg, WPARAM wparam,
         if (ofn >= 0) { /* there is a window */
 
             win = lfn2win(ofn); /* index window from output file */
-            if (trylockwin(win)) { /* an owner busy with it keeps its caret as it is */
+            lockwin(win); /* the window's lock, held with the gate */
+            {
 
             /* activate caret */
             b = CreateCaret(win->winhan, 0, win->curspace, 3);
@@ -16019,7 +16047,8 @@ static LRESULT CALLBACK wndproc(HWND hwnd, UINT imsg, WPARAM wparam,
         if (ofn >= 0) { /* there is a window */
 
            win = lfn2win(ofn); /* index window from output file */
-           if (trylockwin(win)) { /* an owner busy with it keeps its caret as it is */
+           lockwin(win); /* the window's lock, held with the gate */
+           {
 
            win->focus = FALSE; /* set screen not in focus */
            curoff(win); /* hide the cursor */
