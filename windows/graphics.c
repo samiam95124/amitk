@@ -2344,8 +2344,18 @@ static int hwn2lfn(HWND hw)
     fn = -1; /* set no file found */
     for (fi = 0; fi < MAXFIL; fi++) /* search output files */
         /* has an entry, has window assigned, and matches our entry */
-        if (opnfil[fi] && opnfil[fi]->win && opnfil[fi]->win->winhan == hw)
+        if (opnfil[fi] && opnfil[fi]->win && opnfil[fi]->win->winhan == hw) {
+
+            /* Windows reuses a handle value once its window is gone, and a
+               record can still carry the old one between the destroy and the
+               close of its file. Where two records claim the handle, the one
+               whose own device context Windows says belongs to the window is
+               the live one; the plain match stands where none does. */
+            if (opnfil[fi]->win->devcon &&
+                WindowFromDC(opnfil[fi]->win->devcon) == hw) return (fi);
             fn = fi; /* found */
+
+        }
 
     return (fn); /* return result */
 
@@ -3123,7 +3133,10 @@ static int gditransient(void)
        reissued, so either is a skip rather than a fault. */
     DWORD e = GetLastError();
 
-    return (e == 0 || e == ERROR_INVALID_HANDLE);
+    /* and a window handle no longer valid: the paint was for a window that
+       is gone, or for a record that still carried its handle, and there is
+       nothing to paint */
+    return (e == 0 || e == ERROR_INVALID_HANDLE || e == ERROR_INVALID_WINDOW_HANDLE);
 
 }
 
