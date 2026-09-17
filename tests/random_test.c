@@ -336,13 +336,24 @@ static void echoserver(void)
     char     buf[MAXMSG];
 
     fn = ami_waitmsg(netport, FALSE);
-    for (;;) {
+    /* until the run stops: the poll returns every tenth of a second, so the
+       stop is seen promptly, and the socket is closed here, by its own
+       thread, before main returns and the library closes what is left */
+    while (!stop) {
 
-        while (!ami_rdymsg(fn, 100000)) ; /* until a message is there */
-        len = ami_rdmsg(fn, buf, MAXMSG);
-        if (len > 0) ami_wrmsg(fn, buf, len);
+        if (ami_rdymsg(fn, 100000)) { /* a message is there */
+
+            len = ami_rdmsg(fn, buf, MAXMSG);
+            if (len > 0) ami_wrmsg(fn, buf, len);
+
+        }
 
     }
+    ami_shutmsg(fn);
+    ami_lock(lockid); /* counted with the workers: main waits for all of them */
+    running--;
+    ami_sendsig(sigid);
+    ami_unlock(lockid);
 
 }
 
@@ -919,7 +930,7 @@ int main(int argc, char* argv[])
         ctxs[i].held = 0;
 
     }
-    running = threads;
+    running = threads+1; /* the workers, and the echo server */
     for (i = 0; i < threads; i++) ami_newthread(worker);
 
     /* the event loop: the count in the title once a second, until the
