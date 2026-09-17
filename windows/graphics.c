@@ -16606,11 +16606,19 @@ static BOOL WINAPI conhan(DWORD ct)
 
 {
 
-    /* had some issues with zombie processes, so use Windows "ultra-kill"
-       call */
-    ExitProcess(1);
+    static int asked; /* a terminate was already asked for */
 
-    //abortm(); /* abort run */
+    /* The event is the program's to act on, as a window's close is: a close
+       message with no window becomes the terminate event, and the program
+       ends its run and exits as it would have, with its threads stopped and
+       its devices closed in order. Ended from this thread with ExitProcess,
+       as it once was, a program with a sound device open, or a thread inside
+       a call to Windows, faulted in the audio driver's unload. The handler
+       returns at once: the process's exit waits for this thread to be done,
+       so it must not linger. A program that ignores the event is ended the
+       hard way by the next Ctrl-C, the usual escape. */
+    if (asked++) ExitProcess(1); /* asked before and still here */
+    putmsg(0, WM_CLOSE, 0, 0); /* the terminate event, to whichever thread reads events */
 
     return (1); /* set event handled */
 
