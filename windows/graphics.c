@@ -163,10 +163,6 @@ static enum { /* debug levels */
 #define MAXMSG    1000  /* size of input message queue */
  /* Messages defined in this module. The system message block runs from
    0x000-0x3ff, so the user mesage area starts at 0x400. */
-#define UM_MAKWIN  0x404 /* create standard window */
-#define UM_WINSTR  0x405 /* window was created */
-#define UM_CLSWIN  0x406 /* close window */
-#define UM_WINCLS  0x407 /* window was closed */
 #define UM_IM      0x408 /* intratask message */
 #define UM_EDITCR  0x409 /* edit widget sends cr */
 #define UM_NUMCR   0x410 /* number select widget sends cr */
@@ -688,8 +684,8 @@ static ami_evtrec er;           /* event record */
 static eqeptr    eqefre;       /* free event queuing entry list */
 static wigptr    wigfre;       /* free widget entry list */
 /* message input queue */
-/* the message queues' lock, kept with them: around the queue pointers of both
-   queues and the intratask request free list */
+/* the message queue's lock, kept with it: around its pointers and
+   the intratask request free list */
 static CRITICAL_SECTION msglock;
 static MSG       msgque[MAXMSG];
 static int       msginp;       /* input pointer */
@@ -698,10 +694,6 @@ static HANDLE    msgrdy;       /* message ready event */
 /* Control message queue. We send messages around for internal controls, but
   we don"t want to discard user messages to get them. So we use a separate
   queue to store control messages. */
-static MSG       imsgque[MAXMSG];
-static int       imsginp;      /* input pointer */
-static int       imsgout;      /* ouput pointer */
-static HANDLE    imsgrdy;      /* message ready event */
 /* this array stores color choices from the user in the color pick dialog */
 static COLORREF  gcolorsav[16];
 static int       fndrepmsg;    /* message assignment for find/replace */
@@ -1613,10 +1605,6 @@ static void prtmsgstr(int mn)
         /* case 0x03E8: fprintf(stderr, "WM_DDE_LAST"); break; */
 
         /* user defined codes (from this module) */
-        case UM_MAKWIN: fprintf(stderr, "UM_MAKWIN"); break;
-        case UM_WINSTR: fprintf(stderr, "UM_WINSTR"); break;
-        case UM_CLSWIN: fprintf(stderr, "UM_CLSWIN"); break;
-        case UM_WINCLS: fprintf(stderr, "UM_WINCLS"); break;
         case UM_IM:     fprintf(stderr, "UM_IM"); break;
         case UM_SNDEVT: fprintf(stderr, "UM_SNDEVT"); break;
         case UM_EDITCR: fprintf(stderr, "UM_EDITCR"); break;
@@ -2044,7 +2032,7 @@ static void getmsg(MSG* msg)
 
         lockmsg(); /* the queue's lock, around its pointers */
 
-        if (msginp == msgout && imsginp == imsgout)  {
+        if (msginp == msgout)  {
 
             /* nothing in queue */
             unlockmsg(); /* the queue is let go for the wait */
@@ -2069,80 +2057,6 @@ static void getmsg(MSG* msg)
     } while (!f); /* until we have a message */
 
 //dbg_printf(dlinfo, "Message: "); prtmsg(msg);
-
-}
-
-/*******************************************************************************
-
-Place message entry in control queue
-
-Places a message into the control input queue. If the queue is full, overwrites
-the oldest event.
-
-*******************************************************************************/
-
-static void iputmsg(HWND hwnd, UINT msg, WPARAM wparam, LPARAM lparam)
-
-{
-
-    int b;
-
-    lockmain(); /* start exclusive access */
-    /* if the queue is full, dump the oldest entry */
-    if (next(imsginp) == imsgout) imsgout = next(imsgout);
-    imsgque[imsginp].hwnd = hwnd; /* place windows handle */
-    imsgque[imsginp].message = msg; /* place message code */
-    imsgque[imsginp].wParam = wparam; /* place parameters */
-    imsgque[imsginp].lParam = lparam;
-    imsginp = next(imsginp); /* advance input pointer */
-    b = SetEvent(imsgrdy); /* flag message ready */
-    unlockmain(); /* end exclusive access */
-
-}
-
-/*******************************************************************************
-
-Get next message from control queue
-
-Retrives the next message from the control queue. Waits if the queue is
-empty. Queue empty should be checked before calling this routine, which is
-indicated by imsginp == imsgout.
-
-*******************************************************************************/
-
-static void igetmsg(MSG* msg)
-
-{
-
-    int b; /* int result holder */
-    int   f; /* found message flag */
-    DWORD r; /* result */
-
-    f = FALSE; /* set no message found */
-    /* It should not happen, but if we get a FALSE signal, loop waiting for
-       signal, and don"t leave until we get a TRUE message. */
-    do { /* wait for message */
-
-        if (imsginp == imsgout)  {
-
-            /* nothing in queue */
-            unlockmain(); /* end exclusive access */
-            r = WaitForSingleObject(imsgrdy, -1); /* wait for next event */
-            if (r == -1) winerr(); /* process windows error */
-            b = ResetEvent(imsgrdy); /* flag message not ready */
-            lockmain(); /* start exclusive access */
-
-        };
-        /* retrive messages from the control queue first */
-        if (imsginp != imsgout)  { /* queue not empty */
-
-            memcpy(msg, &imsgque[imsgout], sizeof(MSG)); /* get next message */
-            imsgout = next(imsgout); /* advance output pointer */
-            f = TRUE; /* found a message */
-
-        }
-
-    } while (!f); /* until we have a message */
 
 }
 
@@ -17112,9 +17026,6 @@ static void ami_init_graph()
     msginp = 0; /* clear message input queue */
     msgout = 0;
     msgrdy = CreateEvent(NULL, TRUE, FALSE, NULL); /* create message event */
-    imsginp = 0; /* clear control message message input queue */
-    imsgout = 0;
-    imsgrdy = CreateEvent(NULL, TRUE, FALSE, NULL); /* create message event */
     InitializeCriticalSection(&mainlock); /* initialize the sequencer lock */
     InitializeCriticalSection(&tbllock); /* the file tables' lock */
     InitializeCriticalSection(&msglock); /* the message queues' lock */
