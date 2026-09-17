@@ -2344,18 +2344,8 @@ static int hwn2lfn(HWND hw)
     fn = -1; /* set no file found */
     for (fi = 0; fi < MAXFIL; fi++) /* search output files */
         /* has an entry, has window assigned, and matches our entry */
-        if (opnfil[fi] && opnfil[fi]->win && opnfil[fi]->win->winhan == hw) {
-
-            /* Windows reuses a handle value once its window is gone, and a
-               record can still carry the old one between the destroy and the
-               close of its file. Where two records claim the handle, the one
-               whose own device context Windows says belongs to the window is
-               the live one; the plain match stands where none does. */
-            if (opnfil[fi]->win->devcon &&
-                WindowFromDC(opnfil[fi]->win->devcon) == hw) return (fi);
+        if (opnfil[fi] && opnfil[fi]->win && opnfil[fi]->win->winhan == hw)
             fn = fi; /* found */
-
-        }
 
     return (fn); /* return result */
 
@@ -3133,10 +3123,7 @@ static int gditransient(void)
        reissued, so either is a skip rather than a fault. */
     DWORD e = GetLastError();
 
-    /* and a window handle no longer valid: the paint was for a window that
-       is gone, or for a record that still carried its handle, and there is
-       nothing to paint */
-    return (e == 0 || e == ERROR_INVALID_HANDLE || e == ERROR_INVALID_WINDOW_HANDLE);
+    return (e == 0 || e == ERROR_INVALID_HANDLE);
 
 }
 
@@ -3201,6 +3188,9 @@ static void restore(winptr win,   /* window to restore */
     if (win->bufmod && win->visible)  { /* buffered mode is on, and visible */
 
         curoff(win); /* hide the cursor for drawing */
+        /* the transient test below reads the last error: a code left by an
+           earlier call on this thread must not pose as a fresh fault */
+        SetLastError(0);
         /* set colors and attributes */
         if (BIT(sarev) & sc->attr)  { /* reverse */
 
@@ -10630,7 +10620,12 @@ static void clswin(int fn)
     if (win->joy1cap) r = joyReleaseCapture(JOYSTICKID1);
     if (win->joy2cap) r = joyReleaseCapture(JOYSTICKID2);
     kilwin(win->winhan); /* kill window */
-    win->devcon = NULL; /* the window's own context went with it */
+    /* The window is gone, and its handle and its own device context with it.
+       Both are cleared here, not at the file's close, which comes later:
+       Windows can reuse the handle value at once for another window, and a
+       message for that window must not find this record by it. */
+    win->winhan = NULL;
+    win->devcon = NULL;
 
 }
 
