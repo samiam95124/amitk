@@ -726,6 +726,12 @@ CRITICAL_SECTION mainlock;     /* main task lock: the gate above the leaf locks 
    nothing else while it waits. */
 static void lockwin(winptr win)   { EnterCriticalSection(&win->lock); }
 static void unlockwin(winptr win) { LeaveCriticalSection(&win->lock); }
+/* The display thread never waits for a window's lock: the owner of the window
+   may hold it while it waits on the display thread, inside a Windows call
+   that sends to the window, or closing it. The display thread tries the lock
+   and, finding the owner busy, leaves the paint for the next or the caret as
+   it is. */
+static int  trylockwin(winptr win) { return (TryEnterCriticalSection(&win->lock) != 0); }
 static void locktbl(void)         { EnterCriticalSection(&tbllock); }
 static void unlocktbl(void)       { LeaveCriticalSection(&tbllock); }
 static void lockmsg(void)         { EnterCriticalSection(&msglock); }
@@ -1974,7 +1980,7 @@ static void putmsg(HWND hwnd, UINT msg, WPARAM wparam, LPARAM lparam)
 
 //dbg_printf(dlinfo, "Message: "); prtmsgu(hwnd, msg, wparam, lparam);
 
-    lockmain(); /* start exclusive access */
+    lockmsg(); /* start exclusive access */
 /* Turning on paint compression causes lost updates */
     if (msg == WM_PAINT && PACKMSG)  {
 
@@ -2009,7 +2015,7 @@ static void putmsg(HWND hwnd, UINT msg, WPARAM wparam, LPARAM lparam)
         } else enter(hwnd, msg, wparam, lparam); /* enter as new message */
 
     } else enter(hwnd, msg, wparam, lparam); /* enter new message */
-    unlockmain(); /* end exclusive access */
+    unlockmsg(); /* end exclusive access */
 
 }
 
@@ -2036,14 +2042,18 @@ static void getmsg(MSG* msg)
        signal, and don"t leave until we get a TRUE message. */
     do { /* wait for message */
 
+        lockmsg(); /* the queue's lock, around its pointers */
+
         if (msginp == msgout && imsginp == imsgout)  {
 
             /* nothing in queue */
+            unlockmsg(); /* the queue is let go for the wait */
             unlockmain(); /* end exclusive access */
             r = WaitForSingleObject(msgrdy, -1); /* wait for next event */
             if (r == -1) winerr(); /* process windows error */
             b = ResetEvent(msgrdy); /* flag message not ready */
             lockmain(); /* start exclusive access */
+            lockmsg(); /* the queue again */
 
         }
         /* get messages from the standard queue */
@@ -2055,6 +2065,7 @@ static void getmsg(MSG* msg)
 
         }
 
+        unlockmsg();
     } while (!f); /* until we have a message */
 
 //dbg_printf(dlinfo, "Message: "); prtmsg(msg);
@@ -2291,12 +2302,18 @@ static winptr lfn2win(int fn)
 
 {
 
+    winptr win;
+
+    locktbl(); /* the tables' lock, around the reads */
     if (fn < 0 || fn >= MAXFIL) error(einvhan); /* invalid file handle */
     if (!opnfil[fn]) error(einvhan); /* invalid handle */
     if (!opnfil[fn]->win)
         error(efnotwin); /* not a window file */
 
-    return (opnfil[fn]->win); /* return windows pointer */
+    win = opnfil[fn]->win;
+    unlocktbl();
+
+    return (win); /* return windows pointer */
 
 }
 
@@ -2366,12 +2383,14 @@ static int hwn2lfn(HWND hw)
     int fi;  /* index for file handles */
     int fn; /* resulting file number */
 
+    locktbl(); /* the tables' lock, around the search */
     fn = -1; /* set no file found */
     for (fi = 0; fi < MAXFIL; fi++) /* search output files */
         /* has an entry, has window assigned, and matches our entry */
         if (opnfil[fi] && opnfil[fi]->win && opnfil[fi]->win->winhan == hw)
             fn = fi; /* found */
 
+    unlocktbl();
     return (fn); /* return result */
 
 }
@@ -2797,12 +2816,10 @@ static ami_long curbnd_ivf(FILE* f)
     winptr win; /* windows record pointer */
     int    cb;
 
-    lockmain(); /* start exclusive access */
     win = txt2win(f); /* get window from file */
     lockwin(win); /* the window's own lock */
     cb = icurbnd(win->screens[win->curupd-1]);
     unlockwin(win); /* the window's data is done with */
-    unlockmain(); /* end exclusive access */
 
     return (cb);
 
@@ -3332,12 +3349,12 @@ static void winvis(winptr win)
         if (!par->visible) winvis(par); /* make visible if not */
 
     }
-    unlockmain(); /* end exclusive access */
+    unlockwin(win); /* end exclusive access */
     /* present the window */
     b = ShowWindow(win->winhan, SW_SHOWDEFAULT);
     /* send first paint message */
     b = UpdateWindow(win->winhan);
-    lockmain(); /* start exclusive access */
+    lockwin(win); /* start exclusive access */
     win->visible = TRUE; /* set now visible */
     restore(win, TRUE); /* restore window */
 
@@ -3701,12 +3718,10 @@ static void scrollg_ivf(FILE* f, ami_long x, ami_long y)
 
     winptr win; /* windows record pointer */
 
-    lockmain(); /* start exclusive access */
     win = txt2win(f); /* get window from file */
     lockwin(win); /* the window's own lock */
     iscrollg(win, x, y); /* process scroll */
     unlockwin(win); /* the window's data is done with */
-    unlockmain(); /* end exclusive access */
 
 }
 
@@ -3716,12 +3731,10 @@ static void scroll_ivf(FILE* f, ami_long x, ami_long y)
 
     winptr win; /* windows record pointer */
 
-    lockmain(); /* start exclusive access */
     win = txt2win(f); /* get window from file */
     lockwin(win); /* the window's own lock */
     iscrollg(win, x*win->charspace, y*win->linespace); /* process scroll */
     unlockwin(win); /* the window's data is done with */
-    unlockmain(); /* end exclusive access */
 
 }
 
@@ -3759,12 +3772,10 @@ static void cursor_ivf(FILE* f, ami_long x, ami_long y)
 
     winptr win; /* windows record pointer */
 
-    lockmain(); /* start exclusive access */
     win = txt2win(f); /* get window from file */
     lockwin(win); /* the window's own lock */
     icursor(win, x, y); /* position cursor */
     unlockwin(win); /* the window's data is done with */
-    unlockmain(); /* end exclusive access */
 
 }
 
@@ -3801,12 +3812,10 @@ static void cursorg_ivf(FILE* f, ami_long x, ami_long y)
 
     winptr win; /* windows record pointer */
 
-    lockmain(); /* start exclusive access */
     win = txt2win(f); /* get window from file */
     lockwin(win); /* the window's own lock */
     icursorg(win, x, y); /* position cursor */
     unlockwin(win); /* the window's data is done with */
-    unlockmain(); /* end exclusive access */
 
 }
 
@@ -3826,12 +3835,10 @@ static ami_long baseline_ivf(FILE* f)
     winptr win; /* windows record pointer */
     int    r;
 
-    lockmain(); /* start exclusive access */
     win = txt2win(f); /* get window from file */
     lockwin(win); /* the window's own lock */
     r = win->baseoff; /* return current line spacing */
     unlockwin(win); /* the window's data is done with */
-    unlockmain(); /* end exclusive access */
 
     return (r);
 
@@ -3853,12 +3860,10 @@ static ami_long maxx_ivf(FILE* f)
     winptr win; /* windows record pointer */
     int    r;
 
-    lockmain(); /* start exclusive access */
     win = txt2win(f); /* get window from file */
     lockwin(win); /* the window's own lock */
     r = win->gmaxx; /* set maximum x */
     unlockwin(win); /* the window's data is done with */
-    unlockmain(); /* end exclusive access */
 
     return (r);
 
@@ -3880,12 +3885,10 @@ static ami_long maxy_ivf(FILE* f)
     winptr win; /* windows record pointer */
     int    r;
 
-    lockmain(); /* start exclusive access */
     win = txt2win(f); /* get window from file */
     lockwin(win); /* the window's own lock */
     r = win->gmaxy; /* set maximum y */
     unlockwin(win); /* the window's data is done with */
-    unlockmain(); /* end exclusive access */
 
     return (r);
 
@@ -3907,12 +3910,10 @@ static ami_long maxxg_ivf(FILE* f)
     winptr win; /* windows record pointer */
     int    r;
 
-    lockmain(); /* start exclusive access */
     win = txt2win(f); /* get window from file */
     lockwin(win); /* the window's own lock */
     r = win->gmaxxg; /* set maximum x */
     unlockwin(win); /* the window's data is done with */
-    unlockmain(); /* end exclusive access */
 
     return (r);
 
@@ -3934,12 +3935,10 @@ static ami_long maxyg_ivf(FILE* f)
     winptr win; /* windows record pointer */
     int    r;
 
-    lockmain(); /* start exclusive access */
     win = txt2win(f); /* get window from file */
     lockwin(win); /* the window's own lock */
     r = win->gmaxyg; /* set maximum y */
     unlockwin(win); /* the window's data is done with */
-    unlockmain(); /* end exclusive access */
 
     return (r);
 
@@ -3971,12 +3970,10 @@ static void home_ivf(FILE* f)
 
     winptr win; /* windows record pointer */
 
-    lockmain(); /* start exclusive access */
     win = txt2win(f); /* get window from file */
     lockwin(win); /* the window's own lock */
     ihome(win);
     unlockwin(win); /* the window's data is done with */
-    unlockmain(); /* end exclusive access */
 
 }
 
@@ -4023,12 +4020,10 @@ static void up_ivf(FILE* f)
 
     winptr win; /* windows record pointer */
 
-    lockmain(); /* start exclusive access */
     win = txt2win(f); /* get window from file */
     lockwin(win); /* the window's own lock */
     iup(win); /* move up */
     unlockwin(win); /* the window's data is done with */
-    unlockmain(); /* end exclusive access */
 
 }
 
@@ -4072,12 +4067,10 @@ static void down_ivf(FILE* f)
 
     winptr win; /* windows record pointer */
 
-    lockmain(); /* start exclusive access */
     win = txt2win(f); /* get window from file */
     lockwin(win); /* the window's own lock */
     idown(win); /* move cursor down */
     unlockwin(win); /* the window's data is done with */
-    unlockmain(); /* end exclusive access */
 
 }
 
@@ -4133,12 +4126,10 @@ static void left_ivf(FILE* f)
 
     winptr win; /* windows record pointer */
 
-    lockmain(); /* start exclusive access */
     win = txt2win(f); /* get window from file */
     lockwin(win); /* the window's own lock */
     ileft(win); /* move cursor left */
     unlockwin(win); /* the window's data is done with */
-    unlockmain(); /* end exclusive access */
 
 }
 
@@ -4191,12 +4182,10 @@ static void right_ivf(FILE* f)
 
     winptr win; /* windows record pointer */
 
-    lockmain(); /* start exclusive access */
     win = txt2win(f); /* get window from file */
     lockwin(win); /* the window's own lock */
     iright(win); /* move cursor right */
     unlockwin(win); /* the window's data is done with */
-    unlockmain(); /* end exclusive access */
 
 }
 
@@ -4319,12 +4308,10 @@ static void reverse_ivf(FILE* f, ami_long e)
 
     winptr win; /* windows record pointer */
 
-    lockmain(); /* start exclusive access */
     win = txt2win(f); /* get window from file */
     lockwin(win); /* the window's own lock */
     ireverse(win, e); /* move cursor right */
     unlockwin(win); /* the window's data is done with */
-    unlockmain(); /* end exclusive access */
 
 }
 
@@ -4367,12 +4354,10 @@ static void underline_ivf(FILE* f, ami_long e)
 
     winptr win; /* windows record pointer */
 
-    lockmain(); /* start exclusive access */
     win = txt2win(f); /* get window from file */
     lockwin(win); /* the window's own lock */
     iunderline(win, e); /* move cursor right */
     unlockwin(win); /* the window's data is done with */
-    unlockmain(); /* end exclusive access */
 
 }
 
@@ -4413,12 +4398,10 @@ static void superscript_ivf(FILE* f, ami_long e)
 
     winptr win; /* windows record pointer */
 
-    lockmain(); /* start exclusive access */
     win = txt2win(f); /* get window from file */
     lockwin(win); /* the window's own lock */
     isuperscript(win, e); /* move cursor right */
     unlockwin(win); /* the window's data is done with */
-    unlockmain(); /* end exclusive access */
 
 }
 
@@ -4459,12 +4442,10 @@ static void subscript_ivf(FILE* f, ami_long e)
 
     winptr win; /* windows record pointer */
 
-    lockmain(); /* start exclusive access */
     win = txt2win(f); /* get window from file */
     lockwin(win); /* the window's own lock */
     isubscript(win, e); /* move cursor right */
     unlockwin(win); /* the window's data is done with */
-    unlockmain(); /* end exclusive access */
 
 }
 
@@ -4510,12 +4491,10 @@ static void italic_ivf(FILE* f, ami_long e)
 
     winptr win; /* windows record pointer */
 
-    lockmain(); /* start exclusive access */
     win = txt2win(f); /* get window from file */
     lockwin(win); /* the window's own lock */
     iitalic(win, e); /* move cursor right */
     unlockwin(win); /* the window's data is done with */
-    unlockmain(); /* end exclusive access */
 
 }
 
@@ -4560,12 +4539,10 @@ static void bold_ivf(FILE* f, ami_long e)
 
     winptr win; /* windows record pointer */
 
-    lockmain(); /* start exclusive access */
     win = txt2win(f); /* get window from file */
     lockwin(win); /* the window's own lock */
     ibold(win, e); /* set bold */
     unlockwin(win); /* the window's data is done with */
-    unlockmain(); /* end exclusive access */
 
 }
 
@@ -4608,12 +4585,10 @@ static void strikeout_ivf(FILE* f, ami_long e)
 
     winptr win; /* windows record pointer */
 
-    lockmain(); /* start exclusive access */
     win = txt2win(f); /* get window from file */
     lockwin(win); /* the window's own lock */
     istrikeout(win, e); /* move cursor right */
     unlockwin(win); /* the window's data is done with */
-    unlockmain(); /* end exclusive access */
 
 }
 
@@ -4714,12 +4689,10 @@ static void fcolor_ivf(FILE* f, ami_color c)
 
     winptr win; /* windows record pointer */
 
-    lockmain(); /* start exclusive access */
     win = txt2win(f); /* get window from file */
     lockwin(win); /* the window's own lock */
     ifcolor(win, c); /* execute */
     unlockwin(win); /* the window's data is done with */
-    unlockmain(); /* end exclusive access */
 
 }
 
@@ -4805,12 +4778,10 @@ static void fcolorg_ivf(FILE* f, ami_long r, ami_long g, ami_long b)
 
     winptr win; /* windows record pointer */
 
-    lockmain(); /* start exclusive access */
     win = txt2win(f); /* get window from file */
     lockwin(win); /* the window's own lock */
     ifcolorg(win, r, g, b); /* execute */
     unlockwin(win); /* the window's data is done with */
-    unlockmain(); /* end exclusive access */
 
 }
 
@@ -4877,12 +4848,10 @@ static void bcolor_ivf(FILE* f, ami_color c)
 
     winptr win; /* windows record pointer */
 
-    lockmain(); /* start exclusive access */
     win = txt2win(f); /* get window from file */
     lockwin(win); /* the window's own lock */
     ibcolor(win, c); /* execute */
     unlockwin(win); /* the window's data is done with */
-    unlockmain(); /* end exclusive access */
 
 }
 
@@ -4943,12 +4912,10 @@ static void bcolorg_ivf(FILE* f, ami_long r, ami_long g, ami_long b)
 
     winptr win; /* windows record pointer */
 
-    lockmain(); /* start exclusive access */
     win = txt2win(f); /* get window from file */
     lockwin(win); /* the window's own lock */
     ibcolorg(win, r, g, b); /* execute */
     unlockwin(win); /* the window's data is done with */
-    unlockmain(); /* end exclusive access */
 
 }
 
@@ -5012,12 +4979,10 @@ static void auto_ivf(FILE* f, ami_long e)
 
     winptr win; /* windows record pointer */
 
-    lockmain(); /* start exclusive access */
     win = txt2win(f); /* get window from file */
     lockwin(win); /* the window's own lock */
     iauto(win, e); /* execute */
     unlockwin(win); /* the window's data is done with */
-    unlockmain(); /* end exclusive access */
 
 }
 
@@ -5045,12 +5010,10 @@ static void curvis_ivf(FILE* f, ami_long e)
 
     winptr win; /* windows record pointer */
 
-    lockmain(); /* start exclusive access */
     win = txt2win(f); /* get window from file */
     lockwin(win); /* the window's own lock */
     icurvis(win, e); /* execute */
     unlockwin(win); /* the window's data is done with */
-    unlockmain(); /* end exclusive access */
 
 }
 
@@ -5069,12 +5032,10 @@ static ami_long curx_ivf(FILE* f)
     winptr win; /* windows record pointer */
     int    x;
 
-    lockmain(); /* start exclusive access */
     win = txt2win(f); /* get window from file */
     lockwin(win); /* the window's own lock */
     x = win->screens[win->curupd-1]->curx; /* return current location x */
     unlockwin(win); /* the window's data is done with */
-    unlockmain(); /* end exclusive access */
 
     return (x);
 
@@ -5095,12 +5056,10 @@ static ami_long cury_ivf(FILE* f)
     winptr win; /* windows record pointer */
     int    y;
 
-    lockmain(); /* start exclusive access */
     win = txt2win(f); /* get window from file */
     lockwin(win); /* the window's own lock */
     y = win->screens[win->curupd-1]->cury; /* return current location y */
     unlockwin(win); /* the window's data is done with */
-    unlockmain(); /* end exclusive access */
 
     return (y);
 
@@ -5121,12 +5080,10 @@ static ami_long curxg_ivf(FILE* f)
     winptr win; /* windows record pointer */
     int    x;
 
-    lockmain(); /* start exclusive access */
     win = txt2win(f); /* get window from file */
     lockwin(win); /* the window's own lock */
     x = win->screens[win->curupd-1]->curxg; /* return current location x */
     unlockwin(win); /* the window's data is done with */
-    unlockmain(); /* end exclusive access */
 
     return (x);
 
@@ -5147,12 +5104,10 @@ static ami_long curyg_ivf(FILE* f)
     winptr win; /* windows record pointer */
     int    y;
 
-    lockmain(); /* start exclusive access */
     win = txt2win(f); /* get window from file */
     lockwin(win); /* the window's own lock */
     y = win->screens[win->curupd-1]->curyg; /* return current location y */
     unlockwin(win); /* the window's data is done with */
-    unlockmain(); /* end exclusive access */
 
     return (y);
 
@@ -5215,12 +5170,10 @@ static void select_ivf(FILE* f, ami_long u, ami_long d)
 
     winptr win; /* windows record pointer */
 
-    lockmain(); /* start exclusive access */
     win = txt2win(f); /* get window from file */
     lockwin(win); /* the window's own lock */
     iselect(win, u, d); /* execute */
     unlockwin(win); /* the window's data is done with */
-    unlockmain(); /* end exclusive access */
 
 }
 
@@ -5409,12 +5362,10 @@ static void wrtstr_ivf(FILE* f, char* s)
 
     winptr win; /* windows record pointer */
 
-    lockmain(); /* start exclusive access */
     win = txt2win(f); /* get window pointer from text file */
     lockwin(win); /* the window's own lock */
     iwrtstr(win, s); /* perform string write */
     unlockwin(win); /* the window's data is done with */
-    unlockmain(); /* end exclusive access */
 
 }
 
@@ -5443,12 +5394,10 @@ static void del_ivf(FILE* f)
 
     winptr win; /* windows record pointer */
 
-    lockmain(); /* start exclusive access */
     win = txt2win(f); /* get window pointer from text file */
     lockwin(win); /* the window's own lock */
     idel(win); /* perform delete */
     unlockwin(win); /* the window's data is done with */
-    unlockmain(); /* end exclusive access */
 
 }
 
@@ -5516,12 +5465,10 @@ static void line_ivf(FILE* f, ami_long x1, ami_long y1, ami_long x2, ami_long y2
 
     winptr win;  /* windows record pointer */
 
-    lockmain(); /* start exclusive access */
     win = txt2win(f); /* get window pointer from text file */
     lockwin(win); /* the window's own lock */
     iline(win, x1, y1, x2, y2); /* draw line */
     unlockwin(win); /* the window's data is done with */
-    unlockmain(); /* end exclusive access */
 
 }
 
@@ -5565,12 +5512,10 @@ static void rect_ivf(FILE* f, ami_long x1, ami_long y1, ami_long x2, ami_long y2
 
     winptr win;  /* windows record pointer */
 
-    lockmain(); /* start exclusive access */
     win = txt2win(f); /* get window pointer from text file */
     lockwin(win); /* the window's own lock */
     irect(win, x1, y1, x2, y2); /* draw rectangle */
     unlockwin(win); /* the window's data is done with */
-    unlockmain(); /* end exclusive access */
 
 }
 
@@ -5636,12 +5581,10 @@ static void frect_ivf(FILE* f, ami_long x1, ami_long y1, ami_long x2, ami_long y
 
     winptr win;  /* windows record pointer */
 
-    lockmain(); /* start exclusive access */
     win = txt2win(f); /* get window pointer from text file */
     lockwin(win); /* the window's own lock */
     ifrect(win, x1, y1, x2, y2); /* draw rectangle */
     unlockwin(win); /* the window's data is done with */
-    unlockmain(); /* end exclusive access */
 
 }
 
@@ -5686,12 +5629,10 @@ static void rrect_ivf(FILE* f, ami_long x1, ami_long y1, ami_long x2, ami_long y
 
     winptr win;  /* windows record pointer */
 
-    lockmain(); /* start exclusive access */
     win = txt2win(f); /* get window pointer from text file */
     lockwin(win); /* the window's own lock */
     irrect(win, x1, y1, x2, y2, xs, ys); /* draw rectangle */
     unlockwin(win); /* the window's data is done with */
-    unlockmain(); /* end exclusive access */
 
 }
 
@@ -5757,12 +5698,10 @@ static void frrect_ivf(FILE* f, ami_long x1, ami_long y1, ami_long x2, ami_long 
 
     winptr win;  /* windows record pointer */
 
-    lockmain(); /* start exclusive access */
     win = txt2win(f); /* get window pointer from text file */
     lockwin(win); /* the window's own lock */
     ifrrect(win, x1, y1, x2, y2, xs, ys); /* draw rectangle */
     unlockwin(win); /* the window's data is done with */
-    unlockmain(); /* end exclusive access */
 
 }
 
@@ -5806,12 +5745,10 @@ static void ellipse_ivf(FILE* f, ami_long x1, ami_long y1, ami_long x2, ami_long
 
     winptr win;  /* windows record pointer */
 
-    lockmain(); /* start exclusive access */
     win = txt2win(f); /* get window pointer from text file */
     lockwin(win); /* the window's own lock */
     iellipse(win, x1, y1, x2, y2); /* draw ellipse */
     unlockwin(win); /* the window's data is done with */
-    unlockmain(); /* end exclusive access */
 
 }
 
@@ -5877,12 +5814,10 @@ static void fellipse_ivf(FILE* f, ami_long x1, ami_long y1, ami_long x2, ami_lon
 
     winptr win;  /* windows record pointer */
 
-    lockmain(); /* start exclusive access */
     win = txt2win(f); /* get window pointer from text file */
     lockwin(win); /* the window's own lock */
     ifellipse(win, x1, y1, x2, y2); /* draw ellipse */
     unlockwin(win); /* the window's data is done with */
-    unlockmain(); /* end exclusive access */
 
 }
 
@@ -5966,12 +5901,10 @@ static void arc_ivf(FILE* f, ami_long x1, ami_long y1, ami_long x2, ami_long y2,
 
     winptr win;  /* windows record pointer */
 
-    lockmain(); /* start exclusive access */
     win = txt2win(f); /* get window pointer from text file */
     lockwin(win); /* the window's own lock */
     iarc(win, x1, y1, x2, y2, sa, ea); /* draw arc */
     unlockwin(win); /* the window's data is done with */
-    unlockmain(); /* end exclusive access */
 
 }
 
@@ -6059,12 +5992,10 @@ static void farc_ivf(FILE* f, ami_long x1, ami_long y1, ami_long x2, ami_long y2
 
     winptr win;  /* windows record pointer */
 
-    lockmain(); /* start exclusive access */
     win = txt2win(f); /* get window pointer from text file */
     lockwin(win); /* the window's own lock */
     ifarc(win, x1, y1, x2, y2, sa, ea); /* draw arc */
     unlockwin(win); /* the window's data is done with */
-    unlockmain(); /* end exclusive access */
 
 }
 
@@ -6152,12 +6083,10 @@ static void fchord_ivf(FILE* f, ami_long x1, ami_long y1, ami_long x2, ami_long 
 
     winptr win;  /* windows record pointer */
 
-    lockmain(); /* start exclusive access */
     win = txt2win(f); /* get window pointer from text file */
     lockwin(win); /* the window's own lock */
     ifchord(win, x1, y1, x2, y2, sa, ea); /* draw cord */
     unlockwin(win); /* the window's data is done with */
-    unlockmain(); /* end exclusive access */
 
 }
 
@@ -6231,12 +6160,10 @@ static void ftriangle_ivf(FILE* f, ami_long x1, ami_long y1, ami_long x2, ami_lo
 
     winptr win;  /* windows record pointer */
 
-    lockmain(); /* start exclusive access */
     win = txt2win(f); /* get window pointer from text file */
     lockwin(win); /* the window's own lock */
     iftriangle(win, x1, y1, x2, y2, x3, y3); /* draw triangle */
     unlockwin(win); /* the window's data is done with */
-    unlockmain(); /* end exclusive access */
 
 }
 
@@ -6284,12 +6211,10 @@ static void setpixel_ivf(FILE* f, ami_long x, ami_long y)
 
     winptr win;  /* windows record pointer */
 
-    lockmain(); /* start exclusive access */
     win = txt2win(f); /* get window pointer from text file */
     lockwin(win); /* the window's own lock */
     isetpixel(win, x, y); /* set pixel */
     unlockwin(win); /* the window's data is done with */
-    unlockmain(); /* end exclusive access */
 
 }
 
@@ -6321,12 +6246,10 @@ static void fover_ivf(FILE* f)
 
     winptr win;  /* windows record pointer */
 
-    lockmain(); /* start exclusive access */
     win = txt2win(f); /* get window pointer from text file */
     lockwin(win); /* the window's own lock */
     ifover(win); /* set overwrite */
     unlockwin(win); /* the window's data is done with */
-    unlockmain(); /* end exclusive access */
 
 }
 
@@ -6358,12 +6281,10 @@ static void bover_ivf(FILE* f)
 
     winptr win; /* windows record pointer */
 
-    lockmain(); /* start exclusive access */
     win = txt2win(f); /* get window pointer from text file */
     lockwin(win); /* the window's own lock */
     ibover(win); /* set overwrite */
     unlockwin(win); /* the window's data is done with */
-    unlockmain(); /* end exclusive access */
 
 }
 
@@ -6395,12 +6316,10 @@ static void finvis_ivf(FILE* f)
 
     winptr win;  /* windows record pointer */
 
-    lockmain(); /* start exclusive access */
     win = txt2win(f); /* get window pointer from text file */
     lockwin(win); /* the window's own lock */
     ifinvis(win); /* set invisible */
     unlockwin(win); /* the window's data is done with */
-    unlockmain(); /* end exclusive access */
 
 }
 
@@ -6432,12 +6351,10 @@ static void binvis_ivf(FILE* f)
 
     winptr win;  /* windows record pointer */
 
-    lockmain(); /* start exclusive access */
     win = txt2win(f); /* get window pointer from text file */
     lockwin(win); /* the window's own lock */
     ibinvis(win); /* set invisible */
     unlockwin(win); /* the window's data is done with */
-    unlockmain(); /* end exclusive access */
 
 }
 
@@ -6469,12 +6386,10 @@ static void fxor_ivf(FILE* f)
 
     winptr win;  /* windows record pointer */
 
-    lockmain(); /* start exclusive access */
     win = txt2win(f); /* get window pointer from text file */
     lockwin(win); /* the window's own lock */
     ifxor(win); /* set xor */
     unlockwin(win); /* the window's data is done with */
-    unlockmain(); /* end exclusive access */
 
 }
 
@@ -6501,12 +6416,10 @@ static void bxor_ivf(FILE* f)
 
     winptr win;  /* windows record pointer */
 
-    lockmain(); /* start exclusive access */
     win = txt2win(f); /* get window pointer from text file */
     lockwin(win); /* the window's own lock */
     ibxor(win); /* set xor */
     unlockwin(win); /* the window's data is done with */
-    unlockmain(); /* end exclusive access */
 
 }
 
@@ -6553,12 +6466,10 @@ static void linewidth_ivf(FILE* f, ami_long w)
 
     winptr win;  /* windows record pointer */
 
-    lockmain(); /* start exclusive access */
     win = txt2win(f); /* get window pointer from text file */
     lockwin(win); /* the window's own lock */
     ilinewidth(win, w); /* set line width */
     unlockwin(win); /* the window's data is done with */
-    unlockmain(); /* end exclusive access */
 
 }
 
@@ -6604,12 +6515,10 @@ static void linestyle_ivf(FILE* f, ami_lstyle style)
 
     winptr win;  /* windows record pointer */
 
-    lockmain(); /* start exclusive access */
     win = txt2win(f); /* get window pointer from text file */
     lockwin(win); /* the window's own lock */
     ilinestyle(win, style); /* set line style */
     unlockwin(win); /* the window's data is done with */
-    unlockmain(); /* end exclusive access */
 
 }
 
@@ -6628,12 +6537,10 @@ static ami_long chrsizx_ivf(FILE* f)
     winptr win; /* window pointer */
     int    cs;
 
-    lockmain(); /* start exclusive access */
     win = txt2win(f); /* get window pointer from text file */
     lockwin(win); /* the window's own lock */
     cs = win->charspace;
     unlockwin(win); /* the window's data is done with */
-    unlockmain(); /* end exclusive access */
 
     return (cs);
 
@@ -6654,12 +6561,10 @@ static ami_long chrsizy_ivf(FILE* f)
     winptr win; /* window pointer */
     int cs;
 
-    lockmain(); /* start exclusive access */
     win = txt2win(f); /* get window pointer from text file */
     lockwin(win); /* the window's own lock */
     cs = win->linespace;
     unlockwin(win); /* the window's data is done with */
-    unlockmain(); /* end exclusive access */
 
     return (cs);
 
@@ -6721,12 +6626,10 @@ static void font_ivf(FILE* f, ami_long fc)
 
     winptr win;  /* windows record pointer */
 
-    lockmain(); /* start exclusive access */
     win = txt2win(f); /* get window pointer from text file */
     lockwin(win); /* the window's own lock */
     ifont(win, fc); /* set font */
     unlockwin(win); /* the window's data is done with */
-    unlockmain(); /* end exclusive access */
 
 }
 
@@ -6767,12 +6670,10 @@ static void fontnam_ivf(FILE* f, ami_long fc, char* fns, ami_long fnsl)
 
     winptr win;  /* windows record pointer */
 
-    lockmain(); /* start exclusive access */
     win = txt2win(f); /* get window pointer from text file */
     lockwin(win); /* the window's own lock */
     ifontnam(win, fc, fns, fnsl); /* find font name */
     unlockwin(win); /* the window's data is done with */
-    unlockmain(); /* end exclusive access */
 
 }
 
@@ -6805,12 +6706,10 @@ static void fontsiz_ivf(FILE* f, ami_long s)
 
     winptr win;  /* windows record pointer */
 
-    lockmain(); /* start exclusive access */
     win = txt2win(f); /* get window pointer from text file */
     lockwin(win); /* the window's own lock */
     ifontsiz(win, s); /* set font size */
     unlockwin(win); /* the window's data is done with */
-    unlockmain(); /* end exclusive access */
 
 }
 
@@ -6841,7 +6740,6 @@ static void setpoints_ivf(FILE* f, float ps)
     scnptr     sc;     /* screen pointer */
     int        b;      /* result holder */
 
-    lockmain(); /* start exclusive access */
     win = txt2win(f); /* get window pointer from text file */
     lockwin(win); /* the window's own lock */
     sc = win->screens[win->curupd-1];
@@ -6865,7 +6763,6 @@ static void setpoints_ivf(FILE* f, float ps)
     if (!b) winerr(); /* process windows error */
     ifontsiz(win, tm.tmHeight); /* set font size by cell height */
     unlockwin(win); /* the window's data is done with */
-    unlockmain(); /* end exclusive access */
 
 }
 
@@ -6889,7 +6786,6 @@ static float points_ivf(FILE* f)
     TEXTMETRIC tm;  /* text metric structure */
     int        b;   /* result holder */
 
-    lockmain(); /* start exclusive access */
     win = txt2win(f); /* get window pointer from text file */
     lockwin(win); /* the window's own lock */
     /* get the metrics of the current font */
@@ -6898,7 +6794,6 @@ static float points_ivf(FILE* f)
     /* the em square is the cell height less the internal leading */
     ps = (float)(tm.tmHeight-tm.tmInternalLeading)*2835.0f/(float)win->sdpmy;
     unlockwin(win); /* the window's data is done with */
-    unlockmain(); /* end exclusive access */
 
     return (ps);
 
@@ -6957,12 +6852,10 @@ static ami_long dpmx_ivf(FILE* f)
     winptr win; /* window pointer */
     int    dpm;
 
-    lockmain(); /* start exclusive access */
     win = txt2win(f); /* get window pointer from text file */
     lockwin(win); /* the window's own lock */
     dpm = win->sdpmx;
     unlockwin(win); /* the window's data is done with */
-    unlockmain(); /* end exclusive access */
 
     return (dpm);
 
@@ -6983,12 +6876,10 @@ static ami_long dpmy_ivf(FILE* f)
     winptr win; /* window pointer */
     int    dpm;
 
-    lockmain(); /* start exclusive access */
     win = txt2win(f); /* get window pointer from text file */
     lockwin(win); /* the window's own lock */
     dpm = win->sdpmy;
     unlockwin(win); /* the window's data is done with */
-    unlockmain(); /* end exclusive access */
 
     return (dpm);
 
@@ -7028,12 +6919,10 @@ static ami_long strsiz_ivf(FILE* f, const char* s)
     winptr win; /* window pointer */
     int    ss;
 
-    lockmain(); /* start exclusive access */
     win = txt2win(f); /* get window pointer from text file */
     lockwin(win); /* the window's own lock */
     ss = istrsiz(win, s); /* find string size */
     unlockwin(win); /* the window's data is done with */
-    unlockmain(); /* end exclusive access */
 
     return (ss);
 
@@ -7079,12 +6968,10 @@ static ami_long chrpos_ivf(FILE* f, const char* s, ami_long p)
     winptr win; /* window pointer */
     int    cp;
 
-    lockmain(); /* start exclusive access */
     win = txt2win(f); /* get window pointer from text file */
     lockwin(win); /* the window's own lock */
     cp = ichrpos(win, s, p); /* find character position */
     unlockwin(win); /* the window's data is done with */
-    unlockmain(); /* end exclusive access */
 
     return (cp);
 
@@ -7169,12 +7056,10 @@ static void writejust_ivf(FILE* f, const char* s, ami_long n)
 
     winptr win; /* window pointer */
 
-    lockmain(); /* start exclusive access */
     win = txt2win(f); /* get window pointer from text file */
     lockwin(win); /* the window's own lock */
     iwritejust(win, s, n); /* write justified text */
     unlockwin(win); /* the window's data is done with */
-    unlockmain(); /* end exclusive access */
 
 }
 
@@ -7243,12 +7128,10 @@ static ami_long justpos_ivf(FILE* f, const char* s, ami_long p, ami_long n)
     winptr win; /* window pointer */
     int    jp;
 
-    lockmain(); /* start exclusive access */
     win = txt2win(f); /* get window pointer from text file */
     lockwin(win); /* the window's own lock */
     jp = ijustpos(win, s, p, n); /* find justified character position */
     unlockwin(win); /* the window's data is done with */
-    unlockmain(); /* end exclusive access */
 
     return (jp);
 
@@ -7293,12 +7176,10 @@ static void condensed_ivf(FILE* f, ami_long e)
 
     winptr win; /* windows record pointer */
 
-    lockmain(); /* start exclusive access */
     win = txt2win(f); /* get window from file */
     lockwin(win); /* the window's own lock */
     icondensed(win, e); /* set condensed */
     unlockwin(win); /* the window's data is done with */
-    unlockmain(); /* end exclusive access */
 
 }
 
@@ -7343,12 +7224,10 @@ static void extended_ivf(FILE* f, ami_long e)
 
     winptr win; /* windows record pointer */
 
-    lockmain(); /* start exclusive access */
     win = txt2win(f); /* get window from file */
     lockwin(win); /* the window's own lock */
     iextended(win, e); /* set extended */
     unlockwin(win); /* the window's data is done with */
-    unlockmain(); /* end exclusive access */
 
 }
 
@@ -7391,12 +7270,10 @@ static void xlight_ivf(FILE* f, ami_long e)
 
     winptr win; /* windows record pointer */
 
-    lockmain(); /* start exclusive access */
     win = txt2win(f); /* get window from file */
     lockwin(win); /* the window's own lock */
     ixlight(win, e); /* set extra light */
     unlockwin(win); /* the window's data is done with */
-    unlockmain(); /* end exclusive access */
 
 }
 
@@ -7439,12 +7316,10 @@ static void light_ivf(FILE* f, ami_long e)
 
     winptr win; /* windows record pointer */
 
-    lockmain(); /* start exclusive access */
     win = txt2win(f); /* get window from file */
     lockwin(win); /* the window's own lock */
     ilight(win, e); /* set light */
     unlockwin(win); /* the window's data is done with */
-    unlockmain(); /* end exclusive access */
 
 }
 
@@ -7487,12 +7362,10 @@ static void xbold_ivf(FILE* f, ami_long e)
 
     winptr win; /* windows record pointer */
 
-    lockmain(); /* start exclusive access */
     win = txt2win(f); /* get window from file */
     lockwin(win); /* the window's own lock */
     ixbold(win, e); /* set extra bold */
     unlockwin(win); /* the window's data is done with */
-    unlockmain(); /* end exclusive access */
 
 }
 
@@ -7535,12 +7408,10 @@ static void hollow_ivf(FILE* f, ami_long e)
 
     winptr win; /* windows record pointer */
 
-    lockmain(); /* start exclusive access */
     win = txt2win(f); /* get window from file */
     lockwin(win); /* the window's own lock */
     ihollow(win, e); /* set hollow */
     unlockwin(win); /* the window's data is done with */
-    unlockmain(); /* end exclusive access */
 
 }
 
@@ -7583,12 +7454,10 @@ static void raised_ivf(FILE* f, ami_long e)
 
     winptr win; /* windows record pointer */
 
-    lockmain(); /* start exclusive access */
     win = txt2win(f); /* get window from file */
     lockwin(win); /* the window's own lock */
     iraised(win, e); /* set raised */
     unlockwin(win); /* the window's data is done with */
-    unlockmain(); /* end exclusive access */
 
 }
 
@@ -7626,12 +7495,10 @@ static void delpict_ivf(FILE* f, ami_long p)
 
     winptr win; /* window pointer */
 
-    lockmain(); /* start exclusive access */
     win = txt2win(f); /* get window pointer from text file */
     lockwin(win); /* the window's own lock */
     idelpict(win, p); /* delete picture file */
     unlockwin(win); /* the window's data is done with */
-    unlockmain(); /* end exclusive access */
 
 }
 
@@ -7734,12 +7601,10 @@ static void loadpict_ivf(FILE* f, ami_long p, char* fn)
 
     winptr win; /* window pointer */
 
-    lockmain(); /* start exclusive access */
     win = txt2win(f); /* get window pointer from text file */
     lockwin(win); /* the window's own lock */
     iloadpict(win, p, fn); /* load picture file */
     unlockwin(win); /* the window's data is done with */
-    unlockmain(); /* end exclusive access */
 
 }
 
@@ -7758,14 +7623,12 @@ static ami_long pictsizx_ivf(FILE* f, ami_long p)
     winptr win; /* window pointer */
     int    x;
 
-    lockmain(); /* start exclusive access */
     win = txt2win(f); /* get window pointer from text file */
     lockwin(win); /* the window's own lock */
     if (p < 1 || p > MAXPIC) error(einvhan); /* bad picture handle */
     if (!win->pictbl[p-1].han) error(einvhan); /* bad picture handle */
     x = win->pictbl[p-1].sx; /* return x size */
     unlockwin(win); /* the window's data is done with */
-    unlockmain(); /* end exclusive access */
 
     return (x);
 
@@ -7786,14 +7649,12 @@ static ami_long pictsizy_ivf(FILE* f, ami_long p)
     winptr win; /* window pointer */
     int    y;
 
-    lockmain(); /* start exclusive access */
     win = txt2win(f); /* get window pointer from text file */
     lockwin(win); /* the window's own lock */
     if (p < 1 || p > MAXPIC)  error(einvhan); /* bad picture handle */
     if (!win->pictbl[p-1].han) error(einvhan); /* bad picture handle */
     y = win->pictbl[p-1].sy; /* return x size */
     unlockwin(win); /* the window's data is done with */
-    unlockmain(); /* end exclusive access */
 
     return (y);
 
@@ -7861,12 +7722,10 @@ static void picture_ivf(FILE* f, ami_long p, ami_long x1, ami_long y1, ami_long 
 
     winptr win; /* window pointer */
 
-    lockmain(); /* start exclusive access */
     win = txt2win(f); /* get window pointer from text file */
     lockwin(win); /* the window's own lock */
     ipicture(win, p, x1, y1, x2, y2); /* draw picture */
     unlockwin(win); /* the window's data is done with */
-    unlockmain(); /* end exclusive access */
 
 }
 
@@ -7908,12 +7767,10 @@ static void path_ivf(FILE* f, ami_long a)
 
     winptr win;  /* windows record pointer */
 
-    lockmain(); /* start exclusive access */
     win = txt2win(f); /* get window pointer from text file */
     lockwin(win); /* the window's own lock */
     ipath(win, a); /* set text path */
     unlockwin(win); /* the window's data is done with */
-    unlockmain(); /* end exclusive access */
 
 }
 
@@ -7950,12 +7807,10 @@ static void viewoffg_ivf(FILE* f, ami_long x, ami_long y)
 
     winptr win; /* window pointer */
 
-    lockmain(); /* start exclusive access */
     win = txt2win(f); /* get window pointer from text file */
     lockwin(win); /* the window's own lock */
     iviewoffg(win, x, y); /* set viewport offset */
     unlockwin(win); /* the window's data is done with */
-    unlockmain(); /* end exclusive access */
 
 }
 
@@ -8009,12 +7864,10 @@ static void viewscale_ivf(FILE* f, float x, float y)
 
     winptr win; /* window pointer */
 
-    lockmain(); /* start exclusive access */
     win = txt2win(f); /* get window pointer from text file */
     lockwin(win); /* the window's own lock */
     iviewscale(win, x, y); /* set viewport scale */
     unlockwin(win); /* the window's data is done with */
-    unlockmain(); /* end exclusive access */
 
 }
 
@@ -8697,9 +8550,9 @@ static void winevt(winptr win, ami_evtrec* er, MSG* msg, int ofn, int* keep)
                 case wtlistbox: /* list box */
                     if (nm == LBN_DBLCLK) {
 
-                        unlockmain(); /* end exclusive access */
+                        unlockwin(win); unlockmain(); /* end exclusive access */
                         r = SendMessage(wp->han, LB_GETCURSEL, 0, 0);
-                        lockmain(); /* start exclusive access */
+                        lockmain(); lockwin(win); /* start exclusive access */
                         if (r == -1) error(esystem); /* should be a select */
                         er->etype = ami_etlstbox; /* set list box select event */
                         er->lstbid = wp->id; /* get widget id */
@@ -8712,9 +8565,9 @@ static void winevt(winptr win, ami_evtrec* er, MSG* msg, int ofn, int* keep)
                 case wtdropbox: /* drop box */
                     if (nm == CBN_SELENDOK) {
 
-                        unlockmain(); /* end exclusive access */
+                        unlockwin(win); unlockmain(); /* end exclusive access */
                         r = SendMessage(wp->han, CB_GETCURSEL, 0, 0);
-                        lockmain(); /* start exclusive access */
+                        lockmain(); lockwin(win); /* start exclusive access */
                         if (r == -1) error(esystem); /* should be a select */
                         er->etype = ami_etdrpbox; /* set list box select event */
                         er->drpbid = wp->id; /* get widget id */
@@ -8793,9 +8646,9 @@ static void winevt(winptr win, ami_evtrec* er, MSG* msg, int ofn, int* keep)
                     er->sldpos = msg->wParam/65536*(LONG_MAX/100);
                 else { /* must retrive the position by message */
 
-                    unlockmain(); /* end exclusive access */
+                    unlockwin(win); unlockmain(); /* end exclusive access */
                     r = SendMessage(wp->han, TBM_GETPOS, 0, 0);
-                    lockmain(); /* start exclusive access */
+                    lockmain(); lockwin(win); /* start exclusive access */
                     er->sldpos = r*(LONG_MAX/100); /* set position */
 
                 }
@@ -8854,9 +8707,9 @@ static void winevt(winptr win, ami_evtrec* er, MSG* msg, int ofn, int* keep)
                     er->sldpos = msg->wParam/65536*(LONG_MAX/100);
                 else { /* must retrive the position by message */
 
-                    unlockmain(); /* end exclusive access */
+                    unlockwin(win); unlockmain(); /* end exclusive access */
                     r = SendMessage(wp->han, TBM_GETPOS, 0, 0);
-                    lockmain(); /* start exclusive access */
+                    lockmain(); lockwin(win); /* start exclusive access */
                     er->sldpos = r*(LONG_MAX/100); /* set position */
 
                 }
@@ -8877,9 +8730,9 @@ static void winevt(winptr win, ami_evtrec* er, MSG* msg, int ofn, int* keep)
            TCN_SELCHANGE code is more reliable as a selection indicator. */
         if (v == TCN_SELCHANGE) {
 
-            unlockmain(); /* end exclusive access */
+            unlockwin(win); unlockmain(); /* end exclusive access */
             r = SendMessage(wp->han, TCM_GETCURSEL, 0, 0);
-            lockmain(); /* start exclusive access */
+            lockmain(); lockwin(win); /* start exclusive access */
             er->etype = ami_ettabbar; /* set tab bar type */
             er->tabid = wp->id; /* set id */
             er->tabsel = r+1; /* set tab number */
@@ -8977,7 +8830,7 @@ static void ievent(ami_long ifn, ami_evtrec* er)
 
             win = lfn2win(ofn); /* index window from output file */
             er->winid = filwin[ofn]; /* set window id */
-            winevt(win, er, &msg, ofn, &keep); /* process messsage */
+            lockwin(win); winevt(win, er, &msg, ofn, &keep); unlockwin(win); /* process messsage */
             if (!keep) sigevt(er, &msg, &keep); /* if not found, try intertask signal */
 
         } else sigevt(er, &msg, &keep); /* process signal */
@@ -9087,20 +8940,23 @@ Wait for intratask message
 
 Waits for the display thread to serve the given request, which it signals on
 the request's own event, so several threads can each wait on their own. The
-main lock is given up for the wait: the display thread takes it as it serves
-the request. The record is the caller's to read, and then to release.
+lock the caller holds is given up for the wait, the window's where one is
+given and the gate otherwise, since the display thread may need it as it
+serves the request. The record is the caller's to read, and then to release.
 
 *******************************************************************************/
 
-static void waitim(imptr ip)
+static void waitim(imptr ip, winptr win)
 
 {
 
     DWORD r;
 
-    unlockmain(); /* end exclusive access */
+    /* the caller's lock is released for the wait: a widget or font query holds
+       its window's lock, a dialog, a window open or close the gate */
+    if (win) unlockwin(win); else unlockmain();
     r = WaitForSingleObject(ip->done, INFINITE); /* the request is served */
-    lockmain(); /* start exclusive access */
+    if (win) lockwin(win); else lockmain();
     if (r != WAIT_OBJECT_0) winerr(); /* process windows error */
 
 }
@@ -9140,11 +8996,11 @@ static void CALLBACK timeout(UINT id, UINT msg, DWORD_PTR usr, DWORD_PTR dw1,
        stopped every other thread for good, this being the multimedia
        timer's thread, which never gave it back. */
     wh = NULL;
-    lockmain(); /* start exclusive access */
+    locktbl(); /* start exclusive access */
     fn = usr/AMI_MAXTIM; /* get lfn multiplexed in user data */
     if (fn >= 0 && fn < MAXFIL && opnfil[fn] && opnfil[fn]->win)
         wh = opnfil[fn]->win->winhan; /* get window handle */
-    unlockmain(); /* end exclusive access */
+    unlocktbl(); /* end exclusive access */
     if (wh) putmsg(wh, WM_TIMER, usr%AMI_MAXTIM /* multiplexed timer number*/, 0);
 
 }
@@ -9205,12 +9061,10 @@ static void timer_ivf(FILE* f, /* file to send event to */
 
     winptr win; /* window pointer */
 
-    lockmain(); /* start exclusive access */
     win = txt2win(f); /* index output file */
     lockwin(win); /* the window's own lock */
     itimer(win, txt2lfn(f), i, t, r); /* execute */
     unlockwin(win); /* the window's data is done with */
-    unlockmain(); /* end exclusive access */
 
 }
 
@@ -9243,12 +9097,10 @@ static void killtimer_ivf(FILE* f, /* file to kill timer on */
 
     winptr win; /* window pointer */
 
-    lockmain(); /* start exclusive access */
     win = txt2win(f); /* index output file */
     lockwin(win); /* the window's own lock */
     ikilltimer(win, i); /* execute */
     unlockwin(win); /* the window's data is done with */
-    unlockmain(); /* end exclusive access */
 
 }
 
@@ -9303,12 +9155,10 @@ static void frametimer_ivf(FILE* f, ami_long e)
 
     winptr win; /* window pointer */
 
-    lockmain(); /* start exclusive access */
     win = txt2win(f); /* index output file */
     lockwin(win); /* the window's own lock */
     iframetimer(win, txt2lfn(f), e); /* execute */
     unlockwin(win); /* the window's data is done with */
-    unlockmain(); /* end exclusive access */
 
 }
 
@@ -9394,12 +9244,10 @@ static ami_long joystick_ivf(FILE* f)
     winptr win; /* window pointer */
     int    jn;  /* joystick number */
 
-    lockmain(); /* start exclusive access */
     win = txt2win(f); /* get window pointer from text file */
     lockwin(win); /* the window's own lock */
     jn = win->numjoy; /* two */
     unlockwin(win); /* the window's data is done with */
-    unlockmain(); /* end exclusive access */
 
     return (jn);
 
@@ -9484,12 +9332,10 @@ static ami_long joyaxis_ivf(FILE* f, ami_long j)
     winptr win; /* window pointer */
     int    na;
 
-    lockmain(); /* start exclusive access */
     win = txt2win(f); /* get window pointer from text file */
     lockwin(win); /* the window's own lock */
     na = ijoyaxis(win, j); /* find joystick axes */
     unlockwin(win); /* the window's data is done with */
-    unlockmain(); /* end exclusive access */
 
     return (na);
 
@@ -9535,12 +9381,10 @@ static void settabg_ivf(FILE* f, ami_long t)
 
     winptr win; /* window pointer */
 
-    lockmain(); /* start exclusive access */
     win = txt2win(f); /* get window pointer from text file */
     lockwin(win); /* the window's own lock */
     isettabg(win, t); /* translate to graphical call */
     unlockwin(win); /* the window's data is done with */
-    unlockmain(); /* end exclusive access */
 
 }
 
@@ -9558,12 +9402,10 @@ static void settab_ivf(FILE* f, ami_long t)
 
     winptr win; /* window pointer */
 
-    lockmain(); /* start exclusive access */
     win = txt2win(f); /* get window pointer from text file */
     lockwin(win); /* the window's own lock */
     isettabg(win, (t-1)*win->charspace+1); /* translate to graphical call */
     unlockwin(win); /* the window's data is done with */
-    unlockmain(); /* end exclusive access */
 
 }
 
@@ -9604,12 +9446,10 @@ static void restabg_ivf(FILE* f, ami_long t)
 
     winptr win; /* window pointer */
 
-    lockmain(); /* start exclusive access */
     win = txt2win(f); /* get window pointer from text file */
     lockwin(win); /* the window's own lock */
     irestabg(win, t); /* translate to graphical call */
     unlockwin(win); /* the window's data is done with */
-    unlockmain(); /* end exclusive access */
 
 }
 
@@ -9627,12 +9467,10 @@ static void restab_ivf(FILE* f, ami_long t)
 
     winptr win; /* window pointer */
 
-    lockmain(); /* start exclusive access */
     win = txt2win(f); /* get window pointer from text file */
     lockwin(win); /* the window's own lock */
     irestabg(win, (t-1)*win->charspace+1); /* translate to graphical call */
     unlockwin(win); /* the window's data is done with */
-    unlockmain(); /* end exclusive access */
 
 }
 
@@ -9652,12 +9490,10 @@ static void clrtab_ivf(FILE* f)
     int    i;
     winptr win; /* window pointer */
 
-    lockmain(); /* start exclusive access */
     win = txt2win(f); /* get window pointer from text file */
     lockwin(win); /* the window's own lock */
     for (i = 0; i < MAXTAB; i++) win->screens[win->curupd-1]->tab[i] = 0;
     unlockwin(win); /* the window's data is done with */
-    unlockmain(); /* end exclusive access */
 
 }
 
@@ -10443,7 +10279,7 @@ from the main thread, so we send a message to the window to kill it for us.
 
 *******************************************************************************/
 
-static void kilwin(HWND wh)
+static void kilwin(HWND wh, winptr win)
 
 {
 
@@ -10466,7 +10302,7 @@ static void kilwin(HWND wh)
     /* order window to close */
     b = PostMessage(dispwin, UM_IM, (WPARAM)ip, 0);
     if (!b) winerr(); /* process windows error */
-    waitim(ip); /* wait for window close */
+    waitim(ip, win); /* wait for window close, the caller's lock released */
     putitm(ip); /* release im */
 
 }
@@ -10617,7 +10453,7 @@ static void opnwin(int fn, int pfn)
     /* order window to start */
     b = PostMessage(dispwin, UM_IM, (WPARAM)ip, 0);
     if (!b) winerr(); /* process windows error */
-    waitim(ip); /* wait for window start */
+    waitim(ip, NULL); /* wait for window start */
     win->winhan = ip->owhan; /* get the new handle */
 
     /* Joysticks were captured with the window open. Set status of joysticks.
@@ -10649,8 +10485,18 @@ static void opnwin(int fn, int pfn)
     /* because this is an "open ended" (no feedback) emulation, we must bring
       the terminal to a known state */
     win->gfhigh = FHEIGHT; /* set default font height */
-    getfonts(win); /* get the global fonts list */
-    stdfont(); /* mark/create the standard fonts */
+    /* The fonts list is the display's, not the window's, and is built once,
+       at the first open, which is the main window's at initialization,
+       before any other thread runs. From then on it is read only, and the
+       lookups by number and name need no lock. Rebuilt at every open, as it
+       was, a lookup on one thread could walk the list while another
+       thread's open remade it, and the lists replaced were never freed. */
+    if (!fntlst) {
+
+        getfonts(win); /* get the global fonts list */
+        stdfont(); /* mark/create the standard fonts */
+
+    }
     /* index terminal font */
     win->gcfont = fndfnt("System Fixed", TRUE);
     /* set up system default parameters */
@@ -10830,7 +10676,7 @@ static void clswin(int fn)
        the program at window close */
     if (win->joy1cap) r = joyReleaseCapture(JOYSTICKID1);
     if (win->joy2cap) r = joyReleaseCapture(JOYSTICKID2);
-    kilwin(win->winhan); /* kill window */
+    kilwin(win->winhan, NULL); /* kill window */
     /* The window is gone, and its handle and its own device context with it.
        Both are cleared here, not at the file's close, which comes later:
        Windows can reuse the handle value at once for another window, and a
@@ -10860,6 +10706,7 @@ static void clsfil(int fn)
     int    si; /* index for screens */
     filptr fp;
 
+    locktbl(); /* the entry's fields, and the tables */
     fp = opnfil[fn];
     /* release all of the screen buffers, their GDI objects first: left
        standing, a closed window's contexts, bitmaps, pens, brushes and fonts
@@ -10888,6 +10735,7 @@ static void clsfil(int fn)
         ifree(ep); /* release */
 
     }
+    unlocktbl();
 
 }
 
@@ -10915,14 +10763,18 @@ static void closewin(int ofn)
     int wid; /* window id */
 
     lockmain(); /* begin exclusive access */
+    locktbl(); /* the tables' lock, around the reads */
     wid = filwin[ofn]; /* get window id */
     ifn = opnfil[ofn]->inl; /* get the input file link */
+    unlocktbl(); /* released for the close, which waits on the display thread */
     clswin(ofn); /* close the window */
     clsfil(ofn); /* flush and close output file */
     /* if no remaining links exist, flush and close input file */
     if (!inplnk(ifn)) clsfil(ifn);
+    locktbl(); /* and around the writes */
     filwin[ofn] = -1; /* clear file to window translation */
     xltwin[wid-1] = -1; /* clear window to file translation */
+    unlocktbl();
     unlockmain(); /* end exclusive access */
 
 }
@@ -10941,6 +10793,7 @@ static void openio(FILE* infile, FILE* outfile, int ifn, int ofn, int pfn,
 {
 
     /* if output was never opened, create it now */
+    locktbl(); /* the tables' lock, around the entries' setup */
     if (!opnfil[ofn]) getfet(&opnfil[ofn]);
     /* if input was never opened, create it now */
     if (!opnfil[ifn]) getfet(&opnfil[ifn]);
@@ -10950,6 +10803,7 @@ static void openio(FILE* infile, FILE* outfile, int ifn, int ofn, int pfn,
        files */
     opnfil[ifn]->sfp = infile;
     opnfil[ofn]->sfp = outfile;
+    unlocktbl(); /* released for the open, which waits on the display thread */
     /* now see if it has a window attached */
     if (!opnfil[ofn]->win) {
 
@@ -10960,10 +10814,12 @@ static void openio(FILE* infile, FILE* outfile, int ifn, int ofn, int pfn,
         opnwin(ofn, pfn); /* and start that up */
 
     }
+    locktbl(); /* the translation tables */
     /* check if the window has been pinned to something else */
     if (xltwin[wid-1] >= 0 && xltwin[wid-1] != ofn) error(ewinuse); /* flag error */
     xltwin[wid-1] = ofn; /* pin the window to the output file */
     filwin[ofn] = wid;
+    unlocktbl();
 
 }
 
@@ -11094,10 +10950,10 @@ static void isizbufg(winptr win, ami_long x, ami_long y)
     b = adjwinrect(win, &cr, WS_OVERLAPPEDWINDOW, FALSE);
     if (!b) winerr(); /* process windows error */
     /* now, resize the window to just fit our new buffer size */
-    unlockmain(); /* end exclusive access */
+    unlockwin(win); /* end exclusive access */
     b = SetWindowPos(win->winhan, 0, 0, 0, cr.right-cr.left, cr.bottom-cr.top,
                      SWP_NOMOVE | SWP_NOZORDER);
-    lockmain(); /* start exclusive access */
+    lockwin(win); /* start exclusive access */
     if (!b) winerr(); /* process windows error */
     /* all the screen buffers are wrong, so tear them out */
     for (si = 0; si < MAXCON; si++) {
@@ -11128,12 +10984,10 @@ static void sizbufg_ivf(FILE* f, ami_long x, ami_long y)
 
     winptr win; /* window pointer */
 
-    lockmain(); /* start exclusive access */
     win = txt2win(f); /* get window pointer from text file */
     lockwin(win); /* the window's own lock */
     isizbufg(win, x, y); /* execute */
     unlockwin(win); /* the window's data is done with */
-    unlockmain(); /* end exclusive access */
 
 }
 
@@ -11151,13 +11005,11 @@ static void sizbuf_ivf(FILE* f, ami_long x, ami_long y)
 
     winptr win; /* pointer to windows context */
 
-    lockmain(); /* start exclusive access */
     win = txt2win(f); /* get window context */
     lockwin(win); /* the window's own lock */
     /* just translate from characters to pixels and do the resize in pixels. */
     isizbufg(win, x*win->charspace, y*win->linespace);
     unlockwin(win); /* the window's data is done with */
-    unlockmain(); /* end exclusive access */
 
 }
 
@@ -11200,10 +11052,10 @@ static void ibuffer(winptr win, ami_long e)
         b = adjwinrect(win, &r, WS_OVERLAPPEDWINDOW, FALSE);
         if (!b) winerr(); /* process windows error */
         /* resize the window to just fit our buffer size */
-        unlockmain(); /* end exclusive access */
+        unlockwin(win); /* end exclusive access */
         b = SetWindowPos(win->winhan, 0, 0, 0, r.right-r.left, r.bottom-r.top,
                          SWP_NOMOVE | SWP_NOZORDER);
-        lockmain(); /* start exclusive access */
+        lockwin(win); /* start exclusive access */
         if (!b) winerr(); /* process windows error */
         restore(win, TRUE); /* restore buffer to screen */
 
@@ -11252,12 +11104,10 @@ static void buffer_ivf(FILE* f, ami_long e)
 
     winptr win; /* pointer to windows context */
 
-    lockmain(); /* start exclusive access */
     win = txt2win(f); /* get window context */
     lockwin(win); /* the window's own lock */
     ibuffer(win, e); /* execute */
     unlockwin(win); /* the window's data is done with */
-    unlockmain(); /* end exclusive access */
 
 }
 
@@ -11395,13 +11245,13 @@ static void imenu(winptr win, ami_menuptr m)
     }
     if (m) /* there is a new menu to activate */
         createmenu(win, m, &win->menhan);
-    unlockmain(); /* end exclusive access */
+    unlockwin(win); /* end exclusive access */
     b = SetMenu(win->winhan, win->menhan); /* set the menu to the window */
-    lockmain(); /* start exclusive access */
+    lockwin(win); /* start exclusive access */
     if (!b) winerr(); /* process windows error */
-    unlockmain(); /* end exclusive access */
+    unlockwin(win); /* end exclusive access */
     b = DrawMenuBar(win->winhan); /* display menu */
-    lockmain(); /* start exclusive access */
+    lockwin(win); /* start exclusive access */
     if (!b) winerr(); /* process windows error */
 
     /* set minimum style */
@@ -11422,11 +11272,11 @@ static void imenu(winptr win, ami_menuptr m)
     /* find window size from client size */
     b = adjwinrect(win, &cr, fl1, TRUE);
     if (!b) winerr(); /* process windows error */
-    unlockmain(); /* end exclusive access */
+    unlockwin(win); /* end exclusive access */
     b = SetWindowPos(win->winhan, 0, 0, 0,
                      cr.right-cr.left, cr.bottom-cr.top,
                      SWP_NOMOVE | SWP_NOZORDER);
-    lockmain(); /* start exclusive access */
+    lockwin(win); /* start exclusive access */
     if (!b) winerr(); /* process windows error */
 
 }
@@ -11437,12 +11287,10 @@ static void menu_ivf(FILE* f, ami_menuptr m)
 
     winptr win; /* pointer to windows context */
 
-    lockmain(); /* start exclusive access */
     win = txt2win(f); /* get window context */
     lockwin(win); /* the window's own lock */
     imenu(win, m); /* execute */
     unlockwin(win); /* the window's data is done with */
-    unlockmain(); /* end exclusive access */
 
 }
 
@@ -11504,9 +11352,9 @@ static void imenuena(winptr win, ami_long id, ami_long onoff)
     else fl |= MF_GRAYED; /* disable it */
     b = EnableMenuItem(mp->han, mp->inx, fl); /* perform that */
     if (b == -1) error(esystem); /* should not happen */
-    unlockmain(); /* end exclusive access */
+    unlockwin(win); /* end exclusive access */
     b = DrawMenuBar(win->winhan); /* display menu */
-    lockmain(); /* start exclusive access */
+    lockwin(win); /* start exclusive access */
     if (!b) winerr(); /* process windows error */
 
 }
@@ -11517,12 +11365,10 @@ static void menuena_ivf(FILE* f, ami_long id, ami_long onoff)
 
     winptr win; /* pointer to windows context */
 
-    lockmain(); /* start exclusive access */
     win = txt2win(f); /* get window context */
     lockwin(win); /* the window's own lock */
     imenuena(win, id, onoff); /* execute */
     unlockwin(win); /* the window's data is done with */
-    unlockmain(); /* end exclusive access */
 
 }
 
@@ -11587,9 +11433,9 @@ static void imenusel(winptr win, ami_long id, ami_long select)
     else fl |= MF_UNCHECKED; /* deselect it */
     r = CheckMenuItem(mp->han, mp->inx, fl); /* perform that */
     if (r == -1) error(esystem); /* should not happen */
-    unlockmain(); /* end exclusive access */
+    unlockwin(win); /* end exclusive access */
     b = DrawMenuBar(win->winhan); /* display menu */
-    lockmain(); /* start exclusive access */
+    lockwin(win); /* start exclusive access */
     if (!b) winerr(); /* process windows error */
 
 }
@@ -11600,12 +11446,10 @@ static void menusel_ivf(FILE* f, ami_long id, ami_long select)
 
     winptr win; /* pointer to windows context */
 
-    lockmain(); /* start exclusive access */
     win = txt2win(f); /* get window context */
     lockwin(win); /* the window's own lock */
     imenusel(win, id, select); /* execute */
     unlockwin(win); /* the window's data is done with */
-    unlockmain(); /* end exclusive access */
 
 }
 
@@ -11626,33 +11470,33 @@ static void ifront(winptr win)
 
     fl = 0;
     fl = ! fl;
-    unlockmain(); /* end exclusive access */
+    unlockwin(win); /* end exclusive access */
     b = SetWindowPos(win->winhan, 0/*fl*/ /*hwnd_topmost*/, 0, 0, 0, 0,
                      SWP_NOMOVE | SWP_NOSIZE);
-    lockmain(); /* start exclusive access */
+    lockwin(win); /* start exclusive access */
     if (!b) winerr(); /* process windows error */
 
 #if 0
     fl = 1;
     fl = ! fl;
-    unlockmain(); /* end exclusive access */
+    unlockwin(win); /* end exclusive access */
     b = SetWindowPos(win->winhan, fl /*hwnd_notopmost*/, 0, 0, 0, 0,
                      SWP_NOMOVE | SWP_NOSIZE);
-    lockmain(); /* start exclusive access */
+    lockwin(win); /* start exclusive access */
     if (!b) winerr(); /* process windows error */
 #endif
 
-    unlockmain(); /* end exclusive access */
+    unlockwin(win); /* end exclusive access */
     b = PostMessage(win->winhan, WM_PAINT, 0, 0);
     if (!b) winerr(); /* process windows error */
-    lockmain(); /* start exclusive access */
+    lockwin(win); /* start exclusive access */
 
     if (win->parhan) {
 
-        unlockmain(); /* end exclusive access */
+        unlockwin(win); /* end exclusive access */
         b = PostMessage(win->parhan, WM_PAINT, 0, 0);
         if (!b) winerr(); /* process windows error */
-        lockmain(); /* start exclusive access */
+        lockwin(win); /* start exclusive access */
 
     }
 
@@ -11664,12 +11508,10 @@ static void front_ivf(FILE* f)
 
     winptr win; /* windows record pointer */
 
-    lockmain(); /* start exclusive access */
     win = txt2win(f); /* get window from file */
     lockwin(win); /* the window's own lock */
     ifront(win); /* execute */
     unlockwin(win); /* the window's data is done with */
-    unlockmain(); /* end exclusive access */
 
 }
 
@@ -11687,10 +11529,10 @@ static void iback(winptr win)
 
     BOOL b; /* result holder */
 
-    unlockmain(); /* end exclusive access */
+    unlockwin(win); /* end exclusive access */
     b = SetWindowPos(win->winhan, HWND_BOTTOM, 0, 0, 0, 0,
                      SWP_NOMOVE | SWP_NOSIZE);
-    lockmain(); /* start exclusive access */
+    lockwin(win); /* start exclusive access */
     if (!b) winerr(); /* process windows error */
 
 }
@@ -11701,12 +11543,10 @@ static void back_ivf(FILE* f)
 
     winptr win; /* windows record pointer */
 
-    lockmain(); /* start exclusive access */
     win = txt2win(f); /* get window from file */
     lockwin(win); /* the window's own lock */
     iback(win); /* execute */
     unlockwin(win); /* the window's data is done with */
-    unlockmain(); /* end exclusive access */
 
 }
 
@@ -11738,12 +11578,34 @@ static void getsizg_ivf(FILE* f, ami_long* x, ami_long* y)
 
     winptr win; /* windows record pointer */
 
-    lockmain(); /* start exclusive access */
     win = txt2win(f); /* get window from file */
     lockwin(win); /* the window's own lock */
     igetsizg(win, x, y); /* execute */
     unlockwin(win); /* the window's data is done with */
-    unlockmain(); /* end exclusive access */
+
+}
+
+/* The character cell a child window's position and size are given in: its
+   parent's, or the standard cell for a window on the desktop. The parent is
+   another window, so the read takes the gate, and the parent's lock inside
+   it, and holds neither on return: the caller then takes its own window's
+   lock alone for the operation, which may call Windows. */
+static void parcell(winptr win, ami_long* cs, ami_long* ls)
+
+{
+
+    winptr par; /* the parent */
+    int    pl;  /* its logical file */
+
+    lockmain(); /* the gate: two windows are read */
+    lockwin(win); pl = win->parlfn; unlockwin(win);
+    if (pl >= 0) { /* has a parent */
+
+        par = lfn2win(pl); /* index the parent */
+        lockwin(par); *cs = par->charspace; *ls = par->linespace; unlockwin(par);
+
+    } else { *cs = STDCHRX; *ls = STDCHRY; } /* the desktop's cell */
+    unlockmain();
 
 }
 
@@ -11764,26 +11626,17 @@ static void getsiz_ivf(FILE* f, ami_long* x, ami_long* y)
 
 {
 
-    winptr win, par; /* windows record pointer */
+    winptr   win;    /* windows record pointer */
+    ami_long cs, ls; /* the parent's character cell */
 
-    lockmain(); /* start exclusive access */
     win = txt2win(f); /* get window from file */
+    parcell(win, &cs, &ls); /* the cell the size is given in */
+    lockwin(win); /* the window's own lock */
     igetsizg(win, x, y); /* execute */
-    if (win->parlfn >= 0) { /* has a parent */
-
-        par = lfn2win(win->parlfn); /* index the parent */
-        /* find character based sizes */
-        *x = (*x-1) / par->charspace+1;
-        *y = (*y-1) / par->linespace+1;
-
-    } else {
-
-        /* find character based sizes */
-        *x = (*x-1) / STDCHRX+1;
-        *y = (*y-1) / STDCHRY+1;
-
-    }
-    unlockmain(); /* end exclusive access */
+    unlockwin(win);
+    /* find character based sizes */
+    *x = (*x-1)/cs+1;
+    *y = (*y-1)/ls+1;
 
 }
 
@@ -11803,9 +11656,9 @@ static void isetsizg(winptr win, ami_long x, ami_long y)
 
     BOOL b; /* result holder */
 
-    unlockmain(); /* end exclusive access */
+    unlockwin(win); /* end exclusive access */
     b = SetWindowPos(win->winhan, 0, 0, 0, x, y, SWP_NOMOVE | SWP_NOZORDER);
-    lockmain(); /* start exclusive access */
+    lockwin(win); /* start exclusive access */
     if (!b) winerr(); /* process windows error */
 
     win->resizing--; /* the geometry change is done */
@@ -11817,12 +11670,10 @@ static void setsizg_ivf(FILE* f, ami_long x, ami_long y)
 
     winptr win; /* windows record pointer */
 
-    lockmain(); /* start exclusive access */
     win = txt2win(f); /* get window from file */
     lockwin(win); /* the window's own lock */
     isetsizg(win, x, y); /* execute */
     unlockwin(win); /* the window's data is done with */
-    unlockmain(); /* end exclusive access */
 
 }
 
@@ -11843,26 +11694,15 @@ static void setsiz_ivf(FILE* f, ami_long x, ami_long y)
 
 {
 
-    winptr win, par; /* windows record pointer */
+    winptr   win;    /* windows record pointer */
+    ami_long cs, ls; /* the parent's character cell */
 
-    lockmain(); /* start exclusive access */
     win = txt2win(f); /* get window from file */
-    if (win->parlfn >= 0) { /* has a parent */
-
-        par = lfn2win(win->parlfn); /* index the parent */
-        /* find character based sizes */
-        x = x*par->charspace;
-        y = y*par->linespace;
-
-    } else {
-
-        /* find character based sizes */
-        x = x*STDCHRX;
-        y = y*STDCHRY;
-
-    }
-    isetsizg(win, x, y); /* execute */
-    unlockmain(); /* end exclusive access */
+    parcell(win, &cs, &ls); /* the cell the size is given in */
+    /* the window's own lock, which isetsizg releases for its call to Windows */
+    lockwin(win);
+    isetsizg(win, x*cs, y*ls); /* execute */
+    unlockwin(win);
 
 }
 
@@ -11882,9 +11722,9 @@ static void isetposg(winptr win, ami_long x, ami_long y)
 
     BOOL b; /* result holder */
 
-    unlockmain(); /* end exclusive access */
+    unlockwin(win); /* end exclusive access */
     b = SetWindowPos(win->winhan, 0, x-1, y-1, 0, 0, SWP_NOSIZE);
-    lockmain(); /* start exclusive access */
+    lockwin(win); /* start exclusive access */
     if (!b) winerr(); /* process windows error */
 
     win->resizing--; /* the geometry change is done */
@@ -11896,12 +11736,10 @@ static void setposg_ivf(FILE* f, ami_long x, ami_long y)
 
     winptr win; /* windows record pointer */
 
-    lockmain(); /* start exclusive access */
     win = txt2win(f); /* get window from file */
     lockwin(win); /* the window's own lock */
     isetposg(win, x, y); /* execute */
     unlockwin(win); /* the window's data is done with */
-    unlockmain(); /* end exclusive access */
 
 }
 
@@ -11922,26 +11760,15 @@ static void setpos_ivf(FILE* f, ami_long x, ami_long y)
 
 {
 
-    winptr win, par; /* windows record pointer */
+    winptr   win;    /* windows record pointer */
+    ami_long cs, ls; /* the parent's character cell */
 
-    lockmain(); /* start exclusive access */
     win = txt2win(f); /* get window from file */
-    if (win->parlfn >= 0) { /* has a parent */
-
-        par = lfn2win(win->parlfn); /* index the parent */
-        /* find character based sizes */
-        x = (x-1)*par->charspace+1;
-        y = (y-1)*par->linespace+1;
-
-    } else {
-
-        /* find character based sizes */
-        x = (x-1)*STDCHRX+1;
-        y = (y-1)*STDCHRY+1;
-
-    }
-    isetposg(win, x, y); /* execute */
-    unlockmain(); /* end exclusive access */
+    parcell(win, &cs, &ls); /* the cell the position is given in */
+    /* the window's own lock, which isetposg releases for its call to Windows */
+    lockwin(win);
+    isetposg(win, (x-1)*cs+1, (y-1)*ls+1); /* execute */
+    unlockwin(win);
 
 }
 
@@ -11975,12 +11802,10 @@ static void scnsizg_ivf(FILE* f, ami_long* x, ami_long* y)
 
     winptr win; /* windows record pointer */
 
-    lockmain(); /* start exclusive access */
     win = txt2win(f); /* get window from file */
     lockwin(win); /* the window's own lock */
     iscnsizg(win, x, y); /* execute */
     unlockwin(win); /* the window's data is done with */
-    unlockmain(); /* end exclusive access */
 
 }
 
@@ -12008,7 +11833,7 @@ static void iwinclientg(winptr win, ami_long cx, ami_long cy, ami_long* wx, ami_
     RECT cr; /* client rectangle holder */
     int fl;  /* flag */
 
-    lockmain(); /* start exclusive access */
+    lockwin(win); /* start exclusive access */
     cr.left = 0; /* set up desired client rectangle */
     cr.top = 0;
     cr.right = cx;
@@ -12031,7 +11856,7 @@ static void iwinclientg(winptr win, ami_long cx, ami_long cy, ami_long* wx, ami_
     if (!b) winerr(); /* process windows error */
     *wx = cr.right-cr.left; /* return window size */
     *wy = cr.bottom-cr.top;
-    unlockmain(); /* end exclusive access */
+    unlockwin(win); /* end exclusive access */
 
 }
 
@@ -12039,28 +11864,17 @@ static void winclient_ivf(FILE* f, ami_long cx, ami_long cy, ami_long* wx, ami_l
 
 {
 
-    winptr win, par; /* windows record pointer */
+    winptr   win;    /* windows record pointer */
+    ami_long cs, ls; /* the parent's character cell */
 
-    lockmain(); /* start exclusive access */
     win = txt2win(f); /* get window from file */
-    /* execute */
-    iwinclientg(win, cx*win->charspace, cy*win->linespace, wx, wy, ms);
+    parcell(win, &cs, &ls); /* the cell the result is given in */
+    lockwin(win); /* the window's own lock */
+    iwinclientg(win, cx*win->charspace, cy*win->linespace, wx, wy, ms); /* execute */
+    unlockwin(win);
     /* find character based sizes */
-    if (win->parlfn >= 0) { /* has a parent */
-
-        par = lfn2win(win->parlfn); /* index the parent */
-        /* find character based sizes */
-        *wx = (*wx-1) / par->charspace+1;
-        *wy = (*wy-1) / par->linespace+1;
-
-    } else {
-
-        /* find character based sizes */
-        *wx = (*wx-1) / STDCHRX+1;
-        *wy = (*wy-1) / STDCHRY+1;
-
-    }
-    unlockmain(); /* end exclusive access */
+    *wx = (*wx-1)/cs+1;
+    *wy = (*wy-1)/ls+1;
 
 }
 
@@ -12070,12 +11884,10 @@ static void winclientg_ivf(FILE* f, ami_long cx, ami_long cy, ami_long* wx, ami_
 
     winptr win; /* windows record pointer */
 
-    lockmain(); /* start exclusive access */
     win = txt2win(f); /* get window from file */
     lockwin(win); /* the window's own lock */
     iwinclientg(win, cx, cy, wx, wy, ms); /* execute */
     unlockwin(win); /* the window's data is done with */
-    unlockmain(); /* end exclusive access */
 
 }
 
@@ -12096,14 +11908,12 @@ static void scnsiz_ivf(FILE* f, ami_long* x, ami_long* y)
 
     winptr win; /* windows record pointer */
 
-    lockmain(); /* start exclusive access */
     win = txt2win(f); /* get window from file */
     lockwin(win); /* the window's own lock */
     iscnsizg(win, x, y); /* execute */
     *x = *x/STDCHRX; /* convert to "standard character" size */
     *y = *y/STDCHRY;
     unlockwin(win); /* the window's data is done with */
-    unlockmain(); /* end exclusive access */
 
 }
 
@@ -12139,19 +11949,19 @@ static void iframe(winptr win, ami_long e)
 
     }
     fl1 = redstyle(fl1); /* reduce for caption-less window */
-    unlockmain(); /* end exclusive access */
+    unlockwin(win); /* end exclusive access */
     r = SetWindowLong(win->winhan, GWL_STYLE, fl1);
-    lockmain(); /* start exclusive access */
+    lockwin(win); /* start exclusive access */
     if (!r) winerr(); /* process windows error */
-    unlockmain(); /* end exclusive access */
+    unlockwin(win); /* end exclusive access */
     b = SetWindowPos(win->winhan, 0, 0, 0, 0, 0, SWP_NOSIZE | SWP_NOMOVE |
                                                  SWP_FRAMECHANGED);
-    lockmain(); /* start exclusive access */
+    lockwin(win); /* start exclusive access */
     if (!b) winerr(); /* process windows error */
     /* present the window */
-    unlockmain(); /* end exclusive access */
+    unlockwin(win); /* end exclusive access */
     b = ShowWindow(win->winhan, SW_SHOWDEFAULT);
-    lockmain(); /* start exclusive access */
+    lockwin(win); /* start exclusive access */
     /* change window size to match new mode */
     cr.left = 0; /* set up desired client rectangle */
     cr.top = 0;
@@ -12160,11 +11970,11 @@ static void iframe(winptr win, ami_long e)
     /* find window size from client size */
     b = adjwinrect(win, &cr, fl1, FALSE);
     if (!b) winerr(); /* process windows error */
-    unlockmain(); /* end exclusive access */
+    unlockwin(win); /* end exclusive access */
     b = SetWindowPos(win->winhan, 0, 0, 0,
                         cr.right-cr.left, cr.bottom-cr.top,
                         SWP_NOMOVE | SWP_NOZORDER);
-    lockmain(); /* start exclusive access */
+    lockwin(win); /* start exclusive access */
     if (!b) winerr(); /* process windows error */
 
     win->resizing--; /* the geometry change is done */
@@ -12176,12 +11986,10 @@ static void frame_ivf(FILE* f, ami_long e)
 
     winptr win; /* windows record pointer */
 
-    lockmain(); /* start exclusive access */
     win = txt2win(f); /* get window from file */
     lockwin(win); /* the window's own lock */
     iframe(win, e); /* execute */
     unlockwin(win); /* the window's data is done with */
-    unlockmain(); /* end exclusive access */
 
 }
 
@@ -12220,19 +12028,19 @@ static void isizable(winptr win, ami_long e)
         /* if we are enabling frames, add the frame parts back */
         if (e) fl1 |= WS_THICKFRAME;
         fl1 = redstyle(fl1); /* reduce for caption-less window */
-        unlockmain(); /* end exclusive access */
+        unlockwin(win); /* end exclusive access */
         r = SetWindowLong(win->winhan, GWL_STYLE, fl1);
-        lockmain(); /* start exclusive access */
+        lockwin(win); /* start exclusive access */
         if (!r) winerr(); /* process windows error */
-        unlockmain(); /* end exclusive access */
+        unlockwin(win); /* end exclusive access */
         b = SetWindowPos(win->winhan, 0, 0, 0, 0, 0, SWP_NOSIZE | SWP_NOMOVE |
                                                      SWP_FRAMECHANGED);
-        lockmain(); /* start exclusive access */
+        lockwin(win); /* start exclusive access */
         if (!b) winerr(); /* process windows error */
         /* present the window */
-        unlockmain(); /* end exclusive access */
+        unlockwin(win); /* end exclusive access */
         b = ShowWindow(win->winhan, SW_SHOWDEFAULT);
-        lockmain(); /* start exclusive access */
+        lockwin(win); /* start exclusive access */
         /* change window size to match new mode */
         cr.left = 0; /* set up desired client rectangle */
         cr.top = 0;
@@ -12241,11 +12049,11 @@ static void isizable(winptr win, ami_long e)
         /* find window size from client size */
         b = adjwinrect(win, &cr, fl1, FALSE);
         if (!b) winerr(); /* process windows error */
-        unlockmain(); /* end exclusive access */
+        unlockwin(win); /* end exclusive access */
         b = SetWindowPos(win->winhan, 0, 0, 0,
                          cr.right-cr.left, cr.bottom-cr.top,
                          SWP_NOMOVE | SWP_NOZORDER);
-        lockmain(); /* start exclusive access */
+        lockwin(win); /* start exclusive access */
         if (!b) winerr(); /* process windows error */
 
     }
@@ -12259,12 +12067,10 @@ static void sizable_ivf(FILE* f, ami_long e)
 
     winptr win; /* windows record pointer */
 
-    lockmain(); /* start exclusive access */
     win = txt2win(f); /* get window from file */
     lockwin(win); /* the window's own lock */
     isizable(win, e); /* execute */
     unlockwin(win); /* the window's data is done with */
-    unlockmain(); /* end exclusive access */
 
 }
 
@@ -12303,19 +12109,19 @@ static void isysbar(winptr win, ami_long e)
         /* if we are enabling frames, add the frame parts back */
         if (e) fl1 |= WS_THICKFRAME;
         fl1 = redstyle(fl1); /* reduce for caption-less window */
-        unlockmain(); /* end exclusive access */
+        unlockwin(win); /* end exclusive access */
         r = SetWindowLong(win->winhan, GWL_STYLE, fl1);
-        lockmain(); /* start exclusive access */
+        lockwin(win); /* start exclusive access */
         if (!r) winerr(); /* process windows error */
-        unlockmain(); /* end exclusive access */
+        unlockwin(win); /* end exclusive access */
         b = SetWindowPos(win->winhan, 0, 0, 0, 0, 0,
                              SWP_NOSIZE | SWP_NOMOVE | SWP_FRAMECHANGED);
-        lockmain(); /* start exclusive access */
+        lockwin(win); /* start exclusive access */
         if (!b) winerr(); /* process windows error */
         /* present the window */
-        unlockmain(); /* end exclusive access */
+        unlockwin(win); /* end exclusive access */
         ShowWindow(win->winhan, SW_SHOWDEFAULT);
-        lockmain(); /* start exclusive access */
+        lockwin(win); /* start exclusive access */
         /* change window size to match new mode */
         cr.left = 0; /* set up desired client rectangle */
         cr.top = 0;
@@ -12324,11 +12130,11 @@ static void isysbar(winptr win, ami_long e)
         /* find window size from client size */
         b = adjwinrect(win, &cr, fl1, FALSE);
         if (!b) winerr(); /* process windows error */
-        unlockmain(); /* end exclusive access */
+        unlockwin(win); /* end exclusive access */
         b = SetWindowPos(win->winhan, 0, 0, 0,
                              cr.right-cr.left, cr.bottom-cr.top,
                              SWP_NOMOVE | SWP_NOZORDER);
-        lockmain(); /* start exclusive access */
+        lockwin(win); /* start exclusive access */
         if (!b) winerr(); /* process windows error */
 
     }
@@ -12342,12 +12148,10 @@ static void sysbar_ivf(FILE* f, ami_long e)
 
     winptr win; /* windows record pointer */
 
-    lockmain(); /* start exclusive access */
     win = txt2win(f); /* get window from file */
     lockwin(win); /* the window's own lock */
     isysbar(win, e); /* execute */
     unlockwin(win); /* the window's data is done with */
-    unlockmain(); /* end exclusive access */
 
 }
 
@@ -12644,7 +12448,7 @@ static HWND createwidget(winptr win, wigtyp typ, ami_long x1, ami_long y1, ami_l
     b = PostMessage(dispwin, UM_IM, (WPARAM)ip, 0);
     if (!b) winerr(); /* process windows error */
     /* Wait for widget start, this also keeps our window going. */
-    waitim(ip); /* wait for the return */
+    waitim(ip, win); /* wait for the return */
     wh = ip->wigwin; /* place handle to widget */
     ifree(ip->wigcls); /* release class string */
     ifree(ip->wigtxt); /* release face text string */
@@ -12689,8 +12493,8 @@ static void ikillwidget(winptr win, ami_long id)
     if (!win->visible) winvis(win); /* make sure we are displayed */
     wp = fndwig(win, id); /* find widget */
     if (!wp) error(ewignf); /* not found */
-    kilwin(wp->han); /* kill window */
-    if (wp->han2) kilwin(wp->han2); /* distroy buddy window */
+    kilwin(wp->han, win); /* kill window */
+    if (wp->han2) kilwin(wp->han2, win); /* distroy buddy window */
     putwig(win, wp); /* release widget entry */
 
 }
@@ -12701,12 +12505,10 @@ static void killwidget_ivf(FILE* f, ami_long id)
 
     winptr win; /* window context */
 
-    lockmain(); /* start exclusive access */
     win = txt2win(f); /* get windows context */
     lockwin(win); /* the window's own lock */
     ikillwidget(win, id); /* execute */
     unlockwin(win); /* the window's data is done with */
-    unlockmain(); /* end exclusive access */
 
 }
 
@@ -12738,19 +12540,19 @@ static void iselectwidget(winptr win, ami_long id, ami_long e)
            it as a pushlike checkbox, which looks the same but holds a
            pressed in look while checked. The check state is program
            controlled, so clicks still just send button events */
-        unlockmain(); /* end exclusive access */
+        unlockwin(win); /* end exclusive access */
         fl = GetWindowLong(wp->han, GWL_STYLE);
         if (!(fl & BS_PUSHLIKE))
             SetWindowLong(wp->han, GWL_STYLE,
                           (fl & ~(LONG)0xf) | BS_CHECKBOX | BS_PUSHLIKE);
         r = SendMessage(wp->han, BM_SETCHECK, !!e, 0);
-        lockmain();/* start exclusive access */
+        lockwin(win);/* start exclusive access */
 
     } else if (wp->typ == wtcheckbox || wp->typ == wtradiobutton) {
 
-        unlockmain(); /* end exclusive access */
+        unlockwin(win); /* end exclusive access */
         r = SendMessage(wp->han, BM_SETCHECK, !!e, 0);
-        lockmain();/* start exclusive access */
+        lockwin(win);/* start exclusive access */
 
     }
     /* other widget kinds have no select rendering; the call is accepted
@@ -12764,12 +12566,10 @@ static void selectwidget_ivf(FILE* f, ami_long id, ami_long e)
 
     winptr win; /* window context */
 
-    lockmain(); /* start exclusive access */
     win = txt2win(f); /* get windows context */
     lockwin(win); /* the window's own lock */
     iselectwidget(win, id, e); /* execute */
     unlockwin(win); /* the window's data is done with */
-    unlockmain(); /* end exclusive access */
 
 }
 
@@ -12798,9 +12598,9 @@ static void ienablewidget(winptr win, ami_long id, ami_long e)
         wp->typ != wtlistbox && wp->typ != wtdropbox &&
         wp->typ != wtdropeditbox && wp->typ != wtslidehoriz &&
         wp->typ != wtslidevert && wp->typ != wttabbar) error(ewigdis);
-    unlockmain(); /* end exclusive access */
+    unlockwin(win); /* end exclusive access */
     EnableWindow(wp->han, e); /* perform */
-    lockmain(); /* start exclusive access */
+    lockwin(win); /* start exclusive access */
     wp->enb = e; /* save enable/disable status */
 
 }
@@ -12811,12 +12611,10 @@ static void enablewidget_ivf(FILE* f, ami_long id, ami_long e)
 
     winptr win; /* window context */
 
-    lockmain(); /* start exclusive access */
     win = txt2win(f); /* get windows context */
     lockwin(win); /* the window's own lock */
     ienablewidget(win, id, e); /* execute */
     unlockwin(win); /* the window's data is done with */
-    unlockmain(); /* end exclusive access */
 
 }
 
@@ -12852,11 +12650,11 @@ static void igetwidgettext(winptr win, ami_long id, char* s, ami_long sl)
       documentation, for GetWindowText. The docs define
       a zero return as being for a zero length string, but also apparently
       uses that value for errors. */
-    unlockmain(); /* end exclusive access */
+    unlockwin(win); /* end exclusive access */
     ls = GetWindowTextLength(wp->han); /* find length of widget text */
     sp = imalloc(ls+1); /* get temporary buffer to hold text */
     r = GetWindowText(wp->han, sp, ls+1); /* get the text */
-    lockmain(); /* start exclusive access */
+    lockwin(win); /* start exclusive access */
     cpycrit(s, sl, sp); /* copy text to critical buffer */
     ifree(sp); /* free the temporary buffer */
 
@@ -12868,12 +12666,10 @@ static void getwidgettext_ivf(FILE* f, ami_long id, char* s, ami_long sl)
 
     winptr win;  /* window context */
 
-    lockmain(); /* start exclusive access */
     win = txt2win(f); /* get windows context */
     lockwin(win); /* the window's own lock */
     igetwidgettext(win, id, s, sl); /* execute */
     unlockwin(win); /* the window's data is done with */
-    unlockmain(); /* end exclusive access */
 
 }
 
@@ -12897,9 +12693,9 @@ static void iputwidgettext(winptr win, ami_long id, char* s)
     if (!wp) error(ewignf); /* not found */
     /* check this widget can put text */
     if (wp->typ != wteditbox && wp->typ != wtdropeditbox) error(ewigptxt);
-    unlockmain(); /* end exclusive access */
+    unlockwin(win); /* end exclusive access */
     b = SetWindowText(wp->han, s); /* get the text */
-    lockmain(); /* start exclusive access */
+    lockwin(win); /* start exclusive access */
     if (!b) winerr(); /* process windows error */
 
 }
@@ -12910,12 +12706,10 @@ static void putwidgettext_ivf(FILE* f, ami_long id, char* s)
 
     winptr win; /* window context */
 
-    lockmain(); /* start exclusive access */
     win = txt2win(f); /* get windows context */
     lockwin(win); /* the window's own lock */
     iputwidgettext(win, id, s); /* execute */
     unlockwin(win); /* the window's data is done with */
-    unlockmain(); /* end exclusive access */
 
 }
 
@@ -12936,16 +12730,16 @@ static void isizwidgetg(winptr win, ami_long id,  ami_long x, ami_long y)
 
     wp = fndwig(win, id); /* find widget */
     if (!wp) error(ewignf); /* not found */
-    unlockmain(); /* end exclusive access */
+    unlockwin(win); /* end exclusive access */
     b = SetWindowPos(wp->han, 0, 0, 0, x, y, SWP_NOMOVE | SWP_NOZORDER);
-    lockmain(); /* start exclusive access */
+    lockwin(win); /* start exclusive access */
     if (!b) winerr(); /* process windows error */
     if (wp->han2) { /* also resize the buddy */
 
         /* Note, the buddy needs to be done differently for a numselbox */
-        unlockmain(); /* end exclusive access */
+        unlockwin(win); /* end exclusive access */
         b = SetWindowPos(wp->han2, 0, 0, 0, x, y, SWP_NOMOVE | SWP_NOZORDER);
-        lockmain(); /* start exclusive access */
+        lockwin(win); /* start exclusive access */
         if (!b) winerr(); /* process windows error */
 
     }
@@ -12958,12 +12752,10 @@ static void sizwidgetg_ivf(FILE* f, ami_long id, ami_long x, ami_long y)
 
     winptr win; /* window context */
 
-    lockmain(); /* start exclusive access */
     win = txt2win(f); /* get windows context */
     lockwin(win); /* the window's own lock */
     isizwidgetg(win, id, x, y); /* execute */
     unlockwin(win); /* the window's data is done with */
-    unlockmain(); /* end exclusive access */
 
 }
 
@@ -12984,16 +12776,16 @@ static void iposwidgetg(winptr win, ami_long id, ami_long x, ami_long y)
 
     wp = fndwig(win, id); /* find widget */
     if (!wp) error(ewignf); /* not found */
-    unlockmain(); /* end exclusive access */
+    unlockwin(win); /* end exclusive access */
     b = SetWindowPos(wp->han, 0, x-1, y-1, 0, 0, SWP_NOSIZE);
-    lockmain(); /* start exclusive access */
+    lockwin(win); /* start exclusive access */
     if (!b) winerr(); /* process windows error */
     if (wp->han2) { /* also reposition the buddy */
 
         /* Note, the buddy needs to be done differently for a numselbox */
-        unlockmain(); /* end exclusive access */
+        unlockwin(win); /* end exclusive access */
         b = SetWindowPos(wp->han2, 0, x-1, y-1, 0, 0, SWP_NOSIZE);
-        lockmain(); /* start exclusive access */
+        lockwin(win); /* start exclusive access */
         if (!b) winerr(); /* process windows error */
 
     }
@@ -13006,12 +12798,10 @@ static void poswidgetg_ivf(FILE* f, ami_long id, ami_long x, ami_long y)
 
     winptr win; /* window context */
 
-    lockmain(); /* start exclusive access */
     win = txt2win(f); /* get windows context */
     lockwin(win); /* the window's own lock */
     iposwidgetg(win, id, x, y); /* execute */
     unlockwin(win); /* the window's data is done with */
-    unlockmain(); /* end exclusive access */
 
 }
 
@@ -13030,17 +12820,17 @@ static void ibackwidget(winptr win, ami_long id)
 
     wp = fndwig(win, id); /* find widget */
     if (!wp) error(ewignf); /* not found */
-    unlockmain(); /* end exclusive access */
+    unlockwin(win); /* end exclusive access */
     b = SetWindowPos(wp->han, HWND_BOTTOM, 0, 0, 0, 0, SWP_NOMOVE | SWP_NOSIZE);
-    lockmain(); /* start exclusive access */
+    lockwin(win); /* start exclusive access */
     if (!b) winerr(); /* process windows error */
     if (wp->han2) { /* also reposition the buddy */
 
         /* Note, the buddy needs to be done differently for a numselbox */
-        unlockmain(); /* end exclusive access */
+        unlockwin(win); /* end exclusive access */
         b = SetWindowPos(wp->han2, HWND_BOTTOM, 0, 0, 0, 0,
                          SWP_NOMOVE | SWP_NOSIZE);
-        lockmain(); /* start exclusive access */
+        lockwin(win); /* start exclusive access */
         if (!b) winerr(); /* process windows error */
 
     }
@@ -13053,12 +12843,10 @@ static void backwidget_ivf(FILE* f, ami_long id)
 
     winptr win; /* window context */
 
-    lockmain(); /* start exclusive access */
      win = txt2win(f); /* get windows context */
      lockwin(win); /* the window's own lock */
     ibackwidget(win, id); /* execute */
      unlockwin(win); /* the window's data is done with */
-    unlockmain(); /* end exclusive access */
 
 }
 
@@ -13077,18 +12865,18 @@ static void ifrontwidget(winptr win, ami_long id)
 
     wp = fndwig(win, id); /* find widget */
     if (!wp) error(ewignf); /* not found */
-    unlockmain(); /* end exclusive access */
+    unlockwin(win); /* end exclusive access */
     b = SetWindowPos(wp->han, HWND_TOPMOST, 0, 0, 0, 0,
                      SWP_NOMOVE | SWP_NOSIZE);
-    lockmain(); /* start exclusive access */
+    lockwin(win); /* start exclusive access */
     if (!b) winerr(); /* process windows error */
     if (wp->han2) { /* also reposition the buddy */
 
         /* Note, the buddy needs to be done differently for a numselbox */
-        unlockmain(); /* end exclusive access */
+        unlockwin(win); /* end exclusive access */
         b = SetWindowPos(wp->han2, HWND_TOPMOST, 0, 0, 0, 0,
                          SWP_NOMOVE | SWP_NOSIZE);
-        lockmain(); /* start exclusive access */
+        lockwin(win); /* start exclusive access */
         if (!b) winerr(); /* process windows error */
 
     }
@@ -13101,12 +12889,10 @@ static void frontwidget_ivf(FILE* f, ami_long id)
 
     winptr win; /* window context */
 
-    lockmain(); /* start exclusive access */
     win = txt2win(f); /* get windows context */
     lockwin(win); /* the window's own lock */
     ifrontwidget(win, id); /* execute */
     unlockwin(win); /* the window's data is done with */
-    unlockmain(); /* end exclusive access */
 
 }
 
@@ -13154,12 +12940,10 @@ static void buttonsizg_ivf(FILE* f, char* s, ami_long* w, ami_long* h)
 
     winptr win; /* window context */
 
-    lockmain(); /* start exclusive access */
     win = txt2win(f); /* get windows context */
     lockwin(win); /* the window's own lock */
     ibuttonsizg(win, s, w, h); /* get size */
     unlockwin(win); /* the window's data is done with */
-    unlockmain(); /* end exclusive access */
 
 }
 
@@ -13169,12 +12953,10 @@ static void buttonsiz_ivf(FILE* f, char* s, ami_long* w, ami_long* h)
 
     winptr win; /* window context */
 
-    lockmain(); /* start exclusive access */
     win = txt2win(f); /* get windows context */
     lockwin(win); /* the window's own lock */
     ibuttonsiz(win, s, w, h); /* get size */
     unlockwin(win); /* the window's data is done with */
-    unlockmain(); /* end exclusive access */
 
 }
 
@@ -13216,12 +12998,10 @@ static void buttong_ivf(FILE* f, ami_long x1, ami_long y1, ami_long x2, ami_long
 
     winptr win; /* window context */
 
-    lockmain(); /* start exclusive access */
     win = txt2win(f); /* get windows context */
     lockwin(win); /* the window's own lock */
     ibuttong(win, x1, y1, x2, y2, s, id);
     unlockwin(win); /* the window's data is done with */
-    unlockmain(); /* end exclusive access */
 
 }
 
@@ -13231,12 +13011,10 @@ static void button_ivf(FILE* f, ami_long x1, ami_long y1, ami_long x2, ami_long 
 
     winptr win; /* window context */
 
-    lockmain(); /* start exclusive access */
     win = txt2win(f); /* get windows context */
     lockwin(win); /* the window's own lock */
     ibutton(win, x1, y1, x2, y2, s, id);
     unlockwin(win); /* the window's data is done with */
-    unlockmain(); /* end exclusive access */
 
 }
 
@@ -13285,12 +13063,10 @@ static void checkboxsizg_ivf(FILE* f, char* s, ami_long* w, ami_long* h)
 
     winptr win; /* window context */
 
-    lockmain(); /* start exclusive access */
     win = txt2win(f); /* get windows context */
     lockwin(win); /* the window's own lock */
     icheckboxsizg(win, s, w, h); /* get size */
     unlockwin(win); /* the window's data is done with */
-    unlockmain(); /* end exclusive access */
 
 }
 
@@ -13300,12 +13076,10 @@ static void checkboxsiz_ivf(FILE* f, char* s, ami_long* w, ami_long* h)
 
     winptr win; /* window context */
 
-    lockmain(); /* start exclusive access */
     win = txt2win(f); /* get windows context */
     lockwin(win); /* the window's own lock */
     icheckboxsiz(win, s, w, h); /* get size */
     unlockwin(win); /* the window's data is done with */
-    unlockmain(); /* end exclusive access */
 
 }
 
@@ -13348,12 +13122,10 @@ static void checkboxg_ivf(FILE* f, ami_long x1, ami_long y1, ami_long x2, ami_lo
 
     winptr win; /* window context */
 
-    lockmain(); /* start exclusive access */
     win = txt2win(f); /* get windows context */
     lockwin(win); /* the window's own lock */
     icheckboxg(win, x1, y1, x2, y2, s, id); /* execute */
     unlockwin(win); /* the window's data is done with */
-    unlockmain(); /* end exclusive access */
 
 }
 
@@ -13363,12 +13135,10 @@ static void checkbox_ivf(FILE* f, ami_long x1, ami_long y1, ami_long x2, ami_lon
 
     winptr win; /* window context */
 
-    lockmain(); /* start exclusive access */
     win = txt2win(f); /* get windows context */
     lockwin(win); /* the window's own lock */
     icheckbox(win, x1, y1, x2, y2, s, id); /* execute */
     unlockwin(win); /* the window's data is done with */
-    unlockmain(); /* end exclusive access */
 
 }
 
@@ -13417,12 +13187,10 @@ static void radiobuttonsizg_ivf(FILE* f, char* s, ami_long* w, ami_long* h)
 
     winptr win; /* window context */
 
-    lockmain(); /* start exclusive access */
     win = txt2win(f); /* get windows context */
     lockwin(win); /* the window's own lock */
     iradiobuttonsizg(win, s, w, h); /* get size */
     unlockwin(win); /* the window's data is done with */
-    unlockmain(); /* end exclusive access */
 
 }
 
@@ -13432,12 +13200,10 @@ static void radiobuttonsiz_ivf(FILE* f, char* s, ami_long* w, ami_long* h)
 
     winptr win; /* window context */
 
-    lockmain(); /* start exclusive access */
     win = txt2win(f); /* get windows context */
     lockwin(win); /* the window's own lock */
     iradiobuttonsiz(win, s, w, h); /* get size */
     unlockwin(win); /* the window's data is done with */
-    unlockmain(); /* end exclusive access */
 
 }
 
@@ -13480,12 +13246,10 @@ static void radiobuttong_ivf(FILE* f, ami_long x1, ami_long y1, ami_long x2, ami
 
     winptr win; /* window context */
 
-    lockmain(); /* start exclusive access */
     win = txt2win(f); /* get windows context */
     lockwin(win); /* the window's own lock */
     iradiobuttong(win, x1, y1, x2, y2, s, id); /* execute */
     unlockwin(win); /* the window's data is done with */
-    unlockmain(); /* end exclusive access */
 
 }
 
@@ -13495,12 +13259,10 @@ static void radiobutton_ivf(FILE* f, ami_long x1, ami_long y1, ami_long x2, ami_
 
     winptr win; /* window context */
 
-    lockmain(); /* start exclusive access */
     win = txt2win(f); /* get windows context */
     lockwin(win); /* the window's own lock */
     iradiobutton(win, x1, y1, x2, y2, s, id); /* execute */
     unlockwin(win); /* the window's data is done with */
-    unlockmain(); /* end exclusive access */
 
 }
 
@@ -13561,12 +13323,10 @@ static void groupsizg_ivf(FILE* f, char* s, ami_long cw, ami_long ch, ami_long* 
 
     winptr win; /* window context */
 
-    lockmain(); /* start exclusive access */
     win = txt2win(f); /* get windows context */
     lockwin(win); /* the window's own lock */
     igroupsizg(win, s, cw, ch, w, h, ox, oy); /* get size */
     unlockwin(win); /* the window's data is done with */
-    unlockmain(); /* end exclusive access */
 
 }
 
@@ -13577,12 +13337,10 @@ static void groupsiz_ivf(FILE* f, char* s, ami_long cw, ami_long ch, ami_long* w
 
     winptr win; /* window context */
 
-    lockmain(); /* start exclusive access */
     win = txt2win(f); /* get windows context */
     lockwin(win); /* the window's own lock */
     igroupsiz(win, s, cw, ch, w, h, ox, oy); /* get size */
     unlockwin(win); /* the window's data is done with */
-    unlockmain(); /* end exclusive access */
 
 }
 
@@ -13625,12 +13383,10 @@ static void groupg_ivf(FILE* f, ami_long x1, ami_long y1, ami_long x2, ami_long 
 
     winptr win; /* window context */
 
-    lockmain(); /* start exclusive access */
     win = txt2win(f); /* get windows context */
     lockwin(win); /* the window's own lock */
     igroupg(win, x1, y1, x2, y2, s, id); /* execute */
     unlockwin(win); /* the window's data is done with */
-    unlockmain(); /* end exclusive access */
 
 }
 
@@ -13640,12 +13396,10 @@ static void group_ivf(FILE* f, ami_long x1, ami_long y1, ami_long x2, ami_long y
 
     winptr win; /* window context */
 
-    lockmain(); /* start exclusive access */
     win = txt2win(f); /* get windows context */
     lockwin(win); /* the window's own lock */
     igroup(win, x1, y1, x2, y2, s, id); /* execute */
     unlockwin(win); /* the window's data is done with */
-    unlockmain(); /* end exclusive access */
 
 }
 
@@ -13688,12 +13442,10 @@ static void backgroundg_ivf(FILE* f, ami_long x1, ami_long y1, ami_long x2, ami_
 
     winptr win; /* window context */
 
-    lockmain(); /* start exclusive access */
     win = txt2win(f); /* get windows context */
     lockwin(win); /* the window's own lock */
     ibackgroundg(win, x1, y1, x2, y2, id); /* execute */
     unlockwin(win); /* the window's data is done with */
-    unlockmain(); /* end exclusive access */
 
 }
 
@@ -13703,12 +13455,10 @@ static void background_ivf(FILE* f, ami_long x1, ami_long y1, ami_long x2, ami_l
 
     winptr win; /* window context */
 
-    lockmain(); /* start exclusive access */
     win = txt2win(f); /* get windows context */
     lockwin(win); /* the window's own lock */
     ibackground(win, x1, y1, x2, y2, id); /* execute */
     unlockwin(win); /* the window's data is done with */
-    unlockmain(); /* end exclusive access */
 
 }
 
@@ -13748,12 +13498,10 @@ static void scrollvertsizg_ivf(FILE* f, ami_long* w, ami_long* h)
 
     winptr win; /* window context */
 
-    lockmain(); /* start exclusive access */
     win = txt2win(f); /* get windows context */
     lockwin(win); /* the window's own lock */
     iscrollvertsizg(win, w, h); /* get size */
     unlockwin(win); /* the window's data is done with */
-    unlockmain(); /* end exclusive access */
 
 }
 
@@ -13763,12 +13511,10 @@ static void scrollvertsiz_ivf(FILE* f, ami_long* w, ami_long* h)
 
     winptr win; /* window context */
 
-    lockmain(); /* start exclusive access */
     win = txt2win(f); /* get windows context */
     lockwin(win); /* the window's own lock */
     iscrollvertsiz(win, w, h); /* get size */
     unlockwin(win); /* the window's data is done with */
-    unlockmain(); /* end exclusive access */
 
 }
 
@@ -13792,16 +13538,16 @@ static void iscrollvertg(winptr win, ami_long x1, ami_long y1, ami_long x2, ami_
     widget(win, x1, y1, x2, y2, "", id, wtscrollvert, 0, &wp);
     /* The scroll set for windows is arbitrary. We expand that to 0..LONG_MAX on
        messages. */
-    unlockmain(); /* end exclusive access */
+    unlockwin(win); /* end exclusive access */
     b = SetScrollRange(wp->han, SB_CTL, 0, 255, FALSE);
-    lockmain(); /* start exclusive access */
+    lockwin(win); /* start exclusive access */
     if (!b) winerr(); /* process windows error */
     /* retrieve the default size of slider */
     si.cbSize = sizeof(SCROLLINFO); /* set size */
     si.fMask = SIF_PAGE; /* set page size */
-    unlockmain(); /* end exclusive access */
+    unlockwin(win); /* end exclusive access */
     b = GetScrollInfo(wp->han, SB_CTL, &si);
-    lockmain(); /* start exclusive access */
+    lockwin(win); /* start exclusive access */
     if (!b) winerr(); /* process windows error */
     wp->siz = si.nPage; /* get size */
 
@@ -13826,12 +13572,10 @@ static void scrollvertg_ivf(FILE* f, ami_long x1, ami_long y1, ami_long x2, ami_
 
     winptr win; /* window context */
 
-    lockmain(); /* start exclusive access */
     win = txt2win(f); /* get windows context */
     lockwin(win); /* the window's own lock */
     iscrollvertg(win, x1, y1, x2, y2, id); /* execute */
     unlockwin(win); /* the window's data is done with */
-    unlockmain(); /* end exclusive access */
 
 }
 
@@ -13841,12 +13585,10 @@ static void scrollvert_ivf(FILE* f, ami_long x1, ami_long y1, ami_long x2, ami_l
 
     winptr win; /* window context */
 
-    lockmain(); /* start exclusive access */
     win = txt2win(f); /* get windows context */
     lockwin(win); /* the window's own lock */
     iscrollvert(win, x1, y1, x2, y2, id); /* execute */
     unlockwin(win); /* the window's data is done with */
-    unlockmain(); /* end exclusive access */
 
 }
 
@@ -13886,12 +13628,10 @@ static void scrollhorizsizg_ivf(FILE* f, ami_long* w, ami_long* h)
 
     winptr win; /* window context */
 
-    lockmain(); /* start exclusive access */
     win = txt2win(f); /* get windows context */
     lockwin(win); /* the window's own lock */
     iscrollhorizsizg(win, w, h); /* get size */
     unlockwin(win); /* the window's data is done with */
-    unlockmain(); /* end exclusive access */
 
 }
 
@@ -13901,12 +13641,10 @@ static void scrollhorizsiz_ivf(FILE* f, ami_long* w, ami_long* h)
 
     winptr win; /* window context */
 
-    lockmain(); /* start exclusive access */
     win = txt2win(f); /* get windows context */
     lockwin(win); /* the window's own lock */
     iscrollhorizsiz(win, w, h); /* get size */
     unlockwin(win); /* the window's data is done with */
-    unlockmain(); /* end exclusive access */
 
 }
 
@@ -13930,16 +13668,16 @@ static void iscrollhorizg(winptr win, ami_long x1, ami_long y1, ami_long x2, ami
     widget(win, x1, y1, x2, y2, "", id, wtscrollhoriz, 0, &wp);
     /* The scroll set for windows is arbitrary. We expand that to 0..LONG_MAX on
        messages. */
-    unlockmain(); /* end exclusive access */
+    unlockwin(win); /* end exclusive access */
     b = SetScrollRange(wp->han, SB_CTL, 0, 255, FALSE);
-    lockmain(); /* start exclusive access */
+    lockwin(win); /* start exclusive access */
     if (!b) winerr(); /* process windows error */
     /* retrieve the default size of slider */
     si.cbSize = sizeof(SCROLLINFO); /* set size */
     si.fMask = SIF_PAGE; /* set page size */
-    unlockmain(); /* end exclusive access */
+    unlockwin(win); /* end exclusive access */
     b = GetScrollInfo(wp->han, SB_CTL, &si);
-    lockmain(); /* start exclusive access */
+    lockwin(win); /* start exclusive access */
     if (!b) winerr(); /* process windows error */
     wp->siz = si.nPage; /* get size */
 
@@ -13964,12 +13702,10 @@ static void scrollhorizg_ivf(FILE* f, ami_long x1, ami_long y1, ami_long x2, ami
 
     winptr win; /* window context */
 
-    lockmain(); /* start exclusive access */
     win = txt2win(f); /* get windows context */
     lockwin(win); /* the window's own lock */
     iscrollhorizg(win, x1, y1, x2, y2, id); /* execute */
     unlockwin(win); /* the window's data is done with */
-    unlockmain(); /* end exclusive access */
 
 }
 
@@ -13979,12 +13715,10 @@ static void scrollhoriz_ivf(FILE* f, ami_long x1, ami_long y1, ami_long x2, ami_
 
     winptr win; /* window context */
 
-    lockmain(); /* start exclusive access */
     win = txt2win(f); /* get windows context */
     lockwin(win); /* the window's own lock */
     iscrollhoriz(win, x1, y1, x2, y2, id); /* execute */
     unlockwin(win); /* the window's data is done with */
-    unlockmain(); /* end exclusive access */
 
 }
 
@@ -14013,9 +13747,9 @@ static void iscrollpos(winptr win, ami_long id, ami_long r)
     /* clamp to max */
     if (f*(255-wp->siz)/LONG_MAX > 255) p = 255;
     else p = f*(255-wp->siz)/LONG_MAX;
-    unlockmain(); /* end exclusive access */
+    unlockwin(win); /* end exclusive access */
     rv = SetScrollPos(wp->han, SB_CTL, p, TRUE);
-    lockmain();/* start exclusive access */
+    lockwin(win);/* start exclusive access */
 
 }
 
@@ -14025,12 +13759,10 @@ static void scrollpos_ivf(FILE* f, ami_long id, ami_long r)
 
     winptr win; /* window context */
 
-    lockmain(); /* start exclusive access */
     win = txt2win(f); /* get windows context */
     lockwin(win); /* the window's own lock */
     iscrollpos(win, id, r); /* execute */
     unlockwin(win); /* the window's data is done with */
-    unlockmain(); /* end exclusive access */
 
 }
 
@@ -14061,9 +13793,9 @@ static void iscrollsiz(winptr win, ami_long id, ami_long r)
     si.nPage = r/0x800000; /* set size */
     si.nPos = 0; /* no position */
     si.nTrackPos = 0; /* no track position */
-    unlockmain(); /* end exclusive access */
+    unlockwin(win); /* end exclusive access */
     rv = SetScrollInfo(wp->han, SB_CTL, &si, TRUE);
-    lockmain(); /* start exclusive access */
+    lockwin(win); /* start exclusive access */
     wp->siz = r/0x800000; /* set size */
 
 }
@@ -14074,12 +13806,10 @@ static void scrollsiz_ivf(FILE* f, ami_long id, ami_long r)
 
     winptr win; /* window context */
 
-    lockmain(); /* start exclusive access */
     win = txt2win(f); /* get windows context */
     lockwin(win); /* the window's own lock */
     iscrollsiz(win, id, r); /* execute */
     unlockwin(win); /* the window's data is done with */
-    unlockmain(); /* end exclusive access */
 
 }
 
@@ -14206,12 +13936,10 @@ static void numselboxsizg_ivf(FILE* f, ami_long l, ami_long u, ami_long* w, ami_
 
     winptr win; /* window context */
 
-    lockmain(); /* start exclusive access */
     win = txt2win(f); /* get windows context */
     lockwin(win); /* the window's own lock */
     inumselboxsizg(win, l, u, w, h); /* get size */
     unlockwin(win); /* the window's data is done with */
-    unlockmain(); /* end exclusive access */
 
 }
 
@@ -14221,12 +13949,10 @@ static void numselboxsiz_ivf(FILE* f, ami_long l, ami_long u, ami_long* w, ami_l
 
     winptr win; /* window context */
 
-    lockmain(); /* start exclusive access */
     win = txt2win(f); /* get windows context */
     lockwin(win); /* the window's own lock */
     inumselboxsiz(win, l, u, w, h); /* get size */
     unlockwin(win); /* the window's data is done with */
-    unlockmain(); /* end exclusive access */
 
 }
 
@@ -14282,7 +14008,7 @@ static void inumselboxg(winptr win, ami_long x1, ami_long y1, ami_long x2, ami_l
     ip->udpos = l;
     br = PostMessage(dispwin, UM_IM, (WPARAM)ip, 0);
     if (!br) winerr(); /* process windows error */
-    waitim(ip); /* wait for the return */
+    waitim(ip, win); /* wait for the return */
     wp->han = ip->udhan; /* place control handle */
     wp->han2 = ip->udbuddy; /* place buddy handle */
     putitm(ip); /* release im */
@@ -14314,12 +14040,10 @@ static void numselboxg_ivf(FILE* f, ami_long x1, ami_long y1, ami_long x2, ami_l
 
     winptr win; /* window context */
 
-    lockmain(); /* start exclusive access */
     win = txt2win(f); /* get windows context */
     lockwin(win); /* the window's own lock */
     inumselboxg(win, x1, y1, x2, y2, l, u, id); /* execute */
     unlockwin(win); /* the window's data is done with */
-    unlockmain(); /* end exclusive access */
 
 }
 
@@ -14329,12 +14053,10 @@ static void numselbox_ivf(FILE* f, ami_long x1, ami_long y1, ami_long x2, ami_lo
 
     winptr win; /* window context */
 
-    lockmain(); /* start exclusive access */
     win = txt2win(f); /* get windows context */
     lockwin(win); /* the window's own lock */
     inumselbox(win, x1, y1, x2, y2, l, u, id); /* execute */
     unlockwin(win); /* the window's data is done with */
-    unlockmain(); /* end exclusive access */
 
 }
 
@@ -14429,12 +14151,10 @@ static void editboxsizg_ivf(FILE* f, char* s, ami_long* w, ami_long* h)
 
     winptr win; /* window context */
 
-    lockmain(); /* start exclusive access */
     win = txt2win(f); /* get windows context */
     lockwin(win); /* the window's own lock */
     ieditboxsizg(win, s, w, h); /* get size */
     unlockwin(win); /* the window's data is done with */
-    unlockmain(); /* end exclusive access */
 
 }
 
@@ -14444,12 +14164,10 @@ static void editboxsiz_ivf(FILE* f, char* s, ami_long* w, ami_long* h)
 
     winptr win; /* window context */
 
-    lockmain(); /* start exclusive access */
     win = txt2win(f); /* get windows context */
     lockwin(win); /* the window's own lock */
     ieditboxsiz(win, s, w, h); /* get size */
     unlockwin(win); /* the window's data is done with */
-    unlockmain(); /* end exclusive access */
 
 }
 
@@ -14497,12 +14215,10 @@ static void editboxg_ivf(FILE* f,  ami_long x1, ami_long y1, ami_long x2, ami_lo
 
     winptr win; /* window context */
 
-    lockmain(); /* start exclusive access */
     win = txt2win(f); /* get windows context */
     lockwin(win); /* the window's own lock */
     ieditboxg(win, x1,y1, x2,y2, id); /* execute */
     unlockwin(win); /* the window's data is done with */
-    unlockmain(); /* end exclusive access */
 
 }
 
@@ -14512,12 +14228,10 @@ static void editbox_ivf(FILE* f, ami_long x1, ami_long y1, ami_long x2, ami_long
 
     winptr win; /* window context */
 
-    lockmain(); /* start exclusive access */
     win = txt2win(f); /* get windows context */
     lockwin(win); /* the window's own lock */
     ieditbox(win, x1,y1, x2,y2, id); /* execute */
     unlockwin(win); /* the window's data is done with */
-    unlockmain(); /* end exclusive access */
 
 }
 
@@ -14559,12 +14273,10 @@ static void progbarsizg_ivf(FILE* f, ami_long* w, ami_long* h)
 
     winptr win; /* window context */
 
-    lockmain(); /* start exclusive access */
     win = txt2win(f); /* get windows context */
     lockwin(win); /* the window's own lock */
     iprogbarsizg(win, w, h); /* get size */
     unlockwin(win); /* the window's data is done with */
-    unlockmain(); /* end exclusive access */
 
 }
 
@@ -14574,12 +14286,10 @@ static void progbarsiz_ivf(FILE* f, ami_long* w, ami_long* h)
 
     winptr win; /* window context */
 
-    lockmain(); /* start exclusive access */
     win = txt2win(f); /* get windows context */
     lockwin(win); /* the window's own lock */
     iprogbarsiz(win, w, h); /* get size */
     unlockwin(win); /* the window's data is done with */
-    unlockmain(); /* end exclusive access */
 
 }
 
@@ -14602,9 +14312,9 @@ static void iprogbarg(winptr win, ami_long x1, ami_long y1, ami_long x2, ami_lon
     /* create the progress bar */
     widget(win, x1, y1, x2, y2, "", id, wtprogressbar, 0, &wp);
     /* use 0..LONG_MAX ratio */
-    unlockmain(); /* end exclusive access */
+    unlockwin(win); /* end exclusive access */
     r = SendMessage(wp->han, PBM_SETRANGE32, 0, LONG_MAX);
-    lockmain(); /* start exclusive access */
+    lockwin(win); /* start exclusive access */
 
 }
 
@@ -14627,12 +14337,10 @@ static void progbarg_ivf(FILE* f, ami_long x1, ami_long y1, ami_long x2, ami_lon
 
     winptr win;  /* window context */
 
-    lockmain(); /* start exclusive access */
     win = txt2win(f); /* get windows context */
     lockwin(win); /* the window's own lock */
     iprogbarg(win, x1, y1, x2, y2, id); /* execute */
     unlockwin(win); /* the window's data is done with */
-    unlockmain(); /* end exclusive access */
 
 }
 
@@ -14642,12 +14350,10 @@ static void progbar_ivf(FILE* f, ami_long x1, ami_long y1, ami_long x2, ami_long
 
     winptr win;  /* window context */
 
-    lockmain(); /* start exclusive access */
     win = txt2win(f); /* get windows context */
     lockwin(win); /* the window's own lock */
     iprogbar(win, x1, y1, x2, y2, id); /* execute */
     unlockwin(win); /* the window's data is done with */
-    unlockmain(); /* end exclusive access */
 
 }
 
@@ -14671,9 +14377,9 @@ static void iprogbarpos(winptr win, ami_long id, ami_long pos)
    wp = fndwig(win, id); /* find widget */
    if (!wp) error(ewignf); /* not found */
    /* set the range */
-   unlockmain(); /* end exclusive access */
+   unlockwin(win); /* end exclusive access */
    r = SendMessage(wp->han, PBM_SETPOS, pos, 0);
-   lockmain(); /* start exclusive access */
+   lockwin(win); /* start exclusive access */
 
 }
 
@@ -14683,12 +14389,10 @@ static void progbarpos_ivf(FILE* f, ami_long id, ami_long pos)
 
     winptr win; /* window context */
 
-    lockmain(); /* start exclusive access */
     win = txt2win(f); /* get windows context */
     lockwin(win); /* the window's own lock */
     iprogbarpos(win, id, pos); /* execute */
     unlockwin(win); /* the window's data is done with */
-    unlockmain(); /* end exclusive access */
 
 }
 
@@ -14752,12 +14456,10 @@ static void listboxsizg_ivf(FILE* f, ami_strptr sp, ami_long* w, ami_long* h)
 
     winptr win; /* window context */
 
-    lockmain(); /* start exclusive access */
     win = txt2win(f); /* get windows context */
     lockwin(win); /* the window's own lock */
     ilistboxsizg(win, sp, w, h); /* get size */
     unlockwin(win); /* the window's data is done with */
-    unlockmain(); /* end exclusive access */
 
 }
 
@@ -14767,12 +14469,10 @@ static void listboxsiz_ivf(FILE* f, ami_strptr sp, ami_long* w, ami_long* h)
 
     winptr win; /* window context */
 
-    lockmain(); /* start exclusive access */
     win = txt2win(f); /* get windows context */
     lockwin(win); /* the window's own lock */
     ilistboxsiz(win, sp, w, h); /* get size */
     unlockwin(win); /* the window's data is done with */
-    unlockmain(); /* end exclusive access */
 
 }
 
@@ -14795,9 +14495,9 @@ static void ilistboxg(winptr win, ami_long x1, ami_long y1, ami_long x2, ami_lon
     widget(win, x1, y1, x2, y2, "", id, wtlistbox, 0, &wp);
     while (sp) { /* add strings to list */
 
-        unlockmain(); /* end exclusive access */
+        unlockwin(win); /* end exclusive access */
         r = SendMessage(wp->han, LB_ADDSTRING, 0, (LPARAM)sp->str); /* add string */
-        lockmain(); /* start exclusive access */
+        lockwin(win); /* start exclusive access */
         if (r == -1) error(estrspc); /* out of string space */
         sp = sp->next; /* next string */
 
@@ -14824,12 +14524,10 @@ static void listboxg_ivf(FILE* f, ami_long x1, ami_long y1, ami_long x2, ami_lon
 
     winptr win; /* window context */
 
-    lockmain(); /* start exclusive access */
     win = txt2win(f); /* get windows context */
     lockwin(win); /* the window's own lock */
     ilistboxg(win, x1, y1, x2, y2, sp, id); /* execute */
     unlockwin(win); /* the window's data is done with */
-    unlockmain(); /* end exclusive access */
 
 }
 
@@ -14839,12 +14537,10 @@ static void listbox_ivf(FILE* f, ami_long x1, ami_long y1, ami_long x2, ami_long
 
     winptr win; /* window context */
 
-    lockmain(); /* start exclusive access */
     win = txt2win(f); /* get windows context */
     lockwin(win); /* the window's own lock */
     ilistbox(win, x1, y1, x2, y2, sp, id); /* execute */
     unlockwin(win); /* the window's data is done with */
-    unlockmain(); /* end exclusive access */
 
 }
 
@@ -14948,12 +14644,10 @@ static void dropboxsizg_ivf(FILE* f, ami_strptr sp, ami_long* cw, ami_long* ch, 
 
     winptr win; /* window context */
 
-    lockmain(); /* start exclusive access */
     win = txt2win(f); /* get windows context */
     lockwin(win); /* the window's own lock */
     idropboxsizg(win, sp, cw, ch, ow, oh); /* get size */
     unlockwin(win); /* the window's data is done with */
-    unlockmain(); /* end exclusive access */
 
 }
 
@@ -14963,12 +14657,10 @@ static void dropboxsiz_ivf(FILE* f, ami_strptr sp, ami_long* cw, ami_long* ch, a
 
     winptr win; /* window context */
 
-    lockmain(); /* start exclusive access */
     win = txt2win(f); /* get windows context */
     lockwin(win); /* the window's own lock */
     idropboxsiz(win, sp, cw, ch, ow, oh); /* get size */
     unlockwin(win); /* the window's data is done with */
-    unlockmain(); /* end exclusive access */
 
 }
 
@@ -14994,16 +14686,16 @@ static void idropboxg(winptr win, ami_long x1, ami_long y1, ami_long x2, ami_lon
     sp1 = sp; /* index top of string list */
     while (sp1) { /* add strings to list */
 
-        unlockmain(); /* end exclusive access */
+        unlockwin(win); /* end exclusive access */
         r = SendMessage(wp->han, CB_ADDSTRING, 0, (LPARAM)sp1->str); /* add string */
-        lockmain(); /* start exclusive access */
+        lockwin(win); /* start exclusive access */
         if (r == -1) error(estrspc); /* out of string space */
         sp1 = sp1->next; /* next string */
 
     }
-    unlockmain(); /* end exclusive access */
+    unlockwin(win); /* end exclusive access */
     r = SendMessage(wp->han, CB_SETCURSEL, 0, 0);
-    lockmain(); /* start exclusive access */
+    lockwin(win); /* start exclusive access */
     if (r == -1)  error(esystem); /* should not happen */
 
 }
@@ -15028,12 +14720,10 @@ static void dropboxg_ivf(FILE* f, ami_long x1, ami_long y1, ami_long x2, ami_lon
 
     winptr win; /* window context */
 
-    lockmain(); /* start exclusive access */
     win = txt2win(f); /* get windows context */
     lockwin(win); /* the window's own lock */
     idropboxg(win, x1, y1, x2, y2, sp, id); /* execute */
     unlockwin(win); /* the window's data is done with */
-    unlockmain(); /* end exclusive access */
 
 }
 
@@ -15043,12 +14733,10 @@ static void dropbox_ivf(FILE* f, ami_long x1, ami_long y1, ami_long x2, ami_long
 
     winptr win; /* window context */
 
-    lockmain(); /* start exclusive access */
     win = txt2win(f); /* get windows context */
     lockwin(win); /* the window's own lock */
     idropbox(win, x1, y1, x2, y2, sp, id); /* execute */
     unlockwin(win); /* the window's data is done with */
-    unlockmain(); /* end exclusive access */
 
 }
 
@@ -15130,12 +14818,10 @@ static void dropeditboxsizg_ivf(FILE* f, ami_strptr sp, ami_long* cw, ami_long* 
 
     winptr win; /* window context */
 
-    lockmain(); /* start exclusive access */
     win = txt2win(f); /* get windows context */
     lockwin(win); /* the window's own lock */
     idropeditboxsizg(win, sp, cw, ch, ow, oh); /* get size */
     unlockwin(win); /* the window's data is done with */
-    unlockmain(); /* end exclusive access */
 
 }
 
@@ -15145,12 +14831,10 @@ static void dropeditboxsiz_ivf(FILE* f, ami_strptr sp, ami_long* cw, ami_long* c
 
     winptr win; /* window context */
 
-    lockmain(); /* start exclusive access */
     win = txt2win(f); /* get windows context */
     lockwin(win); /* the window's own lock */
     idropeditboxsiz(win, sp, cw, ch, ow, oh); /* get size */
     unlockwin(win); /* the window's data is done with */
-    unlockmain(); /* end exclusive access */
 
 }
 
@@ -15184,9 +14868,9 @@ static void idropeditboxg(winptr win, ami_long x1, ami_long y1, ami_long x2, ami
     sp1 = sp; /* index top of string list */
     while (sp1) { /* add strings to list */
 
-        unlockmain(); /* end exclusive access */
+        unlockwin(win); /* end exclusive access */
         r = SendMessage(wp->han, CB_ADDSTRING, 0, (LPARAM)sp1->str); /* add string */
-        lockmain(); /* start exclusive access */
+        lockwin(win); /* start exclusive access */
         if (r == -1) error(estrspc); /* out of string space */
         sp1 = sp1->next; /* next string */
 
@@ -15213,12 +14897,10 @@ static void dropeditboxg_ivf(FILE* f, ami_long x1, ami_long y1, ami_long x2, ami
 
     winptr win; /* window context */
 
-    lockmain(); /* start exclusive access */
     win = txt2win(f); /* get windows context */
     lockwin(win); /* the window's own lock */
     idropeditboxg(win, x1, y1, x2, y2, sp, id); /* execute */
     unlockwin(win); /* the window's data is done with */
-    unlockmain(); /* end exclusive access */
 
 }
 
@@ -15228,12 +14910,10 @@ static void dropeditbox_ivf(FILE* f, ami_long x1, ami_long y1, ami_long x2, ami_
 
     winptr win; /* window context */
 
-    lockmain(); /* start exclusive access */
     win = txt2win(f); /* get windows context */
     lockwin(win); /* the window's own lock */
     idropeditbox(win, x1, y1, x2, y2, sp, id); /* execute */
     unlockwin(win); /* the window's data is done with */
-    unlockmain(); /* end exclusive access */
 
 }
 
@@ -15303,12 +14983,10 @@ static void slidehorizsizg_ivf(FILE* f, ami_long* w, ami_long* h)
 
     winptr win; /* window context */
 
-    lockmain(); /* start exclusive access */
     win = txt2win(f); /* get windows context */
     lockwin(win); /* the window's own lock */
     islidehorizsizg(win, w, h); /* get size */
     unlockwin(win); /* the window's data is done with */
-    unlockmain(); /* end exclusive access */
 
 }
 
@@ -15318,12 +14996,10 @@ static void slidehorizsiz_ivf(FILE* f, ami_long* w, ami_long* h)
 
     winptr win; /* window context */
 
-    lockmain(); /* start exclusive access */
     win = txt2win(f); /* get windows context */
     lockwin(win); /* the window's own lock */
     islidehorizsiz(win, w, h); /* get size */
     unlockwin(win); /* the window's data is done with */
-    unlockmain(); /* end exclusive access */
 
 }
 
@@ -15350,9 +15026,9 @@ static void islidehorizg(winptr win, ami_long x1, ami_long y1, ami_long x2, ami_
     else /* tick marks enabled */
         widget(win, x1, y1, x2, y2, "", id, wtslidehoriz, 0, &wp);
     /* set tickmark frequency */
-    unlockmain(); /* end exclusive access */
+    unlockwin(win); /* end exclusive access */
     r = SendMessage(wp->han, TBM_SETTICFREQ, mark, 0);
-    lockmain(); /* start exclusive access */
+    lockwin(win); /* start exclusive access */
 
 }
 
@@ -15375,12 +15051,10 @@ static void slidehorizg_ivf(FILE* f, ami_long x1, ami_long y1, ami_long x2, ami_
 
     winptr win; /* window context */
 
-    lockmain(); /* start exclusive access */
     win = txt2win(f); /* get windows context */
     lockwin(win); /* the window's own lock */
     islidehorizg(win, x1, y1, x2, y2, mark, id); /* execute */
     unlockwin(win); /* the window's data is done with */
-    unlockmain(); /* end exclusive access */
 
 }
 
@@ -15390,12 +15064,10 @@ static void slidehoriz_ivf(FILE* f, ami_long x1, ami_long y1, ami_long x2, ami_l
 
     winptr win; /* window context */
 
-    lockmain(); /* start exclusive access */
     win = txt2win(f); /* get windows context */
     lockwin(win); /* the window's own lock */
     islidehoriz(win, x1, y1, x2, y2, mark, id); /* execute */
     unlockwin(win); /* the window's data is done with */
-    unlockmain(); /* end exclusive access */
 
 }
 
@@ -15442,12 +15114,10 @@ static void slidevertsizg_ivf(FILE* f, ami_long* w, ami_long* h)
 
     winptr win; /* window context */
 
-    lockmain(); /* start exclusive access */
     win = txt2win(f); /* get windows context */
     lockwin(win); /* the window's own lock */
     islidevertsizg(win, w, h); /* get size */
     unlockwin(win); /* the window's data is done with */
-    unlockmain(); /* end exclusive access */
 
 }
 
@@ -15457,12 +15127,10 @@ static void slidevertsiz_ivf(FILE* f, ami_long* w, ami_long* h)
 
     winptr win; /* window context */
 
-    lockmain(); /* start exclusive access */
     win = txt2win(f); /* get windows context */
     lockwin(win); /* the window's own lock */
     islidevertsiz(win, w, h); /* get size */
     unlockwin(win); /* the window's data is done with */
-    unlockmain(); /* end exclusive access */
 
 }
 
@@ -15490,9 +15158,9 @@ static void islidevertg(winptr win, ami_long x1, ami_long y1, ami_long x2, ami_l
     else /* tick marks enabled */
         widget(win, x1, y1, x2, y2, "", id, wtslidevert, 0, &wp);
     /* set tickmark frequency */
-    unlockmain(); /* end exclusive access */
+    unlockwin(win); /* end exclusive access */
     r = SendMessage(wp->han, TBM_SETTICFREQ, mark, 0);
-    lockmain(); /* start exclusive access */
+    lockwin(win); /* start exclusive access */
 
 }
 
@@ -15515,12 +15183,10 @@ static void slidevertg_ivf(FILE* f, ami_long x1, ami_long y1, ami_long x2, ami_l
 
     winptr win; /* window context */
 
-    lockmain(); /* start exclusive access */
     win = txt2win(f); /* get windows context */
     lockwin(win); /* the window's own lock */
     islidevertg(win, x1, y1, x2, y2, mark, id);
     unlockwin(win); /* the window's data is done with */
-    unlockmain(); /* end exclusive access */
 
 }
 
@@ -15530,12 +15196,10 @@ static void slidevert_ivf(FILE* f, ami_long x1, ami_long y1, ami_long x2, ami_lo
 
     winptr win; /* window context */
 
-    lockmain(); /* start exclusive access */
     win = txt2win(f); /* get windows context */
     lockwin(win); /* the window's own lock */
     islidevert(win, x1, y1, x2, y2, mark, id);
     unlockwin(win); /* the window's data is done with */
-    unlockmain(); /* end exclusive access */
 
 }
 
@@ -15576,8 +15240,8 @@ static void uselesswidget(winptr win)
     b = PostMessage(dispwin, UM_IM, (WPARAM)ip, 0);
     if (!b) winerr(); /* process windows error */
     /* Wait for widget start, this also keeps our window going. */
-    waitim(ip); /* wait for the return */
-    kilwin(ip->wigwin); /* kill widget */
+    waitim(ip, win); /* wait for the return */
+    kilwin(ip->wigwin, win); /* kill widget */
     ifree(ip->wigcls); /* release class string */
     ifree(ip->wigtxt); /* release face text string */
     putitm(ip); /* release im */
@@ -15667,12 +15331,10 @@ static void tabbarsizg_ivf(FILE* f, ami_strptr sp, ami_tabori tor, ami_long cw, 
 
     winptr win; /* window context */
 
-    lockmain(); /* start exclusive access */
     win = txt2win(f); /* get windows context */
     lockwin(win); /* the window's own lock */
     itabbarsizg(win, sp, tor, cw, ch, w, h, ox, oy); /* get size */
     unlockwin(win); /* the window's data is done with */
-    unlockmain(); /* end exclusive access */
 
 }
 
@@ -15683,12 +15345,10 @@ static void tabbarsiz_ivf(FILE* f, ami_strptr sp, ami_tabori tor, ami_long cw, a
 
     winptr win; /* window context */
 
-    lockmain(); /* start exclusive access */
     win = txt2win(f); /* get windows context */
     lockwin(win); /* the window's own lock */
     itabbarsiz(win, sp, tor, cw, ch, w, h, ox, oy); /* get size */
     unlockwin(win); /* the window's data is done with */
-    unlockmain(); /* end exclusive access */
 
 }
 
@@ -15778,12 +15438,10 @@ static void tabbarclientg_ivf(FILE* f, ami_tabori tor, ami_long w, ami_long h, a
 
     winptr win; /* window context */
 
-    lockmain(); /* start exclusive access */
     win = txt2win(f); /* get windows context */
     lockwin(win); /* the window's own lock */
     itabbarclientg(win, tor, w, h, cw, ch, ox, oy); /* get size */
     unlockwin(win); /* the window's data is done with */
-    unlockmain(); /* end exclusive access */
 
 }
 
@@ -15794,12 +15452,10 @@ static void tabbarclient_ivf(FILE* f, ami_tabori tor, ami_long w, ami_long h, am
 
     winptr win; /* window context */
 
-    lockmain(); /* start exclusive access */
     win = txt2win(f); /* get windows context */
     lockwin(win); /* the window's own lock */
     itabbarclient(win, tor, w, h, cw, ch, ox, oy); /* get size */
     unlockwin(win); /* the window's data is done with */
-    unlockmain(); /* end exclusive access */
 
 }
 
@@ -15844,10 +15500,10 @@ static void itabbarg(winptr win, ami_long x1, ami_long y1, ami_long x2, ami_long
         tcr.pszText = sp->str; /* place string */
         tcr.iImage = -1; /* no image */
         tcr.lParam = 0; /* no parameter */
-        unlockmain(); /* end exclusive access */
+        unlockwin(win); /* end exclusive access */
         /* add string */
         r = SendMessage(wp->han, TCM_INSERTITEM, (WPARAM)inx, (LPARAM)&tcr);
-        lockmain(); /* start exclusive access */
+        lockwin(win); /* start exclusive access */
         if (r == -1)  error(etabbar); /* can"t create tab */
         sp = sp->next; /* next string */
         inx++; /* next index */
@@ -15878,12 +15534,10 @@ static void tabbarg_ivf(FILE* f, ami_long x1, ami_long y1, ami_long x2, ami_long
 
     winptr win; /* window context */
 
-    lockmain(); /* start exclusive access */
     win = txt2win(f); /* get windows context */
     lockwin(win); /* the window's own lock */
     itabbarg(win, x1, y1, x2, y2, sp, tor, id); /* execute */
     unlockwin(win); /* the window's data is done with */
-    unlockmain(); /* end exclusive access */
 
 }
 
@@ -15894,12 +15548,10 @@ static void tabbar_ivf(FILE* f, ami_long x1, ami_long y1, ami_long x2, ami_long 
 
     winptr win; /* window context */
 
-    lockmain(); /* start exclusive access */
     win = txt2win(f); /* get windows context */
     lockwin(win); /* the window's own lock */
     itabbar(win, x1, y1, x2, y2, sp, tor, id); /* execute */
     unlockwin(win); /* the window's data is done with */
-    unlockmain(); /* end exclusive access */
 
 }
 
@@ -15924,9 +15576,9 @@ static void itabsel(winptr win, ami_long id, ami_long tn)
     wp = fndwig(win, id); /* find widget */
     if (!wp) error(ewignf); /* not found */
     /* set the range */
-    unlockmain(); /* end exclusive access */
+    unlockwin(win); /* end exclusive access */
     r = SendMessage(wp->han, TCM_SETCURSEL, tn-1, 0);
-    lockmain(); /* start exclusive access */
+    lockwin(win); /* start exclusive access */
 
 }
 
@@ -15936,12 +15588,10 @@ static void tabsel_ivf(FILE* f, ami_long id, ami_long tn)
 
     winptr win; /* window context */
 
-    lockmain(); /* start exclusive access */
     win = txt2win(f); /* get windows context */
     lockwin(win); /* the window's own lock */
     itabsel(win, id, tn); /* execute */
     unlockwin(win); /* the window's data is done with */
-    unlockmain(); /* end exclusive access */
 
 }
 
@@ -15967,7 +15617,7 @@ static void alert_ivf(char* title, char* message)
     ip->altmsg = message;
     b = PostMessage(dialogwin, UM_IM, (WPARAM)ip, 0);
     if (!b) winerr(); /* process windows error */
-    waitim(ip); /* wait for the return */
+    waitim(ip, NULL); /* wait for the return */
     unlockmain(); /* end exclusive access */
 
 }
@@ -15997,7 +15647,7 @@ static void querycolor_ivf(ami_long* r, ami_long* g, ami_long* b)
     ip->clrblue = *b;
     br = PostMessage(dialogwin, UM_IM, (WPARAM)ip, 0);
     if (!br) winerr(); /* process windows error */
-    waitim(ip); /* wait for the return */
+    waitim(ip, NULL); /* wait for the return */
     *r = ip->clrred; /* set new colors */
     *g = ip->clrgreen;
     *b = ip->clrblue;
@@ -16038,7 +15688,7 @@ static void queryopen_ivf(char* s, ami_long sl)
     ip->opnfil = str(s); /* copy input string */
     br = PostMessage(dialogwin, UM_IM, (WPARAM)ip, 0);
     if (!br) winerr(); /* process windows error */
-    waitim(ip); /* wait for the return */
+    waitim(ip, NULL); /* wait for the return */
     cpycrit(s, sl, ip->opnfil); /* copy result to critical buffer */
     ifree(ip->opnfil); /* free the temp string */
     putitm(ip); /* release im */
@@ -16078,7 +15728,7 @@ static void querysave_ivf(char* s, ami_long sl)
     ip->opnfil = str(s); /* set input string */
     br = PostMessage(dialogwin, UM_IM, (WPARAM)ip, 0);
     if (!br)  winerr(); /* process windows error */
-    waitim(ip); /* wait for the return */
+    waitim(ip, NULL); /* wait for the return */
     cpycrit(s, sl, ip->savfil); /* copy result to critical buffer */
     ifree(ip->savfil); /* free the temp string */
     putitm(ip); /* release im */
@@ -16129,7 +15779,7 @@ static void queryfind_ivf(char* s, ami_long sl, ami_long* opt)
     ip->fndopt = *opt; /* set options */
     br = PostMessage(dialogwin, UM_IM, (WPARAM)ip, 0);
     if (!br) winerr(); /* process windows error */
-    waitim(ip); /* wait for the return */
+    waitim(ip, NULL); /* wait for the return */
     cpycrit(s, sl, ip->fndstr); /* copy result to critical buffer */
     ifree(ip->fndstr); /* free the temp string */
     *opt = ip->fndopt; /* set output options */
@@ -16174,7 +15824,7 @@ static void queryfindrep_ivf(char* s, ami_long sl, char* r, ami_long rl, ami_lon
     ip->fnropt = *opt; /* set options */
     br = PostMessage(dialogwin, UM_IM, (WPARAM)ip, 0);
     if (!br) winerr(); /* process windows error */
-    waitim(ip); /* wait for the return */
+    waitim(ip, NULL); /* wait for the return */
     cpycrit(s, sl, ip->fnrsch); /* copy find result to critical buffer */
     ifree(ip->fnrsch); /* free the temp string */
     cpycrit(r, rl, ip->fnrrep); /* copy replace result to critical buffer */
@@ -16251,7 +15901,7 @@ static void iqueryfont(winptr win, ami_long* fc, ami_long* s, ami_long* fr, ami_
     /* send request */
     b = PostMessage(dialogwin, UM_IM, (WPARAM)ip, 0);
     if (!b) winerr(); /* process windows error */
-    waitim(ip); /* wait for the return */
+    waitim(ip, win); /* wait for the return */
     /* pull back the output parameters */
     *fc = fndfntnum(win, ip->fntstr); /* find font from list */
     *effect = ip->fnteff; /* effects */
@@ -16273,12 +15923,10 @@ static void queryfont_ivf(FILE* f, ami_long* fc, ami_long* s, ami_long* fr, ami_
 
     winptr win;  /* window context */
 
-    lockmain(); /* start exclusive access */
     win = txt2win(f); /* get windows context */
     lockwin(win); /* the window's own lock */
     iqueryfont(win, fc, s, fr, fg, fb, br, bg, bb, effect); /* execute */
     unlockwin(win); /* the window's data is done with */
-    unlockmain(); /* end exclusive access */
 
 }
 
@@ -16387,6 +16035,16 @@ static LRESULT CALLBACK wndproc(HWND hwnd, UINT imsg, WPARAM wparam,
         if (ofn >= 0) { /* there is a window */
 
             win = lfn2win(ofn); /* index window from output file */
+            if (!trylockwin(win)) {
+
+                /* the owner is busy with the window: the region is validated
+                   by the default paint and asked for again, so this paint
+                   comes back after the messages queued ahead of it */
+                r = DefWindowProc(hwnd, imsg, wparam, lparam);
+                InvalidateRect(hwnd, NULL, FALSE);
+
+            } else {
+
             if (win->bufmod) restore(win, FALSE); /* perform selective update */
             else { /* main task will handle it */
 
@@ -16403,6 +16061,9 @@ static LRESULT CALLBACK wndproc(HWND hwnd, UINT imsg, WPARAM wparam,
                 lockmain(); /* start exclusive access */
 
             }
+            unlockwin(win);
+
+            }
             r = 0;
 
         } else r = DefWindowProc(hwnd, imsg, wparam, lparam);
@@ -16417,6 +16078,8 @@ static LRESULT CALLBACK wndproc(HWND hwnd, UINT imsg, WPARAM wparam,
         if (ofn >= 0) { /* there is a window */
 
             win = lfn2win(ofn); /* index window from output file */
+            if (trylockwin(win)) { /* an owner busy with it keeps its caret as it is */
+
             /* activate caret */
             b = CreateCaret(win->winhan, 0, win->curspace, 3);
             /* set caret (text cursor) position at bottom of bounding box */
@@ -16424,6 +16087,10 @@ static LRESULT CALLBACK wndproc(HWND hwnd, UINT imsg, WPARAM wparam,
                             win->screens[win->curdsp-1]->curyg-1+win->linespace-3);
             win->focus = TRUE; /* set screen in focus */
             curon(win); /* show the cursor */
+
+            unlockwin(win);
+
+            }
 
         }
         unlockmain(); /* end exclusive access */
@@ -16438,9 +16105,15 @@ static LRESULT CALLBACK wndproc(HWND hwnd, UINT imsg, WPARAM wparam,
         if (ofn >= 0) { /* there is a window */
 
            win = lfn2win(ofn); /* index window from output file */
+           if (trylockwin(win)) { /* an owner busy with it keeps its caret as it is */
+
            win->focus = FALSE; /* set screen not in focus */
            curoff(win); /* hide the cursor */
            b = DestroyCaret(); /* remove text cursor */
+
+           unlockwin(win);
+
+           }
 
         }
         unlockmain(); /* end exclusive access */
@@ -17287,8 +16960,8 @@ static ssize_t iwrite(int fd, const void* buff, size_t count)
     if (fd < 0 || fd >= MAXFIL) error(einvhan); /* invalid file handle */
     if (opnfil[fd] && opnfil[fd]->win) { /* process window output file */
 
-        lockmain(); /* start exclusive access */
         win = lfn2win(fd); /* index window */
+        lockwin(win); /* the window's lock, taken after the lookup */
         l = count; /* set length of source */
         ba = (unsigned char*)buff; /* index buffer */
         while (l > 0) { /* write output bytes */
@@ -17298,7 +16971,7 @@ static ssize_t iwrite(int fd, const void* buff, size_t count)
 
         }
         rc = count; /* set number of bytes written */
-        unlockmain(); /* end exclusive access */
+        unlockwin(win); /* the window's lock */
 
     } else /* standard file */
         rc = (*ofpwrite)(fd, buff, count);
@@ -17544,6 +17217,8 @@ static void ami_deinit_graph(void)
 
             wp = opnfil[OUTFIL]->win;
             /* make sure we are displayed */
+            unlockmain(); /* not held across these: each drops the window's lock for its call */
+            lockwin(wp);
             if (!wp->visible) winvis(wp);
             /* If buffering is off, turn it back on. This will cause the screen
                to come up clear, but this is better than an unrefreshed "hole"
@@ -17554,6 +17229,8 @@ static void ami_deinit_graph(void)
             if (!wp->frame) iframe(wp, TRUE);
             /* Same with system bar */
             if (!wp->sysbar) isysbar(wp, TRUE);
+            unlockwin(wp);
+            lockmain(); /* the gate again */
             /* change window label to alert user */
             unlockmain(); /* end exclusive access */
             SetWindowText(wp->winhan, trmnam);
@@ -17637,11 +17314,9 @@ static void sendevent_ivf(FILE* f, ami_evtrec* er)
     /* The record rides the window's message queue as a message of its own,
        and comes back out of event() on the window's input file. This is
        what another thread uses to wake the one waiting in event(). */
-    lockmain(); /* start exclusive access */
     win = txt2win(f); /* get windows context */
     lockwin(win); /* the window's own lock */
     unlockwin(win); /* the window's data is done with */
-    unlockmain(); /* end exclusive access */
     ep = malloc(sizeof(ami_evtrec));
     if (!ep) error(enomem);
     *ep = *er;
