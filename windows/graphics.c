@@ -754,6 +754,19 @@ static int conpnt;    /* size of console font in points */
  *
  */
 static void clswin(int fn);
+static int gditransient(void);
+
+/* A GDI call that can fail transiently, with no error code set, while another
+   thread changes the window tree under it: the call is retried until it
+   succeeds or the failure is a real one, which is reported as before. The
+   result goes where the assignment in the call puts it; the test says what
+   failure looks like for that call. */
+#define GDICALL(call, failed) \
+    do { int gdi_try = 0; \
+         while ((call), (failed)) { \
+             if (!gditransient() || ++gdi_try > 100) { winerr(); break; } \
+             Sleep(1); } } while (0)
+
 static LRESULT CALLBACK wndproc(HWND hwnd, UINT imsg, WPARAM wparam, LPARAM lparam);
 static LRESULT CALLBACK wndprocdialog(HWND hwnd, UINT imsg, WPARAM wparam, LPARAM lparam);
 void ami_alert(char* title, char* message);
@@ -2656,18 +2669,13 @@ static void clrbuf(winptr win, scnptr sc)
     r.top = 0;
     r.right = win->gmaxxg;
     r.bottom = win->gmaxyg;
-    hb = CreateSolidBrush(sc->bcrgb); /* get a brush for background */
-    if (!hb) winerr(); /* process error */
+    GDICALL(hb = CreateSolidBrush(sc->bcrgb), !hb); /* get a brush for background */ /* process error */
     /* reset to identity so the whole physical buffer is cleared */
-    b = SetMapMode(sc->bdc, MM_TEXT);
-    if (!b) winerr(); /* process error */
-    b = SetViewportOrgEx(sc->bdc, 0, 0, NULL);
-    if (!b) winerr(); /* process error */
+    GDICALL(b = SetMapMode(sc->bdc, MM_TEXT), !b); /* process error */
+    GDICALL(b = SetViewportOrgEx(sc->bdc, 0, 0, NULL), !b); /* process error */
     /* clear buffer surface */
-    b = FillRect(sc->bdc, &r, hb);
-    if (!b) winerr(); /* process error */
-    b = DeleteObject(hb); /* free the brush */
-    if (!b) winerr(); /* process error */
+    GDICALL(b = FillRect(sc->bdc, &r, hb), !b); /* process error */
+    GDICALL(b = DeleteObject(hb), !b); /* free the brush */ /* process error */
     settrans(sc->bdc, sc); /* reapply the drawing transform */
 
 }
@@ -2692,18 +2700,13 @@ static void clrwin(winptr win)
     r.top = 0;
     r.right = win->gmaxxg;
     r.bottom = win->gmaxyg;
-    hb = CreateSolidBrush(win->gbcrgb); /* get a brush for background */
-    if (!hb) winerr(); /* process error */
+    GDICALL(hb = CreateSolidBrush(win->gbcrgb), !hb); /* get a brush for background */ /* process error */
     /* reset to identity so the whole physical window is cleared */
-    b = SetMapMode(win->devcon, MM_TEXT);
-    if (!b) winerr(); /* process error */
-    b = SetViewportOrgEx(win->devcon, 0, 0, NULL);
-    if (!b) winerr(); /* process error */
+    GDICALL(b = SetMapMode(win->devcon, MM_TEXT), !b); /* process error */
+    GDICALL(b = SetViewportOrgEx(win->devcon, 0, 0, NULL), !b); /* process error */
     /* clear buffer surface */
-    b = FillRect(win->devcon, &r, hb);
-    if (!b) winerr(); /* process error */
-    b = DeleteObject(hb); /* free the brush */
-    if (!b) winerr(); /* process error */
+    GDICALL(b = FillRect(win->devcon, &r, hb), !b); /* process error */
+    GDICALL(b = DeleteObject(hb), !b); /* free the brush */ /* process error */
     /* reapply the drawing transform */
     settrans(win->devcon, win->screens[win->curdsp-1]);
 
@@ -2926,14 +2929,11 @@ static void newfontscn(winptr win, scnptr sc)
     if (sc->font) { /* there is a font */
 
        /* get the current font out of the DCs */
-       sf = GetStockObject(SYSTEM_FIXED_FONT);
-       if (!sf) winerr(); /* process windows error */
-       rv = SelectObject(sc->bdc, sf);
-       if (rv == HGDI_ERROR) winerr();
+       GDICALL(sf = GetStockObject(SYSTEM_FIXED_FONT), !sf); /* process windows error */
+       GDICALL(rv = SelectObject(sc->bdc, sf), rv == HGDI_ERROR);
        if (sc == win->screens[win->curdsp-1]) {
 
-            rv = SelectObject(win->devcon, sf);
-            if (rv == HGDI_ERROR) winerr();
+            GDICALL(rv = SelectObject(win->devcon, sf), rv == HGDI_ERROR);
 
        }
        /* this indicates an error when there is none */
@@ -2954,15 +2954,12 @@ static void newfontscn(winptr win, scnptr sc)
         /* select the stock system font. This is a raster font, so it is only
            usable at its natural size with a normal path; the substitution
            below handles any other case */
-        sf = GetStockObject(SYSTEM_FIXED_FONT);
-        if (!sf) winerr(); /* process windows error */
-        rv = SelectObject(sc->bdc, sf);
-        if (rv == HGDI_ERROR) winerr();
+        GDICALL(sf = GetStockObject(SYSTEM_FIXED_FONT), !sf); /* process windows error */
+        GDICALL(rv = SelectObject(sc->bdc, sf), rv == HGDI_ERROR);
         /* select to screen dc */
         if (sc == win->screens[win->curdsp-1]) {
 
-            rv = SelectObject(win->devcon, sf); /* process error */
-            if (rv == HGDI_ERROR) winerr();
+            GDICALL(rv = SelectObject(win->devcon, sf), rv == HGDI_ERROR); /* process error */
 
         }
 
@@ -2976,20 +2973,17 @@ static void newfontscn(winptr win, scnptr sc)
            platforms. The stock font returns at natural size and normal
            path. */
         h = win->gfhigh? win->gfhigh: sysfhigh; /* height, default to natural */
-        sc->font = CreateFont(h, 0, esc, esc, FW_REGULAR,
+        GDICALL(sc->font = CreateFont(h, 0, esc, esc, FW_REGULAR,
                           FALSE, FALSE, FALSE, ANSI_CHARSET,
                           OUT_TT_ONLY_PRECIS, CLIP_DEFAULT_PRECIS,
                           FQUALITY, FIXED_PITCH,
-                          "Consolas");
-        if (!sc->font) winerr(); /* process windows error */
+                          "Consolas"), !sc->font); /* process windows error */
         /* select to buffer DC */
-        rv = SelectObject(sc->bdc, sc->font);
-        if (rv == HGDI_ERROR) winerr();
+        GDICALL(rv = SelectObject(sc->bdc, sc->font), rv == HGDI_ERROR);
         /* select to screen DC */
         if (sc == win->screens[win->curdsp-1]) {
 
-            rv = SelectObject(win->devcon, sc->font); /* process error */
-            if (rv == HGDI_ERROR) winerr();
+            GDICALL(rv = SelectObject(win->devcon, sc->font), rv == HGDI_ERROR); /* process error */
 
         }
 
@@ -3004,26 +2998,22 @@ static void newfontscn(winptr win, scnptr sc)
         /* set normal height or half height for subscript/superscript */
         if (BIT(sasuper) & attrc | BIT(sasubs) & attrc)
             h = trunc(win->gfhigh*0.75); else h = win->gfhigh;
-        sc->font = CreateFont(h, 0, esc, esc, w, BIT(saital) & attrc,
+        GDICALL(sc->font = CreateFont(h, 0, esc, esc, w, BIT(saital) & attrc,
                           BIT(saundl) & sc->attr, BIT(sastkout) & sc->attr, ANSI_CHARSET,
                           OUT_TT_ONLY_PRECIS, CLIP_DEFAULT_PRECIS,
                           FQUALITY, DEFAULT_PITCH,
-                          sc->cfont->face);
-        if (!sc->font) winerr(); /* process windows error */
+                          sc->cfont->face), !sc->font); /* process windows error */
         /* select to buffer DC */
-        rv = SelectObject(sc->bdc, sc->font);
-        if (rv == HGDI_ERROR) winerr();
+        GDICALL(rv = SelectObject(sc->bdc, sc->font), rv == HGDI_ERROR);
         /* select to screen DC */
         if (sc == win->screens[win->curdsp-1]) {
 
-            rv = SelectObject(win->devcon, sc->font); /* process error */
-            if (rv == HGDI_ERROR) winerr();
+            GDICALL(rv = SelectObject(win->devcon, sc->font), rv == HGDI_ERROR); /* process error */
 
         }
 
     }
-    b = GetTextMetrics(sc->bdc, &tm); /* get the standard metrics */
-    if (!b) winerr(); /* process windows error */
+    GDICALL(b = GetTextMetrics(sc->bdc, &tm), !b); /* get the standard metrics */ /* process windows error */
     /* Calculate line spacing */
     win->linespace = tm.tmHeight;
     sc->lspc = win->linespace;
@@ -3385,11 +3375,9 @@ static void iniscn(winptr win, scnptr sc)
     sc->vextx = win->gvextx;
     sc->vexty = win->gvexty;
     /* create a matching device context */
-    sc->bdc = CreateCompatibleDC(win->devcon);
-    if (!sc->bdc) winerr(); /* process windows error */
+    GDICALL(sc->bdc = CreateCompatibleDC(win->devcon), !sc->bdc); /* process windows error */
     /* create a bitmap for that */
-    hb = CreateCompatibleBitmap(win->devcon, win->gmaxxg, win->gmaxyg);
-    if (!hb) winerr(); /* process windows error */
+    GDICALL(hb = CreateCompatibleBitmap(win->devcon, win->gmaxxg, win->gmaxyg), !hb); /* process windows error */
     sc->bhn = SelectObject(sc->bdc, hb); /* select bitmap into dc */
     if (sc->bhn == HGDI_ERROR) winerr(); /* process windows error */
     win->bufx = win->gmaxx; /* save as buffer size */
@@ -3398,36 +3386,28 @@ static void iniscn(winptr win, scnptr sc)
     win->bufyg = win->gmaxyg;
     newfontscn(win, sc); /* create font for the buffer */
     /* set non-braindamaged stretch mode */
-    r = SetStretchBltMode(sc->bdc, HALFTONE);
-    if (!r) winerr(); /* process windows error */
+    GDICALL(r = SetStretchBltMode(sc->bdc, HALFTONE), !r); /* process windows error */
     /* set pen to foreground */
-    sc->fpen = makfpen(sc);
-    if (!sc->fpen) winerr(); /* process windows error */
+    GDICALL(sc->fpen = makfpen(sc), !sc->fpen); /* process windows error */
     rv = SelectObject(sc->bdc, sc->fpen);
     if (rv == HGDI_ERROR) error(enosel);
     /* set brush to foreground */
-    sc->fbrush = CreateSolidBrush(sc->fcrgb);
-    if (!sc->fbrush) winerr(); /* process windows error */
+    GDICALL(sc->fbrush = CreateSolidBrush(sc->fcrgb), !sc->fbrush); /* process windows error */
     /* remove fills */
     rv = SelectObject(sc->bdc, GetStockObject(NULL_BRUSH));
     if (rv == HGDI_ERROR) error(enosel);
     /* set single pixel pen to foreground */
-    sc->fspen = CreatePen(FSPENSTL, 1, sc->fcrgb);
-    if (!sc->fspen) winerr(); /* process windows error */
+    GDICALL(sc->fspen = CreatePen(FSPENSTL, 1, sc->fcrgb), !sc->fspen); /* process windows error */
     /* set colors and attributes */
     if (BIT(sarev) & sc->attr) { /* reverse */
 
-        r = SetBkColor(sc->bdc, sc->fcrgb);
-        if (r == -1) winerr(); /* process windows error */
-        r = SetTextColor(sc->bdc, sc->bcrgb);
-        if (r == -1) winerr(); /* process windows error */
+        GDICALL(r = SetBkColor(sc->bdc, sc->fcrgb), r == -1); /* process windows error */
+        GDICALL(r = SetTextColor(sc->bdc, sc->bcrgb), r == -1); /* process windows error */
 
     } else {
 
-        r = SetBkColor(sc->bdc, sc->bcrgb);
-        if (r == -1) winerr(); /* process windows error */
-        r = SetTextColor(sc->bdc, sc->fcrgb);
-        if (r == -1) winerr(); /* process windows error */
+        GDICALL(r = SetBkColor(sc->bdc, sc->bcrgb), r == -1); /* process windows error */
+        GDICALL(r = SetTextColor(sc->bdc, sc->fcrgb), r == -1); /* process windows error */
 
     }
     clrbuf(win, sc); /* clear screen buffer with that */
@@ -3606,12 +3586,10 @@ static void iscrollg(winptr win, ami_long x, ami_long y)
        }
        if (win->bufmod) { /* apply to buffer */
 
-          b = BitBlt(win->screens[win->curupd-1]->bdc, dx, dy, dw, dh,
-                     win->screens[win->curupd-1]->bdc, sx, sy, SRCCOPY);
-          if (!b) winerr(); /* process windows error */
+          GDICALL(b = BitBlt(win->screens[win->curupd-1]->bdc, dx, dy, dw, dh,
+                     win->screens[win->curupd-1]->bdc, sx, sy, SRCCOPY), !b); /* process windows error */
           /* get a brush for background */
-          hb = CreateSolidBrush(win->screens[win->curupd-1]->bcrgb);
-          if (!hb) winerr(); /* process windows error */
+          GDICALL(hb = CreateSolidBrush(win->screens[win->curupd-1]->bcrgb), !hb); /* process windows error */
           /* fill vacated x */
           if (x) if (!FillRect(win->screens[win->curupd-1]->bdc, &frx, hb)) winerr();
           /* fill vacated y */
@@ -3621,11 +3599,9 @@ static void iscrollg(winptr win, ami_long x, ami_long y)
 
        } else { /* scroll on screen */
 
-          b = BitBlt(win->devcon, dx, dy, dw, dh, win->devcon, sx, sy, SRCCOPY);
-          if (!b) winerr(); /* process windows error */
+          GDICALL(b = BitBlt(win->devcon, dx, dy, dw, dh, win->devcon, sx, sy, SRCCOPY), !b); /* process windows error */
           /* get a brush for background */
-          hb = CreateSolidBrush(win->gbcrgb);
-          if (!hb) winerr(); /* process windows error */
+          GDICALL(hb = CreateSolidBrush(win->gbcrgb), !hb); /* process windows error */
           /* fill vacated x */
           if (x) if (!FillRect(win->devcon, &frx, hb)) winerr();
           /* fill vacated y */
@@ -4194,17 +4170,13 @@ static void ireverse(winptr win, ami_long e)
         sc->attr |= BIT(sarev); /* set attribute active */
         win->gattr |= BIT(sarev);
         /* activate in buffer */
-        r = SetTextColor(sc->bdc, sc->bcrgb);
-        if (r == -1) winerr(); /* process windows error */
-        r = SetBkColor(sc->bdc, sc->fcrgb);
-        if (r == -1) winerr(); /* process windows error */
+        GDICALL(r = SetTextColor(sc->bdc, sc->bcrgb), r == -1); /* process windows error */
+        GDICALL(r = SetBkColor(sc->bdc, sc->fcrgb), r == -1); /* process windows error */
         if (indisp(win)) { /* activate on screen */
 
             /* reverse the colors */
-            r = SetTextColor(win->devcon, sc->bcrgb);
-            if (r == -1) winerr(); /* process windows error */
-            r = SetBkColor(win->devcon, sc->fcrgb);
-            if (r == -1) winerr(); /* process windows error */
+            GDICALL(r = SetTextColor(win->devcon, sc->bcrgb), r == -1); /* process windows error */
+            GDICALL(r = SetBkColor(win->devcon, sc->fcrgb), r == -1); /* process windows error */
 
         }
 
@@ -4213,17 +4185,13 @@ static void ireverse(winptr win, ami_long e)
         sc->attr &= ~BIT(sarev); /* set attribute inactive */
         win->gattr &= ~BIT(sarev);
         /* activate in buffer */
-        r = SetTextColor(sc->bdc, sc->fcrgb);
-        if (r == -1) winerr(); /* process windows error */
-        r = SetBkColor(sc->bdc, sc->bcrgb);
-        if (r == -1) winerr(); /* process windows error */
+        GDICALL(r = SetTextColor(sc->bdc, sc->fcrgb), r == -1); /* process windows error */
+        GDICALL(r = SetBkColor(sc->bdc, sc->bcrgb), r == -1); /* process windows error */
         if (indisp(win)) { /* activate on screen */
 
             /* set normal colors */
-            r = SetTextColor(win->devcon, sc->fcrgb);
-            if (r == -1) winerr(); /* process windows error */
-            r = SetBkColor(win->devcon, sc->bcrgb);
-            if (r == -1) winerr(); /* process windows error */
+            GDICALL(r = SetTextColor(win->devcon, sc->fcrgb), r == -1); /* process windows error */
+            GDICALL(r = SetBkColor(win->devcon, sc->bcrgb), r == -1); /* process windows error */
 
         }
 
@@ -4562,51 +4530,39 @@ static void ifcolor(winptr win, ami_color c)
     /* activate in buffer */
     if (BIT(sarev) & sc->attr) {
 
-       r = SetBkColor(sc->bdc, sc->fcrgb);
-       if (r == -1) winerr(); /* process windows error */
+       GDICALL(r = SetBkColor(sc->bdc, sc->fcrgb), r == -1); /* process windows error */
 
     } else {
 
-       r = SetTextColor(sc->bdc, sc->fcrgb);
-       if (r == -1) winerr(); /* process windows error */
+       GDICALL(r = SetTextColor(sc->bdc, sc->fcrgb), r == -1); /* process windows error */
 
     }
     /* also activate general graphics color. note that reverse does not apply
       to graphical coloring */
-    b = DeleteObject(sc->fpen); /* remove old pen */
-    if (!b) winerr(); /* process windows error */
-    b = DeleteObject(sc->fbrush); /* remove old brush */
-    if (!b) winerr(); /* process windows error */
-    b = DeleteObject(sc->fspen); /* remove old single pixel pen */
-    if (!b) winerr(); /* process windows error */
+    GDICALL(b = DeleteObject(sc->fpen), !b); /* remove old pen */ /* process windows error */
+    GDICALL(b = DeleteObject(sc->fbrush), !b); /* remove old brush */ /* process windows error */
+    GDICALL(b = DeleteObject(sc->fspen), !b); /* remove old single pixel pen */ /* process windows error */
     /* create new pen */
-    sc->fpen = makfpen(sc);
-    if (!sc->fpen) winerr(); /* process windows error */
+    GDICALL(sc->fpen = makfpen(sc), !sc->fpen); /* process windows error */
     /* create new brush */
-    sc->fbrush = CreateSolidBrush(sc->fcrgb);
-    if (!sc->fbrush) winerr(); /* process windows error */
+    GDICALL(sc->fbrush = CreateSolidBrush(sc->fcrgb), !sc->fbrush); /* process windows error */
     /* create new single pixel pen */
-    sc->fspen = CreatePen(FSPENSTL, 1, sc->fcrgb);
-    if (!sc->fspen) winerr(); /* process windows error */
+    GDICALL(sc->fspen = CreatePen(FSPENSTL, 1, sc->fcrgb), !sc->fspen); /* process windows error */
     /* select to buffer dc */
-    oh = SelectObject(sc->bdc, sc->fpen);
-    if (oh == HGDI_ERROR) winerr();
+    GDICALL(oh = SelectObject(sc->bdc, sc->fpen), oh == HGDI_ERROR);
     if (indisp(win)) { /* activate on screen */
 
        /* set screen color according to reverse */
        if (BIT(sarev) & sc->attr) {
 
-          r = SetBkColor(win->devcon, sc->fcrgb);
-          if (r == -1) winerr(); /* process windows error */
+          GDICALL(r = SetBkColor(win->devcon, sc->fcrgb), r == -1); /* process windows error */
 
        } else {
 
-          r = SetTextColor(win->devcon, sc->fcrgb);
-          if (r == -1) winerr(); /* process windows error */
+          GDICALL(r = SetTextColor(win->devcon, sc->fcrgb), r == -1); /* process windows error */
 
        }
-       oh = SelectObject(win->devcon, sc->fpen); /* select pen to display */
-       if (oh == HGDI_ERROR) winerr();
+       GDICALL(oh = SelectObject(win->devcon, sc->fpen), oh == HGDI_ERROR); /* select pen to display */
 
     }
 
@@ -4651,8 +4607,7 @@ static void ifcolorg(winptr win, ami_long r, ami_long g, ami_long b)
     /* activate in buffer */
     if (BIT(sarev) & sc->attr) {
 
-       r = SetBkColor(sc->bdc, sc->fcrgb);
-       if (r == -1) winerr(); /* process windows error */
+       GDICALL(r = SetBkColor(sc->bdc, sc->fcrgb), r == -1); /* process windows error */
 
     } else {
 
@@ -4662,40 +4617,30 @@ static void ifcolorg(winptr win, ami_long r, ami_long g, ami_long b)
     }
     /* also activate general graphics color. note that reverse does not apply
       to graphical coloring */
-    bv = DeleteObject(sc->fpen); /* remove old pen */
-    if (!bv) winerr(); /* process error */
-    bv = DeleteObject(sc->fbrush); /* remove old brush */
-    if (!bv) winerr(); /* process error */
-    bv = DeleteObject(sc->fspen); /* remove old single pixel pen */
-    if (!bv) winerr(); /* process error */
+    GDICALL(bv = DeleteObject(sc->fpen), !bv); /* remove old pen */ /* process error */
+    GDICALL(bv = DeleteObject(sc->fbrush), !bv); /* remove old brush */ /* process error */
+    GDICALL(bv = DeleteObject(sc->fspen), !bv); /* remove old single pixel pen */ /* process error */
     /* create new pen */
-    sc->fpen = makfpen(sc);
-    if (!sc->fpen) winerr(); /* process error */
+    GDICALL(sc->fpen = makfpen(sc), !sc->fpen); /* process error */
     /* create new brush */
-    sc->fbrush = CreateSolidBrush(sc->fcrgb);
-    if (!sc->fbrush) winerr(); /* process error */
+    GDICALL(sc->fbrush = CreateSolidBrush(sc->fcrgb), !sc->fbrush); /* process error */
     /* create new single pixel pen */
-    sc->fspen = CreatePen(FSPENSTL, 1, sc->fcrgb);
-    if (!sc->fspen) winerr(); /* process error */
+    GDICALL(sc->fspen = CreatePen(FSPENSTL, 1, sc->fcrgb), !sc->fspen); /* process error */
     /* select to buffer dc */
-    oh = SelectObject(sc->bdc, sc->fpen);
-    if (oh == HGDI_ERROR) winerr();
+    GDICALL(oh = SelectObject(sc->bdc, sc->fpen), oh == HGDI_ERROR);
     if (indisp(win))  { /* activate on screen */
 
        /* set screen color according to reverse */
        if (BIT(sarev) & sc->attr) {
 
-          rv = SetBkColor(win->devcon, sc->fcrgb);
-          if (rv == -1) winerr(); /* process windows error */
+          GDICALL(rv = SetBkColor(win->devcon, sc->fcrgb), rv == -1); /* process windows error */
 
        } else {
 
-          rv = SetTextColor(win->devcon, sc->fcrgb);
-          if (rv == -1) winerr(); /* process windows error */
+          GDICALL(rv = SetTextColor(win->devcon, sc->fcrgb), rv == -1); /* process windows error */
 
        };
-       oh = SelectObject(win->devcon, sc->fpen); /* select pen to display */
-       if (oh == HGDI_ERROR) winerr();
+       GDICALL(oh = SelectObject(win->devcon, sc->fpen), oh == HGDI_ERROR); /* select pen to display */
 
     }
 
@@ -4743,13 +4688,11 @@ static void ibcolor(winptr win, ami_color c)
     /* activate in buffer */
     if (BIT(sarev) & sc->attr) {
 
-        r = SetTextColor(sc->bdc, sc->bcrgb);
-        if (r == -1) winerr(); /* process windows error */
+        GDICALL(r = SetTextColor(sc->bdc, sc->bcrgb), r == -1); /* process windows error */
 
     } else {
 
-        r = SetBkColor(sc->bdc, sc->bcrgb);
-        if (r == -1) winerr(); /* process windows error */
+        GDICALL(r = SetBkColor(sc->bdc, sc->bcrgb), r == -1); /* process windows error */
 
     }
     if (indisp(win)) { /* activate on screen */
@@ -4757,13 +4700,11 @@ static void ibcolor(winptr win, ami_color c)
         /* set screen color according to reverse */
         if (BIT(sarev) & sc->attr) {
 
-            r = SetTextColor(win->devcon, sc->bcrgb);
-            if (r == -1) winerr(); /* process windows error */
+            GDICALL(r = SetTextColor(win->devcon, sc->bcrgb), r == -1); /* process windows error */
 
         } else {
 
-            r = SetBkColor(win->devcon, sc->bcrgb);
-            if (r == -1) winerr(); /* process windows error */
+            GDICALL(r = SetBkColor(win->devcon, sc->bcrgb), r == -1); /* process windows error */
 
         }
 
@@ -4807,13 +4748,11 @@ static void ibcolorg(winptr win, ami_long r, ami_long g, ami_long b)
     /* activate in buffer */
     if (BIT(sarev) & sc->attr) {
 
-        rv = SetTextColor(sc->bdc, sc->bcrgb);
-        if (rv == -1) winerr(); /* process windows error */
+        GDICALL(rv = SetTextColor(sc->bdc, sc->bcrgb), rv == -1); /* process windows error */
 
     } else {
 
-        rv = SetBkColor(sc->bdc, sc->bcrgb);
-        if (rv == -1) winerr(); /* process windows error */
+        GDICALL(rv = SetBkColor(sc->bdc, sc->bcrgb), rv == -1); /* process windows error */
 
     }
     if (indisp(win))  { /* activate on screen */
@@ -4821,13 +4760,11 @@ static void ibcolorg(winptr win, ami_long r, ami_long g, ami_long b)
         /* set screen color according to reverse */
         if (BIT(sarev) & sc->attr)  {
 
-            rv = SetTextColor(win->devcon, sc->bcrgb);
-            if (rv == -1) winerr(); /* process windows error */
+            GDICALL(rv = SetTextColor(win->devcon, sc->bcrgb), rv == -1); /* process windows error */
 
         } else {
 
-            rv = SetBkColor(win->devcon, sc->bcrgb);
-            if (rv == -1) winerr(); /* process windows error */
+            GDICALL(rv = SetBkColor(win->devcon, sc->bcrgb), rv == -1); /* process windows error */
 
         }
 
@@ -5160,8 +5097,7 @@ static void plcchr(winptr win, char c)
         if (win->bufmod) { /* buffer is active */
 
             /* draw character */
-            b = TextOut(sc->bdc, sc->curxg-1, sc->curyg-1+off, &c, 1);
-            if (!b) winerr(); /* process windows error */
+            GDICALL(b = TextOut(sc->bdc, sc->curxg-1, sc->curyg-1+off, &c, 1), !b); /* process windows error */
 
         }
         if (indisp(win)) { /* activate on screen */
@@ -5169,8 +5105,7 @@ static void plcchr(winptr win, char c)
             /* draw character on screen */
             curoff(win); /* hide the cursor */
             /* draw character */
-            b = TextOut(win->devcon, sc->curxg-1, sc->curyg-1+off, &c, 1);
-            if (!b) winerr(); /* process windows error */
+            GDICALL(b = TextOut(win->devcon, sc->curxg-1, sc->curyg-1+off, &c, 1), !b); /* process windows error */
             curon(win); /* show the cursor */
 
         }
@@ -5180,8 +5115,7 @@ static void plcchr(winptr win, char c)
             iright(win); /* move cursor right character */
         else { /* perform proportional version */
 
-            b = GetTextExtentPoint32(sc->bdc, &c, 1, &sz); /* get spacing */
-            if (!b) winerr(); /* process windows error */
+            GDICALL(b = GetTextExtentPoint32(sc->bdc, &c, 1, &sz), !b); /* get spacing */ /* process windows error */
             if (sc->angle == LONG_MAX/4) { /* normal reading text */
 
                 sc->curxg = sc->curxg+sz.cx; /* advance the character width */
@@ -5239,8 +5173,7 @@ static void iwrtstr(winptr win,  char* s)
     if (win->bufmod) { /* buffer is active */
 
        /* draw character */
-       b = TextOut(sc->bdc, sc->curxg-1, sc->curyg-1+off, s, strlen(s));
-       if (!b) winerr(); /* process windows error */
+       GDICALL(b = TextOut(sc->bdc, sc->curxg-1, sc->curyg-1+off, s, strlen(s)), !b); /* process windows error */
 
     }
     if (indisp(win)) { /* activate on screen */
@@ -5248,8 +5181,7 @@ static void iwrtstr(winptr win,  char* s)
        /* draw character on screen */
        curoff(win); /* hide the cursor */
        /* draw character */
-       b = TextOut(win->devcon, sc->curxg-1, sc->curyg-1+off, s, strlen(s));
-       if (!b) winerr(); /* process windows error */
+       GDICALL(b = TextOut(win->devcon, sc->curxg-1, sc->curyg-1+off, s, strlen(s)), !b); /* process windows error */
        curon(win); /* show the cursor */
 
     }
@@ -5264,8 +5196,7 @@ static void iwrtstr(winptr win,  char* s)
 
     } else { /* perform proportional version */
 
-       b = GetTextExtentPoint32(sc->bdc, s, strlen(s), &sz); /* get spacing */
-       if (!b) winerr(); /* process windows error */
+       GDICALL(b = GetTextExtentPoint32(sc->bdc, s, strlen(s), &sz), !b); /* get spacing */ /* process windows error */
        if (sc->angle == LONG_MAX/4) { /* normal reading text */
 
            sc->curxg = sc->curxg+sz.cx; /* advance the character width */
@@ -5368,20 +5299,16 @@ static void iline(winptr win, ami_long x1, ami_long y1, ami_long x2, ami_long y2
     if (win->bufmod) { /* buffer is active */
 
         /* set current position of origin */
-        b = MoveToEx(sc->bdc, x1-1, y1-1, NULL);
-        if (!b) winerr(); /* process windows error */
-        b = LineTo(sc->bdc, x2-1+dx, y2-1+dy);
-        if (!b) winerr(); /* process windows error */
+        GDICALL(b = MoveToEx(sc->bdc, x1-1, y1-1, NULL), !b); /* process windows error */
+        GDICALL(b = LineTo(sc->bdc, x2-1+dx, y2-1+dy), !b); /* process windows error */
 
     }
     if (indisp(win)) { /* do it again for the current screen */
 
         if (!win->visible) winvis(win); /* make sure we are displayed */
         curoff(win);
-        b = MoveToEx(win->devcon, x1-1, y1-1, NULL);
-        if (!b) winerr(); /* process windows error */
-        b = LineTo(win->devcon, x2-1+dx, y2-1+dy);
-        if (!b) winerr(); /* process windows error */
+        GDICALL(b = MoveToEx(win->devcon, x1-1, y1-1, NULL), !b); /* process windows error */
+        GDICALL(b = LineTo(win->devcon, x2-1+dx, y2-1+dy), !b); /* process windows error */
         curon(win);
 
     }
@@ -5418,8 +5345,7 @@ static void irect(winptr win, ami_long x1, ami_long y1, ami_long x2, ami_long y2
     if (win->bufmod) { /* buffer is active */
 
         /* draw to buffer */
-        b = Rectangle(win->screens[win->curupd-1]->bdc, x1-1, y1-1, x2, y2);
-        if (!b) winerr(); /* process windows error */
+        GDICALL(b = Rectangle(win->screens[win->curupd-1]->bdc, x1-1, y1-1, x2, y2), !b); /* process windows error */
 
     }
     if (indisp(win)) {
@@ -5427,8 +5353,7 @@ static void irect(winptr win, ami_long x1, ami_long y1, ami_long x2, ami_long y2
         /* draw to screen */
         if (!win->visible) winvis(win); /* make sure we are displayed */
         curoff(win);
-        b = Rectangle(win->devcon, x1-1, y1-1, x2, y2);
-        if (!b) winerr(); /* process windows error */
+        GDICALL(b = Rectangle(win->devcon, x1-1, y1-1, x2, y2), !b); /* process windows error */
         curon(win);
 
     }
@@ -5492,8 +5417,7 @@ static void ifrect(winptr win, ami_long x1, ami_long y1, ami_long x2, ami_long y
         r = SelectObject(win->devcon, sc->fbrush);
         if (r == HGDI_ERROR) error(enosel);
         curoff(win);
-        b = Rectangle(win->devcon, x1-1, y1-1, x2, y2);
-        if (!b) winerr(); /* process windows error */
+        GDICALL(b = Rectangle(win->devcon, x1-1, y1-1, x2, y2), !b); /* process windows error */
         curon(win);
         r = SelectObject(win->devcon, sc->fpen);
         if (r == HGDI_ERROR) error(enosel);
@@ -5535,8 +5459,7 @@ static void irrect(winptr win, ami_long x1, ami_long y1, ami_long x2, ami_long y
     if (win->bufmod)  { /* buffer is active */
 
         /* draw to buffer */
-        b = RoundRect(win->screens[win->curupd-1]->bdc, x1-1, y1-1, x2, y2, xs, ys);
-        if (!b) winerr(); /* process windows error */
+        GDICALL(b = RoundRect(win->screens[win->curupd-1]->bdc, x1-1, y1-1, x2, y2, xs, ys), !b); /* process windows error */
 
     }
     /* draw to screen */
@@ -5544,8 +5467,7 @@ static void irrect(winptr win, ami_long x1, ami_long y1, ami_long x2, ami_long y
 
         if (!win->visible) winvis(win); /* make sure we are displayed */
         curoff(win);
-        b = RoundRect(win->devcon, x1-1, y1-1, x2, y2, xs, ys);
-        if (!b) winerr(); /* process windows error */
+        GDICALL(b = RoundRect(win->devcon, x1-1, y1-1, x2, y2, xs, ys), !b); /* process windows error */
         curon(win);
 
     }
@@ -5591,8 +5513,7 @@ static void ifrrect(winptr win, ami_long x1, ami_long y1, ami_long x2, ami_long 
        r = SelectObject(sc->bdc, sc->fbrush);
        if (r == HGDI_ERROR) error(enosel);
        /* draw to buffer */
-       b = RoundRect(sc->bdc, x1-1, y1-1, x2, y2, xs, ys);
-       if (!b) winerr(); /* process windows error */
+       GDICALL(b = RoundRect(sc->bdc, x1-1, y1-1, x2, y2, xs, ys), !b); /* process windows error */
        /* restore */
        r = SelectObject(sc->bdc, sc->fpen);
        if (r == HGDI_ERROR) error(enosel);
@@ -5609,8 +5530,7 @@ static void ifrrect(winptr win, ami_long x1, ami_long y1, ami_long x2, ami_long 
        r = SelectObject(win->devcon, sc->fbrush);
        if (r == HGDI_ERROR) error(enosel);
        curoff(win);
-       b = RoundRect(win->devcon, x1-1, y1-1, x2, y2, xs, ys);
-       if (!b) winerr(); /* process windows error */
+       GDICALL(b = RoundRect(win->devcon, x1-1, y1-1, x2, y2, xs, ys), !b); /* process windows error */
        curon(win);
        r = SelectObject(win->devcon, sc->fpen);
        if (r == HGDI_ERROR) error(enosel);
@@ -5651,8 +5571,7 @@ static void iellipse(winptr win, ami_long x1, ami_long y1, ami_long x2, ami_long
     if (win->bufmod) { /* buffer is active */
 
         /* draw to buffer */
-        b = Ellipse(win->screens[win->curupd-1]->bdc, x1-1, y1-1, x2, y2);
-        if (!b) winerr(); /* process windows error */
+        GDICALL(b = Ellipse(win->screens[win->curupd-1]->bdc, x1-1, y1-1, x2, y2), !b); /* process windows error */
 
     }
     /* draw to screen */
@@ -5660,8 +5579,7 @@ static void iellipse(winptr win, ami_long x1, ami_long y1, ami_long x2, ami_long
 
         if (!win->visible) winvis(win); /* make sure we are displayed */
         curoff(win);
-        b = Ellipse(win->devcon, x1-1, y1-1, x2, y2);
-        if (!b) winerr(); /* process windows error */
+        GDICALL(b = Ellipse(win->devcon, x1-1, y1-1, x2, y2), !b); /* process windows error */
         curon(win);
 
     }
@@ -5707,8 +5625,7 @@ static void ifellipse(winptr win, ami_long x1, ami_long y1, ami_long x2, ami_lon
         r = SelectObject(sc->bdc, sc->fbrush);
         if (r == HGDI_ERROR) error(enosel);
         /* draw to buffer */
-        b = Ellipse(sc->bdc, x1-1, y1-1, x2, y2);
-        if (!b) winerr(); /* process windows error */
+        GDICALL(b = Ellipse(sc->bdc, x1-1, y1-1, x2, y2), !b); /* process windows error */
         /* restore */
         r = SelectObject(sc->bdc, sc->fpen);
         if (r == HGDI_ERROR) error(enosel);
@@ -5725,8 +5642,7 @@ static void ifellipse(winptr win, ami_long x1, ami_long y1, ami_long x2, ami_lon
         r = SelectObject(win->devcon, sc->fbrush);
         if (r == HGDI_ERROR) error(enosel);
         curoff(win);
-        b = Ellipse(win->devcon, x1-1, y1-1, x2, y2);
-        if (!b) winerr(); /* process windows error */
+        GDICALL(b = Ellipse(win->devcon, x1-1, y1-1, x2, y2), !b); /* process windows error */
         curon(win);
         r = SelectObject(win->devcon, sc->fpen);
         if (r == HGDI_ERROR) error(enosel);
@@ -5807,17 +5723,15 @@ static void iarc(winptr win, ami_long x1, ami_long y1, ami_long x2, ami_long y2,
     ye = yc-precis*sin(PI/2-eaf);
     if (win->bufmod) { /* buffer is active */
 
-        b = Arc(win->screens[win->curupd-1]->bdc, x1-1, y1-1, x2, y2, xe, ye,
-                xs, ys);
-        if (!b) winerr(); /* process windows error */
+        GDICALL(b = Arc(win->screens[win->curupd-1]->bdc, x1-1, y1-1, x2, y2, xe, ye,
+                xs, ys), !b); /* process windows error */
 
     }
     if (indisp(win)) { /* do it again for the current screen */
 
         if (!win->visible) winvis(win); /* make sure we are displayed */
         curoff(win);
-        b = Arc(win->devcon, x1-1, y1-1, x2, y2, xe, ye, xs, ys);
-        if (!b) winerr(); /* process windows error */
+        GDICALL(b = Arc(win->devcon, x1-1, y1-1, x2, y2, xe, ye, xs, ys), !b); /* process windows error */
         curon(win);
 
     }
@@ -5885,8 +5799,7 @@ static void ifarc(winptr win, ami_long x1, ami_long y1, ami_long x2, ami_long y2
         r = SelectObject(sc->bdc, sc->fbrush);
         if (r == HGDI_ERROR) error(enosel);
         /* draw shape */
-        b = Pie(sc->bdc, x1-1, y1-1, x2, y2, xe, ye, xs, ys);
-        if (!b) winerr(); /* process windows error */
+        GDICALL(b = Pie(sc->bdc, x1-1, y1-1, x2, y2, xe, ye, xs, ys), !b); /* process windows error */
         /* restore */
         r = SelectObject(sc->bdc, sc->fpen);
         if (r == HGDI_ERROR) error(enosel);
@@ -5903,8 +5816,7 @@ static void ifarc(winptr win, ami_long x1, ami_long y1, ami_long x2, ami_long y2
         if (r == HGDI_ERROR) error(enosel);
         curoff(win);
         /* draw shape */
-        b = Pie(win->devcon, x1-1, y1-1, x2, y2, xe, ye, xs, ys);
-        if (!b) winerr(); /* process windows error */
+        GDICALL(b = Pie(win->devcon, x1-1, y1-1, x2, y2, xe, ye, xs, ys), !b); /* process windows error */
         curon(win);
         r = SelectObject(win->devcon, sc->fpen);
         if (r == HGDI_ERROR) error(enosel);
@@ -5976,8 +5888,7 @@ static void ifchord(winptr win, ami_long x1, ami_long y1, ami_long x2, ami_long 
         r = SelectObject(sc->bdc, sc->fbrush);
         if (r == HGDI_ERROR) error(enosel);
         /* draw shape */
-        b = Chord(sc->bdc, x1-1, y1-1, x2, y2, xe, ye, xs, ys);
-        if (!b) winerr(); /* process windows error */
+        GDICALL(b = Chord(sc->bdc, x1-1, y1-1, x2, y2, xe, ye, xs, ys), !b); /* process windows error */
         /* restore */
         r = SelectObject(sc->bdc, sc->fpen);
         if (r == HGDI_ERROR) error(enosel);
@@ -5994,8 +5905,7 @@ static void ifchord(winptr win, ami_long x1, ami_long y1, ami_long x2, ami_long 
         if (r == HGDI_ERROR) error(enosel);
         curoff(win);
         /* draw shape */
-        b = Chord(win->devcon, x1-1, y1-1, x2, y2, xe, ye, xs, ys);
-        if (!b) winerr(); /* process windows error */
+        GDICALL(b = Chord(win->devcon, x1-1, y1-1, x2, y2, xe, ye, xs, ys), !b); /* process windows error */
         curon(win);
         r = SelectObject(win->devcon, sc->fpen);
         if (r == HGDI_ERROR) error(enosel);
@@ -6053,8 +5963,7 @@ static void iftriangle(winptr win, ami_long x1, ami_long y1, ami_long x2, ami_lo
         r = SelectObject(sc->bdc, sc->fbrush);
         if (r == HGDI_ERROR) error(enosel);
         /* draw to buffer */
-        b = Polygon(sc->bdc, pa, 3);
-        if (!b) winerr(); /* process windows error */
+        GDICALL(b = Polygon(sc->bdc, pa, 3), !b); /* process windows error */
         /* restore */
         r = SelectObject(sc->bdc, sc->fpen);
         if (r == HGDI_ERROR) error(enosel);
@@ -6071,8 +5980,7 @@ static void iftriangle(winptr win, ami_long x1, ami_long y1, ami_long x2, ami_lo
         r = SelectObject(win->devcon, sc->fbrush);
         if (r == HGDI_ERROR) error(enosel);
         curoff(win);
-        b = Polygon(win->devcon, pa, 3);
-        if (!b) winerr(); /* process windows error */
+        GDICALL(b = Polygon(win->devcon, pa, 3), !b); /* process windows error */
         curon(win);
         r = SelectObject(win->devcon, sc->fpen);
         if (r == HGDI_ERROR) error(enosel);
@@ -6303,8 +6211,7 @@ static void ifxor(winptr win)
 
     win->gfmod = mdxor; /* set foreground mode xor */
     win->screens[win->curupd-1]->fmod = mdxor;
-    r = SetROP2(win->screens[win->curupd-1]->bdc, R2_XORPEN);
-    if (!r) winerr(); /* process windows error */
+    GDICALL(r = SetROP2(win->screens[win->curupd-1]->bdc, R2_XORPEN), !r); /* process windows error */
     if (indisp(win)) r = SetROP2(win->devcon, R2_XORPEN);
 
 }
@@ -6372,11 +6279,9 @@ static void ilinewidth(winptr win, ami_long w)
     sc = win->screens[win->curupd-1];
     sc->lwidth = w; /* set new width */
     /* create new pen with desired width */
-    b = DeleteObject(sc->fpen); /* remove old pen */
-    if (!b) winerr(); /* process windows error */
+    GDICALL(b = DeleteObject(sc->fpen), !b); /* remove old pen */ /* process windows error */
     /* create new pen */
-    sc->fpen = makfpen(sc);
-    if (!sc->fpen) winerr(); /* process windows error */
+    GDICALL(sc->fpen = makfpen(sc), !sc->fpen); /* process windows error */
     /* select to buffer dc */
     oh = SelectObject(sc->bdc, sc->fpen);
     if (oh == HGDI_ERROR) error(enosel);
@@ -6422,10 +6327,8 @@ static void ilinestyle(winptr win, ami_lstyle style)
     sc = win->screens[win->curupd-1];
     sc->lstyle = style; /* set new line style */
     /* create new pen with desired style */
-    b = DeleteObject(sc->fpen); /* remove old pen */
-    if (!b) winerr(); /* process windows error */
-    sc->fpen = makfpen(sc); /* create new pen */
-    if (!sc->fpen) winerr(); /* process windows error */
+    GDICALL(b = DeleteObject(sc->fpen), !b); /* remove old pen */ /* process windows error */
+    GDICALL(sc->fpen = makfpen(sc), !sc->fpen); /* create new pen */ /* process windows error */
     /* select to buffer dc */
     oh = SelectObject(sc->bdc, sc->fpen);
     if (oh == HGDI_ERROR) error(enosel);
@@ -6677,19 +6580,16 @@ static void setpoints_ivf(FILE* f, float ps)
     /* measure the cell height of the font newfont() will select, sized by
        em square (negative CreateFont heights size the glyphs, like
        FT_Set_Pixel_Sizes on Linux) */
-    tf = CreateFont(-pixsiz, 0, 0, 0, FW_REGULAR, FALSE, FALSE, FALSE,
+    GDICALL(tf = CreateFont(-pixsiz, 0, 0, 0, FW_REGULAR, FALSE, FALSE, FALSE,
                     ANSI_CHARSET, OUT_TT_ONLY_PRECIS, CLIP_DEFAULT_PRECIS,
                     FQUALITY, sc->cfont->sys? FIXED_PITCH: DEFAULT_PITCH,
-                    sc->cfont->sys? "Consolas": sc->cfont->face);
-    if (!tf) winerr(); /* process windows error */
+                    sc->cfont->sys? "Consolas": sc->cfont->face), !tf); /* process windows error */
     of = SelectObject(sc->bdc, tf); /* select to buffer DC */
     if (of == HGDI_ERROR) error(enosel);
-    b = GetTextMetrics(sc->bdc, &tm); /* get the metrics */
-    if (!b) winerr(); /* process windows error */
+    GDICALL(b = GetTextMetrics(sc->bdc, &tm), !b); /* get the metrics */ /* process windows error */
     of = SelectObject(sc->bdc, of); /* restore previous font */
     if (of == HGDI_ERROR) error(enosel);
-    b = DeleteObject(tf); /* release the probe font */
-    if (!b) winerr(); /* process windows error */
+    GDICALL(b = DeleteObject(tf), !b); /* release the probe font */ /* process windows error */
     ifontsiz(win, tm.tmHeight); /* set font size by cell height */
     unlockwin(win); /* the window's data is done with */
 
@@ -6718,8 +6618,7 @@ static float points_ivf(FILE* f)
     win = txt2win(f); /* get window pointer from text file */
     lockwin(win); /* the window's own lock */
     /* get the metrics of the current font */
-    b = GetTextMetrics(win->screens[win->curupd-1]->bdc, &tm);
-    if (!b) winerr(); /* process windows error */
+    GDICALL(b = GetTextMetrics(win->screens[win->curupd-1]->bdc, &tm), !b); /* process windows error */
     /* the em square is the cell height less the internal leading */
     ps = (float)(tm.tmHeight-tm.tmInternalLeading)*2835.0f/(float)win->sdpmy;
     unlockwin(win); /* the window's data is done with */
@@ -6832,9 +6731,8 @@ static ami_long istrsiz(winptr win, const char* s)
     int ss;
 
     /* get spacing */
-    b = GetTextExtentPoint32(win->screens[win->curupd-1]->bdc, s, strlen(s),
-                             &sz);
-    if (!b) winerr(); /* process windows error */
+    GDICALL(b = GetTextExtentPoint32(win->screens[win->curupd-1]->bdc, s, strlen(s),
+                             &sz), !b); /* process windows error */
     ss = sz.cx; /* return that */
 
     return (ss);
@@ -6880,8 +6778,7 @@ static ami_long ichrpos(winptr win, const char* s, ami_long p)
     else { /* find substring length */
 
         /* get spacing */
-        b = GetTextExtentPoint32(win->screens[win->curupd-1]->bdc, s, p, &sz);
-        if (!b) winerr(); /* process windows error */
+        GDICALL(b = GetTextExtentPoint32(win->screens[win->curupd-1]->bdc, s, p, &sz), !b); /* process windows error */
         siz = sz.cx; /* place size */
 
     }
@@ -6934,8 +6831,7 @@ static void iwritejust(winptr win, const char* s, ami_long n)
     off = 0; /* set no subscript offset */
     if (BIT(sasubs) & sc->attr) off = trunc(win->linespace*0.35);
     /* get minimum spacing for string */
-    b = GetTextExtentPoint32(sc->bdc, s, strlen(s), &sz);
-    if (!b) winerr(); /* process windows error */
+    GDICALL(b = GetTextExtentPoint32(sc->bdc, s, strlen(s), &sz), !b); /* process windows error */
     /* if requested less than required, force required */
     if (sz.cx > n) n = sz.cx;
     /* find justified spacing */
@@ -6955,9 +6851,8 @@ static void iwritejust(winptr win, const char* s, ami_long n)
     if (win->bufmod) { /* draw to buffer */
 
        /* draw the string to current position */
-       b = ExtTextOut(sc->bdc, sc->curxg-1, sc->curyg-1+off, 0, NULL, s,
-                      strlen(s), ra.lpDx);
-       if (!b) winerr(); /* process windows error */
+       GDICALL(b = ExtTextOut(sc->bdc, sc->curxg-1, sc->curyg-1+off, 0, NULL, s,
+                      strlen(s), ra.lpDx), !b); /* process windows error */
 
     }
     if (indisp(win)) {
@@ -6966,9 +6861,8 @@ static void iwritejust(winptr win, const char* s, ami_long n)
        /* draw character on screen */
        curoff(win); /* hide the cursor */
        /* draw the string to current position */
-       b = ExtTextOut(win->devcon, sc->curxg-1, sc->curyg-1+off, 0, NULL,
-                      s, strlen(s), ra.lpDx);
-       if (!b) winerr(); /* process windows error */
+       GDICALL(b = ExtTextOut(win->devcon, sc->curxg-1, sc->curyg-1+off, 0, NULL,
+                      s, strlen(s), ra.lpDx), !b); /* process windows error */
        curon(win); /* show the cursor */
 
     }
@@ -7410,10 +7304,8 @@ static void idelpict(winptr win, ami_long p)
     /* reselect old object */
     r = SelectObject(win->pictbl[p-1].hdc, win->pictbl[p-1].ohn);
     if (r == HGDI_ERROR) error(enosel);
-    b = DeleteDC(win->pictbl[p-1].hdc); /* delete device context */
-    if (!b) winerr(); /* process windows error */
-    b = DeleteObject(win->pictbl[p-1].han); /* delete bitmap */
-    if (!b) winerr(); /* process windows error */
+    GDICALL(b = DeleteDC(win->pictbl[p-1].hdc), !b); /* delete device context */ /* process windows error */
+    GDICALL(b = DeleteObject(win->pictbl[p-1].han), !b); /* delete bitmap */ /* process windows error */
     win->pictbl[p-1].han = 0; /* set this entry free */
 
 }
@@ -7511,14 +7403,12 @@ static void iloadpict(winptr win, ami_long p, char* fn)
 
     }
     /* put it into a device context */
-    win->pictbl[p-1].hdc = CreateCompatibleDC(win->devcon);
-    if (!win->pictbl[p-1].hdc) winerr(); /* process windows error */
+    GDICALL(win->pictbl[p-1].hdc = CreateCompatibleDC(win->devcon), !win->pictbl[p-1].hdc); /* process windows error */
     /* select that to device context */
     win->pictbl[p-1].ohn = SelectObject(win->pictbl[p-1].hdc, win->pictbl[p-1].han);
     if (win->pictbl[p-1].ohn == HGDI_ERROR) error(enosel);
     /* get sizes */
-    r = GetObject(win->pictbl[p-1].han, sizeof(BITMAP), &bmi);
-    if (!r) winerr(); /* process windows error */
+    GDICALL(r = GetObject(win->pictbl[p-1].han, sizeof(BITMAP), &bmi), !r); /* process windows error */
     win->pictbl[p-1].sx = bmi.bmWidth; /* set size x */
     win->pictbl[p-1].sy = bmi.bmHeight; /* set size x */
 
@@ -7621,22 +7511,20 @@ static void ipicture(winptr win, ami_long p, ami_long x1, ami_long y1, ami_long 
         if (win->bufmod) { /* buffer mode on */
 
             /* paint to buffer */
-            b = StretchBlt(win->screens[win->curupd-1]->bdc,
+            GDICALL(b = StretchBlt(win->screens[win->curupd-1]->bdc,
                            x1-1, y1-1, x2-x1+1, y2-y1+1,
                            win->pictbl[p-1].hdc, 0, 0,
                            win->pictbl[p-1].sx, win->pictbl[p-1].sy,
-                           rop);
-            if (!b) winerr(); /* process windows error */
+                           rop), !b); /* process windows error */
 
         }
         if (indisp(win)) { /* paint to screen */
 
             if (!win->visible) winvis(win); /* make sure we are displayed */
             curoff(win);
-            b = StretchBlt(win->devcon, x1-1, y1-1, x2-x1+1, y2-y1+1,
+            GDICALL(b = StretchBlt(win->devcon, x1-1, y1-1, x2-x1+1, y2-y1+1,
                            win->pictbl[p-1].hdc, 0, 0, win->pictbl[p-1].sx,
-                           win->pictbl[p-1].sy, rop);
-           if (!b) winerr(); /* process windows error */
+                           win->pictbl[p-1].sy, rop), !b); /* process windows error */
            curon(win);
 
         }
@@ -10422,11 +10310,9 @@ static void opnwin(int fn, int pfn)
     win->devcon = GetDC(win->winhan); /* get device context */
     if (!win->devcon) winerr(); /* process windows error */
     /* set rescalable mode */
-    r = SetMapMode(win->devcon, MM_ANISOTROPIC);
-    if (!r) winerr(); /* process windows error */
+    GDICALL(r = SetMapMode(win->devcon, MM_ANISOTROPIC), !r); /* process windows error */
     /* set non-braindamaged stretch mode */
-    r = SetStretchBltMode(win->devcon, HALFTONE);
-    if (!r) winerr(); /* process windows error */
+    GDICALL(r = SetStretchBltMode(win->devcon, HALFTONE), !r); /* process windows error */
     /* remove fills */
     rv = SelectObject(win->devcon, GetStockObject(NULL_BRUSH));
     if (rv == HGDI_ERROR) error(enosel);
@@ -10450,8 +10336,7 @@ static void opnwin(int fn, int pfn)
     /* set up system default parameters */
     rv = SelectObject(win->devcon, GetStockObject(SYSTEM_FIXED_FONT));
     if (rv == HGDI_ERROR) error(enosel);
-    b = GetTextMetrics(win->devcon, &tm); /* get the standard metrics */
-    if (!b) winerr(); /* process windows error */
+    GDICALL(b = GetTextMetrics(win->devcon, &tm), !b); /* get the standard metrics */ /* process windows error */
     /* calculate line spacing */
     win->linespace = tm.tmHeight;
     /* calculate character spacing */
@@ -10481,14 +10366,12 @@ static void opnwin(int fn, int pfn)
         /* measure the same scalable fixed pitch font newfont() substitutes
            for the terminal font at non-natural sizes, so the default window
            size below is derived from the cell actually in use */
-        tf = CreateFont(r, 0, 0, 0, FW_REGULAR, FALSE, FALSE, FALSE,
+        GDICALL(tf = CreateFont(r, 0, 0, 0, FW_REGULAR, FALSE, FALSE, FALSE,
                         ANSI_CHARSET, OUT_TT_ONLY_PRECIS, CLIP_DEFAULT_PRECIS,
-                        FQUALITY, FIXED_PITCH, "Consolas");
-        if (!tf) winerr(); /* process windows error */
+                        FQUALITY, FIXED_PITCH, "Consolas"), !tf); /* process windows error */
         rv = SelectObject(win->devcon, tf);
         if (rv == HGDI_ERROR) error(enosel);
-        b = GetTextMetrics(win->devcon, &tm); /* get the metrics */
-        if (!b) winerr(); /* process windows error */
+        GDICALL(b = GetTextMetrics(win->devcon, &tm), !b); /* get the metrics */ /* process windows error */
         /* adopt the full cell height, so newfont() recreates this same font
            from it (positive heights select by cell) */
         win->gfhigh = tm.tmHeight;
@@ -10500,8 +10383,7 @@ static void opnwin(int fn, int pfn)
            initialization, so put the stock font back and release this one */
         rv = SelectObject(win->devcon, GetStockObject(SYSTEM_FIXED_FONT));
         if (rv == HGDI_ERROR) error(enosel);
-        b = DeleteObject(tf);
-        if (!b) winerr(); /* process windows error */
+        GDICALL(b = DeleteObject(tf), !b); /* process windows error */
 
     }
     /* find screen device parameters for dpm calculations */
@@ -12863,8 +12745,7 @@ static void ibuttonsizg(winptr win, char* s, ami_long* w, ami_long* h)
 
     dc = GetWindowDC(NULL); /* get screen dc */
     if (!dc) winerr(); /* process windows error */
-    b = GetTextExtentPoint32(dc, s, strlen(s), &sz); /* get sizing */
-    if (!b) winerr(); /* process windows error */
+    GDICALL(b = GetTextExtentPoint32(dc, s, strlen(s), &sz), !b); /* get sizing */ /* process windows error */
     /* add button borders to size */
     *w = sz.cx+GetSystemMetrics(SM_CXEDGE)*2;
     *h = sz.cy+GetSystemMetrics(SM_CYEDGE)*2;
@@ -12985,8 +12866,7 @@ static void icheckboxsizg(winptr win, char* s, ami_long* w, ami_long* h)
 
     dc = GetWindowDC(NULL); /* get screen dc */
     if (!dc) winerr(); /* process windows error */
-    b = GetTextExtentPoint32(dc, s, strlen(s), &sz); /* get sizing */
-    if (!b) winerr(); /* process windows error */
+    GDICALL(b = GetTextExtentPoint32(dc, s, strlen(s), &sz), !b); /* get sizing */ /* process windows error */
     /* We needed to add a fudge factor for the space between the checkbox, the
        left edge of the widget, and the left edge of the text. */
     *w = sz.cx+GetSystemMetrics(SM_CXMENUCHECK)+6; /* return size */
@@ -13109,8 +12989,7 @@ static void iradiobuttonsizg(winptr win, char* s, ami_long* w, ami_long* h)
 
     dc = GetWindowDC(NULL); /* get screen dc */
     if (!dc) winerr(); /* process windows error */
-    b = GetTextExtentPoint32(dc, s, strlen(s), &sz); /* get sizing */
-    if (!b) winerr(); /* process windows error */
+    GDICALL(b = GetTextExtentPoint32(dc, s, strlen(s), &sz), !b); /* get sizing */ /* process windows error */
     /* We needed to add a fudge factor for the space between the checkbox, the
        left edge of the widget, and the left edge of the text. */
     *w = sz.cx+GetSystemMetrics(SM_CXMENUCHECK)+6; /* return size */
@@ -13234,8 +13113,7 @@ static void igroupsizg(winptr win, char* s, ami_long cw, ami_long ch, ami_long* 
 
     dc = GetWindowDC(NULL); /* get screen dc */
     if (!dc) winerr(); /* process windows error */
-    b = GetTextExtentPoint32(dc, s, strlen(s), &sz); /* get sizing */
-    if (!b) winerr(); /* process windows error */
+    GDICALL(b = GetTextExtentPoint32(dc, s, strlen(s), &sz), !b); /* get sizing */ /* process windows error */
     /* Use the string sizing, and rules of thumb for the edges */
     *w = sz.cx+7*2; /* return size */
     /* if string is greater than width plus edges, use the string. */
@@ -14074,8 +13952,7 @@ static void ieditboxsizg(winptr win, char* s, ami_long* w, ami_long* h)
 
     dc = GetWindowDC(NULL); /* get screen dc */
     if (!dc) winerr(); /* process windows error */
-    b = GetTextExtentPoint32(dc, s, strlen(s), &sz); /* get sizing */
-    if (!b) winerr(); /* process windows error */
+    GDICALL(b = GetTextExtentPoint32(dc, s, strlen(s), &sz), !b); /* get sizing */ /* process windows error */
     /* add borders to size */
     *w = sz.cx+4;
     *h = sz.cy+4;
@@ -14375,8 +14252,7 @@ static void ilistboxsizg(winptr win, ami_strptr sp, ami_long* w, ami_long* h)
 
         dc = GetWindowDC(NULL); /* get screen dc */
         if (!dc) winerr(); /* process windows error */
-        b = GetTextExtentPoint32(dc, sp->str, strlen(sp->str), &sz); /* get sizing */
-        if (!b) winerr(); /* process windows error */
+        GDICALL(b = GetTextExtentPoint32(dc, sp->str, strlen(sp->str), &sz), !b); /* get sizing */ /* process windows error */
         /* add borders to size */
         mw = sz.cx+4;
         if (mw > *w) *w = mw; /* set new maximum */
@@ -14509,8 +14385,7 @@ static void getsizlin(char* s, LPSIZE sz)
 
     dc = GetWindowDC(NULL); /* get screen dc */
     if (!dc) winerr(); /* process windows error */
-    b = GetTextExtentPoint32(dc, s, strlen(s), sz); /* get sizing */
-    if (!b) winerr(); /* process windows error */
+    GDICALL(b = GetTextExtentPoint32(dc, s, strlen(s), sz), !b); /* get sizing */ /* process windows error */
 
 }
 
