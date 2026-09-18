@@ -2353,7 +2353,13 @@ static void ievent(ami_evtptr er)
                     ssy = bi.srWindow.Bottom-bi.srWindow.Top+1; /* find displayed y size */
                     x = bi.dwSize.X; /* place maximum sizes */
                     y = ssy; /* set y is displayed only */
-                    oy = bi.dwSize.Y-ssy; /* then set offset to area */
+                    /* The screen's rows are the window's rows, wherever the
+                       window sits in the buffer: after a resize the console
+                       rewraps its contents and the window may sit far above
+                       the buffer's end, so the offset is the window's top, as
+                       at initialization, not the buffer's height less the
+                       window's. */
+                    oy = bi.srWindow.Top; /* then set offset to area */
                     if (screens[curupd-1]->maxx != x || screens[curupd-1]->maxy != y) {
 
                         /* filter out any messages with no net change. This was
