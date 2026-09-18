@@ -248,10 +248,14 @@ static int     curdsp;          /* index for current display screen */
 static int     curupd;          /* index for current update screen */
 static struct {
 
-    int han; /* handle for timer */
-    int rep; /* timer repeat flag */
+    int  han; /* handle for timer */
+    int  rep; /* timer repeat flag */
+    WORD gen; /* generation: counts the armings and kills, and goes in each
+                 record posted, so a record of an earlier arming that is still
+                 in the queue is known and dropped */
 
 } timers[AMI_MAXTIM+1]; /* by handle, 1 to AMI_MAXTIM */
+static WORD    frmgen;          /* the framing timer's generation */
 
 static CONSOLE_SCREEN_BUFFER_INFO bi; /* screen buffer info structure */
 static CONSOLE_CURSOR_INFO        ci; /* console cursor info structure */
@@ -2434,6 +2438,11 @@ static void custevent(ami_evtptr er, INPUT_RECORD* inpevt, int* keep)
 
     if (inpevt->Event.KeyEvent.dwControlKeyState == UIV_TIM) { /* timer event */
 
+        /* a record of an earlier arming of the timer, left in the queue when
+           it was killed or rearmed: not an event of the timer as it is now */
+        if (inpevt->Event.KeyEvent.wVirtualScanCode !=
+            (inpevt->Event.KeyEvent.wVirtualKeyCode == FRMTIM ? frmgen :
+             timers[inpevt->Event.KeyEvent.wVirtualKeyCode].gen)) return;
         if (inpevt->Event.KeyEvent.wVirtualKeyCode == FRMTIM) er->etype = ami_etframe;
         else {
 
@@ -2776,6 +2785,9 @@ static void CALLBACK timeout(UINT id, UINT msg, DWORD_PTR usr, DWORD_PTR dw1, DW
     inpevt.EventType = KEY_EVENT; /* set key event type */
     inpevt.Event.KeyEvent.dwControlKeyState = UIV_TIM; /* set timer code */
     inpevt.Event.KeyEvent.wVirtualKeyCode = usr; /* set timer handle */
+    /* and the timer's generation */
+    inpevt.Event.KeyEvent.wVirtualScanCode =
+        usr == FRMTIM ? frmgen : timers[usr].gen;
     WriteConsoleInput(inphdl, &inpevt, 1, &ne); /* send */
 
 }
@@ -2814,6 +2826,7 @@ static void itimer(ami_long i, /* timer handle */
        one and post its events; a one shot that has matured is gone already,
        and the kill of it is refused, harmlessly */
     if (timers[i].han) timeKillEvent(timers[i].han);
+    timers[i].gen++; /* records of the timer as it was are stale */
     timers[i].han = timeSetEvent(mt, 0, timeout, i, tf);
     timers[i].rep = r; /* set timer repeat flag */
     /* should check and return an error */
@@ -2847,6 +2860,7 @@ void killtimer_ivf(FILE* f, /* file to kill timer on */
     /* should check for return error */
     timers[i].han = 0; /* set no active timer */
     timers[i].rep = 0;
+    timers[i].gen++; /* records of it still in the queue are stale */
 
 }
 
@@ -2871,6 +2885,7 @@ static void iframetimer(ami_long e)
 
         if (!frmrun) { /* it is not running */
 
+            frmgen++; /* records of the timer as it was are stale */
             /* set timer to run, 17ms */
             frmhan = timeSetEvent(17, 0, timeout, FRMTIM,
                                   TIME_CALLBACK_FUNCTION |
@@ -2888,6 +2903,7 @@ static void iframetimer(ami_long e)
             r = timeKillEvent(frmhan); /* kill timer */
             if (r) error(etimacc); /* error */
             frmrun = 0; /* set timer not running */
+            frmgen++; /* records of it still in the queue are stale */
 
         }
 
