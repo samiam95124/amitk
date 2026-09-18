@@ -2552,6 +2552,11 @@ terminal does not. The buffer keeps its size: a program that wants it to
 follow the window sets it with sizbuf. Fills in a resize event with the new
 display size and returns true if there was a change.
 
+The console buffer is checked as well as the window: conhost sets the console
+buffer's width to the window's, and rewraps, at each step of a drag, including
+a last one after the window's size settled, so a console buffer narrower than
+the image with the window unchanged is refitted, without an event.
+
 The console sends an event when it sizes the buffer on display, which a change
 of the window's width does. A change of the window's rows alone is silent: the
 primary buffer keeps its rows, which are scrollback above and below the window.
@@ -2590,18 +2595,23 @@ static int sizevt(ami_evtptr er)
     CONSOLE_SCREEN_BUFFER_INFO bi;
     scnptr                     sc;
     ami_long                   x, y;
+    int                        changed;
 
     sc = screens[curdsp-1]; /* index the screen on display */
     if (!GetConsoleScreenBufferInfo(sc->han, &bi)) return (FALSE);
     x = bi.srWindow.Right-bi.srWindow.Left+1; /* the window's columns and rows */
     y = bi.srWindow.Bottom-bi.srWindow.Top+1;
+    changed = x != dspx || y != dspy; /* the display changed */
     /* filter out any change with no net effect: this was seen commonly, and
        our own sizing of the console buffer sends one */
-    if (x == dspx && y == dspy) return (FALSE);
+    if (!changed && bi.dwSize.X >= sc->maxx &&
+        bi.dwSize.Y >= sc->offy+(sc->maxy > dspy ? sc->maxy : dspy))
+        return (FALSE);
     dspx = x; /* set the new display size */
     dspy = y;
     fitcon(sc); /* fit the console buffer to it, and put the image back */
     setcur(sc);
+    if (!changed) return (FALSE); /* the console buffer alone: no event */
     er->etype = ami_etresize; /* set resize */
     er->rszx = x; /* send the new size in the event */
     er->rszy = y;
