@@ -791,6 +791,7 @@ static void putimg(scnptr sc)
     SMALL_RECT dr;
     ami_long   y, rows;
 
+    if (sc->maxx < 1 || sc->maxy < 1) return; /* no buffer: nothing to put */
     rows = 16000/sc->maxx; /* rows a write can take: 64kb of CHAR_INFO */
     if (rows < 1) rows = 1;
     for (y = 0; y < sc->maxy; y += rows) {
@@ -820,6 +821,7 @@ static void getimg(scnptr sc)
     SMALL_RECT dr;
     ami_long   y, rows;
 
+    if (sc->maxx < 1 || sc->maxy < 1) return; /* no buffer: nothing to read */
     rows = 16000/sc->maxx; /* rows a read can take */
     if (rows < 1) rows = 1;
     for (y = 0; y < sc->maxy; y += rows) {
@@ -850,7 +852,11 @@ static void rszimg(scnptr sc, ami_long nx, ami_long ny)
     CHAR_INFO* ni;
     ami_long   x, y, ox;
 
-    ni = malloc(nx*ny*sizeof(CHAR_INFO));
+    /* The buffer can be empty: when the output is not a console (redirected
+       to a file, as the print tests run), the console gives no size and the
+       buffer is 0 wide, and writes to it are dropped. The image still exists,
+       as one cell, so that it can be freed and resized like any other. */
+    ni = malloc((nx*ny > 0 ? nx*ny : 1)*sizeof(CHAR_INFO));
     if (!ni) error(enomem);
     for (y = 0; y < ny; y++) for (x = 0; x < nx; x++) {
 
