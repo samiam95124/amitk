@@ -15986,9 +15986,10 @@ static LRESULT CALLBACK wndproc(HWND hwnd, UINT imsg, WPARAM wparam,
                 ip->owj2c = FALSE;
                 if (joyenb && ip->owhan) {
 
-                    r = joySetCapture(ip->owhan, JOYSTICKID1, 33, FALSE);
+                    /* polled every 33 ms, reported only on a change */
+                    r = joySetCapture(ip->owhan, JOYSTICKID1, 33, TRUE);
                     ip->owj1c = r == 0; /* set joystick 1 was captured */
-                    r = joySetCapture(ip->owhan, JOYSTICKID2, 33, FALSE);
+                    r = joySetCapture(ip->owhan, JOYSTICKID2, 33, TRUE);
                     ip->owj2c = r == 0; /* set joystick 2 was captured */
 
                 }
