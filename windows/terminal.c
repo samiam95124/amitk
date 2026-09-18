@@ -113,7 +113,8 @@ static enum { /* debug levels */
 #define OUTFIL 1   /* _output */
 #define MAXLIN 250 /* maximum length of input buffered line */
 #define MAXCON 10  /* number of screen contexts */
-#define MAXTAB 250 /* maximum number of tabs (length of buffer in x) */
+#define MAXSCN 250 /* maximum size of the buffer, in x or in y */
+#define MAXTAB MAXSCN /* maximum number of tabs (length of buffer in x) */
 #define FRMTIM 11  /* handle number of framing timer */
 
 /* special user events */
@@ -197,6 +198,7 @@ typedef enum {
     efilopr, /* cannot perform operation on special file */
     efilzer, /* filename is empty */
     einvscn, /* invalid screen number */
+    einvsiz, /* invalid buffer size */
     einvhan, /* invalid handle */
     einvtab, /* invalid tab position */
     esbfcrt, /* cannot create screen buffer */
@@ -311,6 +313,7 @@ static void error(int e)
                       break;
         case efilzer: fprintf(stderr, "Filename is empty"); break;
         case einvscn: fprintf(stderr, "Invalid screen number"); break;
+        case einvsiz: fprintf(stderr, "Invalid buffer size"); break;
         case einvtab: fprintf(stderr, "Tab position specified off screen"); break;
         case esbfcrt: fprintf(stderr, "Cannot create screen buffer"); break;
         case einvjoy: fprintf(stderr, "Invalid joystick ID"); break;
@@ -689,8 +692,11 @@ part, with the console's scroll bars; a display larger than the buffer is blank
 beyond it. A program that wants the buffer to follow the window sets it to the
 event's size with sizbuf.
 
-The image is in screen coordinates, 0 based, row major. The buffer starts at
-row offy of the console buffer.
+The buffer is at most MAXSCN by MAXSCN: sizbuf refuses more, and a console
+larger than that at start gets a buffer of that size. The image is in screen
+coordinates, 0 based, row major, and is allocated to the buffer's size, so it
+is reallocated only by sizbuf. The buffer starts at row offy of the console
+buffer.
 
 *******************************************************************************/
 
@@ -829,10 +835,10 @@ static void getimg(scnptr sc)
 
 }
 
-/* Size the image to nx by ny, keeping what fits from the top left corner; new
-   cells are blank in the current attributes. Sets the screen's size with it,
-   and gives columns beyond the old width the standard tabs. The image may not
-   exist yet. */
+/* Size the image to nx by ny (at most MAXSCN each), keeping what fits from
+   the top left corner; new cells are blank in the current attributes. Sets the
+   screen's size with it, and gives columns beyond the old width the standard
+   tabs. The image may not exist yet. */
 static void rszimg(scnptr sc, ami_long nx, ami_long ny)
 
 {
@@ -3187,7 +3193,7 @@ void sizbuf_ivf(FILE* f, ami_long x, ami_long y)
 
     int si;
 
-    if (x < 1 || y < 1) error(einvscn); /* invalid size */
+    if (x < 1 || y < 1 || x > MAXSCN || y > MAXSCN) error(einvsiz);
     if (x == gmaxx && y == gmaxy) return; /* no change */
     gmaxx = x; /* new screens take the size */
     gmaxy = y;
@@ -3972,6 +3978,9 @@ dbg_printf(dlinfo, "Display area: left: %d top: %d bottom: %d right: %d cursor: 
     screens[curupd-1]->maxy = ssy; /* set y is displayed only */
     dspx = bi.dwSize.X; /* the display starts as the buffer */
     dspy = ssy;
+    /* the buffer has a maximum: a display beyond it is blank */
+    if (screens[curupd-1]->maxx > MAXSCN) screens[curupd-1]->maxx = MAXSCN;
+    if (screens[curupd-1]->maxy > MAXSCN) screens[curupd-1]->maxy = MAXSCN;
     screens[curupd-1]->offy = bi.srWindow.Top; /* then set offset to area */
     screens[curupd-1]->curx = bi.dwCursorPosition.X+1; /* place cursor position */
     screens[curupd-1]->cury = bi.dwCursorPosition.Y-bi.srWindow.Top+1;
