@@ -113,7 +113,8 @@ static enum { /* debug levels */
 #define OUTFIL 1   /* _output */
 #define MAXLIN 250 /* maximum length of input buffered line */
 #define MAXCON 10  /* number of screen contexts */
-#define MAXTAB 250 /* maximum number of tabs (length of buffer in x) */
+#define MAXSCN 250 /* maximum size of the buffer, in x or in y */
+#define MAXTAB MAXSCN /* maximum number of tabs (length of buffer in x) */
 #define FRMTIM 11  /* handle number of framing timer */
 
 /* special user events */
@@ -129,6 +130,10 @@ static enum { /* debug levels */
 #define UIV_JOY2BUTTONUP   0x8008 /* joystick 2 button up */
 #define UIV_TERM           0x8009 /* terminate program */
 #define UIV_HOVER          0x800a /* hover timer matures */
+#define UIV_SIZCHK         0x800b /* display size check due */
+
+#define SIZCHK 250 /* milliseconds between checks of the display's size */
+#define INPBUF 64  /* input records read from the queue at a time */
 
 #define HOVERTIME 1000 /* hover timeout, milliseconds */
 
@@ -168,6 +173,7 @@ typedef enum {
 typedef struct { /* screen context */
 
     HANDLE   han;         /* screen buffer handle */
+    CHAR_INFO* img;       /* image of the display area, maxx*maxy cells */
     ami_long maxx;        /* maximum x */
     ami_long maxy;        /* maximum y */
     ami_long offy;        /* offset within buffer to display area */
@@ -192,6 +198,7 @@ typedef enum {
     efilopr, /* cannot perform operation on special file */
     efilzer, /* filename is empty */
     einvscn, /* invalid screen number */
+    einvsiz, /* invalid buffer size */
     einvhan, /* invalid handle */
     einvtab, /* invalid tab position */
     esbfcrt, /* cannot create screen buffer */
@@ -230,17 +237,25 @@ static ami_long    nmpx, nmpy;      /* new mouse current position */
 static int     hover;           /* mouse is hovering in window */
 static int     hovpend;         /* hover event pending delivery */
 static int     hovtim;          /* hover timeout timer handle */
+static int     sizhan;          /* display size check timer handle */
+static volatile int sizpend;    /* a size check record is in the queue */
 static char    inpbuf[MAXLIN];  /* input line buffer */
 static int     inpptr;          /* input line index */
 static scnptr  screens[MAXCON]; /* screen contexts array */
+static ami_long dspx, dspy;     /* the display: the console window's columns
+                                   and rows */
 static int     curdsp;          /* index for current display screen */
 static int     curupd;          /* index for current update screen */
 static struct {
 
-    int han; /* handle for timer */
-    int rep; /* timer repeat flag */
+    int  han; /* handle for timer */
+    int  rep; /* timer repeat flag */
+    WORD gen; /* generation: counts the armings and kills, and goes in each
+                 record posted, so a record of an earlier arming that is still
+                 in the queue is known and dropped */
 
 } timers[AMI_MAXTIM+1]; /* by handle, 1 to AMI_MAXTIM */
+static WORD    frmgen;          /* the framing timer's generation */
 
 static CONSOLE_SCREEN_BUFFER_INFO bi; /* screen buffer info structure */
 static CONSOLE_CURSOR_INFO        ci; /* console cursor info structure */
@@ -302,6 +317,7 @@ static void error(int e)
                       break;
         case efilzer: fprintf(stderr, "Filename is empty"); break;
         case einvscn: fprintf(stderr, "Invalid screen number"); break;
+        case einvsiz: fprintf(stderr, "Invalid buffer size"); break;
         case einvtab: fprintf(stderr, "Tab position specified off screen"); break;
         case esbfcrt: fprintf(stderr, "Cannot create screen buffer"); break;
         case einvjoy: fprintf(stderr, "Invalid joystick ID"); break;
@@ -562,12 +578,34 @@ Checks if the cursor lies in the current bounds, and returns true if so.
 
 *******************************************************************************/
 
+
 static int icurbnd(scnptr sc)
 
 {
 
     return (sc->curx >= 1 && sc->curx <= sc->maxx && sc->cury >= 1 &&
             sc->cury <= sc->maxy);
+
+}
+
+/*******************************************************************************
+
+Find if cursor is on the display
+
+Checks if the cursor lies in the bounds and on the display, the console
+window's columns and rows from the buffer's top left corner, and returns true
+if so. A cursor in a part of the buffer beyond the display is not set in the
+console: the console moves its window to keep the cursor in view when the
+cursor is set out of it, which would show the buffer from wherever the cursor
+is rather than from its top left corner.
+
+*******************************************************************************/
+
+static int icurdsp(scnptr sc)
+
+{
+
+    return (icurbnd(sc) && sc->curx <= dspx && sc->cury <= dspy);
 
 }
 
@@ -590,7 +628,7 @@ static void cursts(scnptr sc)
     int cv;
 
     cv = sc->curv; /* set current buffer status */
-    if (!icurbnd(sc)) cv = 0; /* not in bounds, force off */
+    if (!icurdsp(sc)) cv = 0; /* not in bounds or on the display, force off */
     /* get current console information */
     b = GetConsoleCursorInfo(sc->han, &ci);
     ci.bVisible = cv; /* set cursor status */
@@ -618,8 +656,8 @@ static void setcur(scnptr sc)
     int b;
     COORD xy;
 
-    /* check cursor in bounds, and buffer in display */
-    if (icurbnd(sc) && sc == screens[curdsp-1]) {
+    /* check cursor in bounds and on the display, and buffer in display */
+    if (icurdsp(sc) && sc == screens[curdsp-1]) {
 
         /* set cursor position */
         xy.X = sc->curx-1;
@@ -636,10 +674,284 @@ static void setcur(scnptr sc)
 
 /*******************************************************************************
 
+Screen image
+
+Each screen keeps an image of what it has written to its console buffer: a
+CHAR_INFO per cell of the screen buffer, holding the character, in UTF-16, and
+the console attribute word written with it, which carries the colors and the
+attributes as the console showed them. Every write to the console goes through
+the image as well, so the image can be put back over the console buffer
+whenever the console's own copy is not to be trusted: after the console window
+is resized, when conhost rewraps the buffer's contents to the new width (a
+terminal does not), or when a screen buffer is shown again after the display
+changed.
+
+The buffer and the display are sized apart, as on the other platforms. The
+buffer, maxx by maxy, is the program's: the image, what maxx and maxy report,
+what the cursor moves in, set at start from the window and after that only by
+sizbuf. The display, dspx by dspy, is the user's: the console window's columns
+and rows, set by dragging the window, reported by the resize event, and shown
+from the buffer's top left corner. A buffer larger than the display is seen in
+part, with the console's scroll bars; a display larger than the buffer is blank
+beyond it. A program that wants the buffer to follow the window sets it to the
+event's size with sizbuf.
+
+The buffer is at most MAXSCN by MAXSCN: sizbuf refuses more, and a console
+larger than that at start gets a buffer of that size. The image is in screen
+coordinates, 0 based, row major, and is allocated to the buffer's size, so it
+is reallocated only by sizbuf. The buffer starts at row offy of the console
+buffer.
+
+*******************************************************************************/
+
+/* the cell at screen position x, y (0 based) */
+#define IMGCELL(sc, x, y) ((sc)->img[(y)*(sc)->maxx+(x)])
+
+/* Set a cell of the image and of the console */
+static void putcell(scnptr sc, ami_long x, ami_long y, WCHAR c, WORD a)
+
+{
+
+    CHAR_INFO* ci;
+    COORD      xy;
+    DWORD      len;
+
+    ci = &IMGCELL(sc, x, y);
+    ci->Char.UnicodeChar = c;
+    ci->Attributes = a;
+    xy.X = x;
+    xy.Y = y+sc->offy;
+    WriteConsoleOutputCharacterW(sc->han, &c, 1, xy, &len);
+    WriteConsoleOutputAttribute(sc->han, &a, 1, xy, &len);
+
+}
+
+/* Fill the cells x1..x2 by y1..y2 of the image with blanks in the attributes
+   given */
+static void fillimg(scnptr sc, ami_long x1, ami_long y1, ami_long x2, ami_long y2,
+                    WORD a)
+
+{
+
+    ami_long   x, y;
+    CHAR_INFO* ci;
+
+    for (y = y1; y <= y2; y++) for (x = x1; x <= x2; x++) {
+
+        ci = &IMGCELL(sc, x, y);
+        ci->Char.UnicodeChar = L' ';
+        ci->Attributes = a;
+
+    }
+
+}
+
+/* Move the image by dx, dy: the cell at x, y goes to x+dx, y+dy. Cells moved
+   off the edge are lost, cells uncovered are blank in the attributes given. */
+static void movimg(scnptr sc, ami_long dx, ami_long dy, WORD a)
+
+{
+
+    ami_long   x, y, tx, ty, sx, sy;
+    CHAR_INFO* ci;
+
+    /* walk from the far edge in the direction of the move, so that each cell
+       is read before it is overwritten */
+    for (y = 0; y < sc->maxy; y++) {
+
+        ty = dy >= 0 ? sc->maxy-1-y : y; /* target row */
+        for (x = 0; x < sc->maxx; x++) {
+
+            tx = dx >= 0 ? sc->maxx-1-x : x; /* target column */
+            sx = tx-dx; /* source */
+            sy = ty-dy;
+            ci = &IMGCELL(sc, tx, ty);
+            if (sx >= 0 && sx < sc->maxx && sy >= 0 && sy < sc->maxy)
+                *ci = IMGCELL(sc, sx, sy);
+            else {
+
+                ci->Char.UnicodeChar = L' ';
+                ci->Attributes = a;
+
+            }
+
+        }
+
+    }
+
+}
+
+/* Put the image over the display area of the console buffer. A write to the
+   console is limited in size, so it goes a group of rows at a time. */
+static void putimg(scnptr sc)
+
+{
+
+    COORD      sz, org;
+    SMALL_RECT dr;
+    ami_long   y, rows;
+
+    if (sc->maxx < 1 || sc->maxy < 1) return; /* no buffer: nothing to put */
+    rows = 16000/sc->maxx; /* rows a write can take: 64kb of CHAR_INFO */
+    if (rows < 1) rows = 1;
+    for (y = 0; y < sc->maxy; y += rows) {
+
+        if (rows > sc->maxy-y) rows = sc->maxy-y;
+        sz.X = sc->maxx;
+        sz.Y = rows;
+        org.X = 0;
+        org.Y = 0;
+        dr.Left = 0;
+        dr.Right = sc->maxx-1;
+        dr.Top = y+sc->offy;
+        dr.Bottom = y+sc->offy+rows-1;
+        WriteConsoleOutputW(sc->han, &IMGCELL(sc, 0, y), sz, org, &dr);
+
+    }
+
+}
+
+/* Read the display area of the console buffer into the image: what the primary
+   buffer shows when we start */
+static void getimg(scnptr sc)
+
+{
+
+    COORD      sz, org;
+    SMALL_RECT dr;
+    ami_long   y, rows;
+
+    if (sc->maxx < 1 || sc->maxy < 1) return; /* no buffer: nothing to read */
+    rows = 16000/sc->maxx; /* rows a read can take */
+    if (rows < 1) rows = 1;
+    for (y = 0; y < sc->maxy; y += rows) {
+
+        if (rows > sc->maxy-y) rows = sc->maxy-y;
+        sz.X = sc->maxx;
+        sz.Y = rows;
+        org.X = 0;
+        org.Y = 0;
+        dr.Left = 0;
+        dr.Right = sc->maxx-1;
+        dr.Top = y+sc->offy;
+        dr.Bottom = y+sc->offy+rows-1;
+        ReadConsoleOutputW(sc->han, &IMGCELL(sc, 0, y), sz, org, &dr);
+
+    }
+
+}
+
+/* Size the image to nx by ny (at most MAXSCN each), keeping what fits from
+   the top left corner; new cells are blank in the current attributes. Sets the
+   screen's size with it, and gives columns beyond the old width the standard
+   tabs. The image may not exist yet. */
+static void rszimg(scnptr sc, ami_long nx, ami_long ny)
+
+{
+
+    CHAR_INFO* ni;
+    ami_long   x, y, ox;
+
+    /* The buffer can be empty: when the output is not a console (redirected
+       to a file, as the print tests run), the console gives no size and the
+       buffer is 0 wide, and writes to it are dropped. The image still exists,
+       as one cell, so that it can be freed and resized like any other. */
+    ni = malloc((nx*ny > 0 ? nx*ny : 1)*sizeof(CHAR_INFO));
+    if (!ni) error(enomem);
+    for (y = 0; y < ny; y++) for (x = 0; x < nx; x++) {
+
+        if (sc->img && x < sc->maxx && y < sc->maxy)
+            ni[y*nx+x] = IMGCELL(sc, x, y);
+        else {
+
+            ni[y*nx+x].Char.UnicodeChar = L' ';
+            ni[y*nx+x].Attributes = sc->sattr;
+
+        }
+
+    }
+    ox = sc->img ? sc->maxx : 0; /* the old width, if any */
+    if (sc->img) free(sc->img);
+    for (x = ox; x < nx && x < MAXTAB; x++) sc->tab[x] = x%8 == 0;
+    sc->img = ni;
+    sc->maxx = nx;
+    sc->maxy = ny;
+
+}
+
+/* Blank the console buffer cells x1..x2 by y1..y2 (console coordinates) in
+   the current attributes: the display beyond the image */
+static void blankcon(scnptr sc, ami_long x1, ami_long y1, ami_long x2,
+                     ami_long y2)
+
+{
+
+    COORD    xy;
+    DWORD    len;
+    ami_long y;
+
+    if (x2 < x1 || y2 < y1) return; /* nothing there */
+    for (y = y1; y <= y2; y++) {
+
+        xy.X = x1;
+        xy.Y = y;
+        FillConsoleOutputCharacterW(sc->han, L' ', x2-x1+1, xy, &len);
+        FillConsoleOutputAttribute(sc->han, sc->sattr, x2-x1+1, xy, &len);
+
+    }
+
+}
+
+/* Fit a screen's console buffer to the buffer and the display, and put the
+   image over it. The console buffer must hold both, so it is at least as wide
+   and as tall as either, keeping any scrollback it has above the buffer, and
+   the window is set to show the buffer from its top left corner. The display
+   beyond the image is blank. The window must fit in the console buffer at all
+   times: the buffer is only ever enlarged here to hold the window, so it is
+   sized first, but a window that does not fit even so (a new screen's, which
+   the console gave a default) is taken to nothing while the buffer is sized. */
+static void fitcon(scnptr sc)
+
+{
+
+    CONSOLE_SCREEN_BUFFER_INFO bi;
+    COORD                      sz;
+    SMALL_RECT                 wr;
+    ami_long                   need;
+
+    GetConsoleScreenBufferInfo(sc->han, &bi);
+    sz.X = sc->maxx > dspx ? sc->maxx : dspx;
+    need = sc->offy+(sc->maxy > dspy ? sc->maxy : dspy);
+    sz.Y = bi.dwSize.Y > need ? bi.dwSize.Y : need;
+    if (bi.srWindow.Right >= sz.X || bi.srWindow.Bottom >= sz.Y) {
+
+        wr.Left = 0; /* the window would not fit: take it to nothing */
+        wr.Top = 0;
+        wr.Right = 0;
+        wr.Bottom = 0;
+        SetConsoleWindowInfo(sc->han, TRUE, &wr);
+
+    }
+    if (sz.X != bi.dwSize.X || sz.Y != bi.dwSize.Y)
+        SetConsoleScreenBufferSize(sc->han, sz);
+    wr.Left = 0; /* the window shows the buffer from its top left corner */
+    wr.Right = dspx-1;
+    wr.Top = sc->offy;
+    wr.Bottom = sc->offy+dspy-1;
+    SetConsoleWindowInfo(sc->han, TRUE, &wr);
+    putimg(sc);
+    /* blank the display right of the image, and below it */
+    blankcon(sc, sc->maxx, sc->offy, dspx-1, sc->offy+dspy-1);
+    blankcon(sc, 0, sc->offy+sc->maxy, dspx-1, sc->offy+dspy-1);
+
+}
+
+/*******************************************************************************
+
 Clear screen
 
-Clears the screen and homes the cursor. This effectively occurs by writing all
-characters on the screen to spaces with the current colors and attributes.
+Clears the screen and homes the cursor. The image is filled with spaces in the
+current colors and attributes, and put over the display.
 
 *******************************************************************************/
 
@@ -647,27 +959,8 @@ static void iclear(scnptr sc)
 
 {
 
-    ami_long  x, y;
-    char  cb; /* character output buffer */
-    WORD  ab; /* attribute output buffer */
-    int   b;
-    COORD xy;
-    DWORD len;
-
-    cb = ' '; /* set space */
-    ab = sc->sattr; /* set attributes */
-    for (y = 0; y < sc->maxy; y++) {
-
-        for (x = 0; x < sc->maxx; x++) {
-
-            xy.X = x;
-            xy.Y = y+sc->offy;
-            b = WriteConsoleOutputCharacter(sc->han, &cb, 1, xy, &len);
-            b = WriteConsoleOutputAttribute(sc->han, &ab, 1, xy, &len);
-
-        }
-
-    }
+    fillimg(sc, 0, 0, sc->maxx-1, sc->maxy-1, sc->sattr);
+    putimg(sc);
     sc->cury = 1; /* set cursor at home */
     sc->curx = 1;
     setcur(sc);
@@ -687,23 +980,20 @@ static void iniscn(scnptr sc)
 {
 
     ami_long i;
-    COORD xy;
 
-    sc->maxx = gmaxx; /* set size */
-    sc->maxy = gmaxy;
-    xy.X = sc->maxx;
-    xy.Y = sc->maxy;
-    b = SetConsoleScreenBufferSize(sc->han, xy);
-    /* a new buffer is sized exactly to the display area, so there is no
-       scrollback above it; the display offset is zero (unlike the primary
-       buffer, whose offset is taken from the window position) */
-    sc->offy = 0;
     sc->forec = gforec; /* set colors and attributes */
     sc->backc = gbackc;
     sc->attr = gattr;
+    setcolor(sc); /* set current color */
+    sc->img = NULL; /* a new screen: no image yet */
+    rszimg(sc, gmaxx, gmaxy); /* make the image, and set the size */
+    /* a new console buffer holds just the buffer and the display, so there
+       is no scrollback above the buffer: its offset is zero (unlike the
+       primary console buffer's, which is taken from the window position) */
+    sc->offy = 0;
+    fitcon(sc); /* size the console buffer to hold the buffer and the display */
     sc->autof = gautof; /* set auto scroll and wrap */
     sc->curv = gcurv; /* set cursor visibility */
-    setcolor(sc); /* set current color */
     iclear(sc); /* clear screen buffer with that */
     /* set up tabbing to be on each 8th position */
     for (i = 0; i < sc->maxx; i++) sc->tab[i] = i%8 == 0;
@@ -749,64 +1039,16 @@ static void iscroll(ami_long x, ami_long y)
 
 {
 
-    SMALL_RECT sr; /* scroll rectangle */
-    CHAR_INFO  f;  /* fill character info */
-    int        b;  /* return value */
-    scnptr     sc; /* screen context */
-    COORD      xy;
+    scnptr sc; /* screen context */
 
     sc = screens[curupd-1]; /* index screen context */
-    f.Char.AsciiChar = ' '; /* set fill values */
-    f.Attributes = sc->sattr;
     if (x <= -sc->maxx || x >= sc->maxx || y <= -sc->maxy || y >= sc->maxy)
         /* scroll would result in complete clear, do it */
-        iclear(screens[curupd-1]); /* clear the screen buffer */
-    else { /* scroll */
+        iclear(sc); /* clear the screen buffer */
+    else { /* scroll: move the image, and put it over the display */
 
-        /* perform y moves */
-        if (y >= 0) { /* move text up */
-
-            sr.Left = 0;
-            sr.Right = sc->maxx-1;
-            sr.Top = y;
-            sr.Bottom = sc->maxy+sc->offy-1;
-            xy.X = 0;
-            xy.Y = 0;
-            b = ScrollConsoleScreenBuffer(sc->han, &sr, NULL, xy, &f);
-
-        } else { /* move text down */
-
-            sr.Left = 0;
-            sr.Right = sc->maxx-1;
-            sr.Top = 0;
-            sr.Bottom = sc->maxy+sc->offy-1;
-            xy.X = 0;
-            xy.Y = abs(y);
-            b = ScrollConsoleScreenBuffer(sc->han, &sr, NULL, xy, &f);
-
-        }
-        /* perform x moves */
-        if (x >= 0) { /* move text left */
-
-            sr.Left = x;
-            sr.Right = sc->maxx-1;
-            sr.Top = 0;
-            sr.Bottom = sc->maxy+sc->offy-1;
-            xy.X = 0;
-            xy.Y = 0;
-            b = ScrollConsoleScreenBuffer(sc->han, &sr, NULL, xy, &f);
-
-        } else { /* move text right */
-
-            sr.Left = 0;
-            sr.Right = sc->maxx-1;
-            sr.Top = 0;
-            sr.Bottom = sc->maxy+sc->offy-1;
-            xy.X = abs(x);
-            xy.Y = 0;
-            b = ScrollConsoleScreenBuffer(sc->han, &sr, NULL, xy, &f);
-
-        }
+        movimg(sc, -x, -y, sc->sattr);
+        putimg(sc);
 
     }
 
@@ -975,14 +1217,24 @@ static void idown(void)
         if (sc->cury < sc->maxy) sc->cury++; /* update position */
         else {
 
-            /* see if we have room between us and end of buffer */
+            /* either way the display moves down a row: in the image the rows
+               move up, and the last is blank */
+            movimg(sc, 0, -1, sc->sattr);
+            /* see if we have room between the image and end of buffer */
             GetConsoleScreenBufferInfo(sc->han, &bi);
-            if (bi.srWindow.Bottom < bi.dwSize.Y-1) {
+            if (sc->offy+sc->maxy < bi.dwSize.Y) {
 
-                bi.srWindow.Top++; /* move display down */
-                bi.srWindow.Bottom++;
-                SetConsoleWindowInfo(sc->han, TRUE, &bi.srWindow);
-                sc->offy++; /* and increase our offset */
+                /* the image moves down a row in the console buffer, and the
+                   display with it: the row it leaves stays as scrollback */
+                sc->offy++;
+                if (bi.srWindow.Bottom < bi.dwSize.Y-1) {
+
+                    bi.srWindow.Top++; /* move display down */
+                    bi.srWindow.Bottom++;
+                    SetConsoleWindowInfo(sc->han, TRUE, &bi.srWindow);
+
+                }
+                putimg(sc); /* the image at its new place */
 
             } else { /* scroll down */
 
@@ -1473,8 +1725,11 @@ static void iselect(ami_long u, ami_long d)
 
 {
 
+    scnptr dsp; /* the screen on display */
+
     if (u < 1 || u > MAXCON || d < 1 || d > MAXCON)
         error(einvscn); /* invalid screen number */
+    dsp = screens[curdsp-1];
     curupd = u; /* set current update screen */
     if (!screens[curupd-1]) { /* no screen, create one */
 
@@ -1505,6 +1760,9 @@ static void iselect(ami_long u, ami_long d)
         iniscn(screens[curdsp-1]); /* initalize that */
 
     }
+    /* the display may have changed since the screen going on display was
+       last shown: fit its console buffer to it, and put its image over it */
+    if (screens[curdsp-1] != dsp) fitcon(screens[curdsp-1]);
     /* set display buffer as active display console */
     SetConsoleActiveScreenBuffer(screens[curdsp-1]->han);
     setcur(screens[curdsp-1]); /* make sure the cursor is at correct point */
@@ -1536,18 +1794,15 @@ stray continuation byte, or a sequence cut short by another start, is dropped.
 static unsigned char utfseq[4]; /* the sequence in progress */
 static int           utflen;    /* its length, from the start byte; 0 for none */
 static int           utfcnt;    /* bytes of it received */
-static COORD         utfxy;     /* the cell it goes in; X < 0 for none */
+static COORD         utfxy;     /* the cell it goes in, screen coordinates;
+                                   X < 0 for none */
 static WORD          utfattr;   /* the attributes at its start */
 
 static void plcvis(scnptr sc, unsigned char c)
 
 {
 
-    char          cb;  /* character output buffer */
     WCHAR         wc;  /* the character, UTF-16 */
-    WORD          ab;  /* attribute output buffer */
-    DWORD         len; /* length dummy */
-    COORD         xy;
     unsigned long cp;  /* code point */
     int           i;
 
@@ -1562,8 +1817,7 @@ static void plcvis(scnptr sc, unsigned char c)
         utflen = 0;
         if (utfxy.X < 0) return; /* the start was out of bounds */
         wc = cp > 0xffff ? 0xfffd : (WCHAR)cp;
-        WriteConsoleOutputCharacterW(sc->han, &wc, 1, utfxy, &len);
-        WriteConsoleOutputAttribute(sc->han, &utfattr, 1, utfxy, &len);
+        putcell(sc, utfxy.X, utfxy.Y, wc, utfattr);
         return;
 
     }
@@ -1578,22 +1832,13 @@ static void plcvis(scnptr sc, unsigned char c)
         if (icurbnd(sc)) { /* cursor in bounds */
 
             utfxy.X = sc->curx-1;
-            utfxy.Y = sc->cury+sc->offy-1;
+            utfxy.Y = sc->cury-1;
             utfattr = sc->sattr;
 
         }
 
-    } else if (icurbnd(sc)) { /* cursor in bounds */
-
-        cb = c; /* place character in buffer */
-        ab = sc->sattr; /* place attribute in buffer */
-        /* write character */
-        xy.X = sc->curx-1;
-        xy.Y = sc->cury+sc->offy-1;
-        WriteConsoleOutputCharacter(sc->han, &cb, 1, xy, &len);
-        WriteConsoleOutputAttribute(sc->han, &ab, 1, xy, &len);
-
-    }
+    } else if (icurbnd(sc)) /* cursor in bounds */
+        putcell(sc, sc->curx-1, sc->cury-1, c, sc->sattr); /* write character */
     iright(); /* move cursor right */
 
 }
@@ -2188,6 +2433,8 @@ static void joymes(ami_evtptr er, INPUT_RECORD* inpevt, int* keep)
 
 /* process custom events */
 
+static int sizevt(ami_evtptr er); /* forward */
+
 static void custevent(ami_evtptr er, INPUT_RECORD* inpevt, int* keep)
 
 {
@@ -2197,6 +2444,11 @@ static void custevent(ami_evtptr er, INPUT_RECORD* inpevt, int* keep)
 
     if (inpevt->Event.KeyEvent.dwControlKeyState == UIV_TIM) { /* timer event */
 
+        /* a record of an earlier arming of the timer, left in the queue when
+           it was killed or rearmed: not an event of the timer as it is now */
+        if (inpevt->Event.KeyEvent.wVirtualScanCode !=
+            (inpevt->Event.KeyEvent.wVirtualKeyCode == FRMTIM ? frmgen :
+             timers[inpevt->Event.KeyEvent.wVirtualKeyCode].gen)) return;
         if (inpevt->Event.KeyEvent.wVirtualKeyCode == FRMTIM) er->etype = ami_etframe;
         else {
 
@@ -2300,7 +2552,92 @@ static void custevent(ami_evtptr er, INPUT_RECORD* inpevt, int* keep)
 
         }
 
+    } else if (inpevt->Event.KeyEvent.dwControlKeyState == UIV_SIZCHK) {
+
+        sizpend = 0; /* the record is out of the queue */
+        *keep = sizevt(er); /* check the display's size, and keep any change */
+
     }
+
+}
+
+/*******************************************************************************
+
+Check display size
+
+Checks the console window against the display size known, and takes a change:
+the window's columns and rows become the display size, the console buffer is
+fitted to hold the buffer and the display, and the image goes back over it,
+since the console rewrapped the buffer's contents to the new width, as a
+terminal does not. The buffer keeps its size: a program that wants it to
+follow the window sets it with sizbuf. Fills in a resize event with the new
+display size and returns true if there was a change.
+
+The console buffer is checked as well as the window: conhost sets the console
+buffer's width to the window's, and rewraps, at each step of a drag, including
+a last one after the window's size settled, so a console buffer narrower than
+the image with the window unchanged is refitted, without an event.
+
+The console sends an event when it sizes the buffer on display, which a change
+of the window's width does. A change of the window's rows alone is silent: the
+primary buffer keeps its rows, which are scrollback above and below the window.
+So a timer posts a check record into the input queue every quarter second, and
+the check is made when the record comes out. One record is in the queue at a
+time: the queue can hold thousands of records from a busy timer while a program
+draws, and a record for each check due meanwhile would add to that for nothing.
+The read of the queue itself stays a plain blocking read: a wait before each
+read costs a round trip to the console per record, which doubles the time to
+drain such a queue.
+
+*******************************************************************************/
+
+/* the check timer: post the check record, if the last is out of the queue */
+static void CALLBACK sizcheck(UINT id, UINT msg, DWORD_PTR usr,
+                              DWORD_PTR dw1, DWORD_PTR dw2)
+
+{
+
+    INPUT_RECORD inpevt; /* windows event record */
+    DWORD ne;  /* number of events written */
+
+    if (sizpend) return; /* one is in the queue already */
+    sizpend = 1;
+    inpevt.EventType = KEY_EVENT; /* set key event type */
+    inpevt.Event.KeyEvent.dwControlKeyState = UIV_SIZCHK; /* set check code */
+    inpevt.Event.KeyEvent.wVirtualKeyCode = 0;
+    WriteConsoleInput(inphdl, &inpevt, 1, &ne); /* send */
+
+}
+
+static int sizevt(ami_evtptr er)
+
+{
+
+    CONSOLE_SCREEN_BUFFER_INFO bi;
+    scnptr                     sc;
+    ami_long                   x, y;
+    int                        changed;
+
+    sc = screens[curdsp-1]; /* index the screen on display */
+    if (!GetConsoleScreenBufferInfo(sc->han, &bi)) return (FALSE);
+    x = bi.srWindow.Right-bi.srWindow.Left+1; /* the window's columns and rows */
+    y = bi.srWindow.Bottom-bi.srWindow.Top+1;
+    changed = x != dspx || y != dspy; /* the display changed */
+    /* filter out any change with no net effect: this was seen commonly, and
+       our own sizing of the console buffer sends one */
+    if (!changed && bi.dwSize.X >= sc->maxx &&
+        bi.dwSize.Y >= sc->offy+(sc->maxy > dspy ? sc->maxy : dspy))
+        return (FALSE);
+    dspx = x; /* set the new display size */
+    dspy = y;
+    fitcon(sc); /* fit the console buffer to it, and put the image back */
+    setcur(sc);
+    if (!changed) return (FALSE); /* the console buffer alone: no event */
+    er->etype = ami_etresize; /* set resize */
+    er->rszx = x; /* send the new size in the event */
+    er->rszy = y;
+
+    return (TRUE);
 
 }
 
@@ -2312,8 +2649,14 @@ static void ievent(ami_evtptr er)
     BOOL         b;      /* int return value */
     DWORD        ne;     /* number of events */
     INPUT_RECORD inpevt; /* event read buffer */
-    int          x, y, oy;
-    int          ssy;
+    /* The queue is read a batch at a time. A read is a round trip to the
+       console, and the queue can hold thousands of records: a repeating timer
+       posts them while a program draws, and they wait until it reads events
+       again. Read one at a time they took long enough to drain to miss a
+       timer of half a second that a program set after the draw. */
+    static INPUT_RECORD inpbuf[INPBUF]; /* the records read ahead */
+    static DWORD        inpcnt;         /* the count of them */
+    static DWORD        inpnxt;         /* the next to take */
 
     do {
 
@@ -2321,8 +2664,15 @@ static void ievent(ami_evtptr er)
         mouseupdate(er, &keep); /* check any mouse details need processing */
         if (!keep) { /* no, go ahead with event read */
 
-            b = ReadConsoleInput(inphdl, &inpevt, 1, &ne); /* get the next event */
-            if (!b) winerr(); /* stop on fail */
+            if (inpnxt >= inpcnt) { /* none read ahead: read the queue */
+
+                b = ReadConsoleInput(inphdl, inpbuf, INPBUF, &inpcnt);
+                if (!b) winerr(); /* stop on fail */
+                inpnxt = 0;
+
+            }
+            ne = inpnxt < inpcnt; /* take the next event, if any */
+            if (ne) inpevt = inpbuf[inpnxt++];
             if (ne) { /* process valid event */
 
                 /* decode by event */
@@ -2343,31 +2693,9 @@ static void ievent(ami_evtptr er)
                     else er->etype = ami_etnofocus;
                     keep = TRUE; /* set keep event */
 
-                } else if (inpevt.EventType == WINDOW_BUFFER_SIZE_EVENT) {
-
-                    er->etype = ami_etresize; /* set resize */
-                    keep = TRUE; /* set keep event */
-                    b = GetConsoleScreenBufferInfo(screens[curupd-1]->han, &bi);
-                    /* Compensate for windows scrollback buffer by placing us in
-                       the display area */
-                    ssy = bi.srWindow.Bottom-bi.srWindow.Top+1; /* find displayed y size */
-                    x = bi.dwSize.X; /* place maximum sizes */
-                    y = ssy; /* set y is displayed only */
-                    oy = bi.dwSize.Y-ssy; /* then set offset to area */
-                    if (screens[curupd-1]->maxx != x || screens[curupd-1]->maxy != y) {
-
-                        /* filter out any messages with no net change. This was
-                           seen commonly. */
-                        screens[curupd-1]->maxx = x; /* place maximum sizes */
-                        screens[curupd-1]->maxy = y; /* set y is displayed only */
-                        screens[curupd-1]->offy = oy; /* then set offset to area */
-                        er->rszx = x; /* send the new size in the event */
-                        er->rszy = y;
-
-                    } else keep = FALSE; /* otherwise no event */
-
-                }
-
+                } else if (inpevt.EventType == WINDOW_BUFFER_SIZE_EVENT)
+                    /* the console sized the buffer on display */
+                    keep = sizevt(er); /* take the change, if any */
 
             }
 
@@ -2463,6 +2791,9 @@ static void CALLBACK timeout(UINT id, UINT msg, DWORD_PTR usr, DWORD_PTR dw1, DW
     inpevt.EventType = KEY_EVENT; /* set key event type */
     inpevt.Event.KeyEvent.dwControlKeyState = UIV_TIM; /* set timer code */
     inpevt.Event.KeyEvent.wVirtualKeyCode = usr; /* set timer handle */
+    /* and the timer's generation */
+    inpevt.Event.KeyEvent.wVirtualScanCode =
+        usr == FRMTIM ? frmgen : timers[usr].gen;
     WriteConsoleInput(inphdl, &inpevt, 1, &ne); /* send */
 
 }
@@ -2501,6 +2832,7 @@ static void itimer(ami_long i, /* timer handle */
        one and post its events; a one shot that has matured is gone already,
        and the kill of it is refused, harmlessly */
     if (timers[i].han) timeKillEvent(timers[i].han);
+    timers[i].gen++; /* records of the timer as it was are stale */
     timers[i].han = timeSetEvent(mt, 0, timeout, i, tf);
     timers[i].rep = r; /* set timer repeat flag */
     /* should check and return an error */
@@ -2534,6 +2866,7 @@ void killtimer_ivf(FILE* f, /* file to kill timer on */
     /* should check for return error */
     timers[i].han = 0; /* set no active timer */
     timers[i].rep = 0;
+    timers[i].gen++; /* records of it still in the queue are stale */
 
 }
 
@@ -2558,6 +2891,7 @@ static void iframetimer(ami_long e)
 
         if (!frmrun) { /* it is not running */
 
+            frmgen++; /* records of the timer as it was are stale */
             /* set timer to run, 17ms */
             frmhan = timeSetEvent(17, 0, timeout, FRMTIM,
                                   TIME_CALLBACK_FUNCTION |
@@ -2575,6 +2909,7 @@ static void iframetimer(ami_long e)
             r = timeKillEvent(frmhan); /* kill timer */
             if (r) error(etimacc); /* error */
             frmrun = 0; /* set timer not running */
+            frmgen++; /* records of it still in the queue are stale */
 
         }
 
@@ -2868,13 +3203,31 @@ void wrtstr_ivf(FILE* f, char *s)
 
 Size buffer
 
-Sets or resets the size of the buffer surface.
+Sets or resets the size of the buffer surface. The buffer's contents are
+discarded, as on the other platforms. The display keeps its size: the console
+buffer is fitted to hold both, and shows the buffer from its top left corner.
 
 *******************************************************************************/
 
 void sizbuf_ivf(FILE* f, ami_long x, ami_long y)
 
 {
+
+    int si;
+
+    if (x < 1 || y < 1 || x > MAXSCN || y > MAXSCN) error(einvsiz);
+    if (x == gmaxx && y == gmaxy) return; /* no change */
+    gmaxx = x; /* new screens take the size */
+    gmaxy = y;
+    for (si = 0; si < MAXCON; si++) if (screens[si]) {
+
+        rszimg(screens[si], x, y); /* size the image */
+        /* and clear it */
+        fillimg(screens[si], 0, 0, x-1, y-1, screens[si]->sattr);
+
+    }
+    fitcon(screens[curdsp-1]); /* fit the console buffer, and show the buffer */
+    setcur(screens[curdsp-1]);
 
 }
 
@@ -3645,10 +3998,18 @@ dbg_printf(dlinfo, "Display area: left: %d top: %d bottom: %d right: %d cursor: 
     ssy = bi.srWindow.Bottom-bi.srWindow.Top+1; /* find displayed y size */
     screens[curupd-1]->maxx = bi.dwSize.X; /* place maximum sizes */
     screens[curupd-1]->maxy = ssy; /* set y is displayed only */
+    dspx = bi.dwSize.X; /* the display starts as the buffer */
+    dspy = ssy;
+    /* the buffer has a maximum: a display beyond it is blank */
+    if (screens[curupd-1]->maxx > MAXSCN) screens[curupd-1]->maxx = MAXSCN;
+    if (screens[curupd-1]->maxy > MAXSCN) screens[curupd-1]->maxy = MAXSCN;
     screens[curupd-1]->offy = bi.srWindow.Top; /* then set offset to area */
     screens[curupd-1]->curx = bi.dwCursorPosition.X+1; /* place cursor position */
     screens[curupd-1]->cury = bi.dwCursorPosition.Y-bi.srWindow.Top+1;
     screens[curupd-1]->sattr = bi.wAttributes; /* place default attributes */
+    screens[curupd-1]->img = NULL; /* make the image, from what is displayed */
+    rszimg(screens[curupd-1], screens[curupd-1]->maxx, screens[curupd-1]->maxy);
+    getimg(screens[curupd-1]);
     /* place max setting for all screens */
     gmaxx = screens[curupd-1]->maxx;
     gmaxy = screens[curupd-1]->maxy;
@@ -3679,6 +4040,10 @@ dbg_printf(dlinfo, "Display area: left: %d top: %d bottom: %d right: %d cursor: 
     SetConsoleMode(screens[curupd-1]->han, mode);
     /* capture control handler */
     SetConsoleCtrlHandler(conhan, TRUE);
+    /* run the display size check timer */
+    sizpend = 0;
+    sizhan = timeSetEvent(SIZCHK, 0, sizcheck, 0,
+                          TIME_PERIODIC | TIME_CALLBACK_FUNCTION);
     /* find number of mouse buttons */
     nummbt = GetSystemMetrics(SM_CMOUSEBUTTONS);
     if (nummbt > 4) nummbt = 4; /* limit the number of buttons to 4 */
@@ -3723,6 +4088,8 @@ static void ami_deinit_terminal(void)
     if (cppread != iread || cppwrite != iwrite || cppopen != iopen ||
         cppclose != iclose /* || cppunlink != iunlink */ || cpplseek != ilseek)
         error(esystem);
+    /* stop the display size check timer */
+    if (sizhan) timeKillEvent(sizhan);
     /* restore previous wrapping behavior */
     SetConsoleMode(screens[curupd-1]->han, cmodes);
     /* release control handler */
