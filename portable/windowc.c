@@ -6692,9 +6692,13 @@ static void ititlen(FILE* f, char* ts, ami_long n)
         /* we own the window, the frame and system bar is on, and it is 
            visible */
 
-        /* set title bounding box */
-        setrect(&r, absx(win)+2, absy(win)+win->size, 
-                   win->pmaxx-6-4, absy(win)+win->size); 
+        /* set title bounding box: the title section runs from two in from
+           the frame's left edge to the buttons, pmaxx-6-4 columns wide. Its
+           right edge was given as that width, an absolute column, so a
+           window moved right of the desktop's edge had its new title cut at
+           that column, with the old title's tail left standing. */
+        setrect(&r, absx(win)+2, absy(win)+win->size,
+                   absx(win)+2+win->pmaxx-6-4-1, absy(win)+win->size);
         drwfrm(win, &r); /* draw or redraw title */
 
     }
