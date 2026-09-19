@@ -3855,10 +3855,10 @@ DWORD WINAPI dummyloop(LPVOID par)
                      CW_USEDEFAULT, CW_USEDEFAULT,
                      0, 0, GetModuleHandleA(NULL), NULL
             );
-    /* capture joysticks */
-    r = joySetCapture(winhan, JOYSTICKID1, 33, 0);
+    /* capture joysticks: polled every 33 ms, reported only on a change */
+    r = joySetCapture(winhan, JOYSTICKID1, 33, TRUE);
     if (!r) numjoy++; /* count */
-    r = joySetCapture(winhan, JOYSTICKID2, 33, 0);
+    r = joySetCapture(winhan, JOYSTICKID2, 33, TRUE);
     if (!r) numjoy = numjoy+1; /* count */
     /* flag subthread has started up */
     threadstart = 1; /* set we started */
