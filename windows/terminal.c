@@ -2451,9 +2451,11 @@ static void mouseevent(INPUT_RECORD* inpevt)
 
 {
 
-    /* gather a new mouse status */
+    /* gather a new mouse status. The console gives the position in its
+       buffer's coordinates: the row counts from the top of the scrollback,
+       and the screen starts at row offy of it. */
     nmpx = inpevt->Event.MouseEvent.dwMousePosition.X+1; /* get mouse position */
-    nmpy = inpevt->Event.MouseEvent.dwMousePosition.Y+1;
+    nmpy = inpevt->Event.MouseEvent.dwMousePosition.Y-screens[curdsp-1]->offy+1;
     /* the console reports transient out of range positions during window
        resizes; clamp to the screen dimensions */
     if (nmpx < 1) nmpx = 1;
