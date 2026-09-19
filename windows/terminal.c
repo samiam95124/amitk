@@ -1016,6 +1016,11 @@ static void fitcon(scnptr sc)
     /* blank the display right of the image, and below it */
     blankcon(sc, sc->maxx, sc->offy, dspx-1, sc->offy+dspy-1);
     blankcon(sc, 0, sc->offy+sc->maxy, dspx-1, sc->offy+dspy-1);
+    /* the console shows the cursor again when its buffer is resized, whatever
+       it was set to: what was known of the console's cursor is forgotten, so
+       that the next flush sets it as it should be */
+    sc->convis = -1;
+    sc->conx = sc->cony = -1;
 
 }
 
@@ -2451,9 +2456,11 @@ static void mouseevent(INPUT_RECORD* inpevt)
 
 {
 
-    /* gather a new mouse status */
+    /* gather a new mouse status. The console gives the position in its
+       buffer's coordinates: the row counts from the top of the scrollback,
+       and the screen starts at row offy of it. */
     nmpx = inpevt->Event.MouseEvent.dwMousePosition.X+1; /* get mouse position */
-    nmpy = inpevt->Event.MouseEvent.dwMousePosition.Y+1;
+    nmpy = inpevt->Event.MouseEvent.dwMousePosition.Y-screens[curdsp-1]->offy+1;
     /* the console reports transient out of range positions during window
        resizes; clamp to the screen dimensions */
     if (nmpx < 1) nmpx = 1;
