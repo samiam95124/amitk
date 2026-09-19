@@ -1016,6 +1016,11 @@ static void fitcon(scnptr sc)
     /* blank the display right of the image, and below it */
     blankcon(sc, sc->maxx, sc->offy, dspx-1, sc->offy+dspy-1);
     blankcon(sc, 0, sc->offy+sc->maxy, dspx-1, sc->offy+dspy-1);
+    /* the console shows the cursor again when its buffer is resized, whatever
+       it was set to: what was known of the console's cursor is forgotten, so
+       that the next flush sets it as it should be */
+    sc->convis = -1;
+    sc->conx = sc->cony = -1;
 
 }
 
