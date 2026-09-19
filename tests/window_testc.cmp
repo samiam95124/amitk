@@ -900,7 +900,7 @@ Character mode window management test -- this window is the desktop
 
 Character mode window management test -- this window is the desktop
  ╔═══════════════════════════════╗
- ║ window_test: frame 6.13 - ▯ X ║
+ ║ window_test: frame 6.14 - ▯ X ║
  ╠═══════════════════════════════╣
  ║Resize screen buffered characte║
  ║*** DON'T MOVE THE WINDOW ***  ║
@@ -950,7 +950,7 @@ Character mode window management test -- this window is the desktop
 
 Character mode window management test -- this window is the desktop
  ╔════════════════════════════════╗
- ║  window_test: frame 6.14 - ▯ X ║
+ ║  window_test: frame 6.15 - ▯ X ║
  ╠════════════════════════════════╣
  ║Resize screen buffered character║
  ║*** DON'T MOVE THE WINDOW ***   ║
@@ -1000,7 +1000,7 @@ Character mode window management test -- this window is the desktop
 
 Character mode window management test -- this window is the desktop
  ╔═════════════════════════════════╗
- ║  window_test: frame 6.15  - ▯ X ║
+ ║  window_test: frame 6.16  - ▯ X ║
  ╠═════════════════════════════════╣
  ║Resize screen buffered character ║
  ║*** DON'T MOVE THE WINDOW ***    ║
@@ -1050,7 +1050,7 @@ Character mode window management test -- this window is the desktop
 
 Character mode window management test -- this window is the desktop
  ╔══════════════════════════════════╗
- ║   window_test: frame 6.16  - ▯ X ║
+ ║   window_test: frame 6.17  - ▯ X ║
  ╠══════════════════════════════════╣
  ║Resize screen buffered character  ║
  ║*** DON'T MOVE THE WINDOW ***     ║
@@ -1100,7 +1100,7 @@ Character mode window management test -- this window is the desktop
 
 Character mode window management test -- this window is the desktop
  ╔═══════════════════════════════════╗
- ║   window_test: frame 6.17   - ▯ X ║
+ ║   window_test: frame 6.18   - ▯ X ║
  ╠═══════════════════════════════════╣
  ║Resize screen buffered character   ║
  ║*** DON'T MOVE THE WINDOW ***      ║
@@ -1150,7 +1150,7 @@ Character mode window management test -- this window is the desktop
 
 Character mode window management test -- this window is the desktop
  ╔════════════════════════════════════╗
- ║    window_test: frame 6.18   - ▯ X ║
+ ║    window_test: frame 6.19   - ▯ X ║
  ╠════════════════════════════════════╣
  ║Resize screen buffered character    ║
  ║*** DON'T MOVE THE WINDOW ***       ║
