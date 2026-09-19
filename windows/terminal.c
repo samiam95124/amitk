@@ -173,7 +173,14 @@ typedef enum {
 typedef struct { /* screen context */
 
     HANDLE   han;         /* screen buffer handle */
-    CHAR_INFO* img;       /* image of the display area, maxx*maxy cells */
+    CHAR_INFO* img;       /* image of the buffer, maxx*maxy cells */
+    int      dirty;       /* cells of the image are not on the console yet */
+    ami_long dx1, dy1;    /* the rectangle of them, screen coordinates */
+    ami_long dx2, dy2;
+    int      curdty;      /* the cursor is not set on the console yet */
+    ami_long conx, cony;  /* the cursor's position as last set on the console,
+                             buffer coordinates; -1 for not known */
+    int      convis;      /* its visibility as last set; -1 for not known */
     ami_long maxx;        /* maximum x */
     ami_long maxy;        /* maximum y */
     ami_long offy;        /* offset within buffer to display area */
@@ -613,9 +620,14 @@ static int icurdsp(scnptr sc)
 
 Set cursor status
 
-Sets the cursor visible or invisible. If the cursor is out of bounds, it is
-invisible regardless. Otherwise, it is visible according to the state of the
-current buffer's visible status.
+Sets the cursor on the console as it should be: at its position, if it is
+shown, and visible or invisible. If the cursor is out of bounds or off the
+display, it is invisible regardless. Otherwise, it is visible according to
+the state of the current buffer's visible status. A hidden cursor's position
+shows nothing, so it is left until the cursor is shown, and a program writing
+with the cursor off pays no call for it. The position and visibility as last
+set on the console are kept, and setting either again to the same costs no
+call.
 
 *******************************************************************************/
 
@@ -626,26 +638,39 @@ static void cursts(scnptr sc)
     int b;
     CONSOLE_CURSOR_INFO ci;
     int cv;
+    COORD xy;
 
     cv = sc->curv; /* set current buffer status */
     if (!icurdsp(sc)) cv = 0; /* not in bounds or on the display, force off */
+    if (cv && sc == screens[curdsp-1]) { /* shown: set its position */
+
+        xy.X = sc->curx-1;
+        xy.Y = sc->cury+sc->offy-1;
+        if (xy.X != sc->conx || xy.Y != sc->cony) {
+
+            b = SetConsoleCursorPosition(sc->han, xy);
+            sc->conx = xy.X;
+            sc->cony = xy.Y;
+
+        }
+
+    }
+    if (cv == sc->convis) return; /* as the console has it: no call */
     /* get current console information */
     b = GetConsoleCursorInfo(sc->han, &ci);
     ci.bVisible = cv; /* set cursor status */
     b = SetConsoleCursorInfo(sc->han, &ci);
+    sc->convis = cv;
 
 }
 
 /*******************************************************************************
 
-Position cursor
+Set cursor
 
-Positions the cursor (caret) image to the right location on screen, and handles
-the visible or invisible status of that.
-
-Windows has a nasty bug that setting the cursor position of a buffer that
-isn't in display causes a cursor mark to be made at that position on the
-active display. So we don't position if not in display.
+Notes that the cursor is to be set on the console, which is done at the next
+flush of the screen (see the screen image below), so that a run of characters,
+each of which moves the cursor, sets it once.
 
 *******************************************************************************/
 
@@ -653,22 +678,7 @@ static void setcur(scnptr sc)
 
 {
 
-    int b;
-    COORD xy;
-
-    /* check cursor in bounds and on the display, and buffer in display */
-    if (icurdsp(sc) && sc == screens[curdsp-1]) {
-
-        /* set cursor position */
-        xy.X = sc->curx-1;
-        xy.Y = sc->cury+sc->offy-1;
-        b = SetConsoleCursorPosition(sc->han, xy);
-        /* error occurs because our version of maxx/maxy is behind real window
-           size */
-        /* if (!b) winerr(); */
-
-    }
-    cursts(sc); /* set new cursor status */
+    sc->curdty = 1;
 
 }
 
@@ -702,27 +712,46 @@ coordinates, 0 based, row major, and is allocated to the buffer's size, so it
 is reallocated only by sizbuf. The buffer starts at row offy of the console
 buffer.
 
+Writes are batched through the image. A character goes into the image and
+extends the screen's dirty rectangle, the cells not yet on the console, and the
+cursor's setting is noted the same way; the rectangle is written and the cursor
+set at the flush of the screen, in one console call each. Every console call
+is a round trip to conhost, and a character cost five: its character, its
+attribute, and three for the cursor after it. The flush comes at the end of
+each write to the terminal file and each string write, so a write is on the
+console when the call returns; before a wait for events; before a screen is put
+on display; before the console is scrolled by a line feed at the bottom, since
+the scroll moves what is on the console; and at exit.
+
 *******************************************************************************/
 
 /* the cell at screen position x, y (0 based) */
 #define IMGCELL(sc, x, y) ((sc)->img[(y)*(sc)->maxx+(x)])
 
-/* Set a cell of the image and of the console */
+/* Set a cell of the image; the console gets it at the next flush */
 static void putcell(scnptr sc, ami_long x, ami_long y, WCHAR c, WORD a)
 
 {
 
     CHAR_INFO* ci;
-    COORD      xy;
-    DWORD      len;
 
     ci = &IMGCELL(sc, x, y);
     ci->Char.UnicodeChar = c;
     ci->Attributes = a;
-    xy.X = x;
-    xy.Y = y+sc->offy;
-    WriteConsoleOutputCharacterW(sc->han, &c, 1, xy, &len);
-    WriteConsoleOutputAttribute(sc->han, &a, 1, xy, &len);
+    if (!sc->dirty) { /* the first cell: the rectangle is it */
+
+        sc->dx1 = sc->dx2 = x;
+        sc->dy1 = sc->dy2 = y;
+        sc->dirty = 1;
+
+    } else { /* extend the rectangle to take it in */
+
+        if (x < sc->dx1) sc->dx1 = x;
+        if (x > sc->dx2) sc->dx2 = x;
+        if (y < sc->dy1) sc->dy1 = y;
+        if (y > sc->dy2) sc->dy2 = y;
+
+    }
 
 }
 
@@ -781,9 +810,11 @@ static void movimg(scnptr sc, ami_long dx, ami_long dy, WORD a)
 
 }
 
-/* Put the image over the display area of the console buffer. A write to the
-   console is limited in size, so it goes a group of rows at a time. */
-static void putimg(scnptr sc)
+/* Put the cells x1..x2 by y1..y2 of the image over the console buffer. A
+   write to the console is limited in size, so it goes a group of rows at a
+   time, each straight from the image, whose rows are the buffer's width. */
+static void putrect(scnptr sc, ami_long x1, ami_long y1, ami_long x2,
+                    ami_long y2)
 
 {
 
@@ -794,20 +825,62 @@ static void putimg(scnptr sc)
     if (sc->maxx < 1 || sc->maxy < 1) return; /* no buffer: nothing to put */
     rows = 16000/sc->maxx; /* rows a write can take: 64kb of CHAR_INFO */
     if (rows < 1) rows = 1;
-    for (y = 0; y < sc->maxy; y += rows) {
+    for (y = y1; y <= y2; y += rows) {
 
-        if (rows > sc->maxy-y) rows = sc->maxy-y;
-        sz.X = sc->maxx;
+        if (rows > y2-y+1) rows = y2-y+1;
+        sz.X = sc->maxx; /* the image rows, as they are */
         sz.Y = rows;
-        org.X = 0;
+        org.X = x1; /* the part of them */
         org.Y = 0;
-        dr.Left = 0;
-        dr.Right = sc->maxx-1;
+        dr.Left = x1;
+        dr.Right = x2;
         dr.Top = y+sc->offy;
         dr.Bottom = y+sc->offy+rows-1;
         WriteConsoleOutputW(sc->han, &IMGCELL(sc, 0, y), sz, org, &dr);
 
     }
+
+}
+
+/* Put the whole image over the console buffer: it is then all on the console */
+static void putimg(scnptr sc)
+
+{
+
+    putrect(sc, 0, 0, sc->maxx-1, sc->maxy-1);
+    sc->dirty = 0;
+
+}
+
+/* Flush a screen: its cells not yet on the console go there, and its cursor
+   is set */
+static void flush(scnptr sc)
+
+{
+
+    if (sc->dirty) {
+
+        putrect(sc, sc->dx1, sc->dy1, sc->dx2, sc->dy2);
+        sc->dirty = 0;
+
+    }
+    if (sc->curdty) {
+
+        sc->curdty = 0;
+        cursts(sc);
+
+    }
+
+}
+
+/* Flush every screen */
+static void flushall(void)
+
+{
+
+    int i;
+
+    for (i = 0; i < MAXCON; i++) if (screens[i]) flush(screens[i]);
 
 }
 
@@ -986,6 +1059,10 @@ static void iniscn(scnptr sc)
     sc->attr = gattr;
     setcolor(sc); /* set current color */
     sc->img = NULL; /* a new screen: no image yet */
+    sc->dirty = 0; /* and nothing to flush */
+    sc->curdty = 0;
+    sc->conx = sc->cony = -1; /* the console's cursor is not known */
+    sc->convis = -1;
     rszimg(sc, gmaxx, gmaxy); /* make the image, and set the size */
     /* a new console buffer holds just the buffer and the display, so there
        is no scrollback above the buffer: its offset is zero (unlike the
@@ -1217,6 +1294,9 @@ static void idown(void)
         if (sc->cury < sc->maxy) sc->cury++; /* update position */
         else {
 
+            /* the console has all the cells before anything moves: the cell
+               just written may be pending, and it moves with the rest */
+            flush(sc);
             /* either way the display moves down a row: in the image the rows
                move up, and the last is blank */
             movimg(sc, 0, -1, sc->sattr);
@@ -1763,9 +1843,11 @@ static void iselect(ami_long u, ami_long d)
     /* the display may have changed since the screen going on display was
        last shown: fit its console buffer to it, and put its image over it */
     if (screens[curdsp-1] != dsp) fitcon(screens[curdsp-1]);
+    flush(screens[curdsp-1]); /* all of it is on its console buffer */
     /* set display buffer as active display console */
     SetConsoleActiveScreenBuffer(screens[curdsp-1]->han);
     setcur(screens[curdsp-1]); /* make sure the cursor is at correct point */
+    flush(screens[curdsp-1]);
 
 }
 
@@ -1897,6 +1979,7 @@ void del_ivf(FILE* f)
     left_ivf(f); /* back up cursor */
     plcchr(' '); /* blank out */
     left_ivf(f); /* back up again */
+    flush(screens[curupd-1]);
 
 }
 
@@ -2633,6 +2716,7 @@ static int sizevt(ami_evtptr er)
     dspy = y;
     fitcon(sc); /* fit the console buffer to it, and put the image back */
     setcur(sc);
+    flush(sc);
     if (!changed) return (FALSE); /* the console buffer alone: no event */
     er->etype = ami_etresize; /* set resize */
     er->rszx = x; /* send the new size in the event */
@@ -2659,6 +2743,7 @@ static void ievent(ami_evtptr er)
     static DWORD        inpcnt;         /* the count of them */
     static DWORD        inpnxt;         /* the next to take */
 
+    flushall(); /* all output is on the console while we wait */
     do {
 
         keep = FALSE; /* set don't keep by default */
@@ -3181,6 +3266,7 @@ void wrtstrn_ivf(FILE* f, char *s, ami_long n)
         n--;
 
     }
+    flush(sc); /* the run goes to the console at once */
 
 }
 
@@ -3229,6 +3315,7 @@ void sizbuf_ivf(FILE* f, ami_long x, ami_long y)
     }
     fitcon(screens[curdsp-1]); /* fit the console buffer, and show the buffer */
     setcur(screens[curdsp-1]);
+    flush(screens[curdsp-1]);
 
 }
 
@@ -3675,6 +3762,7 @@ static ssize_t iwrite(int fd, const void* buff, size_t count)
 
         /* send data to terminal */
         while (cnt--) plcchr(*p++);
+        flush(screens[curupd-1]); /* the write is on the console at once */
         rc = count; /* set return same as count */
 
     } else rc = (*ofpwrite)(fd, buff, count);
@@ -4009,6 +4097,10 @@ dbg_printf(dlinfo, "Display area: left: %d top: %d bottom: %d right: %d cursor: 
     screens[curupd-1]->cury = bi.dwCursorPosition.Y-bi.srWindow.Top+1;
     screens[curupd-1]->sattr = bi.wAttributes; /* place default attributes */
     screens[curupd-1]->img = NULL; /* make the image, from what is displayed */
+    screens[curupd-1]->dirty = 0; /* nothing to flush */
+    screens[curupd-1]->curdty = 0;
+    screens[curupd-1]->conx = screens[curupd-1]->cony = -1; /* not known */
+    screens[curupd-1]->convis = -1;
     rszimg(screens[curupd-1], screens[curupd-1]->maxx, screens[curupd-1]->maxy);
     getimg(screens[curupd-1]);
     /* place max setting for all screens */
@@ -4089,6 +4181,7 @@ static void ami_deinit_terminal(void)
     if (cppread != iread || cppwrite != iwrite || cppopen != iopen ||
         cppclose != iclose /* || cppunlink != iunlink */ || cpplseek != ilseek)
         error(esystem);
+    flushall(); /* the last of the output */
     /* stop the display size check timer */
     if (sizhan) timeKillEvent(sizhan);
     /* restore previous wrapping behavior */
