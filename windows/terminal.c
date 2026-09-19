@@ -2524,10 +2524,11 @@ static void custevent(ami_evtptr er, INPUT_RECORD* inpevt, int* keep)
         if (dx > 65535 / 255 || dy > 65535 / 255 ||
             dz > 65535 / 255) {
 
-            /* scale axies between -LONG_MAX..LONG_MAX and place */
-            er->joypx = (x - 32767)*(LONG_MAX / 32768);
-            er->joypy = (y - 32767)*(LONG_MAX / 32768);
-            er->joypz = (z - 32767)*(LONG_MAX / 32768);
+            /* scale axes between -AMI_LONG_MAX..AMI_LONG_MAX, the API's range
+              (the machine's LONG_MAX is 32 bits here), and place */
+            er->joypx = (x - 32767)*(AMI_LONG_MAX/32768);
+            er->joypy = (y - 32767)*(AMI_LONG_MAX/32768);
+            er->joypz = (z - 32767)*(AMI_LONG_MAX/32768);
             *keep = 1; /* set keep event */
 
         }
