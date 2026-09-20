@@ -229,7 +229,7 @@ typedef struct fontrec {
 
 } fontrec, *fontptr;
 
-typedef enum { mdnorm, mdinvis, mdxor } mode; /* color mix modes */
+typedef enum { mdnorm, mdinvis, mdxor, mdand, mdor } mode; /* color mix modes */
 
 /* Menu tracking. This is a mirror image of the menu we were given by the
    user. However, we can do with less information than is in the original
@@ -7504,6 +7504,8 @@ static void ipicture(winptr win, ami_long p, ami_long x1, ami_long y1, ami_long 
         case mdnorm:  rop = SRCCOPY; break; /* straight */
         case mdinvis: break; /* no-op */
         case mdxor:   rop = SRCINVERT; break; /* xor */
+        case mdand:   rop = SRCAND; break; /* and */
+        case mdor:    rop = SRCPAINT; break; /* or */
 
     }
     if (win->screens[win->curupd-1]->fmod != mdinvis) { /* not a no-op */
@@ -17149,20 +17151,53 @@ static void sendevent_ivf(FILE* f, ami_evtrec* er)
 
 }
 
-/* foreground/background raster op selections: not implemented */
+/*******************************************************************************
+
+Set foreground to and, or
+
+Sets the foreground write mode to and, or to or, as xor is set: the mode is
+kept for the screen, and the raster operation set on its device contexts.
+A block copy in these modes makes a stencil: an and copy shows the block only
+in the white parts of a black and white stencil, an or copy only in the black.
+
+*******************************************************************************/
+
+static void ifand(winptr win)
+
+{
+
+    int r;
+
+    win->gfmod = mdand; /* set foreground mode and */
+    win->screens[win->curupd-1]->fmod = mdand;
+    GDICALL(r = SetROP2(win->screens[win->curupd-1]->bdc, R2_MASKPEN), !r); /* process windows error */
+    if (indisp(win)) r = SetROP2(win->devcon, R2_MASKPEN);
+
+}
+
 static void fand_ivf(FILE* f)
 
 {
 
-   /* not implemented */
+    winptr win;  /* windows record pointer */
+
+    win = txt2win(f); /* get window pointer from text file */
+    lockwin(win); /* the window's own lock */
+    ifand(win); /* set and */
+    unlockwin(win); /* the window's data is done with */
 
 }
 
-static void band_ivf(FILE* f)
+static void ifor(winptr win)
 
 {
 
-   /* not implemented */
+    int r;
+
+    win->gfmod = mdor; /* set foreground mode or */
+    win->screens[win->curupd-1]->fmod = mdor;
+    GDICALL(r = SetROP2(win->screens[win->curupd-1]->bdc, R2_MERGEPEN), !r); /* process windows error */
+    if (indisp(win)) r = SetROP2(win->devcon, R2_MERGEPEN);
 
 }
 
@@ -17170,7 +17205,34 @@ static void for_ivf(FILE* f)
 
 {
 
-   /* not implemented */
+    winptr win;  /* windows record pointer */
+
+    win = txt2win(f); /* get window pointer from text file */
+    lockwin(win); /* the window's own lock */
+    ifor(win); /* set or */
+    unlockwin(win); /* the window's data is done with */
+
+}
+
+/*******************************************************************************
+
+Set background to and, or
+
+Sets the background write mode to and, or to or, as xor is set.
+
+*******************************************************************************/
+
+static void band_ivf(FILE* f)
+
+{
+
+    winptr win;  /* windows record pointer */
+
+    win = txt2win(f); /* get window pointer from text file */
+    lockwin(win); /* the window's own lock */
+    win->gbmod = mdand; /* set background mode and */
+    win->screens[win->curupd-1]->bmod = mdand;
+    unlockwin(win); /* the window's data is done with */
 
 }
 
@@ -17178,7 +17240,13 @@ static void bor_ivf(FILE* f)
 
 {
 
-   /* not implemented */
+    winptr win;  /* windows record pointer */
+
+    win = txt2win(f); /* get window pointer from text file */
+    lockwin(win); /* the window's own lock */
+    win->gbmod = mdor; /* set background mode or */
+    win->screens[win->curupd-1]->bmod = mdor;
+    unlockwin(win); /* the window's data is done with */
 
 }
 
@@ -17305,8 +17373,114 @@ functions here, so that an overrider can still take them.
 #define APIOVER(name) void _pa_##name##_ovr(ami_##name##_t nfp, ami_##name##_t* ofp) \
                       { *ofp = name##_vect; name##_vect = nfp; }
 
+/*******************************************************************************
+
+Block copy
+
+Copies the block of pixels sx1,sy1 to sx2,sy2 of screen s to the box dx1,dy1
+to dx2,dy2 of screen d, stretched to fit, and placed with the write mode of
+the update screen: straight, xor, and or or; an invisible mode copies nothing.
+The screens are the window's buffers, made as select makes them if they do
+not exist yet. A copy into the screen on display shows as well. Without
+buffered mode there is only the display, and both screens must be it.
+
+*******************************************************************************/
+
+static void iblockcopyg(winptr win, ami_long s, ami_long d,
+                        ami_long sx1, ami_long sy1, ami_long sx2, ami_long sy2,
+                        ami_long dx1, ami_long dy1, ami_long dx2, ami_long dy2)
+
+{
+
+    BOOL     b;   /* result holder */
+    DWORD    rop; /* raster operation */
+    ami_long t;   /* swap temp */
+    HDC      src; /* the source */
+    HDC      dst; /* the destination buffer */
+
+    if (s < 1 || s > MAXCON || d < 1 || d > MAXCON) error(einvscn);
+    if (!win->bufmod && (s != win->curdsp || d != win->curdsp)) error(ebufoff);
+    switch (win->screens[win->curupd-1]->fmod) { /* rop */
+
+        case mdnorm:  rop = SRCCOPY; break; /* straight */
+        case mdinvis: return; /* no-op */
+        case mdxor:   rop = SRCINVERT; break; /* xor */
+        case mdand:   rop = SRCAND; break; /* and */
+        case mdor:    rop = SRCPAINT; break; /* or */
+
+    }
+    /* order the corners */
+    if (sx1 > sx2) { t = sx1; sx1 = sx2; sx2 = t; }
+    if (sy1 > sy2) { t = sy1; sy1 = sy2; sy2 = t; }
+    if (dx1 > dx2) { t = dx1; dx1 = dx2; dx2 = t; }
+    if (dy1 > dy2) { t = dy1; dy1 = dy2; dy2 = t; }
+    if (win->bufmod) { /* the screens are buffers */
+
+        /* make the screens as needed, as select does */
+        if (!win->screens[s-1]) {
+
+            win->screens[s-1] = imalloc(sizeof(scncon));
+            iniscn(win, win->screens[s-1]);
+
+        }
+        if (!win->screens[d-1]) {
+
+            win->screens[d-1] = imalloc(sizeof(scncon));
+            iniscn(win, win->screens[d-1]);
+
+        }
+        src = win->screens[s-1]->bdc;
+        dst = win->screens[d-1]->bdc;
+        /* a block moved within one buffer at its own size may overlap
+           itself: BitBlt copies as if through a temporary, StretchBlt makes
+           no promise */
+        if (src == dst && sx2-sx1 == dx2-dx1 && sy2-sy1 == dy2-dy1)
+            GDICALL(b = BitBlt(dst, dx1-1, dy1-1, dx2-dx1+1, dy2-dy1+1,
+                               src, sx1-1, sy1-1, rop), !b);
+        else
+            GDICALL(b = StretchBlt(dst, dx1-1, dy1-1, dx2-dx1+1, dy2-dy1+1,
+                                   src, sx1-1, sy1-1, sx2-sx1+1, sy2-sy1+1,
+                                   rop), !b);
+        if (d == win->curdsp) { /* into the screen on display: show it */
+
+            if (!win->visible) winvis(win); /* make sure we are displayed */
+            curoff(win);
+            GDICALL(b = StretchBlt(win->devcon, dx1-1, dy1-1, dx2-dx1+1, dy2-dy1+1,
+                                   src, sx1-1, sy1-1, sx2-sx1+1, sy2-sy1+1,
+                                   rop), !b);
+            curon(win);
+
+        }
+
+    } else { /* the display is the only screen */
+
+        if (!win->visible) winvis(win); /* make sure we are displayed */
+        curoff(win);
+        if (sx2-sx1 == dx2-dx1 && sy2-sy1 == dy2-dy1)
+            GDICALL(b = BitBlt(win->devcon, dx1-1, dy1-1, dx2-dx1+1, dy2-dy1+1,
+                               win->devcon, sx1-1, sy1-1, rop), !b);
+        else
+            GDICALL(b = StretchBlt(win->devcon, dx1-1, dy1-1, dx2-dx1+1, dy2-dy1+1,
+                                   win->devcon, sx1-1, sy1-1, sx2-sx1+1, sy2-sy1+1,
+                                   rop), !b);
+        curon(win);
+
+    }
+
+}
+
 static void blockcopyg_ivf(FILE* f, ami_long s, ami_long d, ami_long sx1, ami_long sy1, ami_long sx2, ami_long sy2, ami_long dx1, ami_long dy1, ami_long dx2, ami_long dy2)
-    { /* not implemented */ }
+
+{
+
+    winptr win; /* window pointer */
+
+    win = txt2win(f); /* get window pointer from text file */
+    lockwin(win); /* the window's own lock */
+    iblockcopyg(win, s, d, sx1, sy1, sx2, sy2, dx1, dy1, dx2, dy2);
+    unlockwin(win); /* the window's data is done with */
+
+}
 
 static ami_scrollg_t scrollg_vect = scrollg_ivf;
 APIOVER(scrollg)
