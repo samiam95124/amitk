@@ -16030,6 +16030,14 @@ static LRESULT CALLBACK wndproc(HWND hwnd, UINT imsg, WPARAM wparam,
                                           ip->wigx, ip->wigy, ip->wigw,
                                           ip->wigh, ip->wigpar, (HMENU)(INT_PTR)ip->wigid,
                                           ip->wigmod, NULL);
+                /* Windows puts a new child window at the bottom of its
+                   siblings, under every widget made before it: a group's
+                   background, made first, covered its box, and a button
+                   laid over a group lay under it. A new widget goes on top,
+                   so that widgets layer in the order they are made. */
+                if (ip->wigwin)
+                    SetWindowPos(ip->wigwin, HWND_TOP, 0, 0, 0, 0,
+                                 SWP_NOMOVE | SWP_NOSIZE | SWP_NOACTIVATE);
                 /* signal we started widget */
                 SetEvent(ip->done); /* the requester goes on */
                 break;
