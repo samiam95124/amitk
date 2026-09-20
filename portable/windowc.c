@@ -6687,15 +6687,26 @@ static void ititlen(FILE* f, char* ts, ami_long n)
     win->title[n] = 0; /* terminate */
     /* if its the root window, copy down to underlying window */
     if (win->root) (*titlen_vect)(stdout, ts, n);
-    else if (win->frame && win->sysbar && win->pmaxy >= 3) {
+    else if (win->visible && win->frame && win->sysbar && win->pmaxy >= 3) {
 
-        /* we own the window, the frame and system bar is on, and it is 
+        /* we own the window, the frame and system bar is on, and it is
            visible */
 
-        /* set title bounding box */
-        setrect(&r, absx(win)+2, absy(win)+win->size, 
-                   win->pmaxx-6-4, absy(win)+win->size); 
+        /* set title bounding box: the title section runs from two in from
+           the frame's left edge to the buttons, pmaxx-6-4 columns wide. Its
+           right edge was given as that width, an absolute column, so a
+           window moved right of the desktop's edge had its new title cut at
+           that column, with the old title's tail left standing. */
+        setrect(&r, absx(win)+2, absy(win)+win->size,
+                   absx(win)+2+win->pmaxx-6-4-1, absy(win)+win->size);
+        /* redraw the title as a frame part is drawn: only where this window
+           is topmost, so that it does not paint over a window lying across
+           its title bar, with the cursor off and handed back after */
+        setcurvis(FALSE);
+        hovflt = win;
         drwfrm(win, &r); /* draw or redraw title */
+        hovflt = NULL;
+        setcur(curfocus? curfocus: win);
 
     }
 
