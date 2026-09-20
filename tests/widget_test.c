@@ -107,6 +107,13 @@ static char* str(char* s)
 }
 
 static int framenum = 0; /* current frame number */
+/* The frames selected: widget_test <start> [<end>] runs the frames from
+   start to end, or to the last. Before the range every wait answers itself
+   and nothing is captured, so the screens are drawn and cleared unseen and
+   the run arrives at the range as it would have by hand; past it the run
+   ends. 0 for no limit. */
+static int tstlo = 0; /* first frame in the selected range */
+static int tsthi = 0; /* last frame, 0 for no limit */
 
 extern void screen_capture(void);
 extern void screen_capture_name(const char* fn);
@@ -136,6 +143,7 @@ static void frmstep(void);
 static int autorun = FALSE;
 
 #define AUTOSETL 3000 /* settle time before a capture, 100us units */
+#define AUTOSKIP 100  /* the events a skipped frame's wait lets through, 100us units */
 #define AUTOTIM  9    /* timer the settle runs on */
 
 static void autosettle(void)
@@ -163,6 +171,24 @@ static void nextevt(ami_evtrec* er)
 
     char labbuf[40];
 
+    if (framenum < tstlo) {
+
+        /* Before the range the wait answers itself, once the port has had
+           its events for a moment: a skipped frame makes and kills widgets
+           as the others do, and their messages queue for the event call;
+           a queue never read fills, and the display stops. */
+        ami_timer(stdout, AUTOTIM, AUTOSKIP, FALSE);
+        do {
+
+            ami_event(stdin, er);
+            if (er->etype == ami_etterm) longjmp(terminate_buf, 1);
+
+        } while (er->etype != ami_ettim || er->timnum != AUTOTIM);
+        er->etype = ami_etenter;
+        er->winid = 1;
+        return;
+
+    }
     if (autorun) {
 
         /* a line of the event file has run its course: the screen shows
@@ -197,6 +223,7 @@ static void frmstep(void)
 
     char titlebuf[80];
 
+    if (framenum < tstlo) return; /* before the range: nothing captured */
     stepnum++;
     sprintf(titlebuf, "widget_test: frame %d.%d", framenum, stepnum);
     ami_title(stdout, titlebuf);
@@ -220,7 +247,7 @@ static void setframe(void)
     /* a chapter the event file drove to its end, its last wait answered
        by the file's own return, has not been captured whole: it is, as it
        stands, before the next chapter clears it */
-    if (autorun && stepnum && !wholecap) {
+    if (autorun && stepnum && !wholecap && framenum >= tstlo) {
 
         if (auto_event_step()) frmstep(); /* the last line's step */
         autosettle();
@@ -230,6 +257,7 @@ static void setframe(void)
 
     }
     framenum++;
+    if (tsthi && framenum > tsthi) longjmp(terminate_buf, 1); /* past the range */
     stepnum = 0; /* the frame's steps count from one */
     wholecap = FALSE;
     auto_event_frame(framenum, 0);
@@ -283,25 +311,44 @@ int main(int argc, char* argv[])
 
     if (setjmp(terminate_buf)) goto terminate;
 
-    /* "widget_test auto" runs every screen with no input, for the
-       regression; it ends when the screens do. A second argument names
-       the file the screens are captured to, so runs beside each other do
-       not write over one another */
-    if (argc > 1 && !strcmp(argv[1], "auto")) {
+    /* widget_test [auto [<capture>]] [events] [<start> [<end>]]
 
-        autorun = TRUE;
-        ami_autohold(FALSE);
-        auto_event_name(EVENTFILE);
-        if (argc > 2) {
+       "auto" runs every screen with no input, for the regression; it ends
+       when the screens do. A name after it is the file the screens are
+       captured to, so runs beside each other do not write over one another.
+       "events" takes the event file in an interactive run. Numbers select
+       the frames to run, from the first to the second or to the last. */
+    {
 
-            /* the capture file, and the event file beside it */
-            screen_capture_name(argv[2]);
-            auto_event_beside(argv[2], EVENTNAME);
+        int i;
+
+        for (i = 1; i < argc; i++) {
+
+            if (!strcmp(argv[i], "auto")) {
+
+                autorun = TRUE;
+                ami_autohold(FALSE);
+                auto_event_name(EVENTFILE);
+
+            } else if (!strcmp(argv[i], "events"))
+                auto_event_name(EVENTFILE); /* the file in an interactive run */
+            else if (argv[i][0] >= '0' && argv[i][0] <= '9') {
+
+                /* the frame range: the first number starts it, the second ends it */
+                if (!tstlo) tstlo = atoi(argv[i]);
+                else tsthi = atoi(argv[i]);
+
+            } else if (autorun) {
+
+                /* the capture file, and the event file beside it */
+                screen_capture_name(argv[i]);
+                auto_event_beside(argv[i], EVENTNAME);
+
+            }
 
         }
 
-    } else if (argc > 1 && !strcmp(argv[1], "events"))
-        auto_event_name(EVENTFILE); /* the file in an interactive run */
+    }
 
     ami_curvis(stdout, FALSE);
     printf("Widget test vs. 0.1\n");
@@ -2164,7 +2211,7 @@ int main(int argc, char* argv[])
     printf("\n");
     printf("There should be an pa_alert dialog\n");
     printf("Both the dialog and this window should be fully reactive\n");
-    if (!autorun) /* modal: it waits for a person to answer */
+    if (!autorun && framenum >= tstlo) /* modal: it waits for a person to answer */
     ami_alert("This is an important message", "There has been an event !\n");
     printf("\n");
     printf("Alert dialog should have completed now\n");
@@ -2183,7 +2230,7 @@ int main(int argc, char* argv[])
     r = LONG_MAX;
     g = LONG_MAX;
     b = LONG_MAX;
-    if (!autorun) /* modal: it waits for a person to answer */
+    if (!autorun && framenum >= tstlo) /* modal: it waits for a person to answer */
     ami_querycolor(&r, &g, &b);
     printf("\n");
     printf("Dialog should have completed now\n");
@@ -2201,7 +2248,7 @@ int main(int argc, char* argv[])
     printf("Both the dialog and this window should be fully reactive\n");
     printf("The dialog should have \"myfile.txt\" as the default filename\n");
     strcpy(s, "myfile.txt");
-    if (!autorun) /* modal: it waits for a person to answer */
+    if (!autorun && framenum >= tstlo) /* modal: it waits for a person to answer */
     ami_queryopen(s, 100);
     printf("\n");
     printf("Dialog should have completed now\n");
@@ -2219,7 +2266,7 @@ int main(int argc, char* argv[])
     printf("Both the dialog and this window should be fully reactive\n");
     printf("The dialog should have \"myfile.txt\" as the default filename\n");
     strcpy(s, "myfile.txt");
-    if (!autorun) /* modal: it waits for a person to answer */
+    if (!autorun && framenum >= tstlo) /* modal: it waits for a person to answer */
     ami_querysave(s, 100);
     printf("\n");
     printf("Dialog should have completed now\n");
@@ -2238,7 +2285,7 @@ int main(int argc, char* argv[])
     printf("The dialog should have \"mystuff\" as the default search string\n");
     strcpy(s, "mystuff");
     optf = 0;
-    if (!autorun) /* modal: it waits for a person to answer */
+    if (!autorun && framenum >= tstlo) /* modal: it waits for a person to answer */
     ami_queryfind(s, 100, &optf);
     printf("\n");
     printf("Dialog should have completed now\n");
@@ -2265,7 +2312,7 @@ int main(int argc, char* argv[])
     strcpy(ss, "bark");
     strcpy(rs, "sniff");
     optfr = 0;
-    if (!autorun) /* modal: it waits for a person to answer */
+    if (!autorun && framenum >= tstlo) /* modal: it waits for a person to answer */
     ami_queryfindrep (ss, 100, rs, 100, &optfr);
     printf("\n");
     printf("Dialog should have completed now\n");
@@ -2303,7 +2350,7 @@ int main(int argc, char* argv[])
     bg = LONG_MAX;
     bb = LONG_MAX;
     fe = 0;
-    if (!autorun) /* modal: it waits for a person to answer */
+    if (!autorun && framenum >= tstlo) /* modal: it waits for a person to answer */
     ami_queryfont(stdout, &fc, &fs, &fr, &fg, &fb, &br, &bg, &bb, &fe);
     strcpy(s, "");
     ami_fontnam(stdout, fc, s, 100);
