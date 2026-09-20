@@ -189,6 +189,9 @@ typedef struct { /* screen context */
     int      curv;        /* cursor visible */
     ami_color forec;       /* current writing foreground color */
     ami_color backc;       /* current writing background color */
+    int      fgrey;       /* the foreground is a grey: half intensity, dark or
+                             light by the background */
+    int      fhalf;       /* the foreground is a dim color: half intensity */
     scnatt   attr;        /* current writing attribute */
     int      autof;       /* current status of scroll and wrap */
     int      tab[MAXTAB]; /* tabbing array */
@@ -287,6 +290,8 @@ static ami_long gmaxy;       /* maximum y size */
 static scnatt   gattr;       /* current attribute */
 static int      gautof;      /* state of auto */
 static ami_color gforec;      /* forground color */
+static int      gfgrey;      /* foreground is grey */
+static int      gfhalf;      /* foreground is dim */
 static ami_color gbackc;      /* background color */
 static int      gcurv;       /* state of cursor visible */
 static int      cix;         /* index for display screens */
@@ -493,12 +498,27 @@ static void setcolor(scnptr sc)
 
 {
 
-    if (sc->attr == sarev) /* set reverse colors */
-        sc->sattr = colnum(sc->forec, (sc->attr == saital || sc->attr == sabold))*16+
-                    colnum(sc->backc, (sc->attr == saundl || sc->attr == sabold));
-    else /* set normal colors */
-        sc->sattr = colnum(sc->backc, (sc->attr == saundl || sc->attr == sabold))*16+
-                    colnum(sc->forec, (sc->attr == saital || sc->attr == sabold));
+    int fore, back; /* the foreground and background nibbles */
+
+    fore = colnum(sc->forec, (sc->attr == saital || sc->attr == sabold ||
+                              sc->fhalf));
+    back = colnum(sc->backc, (sc->attr == saundl || sc->attr == sabold));
+    /* A full color blended halfway between a foreground and its background,
+       as a manager shows disabled text, is a dim color: the console has no
+       such colors, but its intensity bit halves any of its eight, and for a
+       grey, a dim white, gives two greys. Dark grey (black with intensity)
+       on a light background, light grey (white without) on a dark one, so
+       that the lettering shows but stands back. */
+    if (sc->fgrey) {
+
+        if (sc->backc == ami_black || sc->backc == ami_blue ||
+            sc->backc == ami_red || sc->backc == ami_magenta)
+            fore = FOREGROUND_RED | FOREGROUND_GREEN | FOREGROUND_BLUE;
+        else fore = FOREGROUND_INTENSITY;
+
+    }
+    if (sc->attr == sarev) sc->sattr = fore*16+back; /* set reverse colors */
+    else sc->sattr = back*16+fore; /* set normal colors */
     gattr = sc->attr; /* set global to match */
 
 }
@@ -1062,6 +1082,8 @@ static void iniscn(scnptr sc)
     sc->forec = gforec; /* set colors and attributes */
     sc->backc = gbackc;
     sc->attr = gattr;
+    sc->fgrey = gfgrey;
+    sc->fhalf = gfhalf;
     setcolor(sc); /* set current color */
     sc->img = NULL; /* a new screen: no image yet */
     sc->dirty = 0; /* and nothing to flush */
@@ -1654,6 +1676,10 @@ void fcolor_ivf(FILE* f, ami_color c)
 
     screens[curupd-1]->forec = c; /* set color status */
     gforec = c; /* set global as well */
+    screens[curupd-1]->fgrey = 0; /* a primary: neither grey nor dim */
+    screens[curupd-1]->fhalf = 0;
+    gfgrey = 0;
+    gfhalf = 0;
     setcolor(screens[curupd-1]); /* activate */
 
 }
@@ -1670,7 +1696,25 @@ void fcolorc_ivf(FILE* f, ami_long r, ami_long g, ami_long b)
 
 {
 
-    fcolor_ivf(f, colrgbnum(r, g, b));
+    static const ami_color hues[8] = { ami_black, ami_blue, ami_green, ami_cyan,
+                                       ami_red, ami_magenta, ami_yellow, ami_white };
+    int      hue; /* the components present */
+    int      dim; /* none at full strength */
+    ami_long m;   /* the largest */
+
+    /* A component above a quarter of the range is present, and gives the
+       hue; a color with none above three quarters is dim, a blend toward
+       black, and shows at half intensity. A dim white is a grey. */
+    hue = (r > LONG_MAX/4) << 2 | (g > LONG_MAX/4) << 1 | (b > LONG_MAX/4);
+    m = r > g ? r : g;
+    if (b > m) m = b;
+    dim = m < LONG_MAX/4*3;
+    fcolor_ivf(f, hues[hue]); /* the primary, clearing grey and dim */
+    if (dim && hue == 7) screens[curupd-1]->fgrey = 1; /* a grey */
+    else if (dim && hue) screens[curupd-1]->fhalf = 1; /* a dim color */
+    gfgrey = screens[curupd-1]->fgrey;
+    gfhalf = screens[curupd-1]->fhalf;
+    setcolor(screens[curupd-1]); /* activate */
 
 }
 
@@ -4123,6 +4167,10 @@ dbg_printf(dlinfo, "Display area: left: %d top: %d bottom: %d right: %d cursor: 
     gcurv = ci.bVisible != 0;
     screens[curupd-1]->attr = sanone; /* set no attribute */
     gattr = sanone;
+    screens[curupd-1]->fgrey = 0; /* neither grey nor dim */
+    screens[curupd-1]->fhalf = 0;
+    gfgrey = 0;
+    gfhalf = 0;
     /* set up tabbing to be on each 8th position */
     for (i = 0; i < screens[curupd-1]->maxx; i++)
         screens[curupd-1]->tab[i] = (i) % 8 == 0;
