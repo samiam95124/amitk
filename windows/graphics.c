@@ -16020,6 +16020,18 @@ static LRESULT CALLBACK wndproc(HWND hwnd, UINT imsg, WPARAM wparam,
                     0, 0, 0, 0,
                     /*ip->udx, ip->udy, ip->udcx-udw-1, ip->udcy,*/
                     ip->udpar, (HMENU)(INT_PTR)ip->udid, ip->udinst, NULL);
+                /* The control's range and start were prepared but never
+                   set, so it kept its own, 0 to 100 from 0: the box showed
+                   0 and its arrows moved in a range the port refused until
+                   a number in range was typed. The range is the caller's,
+                   and the box starts at its low end, shown in the buddy. */
+                if (ip->udhan) {
+
+                    SendMessage(ip->udhan, UDM_SETRANGE32, (WPARAM)ip->udlow,
+                                (LPARAM)ip->udup);
+                    SendMessage(ip->udhan, UDM_SETPOS32, 0, (LPARAM)ip->udpos);
+
+                }
                 /* signal complete */
                 SetEvent(ip->done); /* the requester goes on */
                 break;
