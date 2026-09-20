@@ -11734,6 +11734,14 @@ static void init_windowc()
     dimx = (*maxx_vect)(stdout);
     dimy = (*maxy_vect)(stdout);
 
+    /* The desktop is drawn on the terminal's second screen, and the first
+       is shown again at shutdown, so the screen a program was started from,
+       a shell's for one, is as it was when the program ends: as a program on
+       the bare terminal does when it selects a screen of its own, and
+       terminal_test does. The manager's own screens, of its windows, are
+       its own and unaffected. */
+    (*select_vect)(stdout, 2, 2);
+
     /* reset all attributes */
     (*superscript_vect)(stdout, FALSE);
     (*subscript_vect)(stdout, FALSE);
@@ -11873,6 +11881,10 @@ static void deinit_windowc()
     /* If autohold is active and and a local end was ordered, disable autohold
        in the root. Note the root also could have ordered an exit. */
     if (fautohold && fend) (*autohold_vect)(FALSE);
+
+    /* back to the terminal's first screen: the one the program started from,
+       as it was */
+    (*select_vect)(stdout, 1, 1);
 
     /* swap old vectors for existing vectors API */
     _pa_cursor_ovr(cursor_vect, &cppcursor);
