@@ -7930,6 +7930,15 @@ static wigptr opnpop(winptr par, ami_long rx, ami_long ry, char** strs, ami_long
     wg->win->frame = TRUE;
     wg->win->size = FALSE;
     wg->win->sysbar = FALSE;
+    /* a pulldown menu is colored apart from the text it opens over, black
+       on cyan, so that it can be told from the screen beneath; a dropdown
+       list belongs to its widget and keeps the widget's colors */
+    if (mitems) {
+
+        wg->win->fcolor = ami_black;
+        wg->win->bcolor = ami_cyan;
+
+    }
     recompcli(wg->win);
     intsetsiz(wg->win, w, n+2);
     /* keep it on the surface */
