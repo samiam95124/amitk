@@ -12170,7 +12170,7 @@ trying to start them on the main window.
 
 /* create widget according to type */
 static HWND createwidget(winptr win, wigtyp typ, ami_long x1, ami_long y1, ami_long x2, ami_long y2,
-                         char* s, ami_long id, ami_long exfl)
+                         char* s, ami_long id, ami_long exfl, HWND par)
 
 {
 
@@ -12274,7 +12274,7 @@ static HWND createwidget(winptr win, wigtyp typ, ami_long x1, ami_long y1, ami_l
     ip->wigy = y1-1;
     ip->wigw = x2-x1+1; /* place size */
     ip->wigh = y2-y1+1;
-    ip->wigpar = win->winhan; /* place parent */
+    ip->wigpar = par? par: win->winhan; /* place parent: the window, or a widget */
     ip->wigid = id; /* place id */
     ip->wigmod = GetModuleHandle(NULL); /* place module */
     /* order widget to start */
@@ -12297,13 +12297,23 @@ static void widget(winptr win, ami_long x1, ami_long y1, ami_long x2, ami_long y
 {
 
     getwig(win, wp); /* get new widget */
-    /* Group widgets don"t have a background, so we pair it up with a background
-       widget. */
-    if (typ == wtgroup)  /* create buddy for group */
+    /* A group box paints only its frame and caption, so it is paired with a
+       background widget that paints the grey behind it. The box is a child
+       of the background, not a sibling over it: siblings clip each other, and
+       the background, lying under the box, could not paint where the box
+       covered it, which was everywhere; the interior showed whatever pixels
+       were there before, grey or not by the order the paints arrived. As a
+       child the box paints over its parent's grey, and a widget laid on the
+       group, made after, is a sibling above the pair. */
+    if (typ == wtgroup) { /* create buddy for group, and the box within it */
+
         (*wp)->han2 = createwidget(win, wtbackground, x1, y1, x2, y2, "", id,
-                                  exfl);
-    /* create widget */
-    (*wp)->han = createwidget(win, typ, x1, y1, x2, y2, s, id, exfl);
+                                   exfl, 0);
+        (*wp)->han = createwidget(win, typ, 1, 1, x2-x1+1, y2-y1+1, s, id, exfl,
+                                  (*wp)->han2);
+
+    } else /* create widget */
+        (*wp)->han = createwidget(win, typ, x1, y1, x2, y2, s, id, exfl, 0);
     (*wp)->id = id; /* place button id */
     (*wp)->typ = typ; /* place type */
 
