@@ -57,6 +57,8 @@
 # same way in a larger xterm, 132 by 50: it is rooted, the xterm being the
 # desktop and every test applying to an 80 by 25 child window on it, and
 # needs the room. Its standard is its own, tests/window_testc.cmp.
+# widget_testc, the widget test in character mode, runs as window_testc
+# does, in the 132 by 50 xterm, with its own standard, tests/widget_testc.cmp.
 #
 # The picture standards are of a desktop's look -- the frame the screen tests
 # size themselves against, the menus, the theme -- and of a backend's, since
@@ -183,7 +185,7 @@ done
 if [ -z "$tests" ]; then
 
     tests="stdio_test services_test network_test txttest pdftest \
-           terminal_test terminal_testc window_testc \
+           terminal_test terminal_testc window_testc widget_testc \
            graphics_test window_test widget_test \
            graphics_testr window_testr widget_testr"
 
@@ -315,7 +317,7 @@ runtest()
         remoterc=$?
         ;;
 
-    terminal_test|terminal_testc|window_testc)
+    terminal_test|terminal_testc|window_testc|widget_testc)
         # An xterm of its own, on a private X server, 80 by 24 (132 by 50
         # for the rooted management test, whose desktop the xterm is): the
         # screens are then of no desktop, font or scale. The listing is what the
@@ -328,7 +330,7 @@ runtest()
         # off and where the file its writethrough test makes lands.
         rm -f "tests/$1.lst" "tests/$1.dpy" tests/terminal/testfile
         geom=80x24
-        if [ "$1" = "window_testc" ]; then geom=132x50; fi
+        if [ "$1" = "window_testc" ] || [ "$1" = "widget_testc" ]; then geom=132x50; fi
         if [ "$plat" = "windows" ]; then
 
             # Windows: a console of its own, sized alike, that the test
@@ -511,7 +513,7 @@ for t in $tests; do
     fi
     if [ -z "$plat" ] && \
        { [ "$t" = "terminal_test" ] || [ "$t" = "terminal_testc" ] || \
-         [ "$t" = "window_testc" ]; } && \
+         [ "$t" = "window_testc" ] || [ "$t" = "widget_testc" ]; } && \
        { ! command -v xterm > /dev/null 2>&1 || \
          ! command -v Xvfb > /dev/null 2>&1; }; then
 
@@ -700,7 +702,7 @@ for t in $tests; do
         bin/dif -q "tests/$t.lst" "$std" > "tests/$t.dif"
         if [ -s "tests/$t.dif" ] && \
            { [ "$t" = "terminal_test" ] || [ "$t" = "terminal_testc" ] || \
-             [ "$t" = "window_testc" ]; }; then
+             [ "$t" = "window_testc" ] || [ "$t" = "widget_testc" ]; }; then
 
             # the pages: a count that differs says a frame went missing
             {

@@ -1827,8 +1827,8 @@ endif
 # terminal. Every widget test has a character form and a graphical form;
 # only the character forms can run on a character surface.
 #
-widget_testc: $(LIBPFX)termc$(LIBEXT) tests/widget_testc.c
-	$(CC) $(CFLAGS) tests/widget_testc.c $(CLIBSC) -o bin/widget_testc
+widget_testc: $(LIBPFX)termc$(LIBEXT) tests/widget_testc.c $(SCREEN_CAPTURE_OBJ)
+	$(CC) $(CFLAGS) tests/widget_testc.c $(SCREEN_CAPTURE_OBJ) $(CLIBSC) -o bin/widget_testc
 	
 #
 # Test sound model compliant input/output (uses console timers)

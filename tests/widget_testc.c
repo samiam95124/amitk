@@ -111,6 +111,69 @@ static char* str(char* s)
 }
 
 static int framenum = 0; /* current frame number */
+/* The frames selected: widget_testc <start> [<end>] runs the frames from
+   start to end, or to the last. Before the range every wait answers itself
+   and nothing is captured; past it the run ends. 0 for no limit. */
+static int tstlo = 0; /* first frame in the selected range */
+static int tsthi = 0; /* last frame, 0 for no limit */
+static int autorun = FALSE; /* walk every screen with no input */
+
+extern void screen_capture(void);
+extern void screen_capture_name(const char* fn);
+
+/* "widget_testc auto" walks every screen with no input at all, capturing
+   each, and exits at the end: this is how the regression runs it, as it
+   runs window_testc. Widgets are windows of their own and paint from events,
+   so an automatic run pumps events for a moment to let the screen settle
+   before capturing it, then answers the wait with a return. */
+#define AUTOSETL 3000 /* settle time before a capture, 100us units */
+#define AUTOSKIP 100  /* the events a skipped frame's wait lets through */
+#define AUTOTIM  9    /* timer the settle runs on */
+
+static void settle(int t)
+
+{
+
+    ami_evtrec er;
+
+    ami_timer(stdout, AUTOTIM, t, FALSE);
+    do {
+
+        ami_event(stdin, &er);
+        if (er.etype == ami_etterm) longjmp(terminate_buf, 1);
+
+    } while (er.etype != ami_ettim || er.timnum != AUTOTIM);
+
+}
+
+/* Every wait for the user comes through here. Before the selected range the
+   wait answers itself, after the port has had its events for a moment. An
+   automatic run lets the screen settle, captures it, and answers with the
+   return the screen was waiting for, from the window the test is on. */
+static void nextevt(ami_evtrec* er)
+
+{
+
+    if (framenum < tstlo) { /* before the range */
+
+        settle(AUTOSKIP);
+        er->etype = ami_etenter;
+        er->winid = 2;
+        return;
+
+    }
+    if (autorun) {
+
+        settle(AUTOSETL);
+        screen_capture();
+        er->etype = ami_etenter;
+        er->winid = 2;
+        return;
+
+    }
+    ami_event(stdin, er);
+
+}
 
 /* set the window title with the chapter frame number, as graphics_test does;
    called at the start of each chapter so every screen is numbered, including
@@ -122,6 +185,7 @@ static void setframe(void)
     char titlebuf[80];
 
     framenum++;
+    if (tsthi && framenum > tsthi) longjmp(terminate_buf, 1); /* past the range */
     sprintf(titlebuf, "widget_test: frame %d", framenum);
     ami_title(tw, titlebuf);
 
@@ -134,15 +198,43 @@ static void waitnext(void)
 
     ami_evtrec er; /* event record */
 
-    do { ami_event(stdin, &er); }
+    do { nextevt(&er); }
     while (er.etype != ami_etenter && er.etype != ami_etterm);
     if (er.etype == ami_etterm) longjmp(terminate_buf, 1);
 
 }
 
-int main(void)
+int main(int argc, char* argv[])
 
 {
+
+    /* widget_testc [auto [<capture>]] [<start> [<end>]]
+
+       "auto" runs every screen with no input, for the regression; it ends
+       when the screens do. A name after it is the file the screens are
+       captured to. Numbers select the frames to run, from the first to the
+       second or to the last. */
+    {
+
+        int i;
+
+        for (i = 1; i < argc; i++) {
+
+            if (!strcmp(argv[i], "auto")) {
+
+                autorun = TRUE;
+                ami_autohold(FALSE);
+
+            } else if (argv[i][0] >= '0' && argv[i][0] <= '9') {
+
+                if (!tstlo) tstlo = atoi(argv[i]);
+                else tsthi = atoi(argv[i]);
+
+            } else if (autorun) screen_capture_name(argv[i]);
+
+        }
+
+    }
 
     ami_long wx, wy;
 
@@ -189,7 +281,7 @@ int main(void)
     fprintf(tw, "\n");
     do {
 
-        ami_event(stdin, &er);
+        nextevt(&er);
         if (er.etype == ami_etbutton) {
 
             if (er.butid == 1) fprintf(tw, "Hello to you, too\n");
@@ -208,7 +300,7 @@ int main(void)
     fprintf(tw, "\n");
     do {
 
-        ami_event(stdin, &er);
+        nextevt(&er);
         if (er.etype == ami_etbutton) {
 
             if (er.butid == 1) fprintf(tw, "Hello to you, too\n");
@@ -244,7 +336,7 @@ int main(void)
     fprintf(tw, "\n");
     do {
 
-        ami_event(stdin, &er);
+        nextevt(&er);
         if (er.etype == ami_etchkbox) {
 
             if (er.ckbxid == 1) {
@@ -278,7 +370,7 @@ int main(void)
     fprintf(tw, "\n");
     do {
 
-        ami_event(stdin, &er);
+        nextevt(&er);
         if (er.etype == ami_etchkbox) {
 
             if (er.ckbxid == 1) {
@@ -329,7 +421,7 @@ int main(void)
     fprintf(tw, "\n");
     do {
 
-        ami_event(stdin, &er);
+        nextevt(&er);
         if (er.etype == ami_etradbut) {
 
             if (er.radbid == 1) {
@@ -363,7 +455,7 @@ int main(void)
     fprintf(tw, "\n");
     do {
 
-        ami_event(stdin, &er);
+        nextevt(&er);
         if (er.etype == ami_etradbut) {
 
             if (er.radbid == 1) {
@@ -452,7 +544,7 @@ int main(void)
     ami_scrollhoriz(tw, 15, 10, 35, 10+y-1, 2);
     do {
 
-        ami_event(stdin, &er);
+        nextevt(&er);
         if (er.etype == ami_etsclull)
             fprintf(tw, "Scrollbar: %lld up/left line\n", AMI_LONG_CAST(er.sclulid));
         if (er.etype == ami_etscldrl)
@@ -492,7 +584,7 @@ int main(void)
     fprintf(tw, "All of the scrollbars can be manipulated.\n");
     do {
 
-        ami_event(stdin, &er);
+        nextevt(&er);
         if (er.etype == ami_etsclull)
             fprintf(tw, "Scrollbar: %lld up/left line\n", AMI_LONG_CAST(er.sclulid));
         if (er.etype == ami_etscldrl)
@@ -528,7 +620,7 @@ int main(void)
     ami_scrollhoriz(tw, 15, 10, 15+x-1, 10+y-1, 2);
     do {
 
-        ami_event(stdin, &er);
+        nextevt(&er);
         if (er.etype == ami_etsclull)
             fprintf(tw, "Scrollbar: %lld up/left line\n", AMI_LONG_CAST(er.sclulid));
         if (er.etype == ami_etscldrl)
@@ -564,7 +656,7 @@ int main(void)
     ami_scrollhoriz(tw, 30, 12, 30+20, 20, 4);
     do {
 
-        ami_event(stdin, &er);
+        nextevt(&er);
         if (er.etype == ami_etsclull)
             fprintf(tw, "Scrollbar: %lld up/left line\n", AMI_LONG_CAST(er.sclulid));
         if (er.etype == ami_etscldrl)
@@ -598,7 +690,7 @@ int main(void)
     ami_numselbox(tw, 10, 10, 10+x-1, 10+y-1, 1, 10, 1);
     do {
 
-        ami_event(stdin, &er);
+        nextevt(&er);
         if (er.etype == ami_etnumbox) fprintf(tw, "You selected: %lld\n", AMI_LONG_CAST(er.numbsl));
         if (er.etype == ami_etterm) longjmp(terminate_buf, 1);
 
@@ -617,7 +709,7 @@ int main(void)
     ami_putwidgettext(tw, 1, "Hi there, george");
     do {
 
-        ami_event(stdin, &er);
+        nextevt(&er);
         if (er.etype == ami_etedtbox) {
 
             ami_getwidgettext(tw, 1, s, 100);
@@ -642,7 +734,7 @@ int main(void)
     prog = 1;
     do {
 
-        ami_event(stdin, &er);
+        nextevt(&er);
         if (er.etype == ami_ettim) {
 
             if (prog < 20) {
@@ -690,7 +782,7 @@ int main(void)
     ami_listbox(tw, 10, 10, 10+x-1, 10+y-1, lp, 1);
     do {
 
-        ami_event(stdin, &er);
+        nextevt(&er);
         if (er.etype == ami_etlstbox) {
 
             switch (er.lstbsl) {
@@ -733,7 +825,7 @@ int main(void)
     ami_dropbox(tw, 10, 10, 10+ox-1, 10+oy-1, lp, 1);
     do {
 
-        ami_event(stdin, &er);
+        nextevt(&er);
         if (er.etype == ami_etdrpbox) {
 
             switch (er.drpbsl) {
@@ -776,7 +868,7 @@ int main(void)
     ami_dropeditbox(tw, 10, 10, 10+ox-1, 10+oy-1, lp, 1);
     do {
 
-        ami_event(stdin, &er);
+        nextevt(&er);
         if (er.etype == ami_etdrebox) {
 
             ami_getwidgettext(tw, 1, s, 100);
@@ -805,7 +897,7 @@ int main(void)
     fprintf(tw, "Bottom and right sliders should not have tick marks\n");
     do {
 
-        ami_event(stdin, &er);
+        nextevt(&er);
         if (er.etype == ami_etsldpos)
             fprintf(tw, "Slider id: %lld position: %lld\n", AMI_LONG_CAST(er.sldpid), AMI_LONG_CAST(er.sldpos));
         if (er.etype == ami_etterm) longjmp(terminate_buf, 1);
@@ -882,7 +974,7 @@ int main(void)
 
     do {
 
-        ami_event(stdin, &er);
+        nextevt(&er);
         if (er.etype == ami_ettabbar) {
 
             if (er.tabid == 1) switch (er.tabsel) {
@@ -990,7 +1082,7 @@ int main(void)
 
     do {
 
-        ami_event(stdin, &er);
+        nextevt(&er);
         if (er.etype == ami_ettabbar) {
 
             if (er.tabid == 1) switch (er.tabsel) {
@@ -1041,6 +1133,7 @@ int main(void)
     fprintf(tw, "\n");
     fprintf(tw, "There should be an pa_alert dialog\n");
     fprintf(tw, "Both the dialog and this window should be fully reactive\n");
+    if (!autorun && framenum >= tstlo) /* modal: it waits for a person to answer */
     ami_alert("This is an important message", "There has been an event !\n");
     fprintf(tw, "\n");
     fprintf(tw, "Alert dialog should have completed now\n");
@@ -1059,6 +1152,7 @@ int main(void)
     r = LONG_MAX;
     g = LONG_MAX;
     b = LONG_MAX;
+    if (!autorun && framenum >= tstlo) /* modal: it waits for a person to answer */
     ami_querycolor(&r, &g, &b);
     fprintf(tw, "\n");
     fprintf(tw, "Dialog should have completed now\n");
@@ -1076,6 +1170,7 @@ int main(void)
     fprintf(tw, "Both the dialog and this window should be fully reactive\n");
     fprintf(tw, "The dialog should have \"myfile.txt\" as the default filename\n");
     strcpy(s, "myfile.txt");
+    if (!autorun && framenum >= tstlo) /* modal: it waits for a person to answer */
     ami_queryopen(s, 100);
     fprintf(tw, "\n");
     fprintf(tw, "Dialog should have completed now\n");
@@ -1093,6 +1188,7 @@ int main(void)
     fprintf(tw, "Both the dialog and this window should be fully reactive\n");
     fprintf(tw, "The dialog should have \"myfile.txt\" as the default filename\n");
     strcpy(s, "myfile.txt");
+    if (!autorun && framenum >= tstlo) /* modal: it waits for a person to answer */
     ami_querysave(s, 100);
     fprintf(tw, "\n");
     fprintf(tw, "Dialog should have completed now\n");
@@ -1111,6 +1207,7 @@ int main(void)
     fprintf(tw, "The dialog should have \"mystuff\" as the default search string\n");
     strcpy(s, "mystuff");
     optf = 0;
+    if (!autorun && framenum >= tstlo) /* modal: it waits for a person to answer */
     ami_queryfind(s, 100, &optf);
     fprintf(tw, "\n");
     fprintf(tw, "Dialog should have completed now\n");
@@ -1137,6 +1234,7 @@ int main(void)
     strcpy(ss, "bark");
     strcpy(rs, "sniff");
     optfr = 0;
+    if (!autorun && framenum >= tstlo) /* modal: it waits for a person to answer */
     ami_queryfindrep (ss, 100, rs, 100, &optfr);
     fprintf(tw, "\n");
     fprintf(tw, "Dialog should have completed now\n");
@@ -1177,6 +1275,7 @@ int main(void)
     bg = LONG_MAX;
     bb = LONG_MAX;
     fe = 0;
+    if (!autorun && framenum >= tstlo) /* modal: it waits for a person to answer */
     ami_queryfont(tw, &fc, &fs, &fr, &fg, &fb, &br, &bg, &bb, &fe);
     fprintf(tw, "\n");
     fprintf(tw, "Dialog should have completed now\n");
