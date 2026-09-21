@@ -57,8 +57,9 @@
 # same way in a larger xterm, 132 by 50: it is rooted, the xterm being the
 # desktop and every test applying to an 80 by 25 child window on it, and
 # needs the room. Its standard is its own, tests/window_testc.cmp.
-# widget_testc, the widget test in character mode, runs as window_testc
-# does, in the 132 by 50 xterm, with its own standard, tests/widget_testc.cmp.
+# widget_testc, the widget test in character mode, runs as terminal_test
+# does, in the 80 by 24 xterm, its widgets on the root window as widget_test
+# has them on its window; its standard is its own, tests/widget_testc.cmp.
 #
 # The picture standards are of a desktop's look -- the frame the screen tests
 # size themselves against, the menus, the theme -- and of a backend's, since
@@ -330,7 +331,7 @@ runtest()
         # off and where the file its writethrough test makes lands.
         rm -f "tests/$1.lst" "tests/$1.dpy" tests/terminal/testfile
         geom=80x24
-        if [ "$1" = "window_testc" ] || [ "$1" = "widget_testc" ]; then geom=132x50; fi
+        if [ "$1" = "window_testc" ]; then geom=132x50; fi
         if [ "$plat" = "windows" ]; then
 
             # Windows: a console of its own, sized alike, that the test

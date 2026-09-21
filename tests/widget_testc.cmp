@@ -1,34 +1,6 @@
-Character mode widget test -- this window is the desktop
- ╔════════════════════════════════════════════════════════════════════════════════╗
- ║                               widget_testc                               - ▯ X ║
- ╠════════════════════════════════════════════════════════════════════════════════╣
- ║Widget test vs. 0.1                                                             ║
- ║                                                                                ║
- ║If this window does not fit the desktop, expand or maximize                     ║
- ║the desktop window, and/or move this window, before continuing                  ║
- ║                                                                                ║
- ║Hit return in any window to continue for each test                              ║
- ║                                                                                ║
- ║                                                                                ║
- ║                                                                                ║
- ║                                                                                ║
- ║                                                                                ║
- ║                                                                                ║
- ║                                                                                ║
- ║                                                                                ║
- ║                                                                                ║
- ║                                                                                ║
- ║                                                                                ║
- ║                                                                                ║
- ║                                                                                ║
- ║                                                                                ║
- ║                                                                                ║
- ║                                                                                ║
- ║                                                                                ║
- ║                                                                                ║
- ║                                                                                ║
- ╚════════════════════════════════════════════════════════════════════════════════╝
+Widget test vs. 0.1                                                 frame 0
 
+Hit return in any window to continue for each test
 
 
 
@@ -48,46 +20,21 @@ Character mode widget test -- this window is the desktop
 
 
 
-Character mode widget test -- this window is the desktop
- ╔════════════════════════════════════════════════════════════════════════════════╗
- ║                           widget_test: frame 1                           - ▯ X ║
- ╠════════════════════════════════════════════════════════════════════════════════╣
- ║Character buttons test                                                          ║
- ║                                                                                ║
- ║Hit the buttons, or return to continue                                          ║
- ║                                                                                ║
- ║                                                                                ║
- ║                                                                                ║
- ║         [ Hello, there ]                                                       ║
- ║                                                                                ║
- ║                                                                                ║
- ║         [ Bark! ]                                                              ║
- ║                                                                                ║
- ║                                                                                ║
- ║         [ Sniff ]                                                              ║
- ║                                                                                ║
- ║                                                                                ║
- ║                                                                                ║
- ║                                                                                ║
- ║                                                                                ║
- ║                                                                                ║
- ║                                                                                ║
- ║                                                                                ║
- ║                                                                                ║
- ║                                                                                ║
- ║                                                                                ║
- ║                                                                                ║
- ╚════════════════════════════════════════════════════════════════════════════════╝
 
 
+Character buttons test                                              frame 1
 
+Hit the buttons, or return to continue
 
 
 
+         [ Hello, there ]
 
 
+         [ Bark! ]
 
 
+         [ Sniff ]
 
 
 
@@ -98,43 +45,20 @@ Character mode widget test -- this window is the desktop
 
 
 
-Character mode widget test -- this window is the desktop
- ╔════════════════════════════════════════════════════════════════════════════════╗
- ║                           widget_test: frame 1                           - ▯ X ║
- ╠════════════════════════════════════════════════════════════════════════════════╣
- ║Character buttons test                                                          ║
- ║                                                                                ║
- ║Hit the buttons, or return to continue                                          ║
- ║                                                                                ║
- ║Now the middle button is disabled, and should not be able to                    ║
- ║be pressed.                                                                     ║
- ║Hit the b[ Hello, there ]n to continue                                          ║
- ║                                                                                ║
- ║                                                                                ║
- ║         [ Bark! ]                                                              ║
- ║                                                                                ║
- ║                                                                                ║
- ║         [ Sniff ]                                                              ║
- ║                                                                                ║
- ║                                                                                ║
- ║                                                                                ║
- ║                                                                                ║
- ║                                                                                ║
- ║                                                                                ║
- ║                                                                                ║
- ║                                                                                ║
- ║                                                                                ║
- ║                                                                                ║
- ║                                                                                ║
- ║                                                                                ║
- ╚════════════════════════════════════════════════════════════════════════════════╝
 
+Character buttons test                                              frame 1
 
+Hit the buttons, or return to continue
 
+Now the middle button is disabled, and should not be able to
+be pressed.
+Hit the b[ Hello, there ]n to continue
 
 
+         [ Bark! ]
 
 
+         [ Sniff ]
 
 
 
@@ -146,44 +70,19 @@ Character mode widget test -- this window is the desktop
 
 
 
+Character checkbox test                                             frame 2
 
+Hit the checkbox, or return to continue
 
-Character mode widget test -- this window is the desktop
- ╔════════════════════════════════════════════════════════════════════════════════╗
- ║                           widget_test: frame 2                           - ▯ X ║
- ╠════════════════════════════════════════════════════════════════════════════════╣
- ║Character checkbox test                                                         ║
- ║                                                                                ║
- ║Hit the checkbox, or return to continue                                         ║
- ║                                                                                ║
- ║                                                                                ║
- ║                                                                                ║
- ║         [ ] Pick me                                                            ║
- ║                                                                                ║
- ║                                                                                ║
- ║         [ ] Or me                                                              ║
- ║                                                                                ║
- ║                                                                                ║
- ║         [ ] No, me                                                             ║
- ║                                                                                ║
- ║                                                                                ║
- ║                                                                                ║
- ║                                                                                ║
- ║                                                                                ║
- ║                                                                                ║
- ║                                                                                ║
- ║                                                                                ║
- ║                                                                                ║
- ║                                                                                ║
- ║                                                                                ║
- ║                                                                                ║
- ╚════════════════════════════════════════════════════════════════════════════════╝
 
 
+         [ ] Pick me
 
 
+         [ ] Or me
 
 
+         [ ] No, me
 
 
 
@@ -195,42 +94,19 @@ Character mode widget test -- this window is the desktop
 
 
 
+Character checkbox test                                             frame 2
 
+Hit the checkbox, or return to continue
 
+Now the middle checkbox is disabled, and should not be able to
+be pressed.
+Hit the c[ ] Pick me return to continue
 
-Character mode widget test -- this window is the desktop
- ╔════════════════════════════════════════════════════════════════════════════════╗
- ║                           widget_test: frame 2                           - ▯ X ║
- ╠════════════════════════════════════════════════════════════════════════════════╣
- ║Character checkbox test                                                         ║
- ║                                                                                ║
- ║Hit the checkbox, or return to continue                                         ║
- ║                                                                                ║
- ║Now the middle checkbox is disabled, and should not be able to                  ║
- ║be pressed.                                                                     ║
- ║Hit the c[ ] Pick me return to continue                                         ║
- ║                                                                                ║
- ║                                                                                ║
- ║         [ ] Or me                                                              ║
- ║                                                                                ║
- ║                                                                                ║
- ║         [ ] No, me                                                             ║
- ║                                                                                ║
- ║                                                                                ║
- ║                                                                                ║
- ║                                                                                ║
- ║                                                                                ║
- ║                                                                                ║
- ║                                                                                ║
- ║                                                                                ║
- ║                                                                                ║
- ║                                                                                ║
- ║                                                                                ║
- ║                                                                                ║
- ╚════════════════════════════════════════════════════════════════════════════════╝
 
+         [ ] Or me
 
 
+         [ ] No, me
 
 
 
@@ -242,44 +118,19 @@ Character mode widget test -- this window is the desktop
 
 
 
+Character radio button test                                         frame 3
 
+Hit the radio button, or return to continue
 
 
 
+         ( ) Station 1
 
 
-Character mode widget test -- this window is the desktop
- ╔════════════════════════════════════════════════════════════════════════════════╗
- ║                           widget_test: frame 3                           - ▯ X ║
- ╠════════════════════════════════════════════════════════════════════════════════╣
- ║Character radio button test                                                     ║
- ║                                                                                ║
- ║Hit the radio button, or return to continue                                     ║
- ║                                                                                ║
- ║                                                                                ║
- ║                                                                                ║
- ║         ( ) Station 1                                                          ║
- ║                                                                                ║
- ║                                                                                ║
- ║         ( ) Station 2                                                          ║
- ║                                                                                ║
- ║                                                                                ║
- ║         ( ) Station 3                                                          ║
- ║                                                                                ║
- ║                                                                                ║
- ║                                                                                ║
- ║                                                                                ║
- ║                                                                                ║
- ║                                                                                ║
- ║                                                                                ║
- ║                                                                                ║
- ║                                                                                ║
- ║                                                                                ║
- ║                                                                                ║
- ║                                                                                ║
- ╚════════════════════════════════════════════════════════════════════════════════╝
+         ( ) Station 2
 
 
+         ( ) Station 3
 
 
 
@@ -291,43 +142,20 @@ Character mode widget test -- this window is the desktop
 
 
 
+Character radio button test                                         frame 3
 
+Hit the radio button, or return to continue
 
+Now the middle radio button is disabled, and should not be able
+to be pressed.
+Hit the r( ) Station 1or return to continue
 
 
+         ( ) Station 2
 
 
+         ( ) Station 3
 
-Character mode widget test -- this window is the desktop
- ╔════════════════════════════════════════════════════════════════════════════════╗
- ║                           widget_test: frame 3                           - ▯ X ║
- ╠════════════════════════════════════════════════════════════════════════════════╣
- ║Character radio button test                                                     ║
- ║                                                                                ║
- ║Hit the radio button, or return to continue                                     ║
- ║                                                                                ║
- ║Now the middle radio button is disabled, and should not be able                 ║
- ║to be pressed.                                                                  ║
- ║Hit the r( ) Station 1or return to continue                                     ║
- ║                                                                                ║
- ║                                                                                ║
- ║         ( ) Station 2                                                          ║
- ║                                                                                ║
- ║                                                                                ║
- ║         ( ) Station 3                                                          ║
- ║                                                                                ║
- ║                                                                                ║
- ║                                                                                ║
- ║                                                                                ║
- ║                                                                                ║
- ║                                                                                ║
- ║                                                                                ║
- ║                                                                                ║
- ║                                                                                ║
- ║                                                                                ║
- ║                                                                                ║
- ║                                                                                ║
- ╚════════════════════════════════════════════════════════════════════════════════╝
 
 
 
@@ -338,46 +166,22 @@ Character mode widget test -- this window is the desktop
 
 
 
+Character group box test                                            frame 4
 
+This is a group box with a null client area
+Hit return to continue
 
 
 
 
 
+         +- Hello there +
+         |              |
+         +--------------+
 
 
 
 
-Character mode widget test -- this window is the desktop
- ╔════════════════════════════════════════════════════════════════════════════════╗
- ║                           widget_test: frame 4                           - ▯ X ║
- ╠════════════════════════════════════════════════════════════════════════════════╣
- ║Character group box test                                                        ║
- ║                                                                                ║
- ║This is a group box with a null client area                                     ║
- ║Hit return to continue                                                          ║
- ║                                                                                ║
- ║                                                                                ║
- ║                                                                                ║
- ║                                                                                ║
- ║                                                                                ║
- ║         +- Hello there +                                                       ║
- ║         |              |                                                       ║
- ║         +--------------+                                                       ║
- ║                                                                                ║
- ║                                                                                ║
- ║                                                                                ║
- ║                                                                                ║
- ║                                                                                ║
- ║                                                                                ║
- ║                                                                                ║
- ║                                                                                ║
- ║                                                                                ║
- ║                                                                                ║
- ║                                                                                ║
- ║                                                                                ║
- ║                                                                                ║
- ╚════════════════════════════════════════════════════════════════════════════════╝
 
 
 
@@ -386,48 +190,58 @@ Character mode widget test -- this window is the desktop
 
 
 
+Character group box test                                            frame 4
 
+This is a group box with a null client area
+Hit return to continue
+This is a group box with a 20,10 client area
+Hit return to continue
 
 
 
+         +- Hello there -------+
+         |                     |
+         |                     |
+         |                     |
+         |                     |
+         |                     |
+         |                     |
+         |                     |
+         |                     |
+         |                     |
+         |                     |
+         |                     |
+         +---------------------+
 
 
+Character group box test                                            frame 4
 
+This is a group box with a null client area
+Hit return to continue
+This is a group box with a 20,10 client area
+Hit return to continue
+This is a group box with a 20,10 layered button
+Hit return to continue
 
+         +- Hello there -------+
+         |+------------------+ |
+         ||                  | |
+         ||                  | |
+         ||                  | |
+         ||   Bark, bark!    | |
+         ||                  | |
+         ||                  | |
+         ||                  | |
+         ||                  | |
+         |+------------------+ |
+         |                     |
+         +---------------------+
 
 
+Character background test                                           frame 5
 
+Hit return to continue
 
-Character mode widget test -- this window is the desktop
- ╔════════════════════════════════════════════════════════════════════════════════╗
- ║                           widget_test: frame 4                           - ▯ X ║
- ╠════════════════════════════════════════════════════════════════════════════════╣
- ║Character group box test                                                        ║
- ║                                                                                ║
- ║This is a group box with a null client area                                     ║
- ║Hit return to continue                                                          ║
- ║This is a group box with a 20,10 client area                                    ║
- ║Hit return to continue                                                          ║
- ║                                                                                ║
- ║                                                                                ║
- ║                                                                                ║
- ║         +- Hello there -------+                                                ║
- ║         |                     |                                                ║
- ║         |                     |                                                ║
- ║         |                     |                                                ║
- ║         |                     |                                                ║
- ║         |                     |                                                ║
- ║         |                     |                                                ║
- ║         |                     |                                                ║
- ║         |                     |                                                ║
- ║         |                     |                                                ║
- ║         |                     |                                                ║
- ║         |                     |                                                ║
- ║         +---------------------+                                                ║
- ║                                                                                ║
- ║                                                                                ║
- ║                                                                                ║
- ╚════════════════════════════════════════════════════════════════════════════════╝
 
 
 
@@ -448,47 +262,31 @@ Character mode widget test -- this window is the desktop
 
 
 
-Character mode widget test -- this window is the desktop
- ╔════════════════════════════════════════════════════════════════════════════════╗
- ║                           widget_test: frame 4                           - ▯ X ║
- ╠════════════════════════════════════════════════════════════════════════════════╣
- ║Character group box test                                                        ║
- ║                                                                                ║
- ║This is a group box with a null client area                                     ║
- ║Hit return to continue                                                          ║
- ║This is a group box with a 20,10 client area                                    ║
- ║Hit return to continue                                                          ║
- ║This is a group box with a 20,10 layered button                                 ║
- ║Hit return to continue                                                          ║
- ║                                                                                ║
- ║         +- Hello there -------+                                                ║
- ║         |+------------------+ |                                                ║
- ║         ||                  | |                                                ║
- ║         ||                  | |                                                ║
- ║         ||                  | |                                                ║
- ║         ||   Bark, bark!    | |                                                ║
- ║         ||                  | |                                                ║
- ║         ||                  | |                                                ║
- ║         ||                  | |                                                ║
- ║         ||                  | |                                                ║
- ║         |+------------------+ |                                                ║
- ║         |                     |                                                ║
- ║         +---------------------+                                                ║
- ║                                                                                ║
- ║                                                                                ║
- ║                                                                                ║
- ╚════════════════════════════════════════════════════════════════════════════════╝
+Character background test                                           frame 5
 
+Hit return to continue
+This is a background with a layered button
+Hit return to continue
 
 
 
 
 
+          +---------------------------+
+          |                           |
+          |                           |
+          |                           |
+          |        Bark, bark!        |
+          |                           |
+          |                           |
+          |                           |
+          +---------------------------+
 
 
 
 
 
+Character scroll bar test                                           frame 6
 
 
 
@@ -497,50 +295,46 @@ Character mode widget test -- this window is the desktop
 
 
 
+         ^    <##.................>
+         #
+         .
+         .
+         .
+         .
+         .
+         .
+         .
+         .
+         v
 
-Character mode widget test -- this window is the desktop
- ╔════════════════════════════════════════════════════════════════════════════════╗
- ║                           widget_test: frame 5                           - ▯ X ║
- ╠════════════════════════════════════════════════════════════════════════════════╣
- ║Character background test                                                       ║
- ║                                                                                ║
- ║Hit return to continue                                                          ║
- ║                                                                                ║
- ║                                                                                ║
- ║                                                                                ║
- ║                                                                                ║
- ║                                                                                ║
- ║                                                                                ║
- ║                                                                                ║
- ║                                                                                ║
- ║                                                                                ║
- ║                                                                                ║
- ║                                                                                ║
- ║                                                                                ║
- ║                                                                                ║
- ║                                                                                ║
- ║                                                                                ║
- ║                                                                                ║
- ║                                                                                ║
- ║                                                                                ║
- ║                                                                                ║
- ║                                                                                ║
- ║                                                                                ║
- ║                                                                                ║
- ╚════════════════════════════════════════════════════════════════════════════════╝
 
 
 
+Character scroll bar sizing test                                    frame 7
 
+Now should be four scrollbars, decending in size to the right.
+All of the scrollbars can be manipulated.
 
 
 
 
 
+         ^    ^    ^    ^
+         #    #    #    #
+         #    #    #    .
+         #    #    .    .
+         #    #    .    .
+         #    .    .    .
+         #    .    .    .
+         #    .    .    .
+         .    .    .    .
+         .    .    .    .
+         v    v    v    v
 
 
 
 
+Character scroll bar minimums test                                  frame 8
 
 
 
@@ -548,37 +342,11 @@ Character mode widget test -- this window is the desktop
 
 
 
-Character mode widget test -- this window is the desktop
- ╔════════════════════════════════════════════════════════════════════════════════╗
- ║                           widget_test: frame 5                           - ▯ X ║
- ╠════════════════════════════════════════════════════════════════════════════════╣
- ║Character background test                                                       ║
- ║                                                                                ║
- ║Hit return to continue                                                          ║
- ║This is a background with a layered button                                      ║
- ║Hit return to continue                                                          ║
- ║                                                                                ║
- ║                                                                                ║
- ║                                                                                ║
- ║                                                                                ║
- ║                                                                                ║
- ║          +---------------------------+                                         ║
- ║          |                           |                                         ║
- ║          |                           |                                         ║
- ║          |                           |                                         ║
- ║          |        Bark, bark!        |                                         ║
- ║          |                           |                                         ║
- ║          |                           |                                         ║
- ║          |                           |                                         ║
- ║          +---------------------------+                                         ║
- ║                                                                                ║
- ║                                                                                ║
- ║                                                                                ║
- ║                                                                                ║
- ║                                                                                ║
- ║                                                                                ║
- ╚════════════════════════════════════════════════════════════════════════════════╝
 
+         ^    <#.>
+         #
+         .
+         v
 
 
 
@@ -590,6 +358,7 @@ Character mode widget test -- this window is the desktop
 
 
 
+Character scroll bar fat and skinny bars test                       frame 9
 
 
 
@@ -598,40 +367,22 @@ Character mode widget test -- this window is the desktop
 
 
 
-Character mode widget test -- this window is the desktop
- ╔════════════════════════════════════════════════════════════════════════════════╗
- ║                           widget_test: frame 6                           - ▯ X ║
- ╠════════════════════════════════════════════════════════════════════════════════╣
- ║Character scroll bar test                                                       ║
- ║                                                                                ║
- ║                                                                                ║
- ║                                                                                ║
- ║                                                                                ║
- ║                                                                                ║
- ║                                                                                ║
- ║                                                                                ║
- ║                                                                                ║
- ║         ^    <##.................>                                             ║
- ║         #                                                                      ║
- ║         .                                                                      ║
- ║         .                                                                      ║
- ║         .                                                                      ║
- ║         .                                                                      ║
- ║         .                                                                      ║
- ║         .                                                                      ║
- ║         .                                                                      ║
- ║         .                                                                      ║
- ║         v                                                                      ║
- ║                                                                                ║
- ║                                                                                ║
- ║                                                                                ║
- ║                                                                                ║
- ║                                                                                ║
- ╚════════════════════════════════════════════════════════════════════════════════╝
+         ^ ^                 <##.................>
+         # #
+         . .                 <##.................>
+         . .
+         . .
+         . .
+         . .
+         . .
+         . .
+         . .
+         v v
 
 
 
 
+Character number select box test                                   frame 10
 
 
 
@@ -640,6 +391,7 @@ Character mode widget test -- this window is the desktop
 
 
 
+         - 1+
 
 
 
@@ -648,42 +400,13 @@ Character mode widget test -- this window is the desktop
 
 
 
-Character mode widget test -- this window is the desktop
- ╔════════════════════════════════════════════════════════════════════════════════╗
- ║                           widget_test: frame 7                           - ▯ X ║
- ╠════════════════════════════════════════════════════════════════════════════════╣
- ║Character scroll bar sizing test                                                ║
- ║                                                                                ║
- ║Now should be four scrollbars, decending in size to the right.                  ║
- ║All of the scrollbars can be manipulated.                                       ║
- ║                                                                                ║
- ║                                                                                ║
- ║                                                                                ║
- ║                                                                                ║
- ║                                                                                ║
- ║         ^    ^    ^    ^                                                       ║
- ║         #    #    #    #                                                       ║
- ║         #    #    #    .                                                       ║
- ║         #    #    .    .                                                       ║
- ║         #    #    .    .                                                       ║
- ║         #    .    .    .                                                       ║
- ║         #    .    .    .                                                       ║
- ║         #    .    .    .                                                       ║
- ║         .    .    .    .                                                       ║
- ║         .    .    .    .                                                       ║
- ║         v    v    v    v                                                       ║
- ║                                                                                ║
- ║                                                                                ║
- ║                                                                                ║
- ║                                                                                ║
- ║                                                                                ║
- ╚════════════════════════════════════════════════════════════════════════════════╝
 
 
 
 
 
 
+Character edit box test                                            frame 11
 
 
 
@@ -692,42 +415,13 @@ Character mode widget test -- this window is the desktop
 
 
 
+         Hi there, george
 
 
 
 
 
 
-Character mode widget test -- this window is the desktop
- ╔════════════════════════════════════════════════════════════════════════════════╗
- ║                           widget_test: frame 8                           - ▯ X ║
- ╠════════════════════════════════════════════════════════════════════════════════╣
- ║Character scroll bar minimums test                                              ║
- ║                                                                                ║
- ║                                                                                ║
- ║                                                                                ║
- ║                                                                                ║
- ║                                                                                ║
- ║                                                                                ║
- ║                                                                                ║
- ║                                                                                ║
- ║         ^    <#.>                                                              ║
- ║         #                                                                      ║
- ║         .                                                                      ║
- ║         v                                                                      ║
- ║                                                                                ║
- ║                                                                                ║
- ║                                                                                ║
- ║                                                                                ║
- ║                                                                                ║
- ║                                                                                ║
- ║                                                                                ║
- ║                                                                                ║
- ║                                                                                ║
- ║                                                                                ║
- ║                                                                                ║
- ║                                                                                ║
- ╚════════════════════════════════════════════════════════════════════════════════╝
 
 
 
@@ -736,6 +430,7 @@ Character mode widget test -- this window is the desktop
 
 
 
+Character progress bar test                                        frame 12
 
 
 
@@ -744,40 +439,11 @@ Character mode widget test -- this window is the desktop
 
 
 
+         ..........
 
 
 
 
-Character mode widget test -- this window is the desktop
- ╔════════════════════════════════════════════════════════════════════════════════╗
- ║                           widget_test: frame 9                           - ▯ X ║
- ╠════════════════════════════════════════════════════════════════════════════════╣
- ║Character scroll bar fat and skinny bars test                                   ║
- ║                                                                                ║
- ║                                                                                ║
- ║                                                                                ║
- ║                                                                                ║
- ║                                                                                ║
- ║                                                                                ║
- ║                                                                                ║
- ║                                                                                ║
- ║         ^ ^                 <##.................>                              ║
- ║         # #                                                                    ║
- ║         . .                 <##.................>                              ║
- ║         . .                                                                    ║
- ║         . .                                                                    ║
- ║         . .                                                                    ║
- ║         . .                                                                    ║
- ║         . .                                                                    ║
- ║         . .                                                                    ║
- ║         . .                                                                    ║
- ║         v v                                                                    ║
- ║                                                                                ║
- ║                                                                                ║
- ║                                                                                ║
- ║                                                                                ║
- ║                                                                                ║
- ╚════════════════════════════════════════════════════════════════════════════════╝
 
 
 
@@ -788,46 +454,22 @@ Character mode widget test -- this window is the desktop
 
 
 
+Character list box test                                            frame 13
 
+Note that it is normal for this box to not fill to exact
+character cells.
 
 
 
 
 
+         Green
+         Red
+         Blue
 
 
 
 
-Character mode widget test -- this window is the desktop
- ╔════════════════════════════════════════════════════════════════════════════════╗
- ║                           widget_test: frame 10                          - ▯ X ║
- ╠════════════════════════════════════════════════════════════════════════════════╣
- ║Character number select box test                                                ║
- ║                                                                                ║
- ║                                                                                ║
- ║                                                                                ║
- ║                                                                                ║
- ║                                                                                ║
- ║                                                                                ║
- ║                                                                                ║
- ║                                                                                ║
- ║         - 1+                                                                   ║
- ║                                                                                ║
- ║                                                                                ║
- ║                                                                                ║
- ║                                                                                ║
- ║                                                                                ║
- ║                                                                                ║
- ║                                                                                ║
- ║                                                                                ║
- ║                                                                                ║
- ║                                                                                ║
- ║                                                                                ║
- ║                                                                                ║
- ║                                                                                ║
- ║                                                                                ║
- ║                                                                                ║
- ╚════════════════════════════════════════════════════════════════════════════════╝
 
 
 
@@ -836,48 +478,22 @@ Character mode widget test -- this window is the desktop
 
 
 
+Character dropdown box test                                        frame 14
 
+Note that it is normal for this box to not fill to exact
+character cells.
 
 
 
 
 
+         bird  v
 
 
 
 
 
 
-Character mode widget test -- this window is the desktop
- ╔════════════════════════════════════════════════════════════════════════════════╗
- ║                           widget_test: frame 11                          - ▯ X ║
- ╠════════════════════════════════════════════════════════════════════════════════╣
- ║Character edit box test                                                         ║
- ║                                                                                ║
- ║                                                                                ║
- ║                                                                                ║
- ║                                                                                ║
- ║                                                                                ║
- ║                                                                                ║
- ║                                                                                ║
- ║                                                                                ║
- ║         Hi there, george                                                       ║
- ║                                                                                ║
- ║                                                                                ║
- ║                                                                                ║
- ║                                                                                ║
- ║                                                                                ║
- ║                                                                                ║
- ║                                                                                ║
- ║                                                                                ║
- ║                                                                                ║
- ║                                                                                ║
- ║                                                                                ║
- ║                                                                                ║
- ║                                                                                ║
- ║                                                                                ║
- ║                                                                                ║
- ╚════════════════════════════════════════════════════════════════════════════════╝
 
 
 
@@ -886,48 +502,22 @@ Character mode widget test -- this window is the desktop
 
 
 
+Character dropdown edit box test                                   frame 15
 
+Note that it is normal for this box to not fill to exact
+character cells.
 
 
 
 
 
+         Tortillas  v
 
 
 
 
 
 
-Character mode widget test -- this window is the desktop
- ╔════════════════════════════════════════════════════════════════════════════════╗
- ║                           widget_test: frame 12                          - ▯ X ║
- ╠════════════════════════════════════════════════════════════════════════════════╣
- ║Character progress bar test                                                     ║
- ║                                                                                ║
- ║                                                                                ║
- ║                                                                                ║
- ║                                                                                ║
- ║                                                                                ║
- ║                                                                                ║
- ║                                                                                ║
- ║                                                                                ║
- ║         ..........                                                             ║
- ║                                                                                ║
- ║                                                                                ║
- ║                                                                                ║
- ║                                                                                ║
- ║                                                                                ║
- ║                                                                                ║
- ║                                                                                ║
- ║                                                                                ║
- ║                                                                                ║
- ║                                                                                ║
- ║                                                                                ║
- ║                                                                                ║
- ║                                                                                ║
- ║                                                                                ║
- ║                                                                                ║
- ╚════════════════════════════════════════════════════════════════════════════════╝
 
 
 
@@ -936,6 +526,8 @@ Character mode widget test -- this window is the desktop
 
 
 
+Character slider test                                              frame 16
+Bottom and right sliders should not have tick marks
 
 
 
@@ -943,91 +535,80 @@ Character mode widget test -- this window is the desktop
 
 
 
+         #-+-+-+-+--+-+-+-+-+          #         #
+                                       +         |
+                                       +         |
+                                       +         |
+                                       +         |
+                                       +         |
+                                       +         |
+                                       +         |
+                                       +         |
+                                       +         |
+         #-------------------
 
 
 
 
+Character tab bar test                                             frame 17
 
-Character mode widget test -- this window is the desktop
- ╔════════════════════════════════════════════════════════════════════════════════╗
- ║                           widget_test: frame 13                          - ▯ X ║
- ╠════════════════════════════════════════════════════════════════════════════════╣
- ║Character list box test                                                         ║
- ║                                                                                ║
- ║Note that it is normal for this box to not fill to exact                        ║
- ║character cells.                                                                ║
- ║                                                                                ║
- ║                                                                                ║
- ║                                                                                ║
- ║                                                                                ║
- ║                                                                                ║
- ║         Green                                                                  ║
- ║         Red                                                                    ║
- ║         Blue                                                                   ║
- ║                                                                                ║
- ║                                                                                ║
- ║                                                                                ║
- ║                                                                                ║
- ║                                                                                ║
- ║                                                                                ║
- ║                                                                                ║
- ║                                                                                ║
- ║                                                                                ║
- ║                                                                                ║
- ║                                                                                ║
- ║                                                                                ║
- ║                                                                                ║
- ╚════════════════════════════════════════════════════════════════════════════════╝
+              Left|Center|Right
 
 
 
+    T                                     T
+    o                                     o
+    p                                     p
+    -                                     -
+    C                                     C
+    e                                     e
+    n                                     n
+    t                                     t
+    e                                     e
+    r                                     r
+    -                                     -
+    B                                     B
+    o                                     o
+    t                                     t
 
 
+              Left|Center|Right
 
+Character overlaid tab bar test                                    frame 18
 
 
 
+                  Left|Center|Right
+                 T                                 T
+                 o                                 o
+                 p                                 p
+                 -                                 -
+                 C                                 C
+                 e                                 e
+                 n                                 n
+                 t                                 t
+                 e                                 e
+                 r                                 r
+                 -                                 -
+                 B                                 B
+                 o                                 o
+                 t                                 t
 
+                  Left|Center|Right
 
 
 
+Alert test                                                         frame 19
 
+There should be an pa_alert dialog
+Both the dialog and this window should be fully reactive
 
+Alert dialog should have completed now
 
 
 
 
 
-Character mode widget test -- this window is the desktop
- ╔════════════════════════════════════════════════════════════════════════════════╗
- ║                           widget_test: frame 14                          - ▯ X ║
- ╠════════════════════════════════════════════════════════════════════════════════╣
- ║Character dropdown box test                                                     ║
- ║                                                                                ║
- ║Note that it is normal for this box to not fill to exact                        ║
- ║character cells.                                                                ║
- ║                                                                                ║
- ║                                                                                ║
- ║                                                                                ║
- ║                                                                                ║
- ║                                                                                ║
- ║         bird  v                                                                ║
- ║                                                                                ║
- ║                                                                                ║
- ║                                                                                ║
- ║                                                                                ║
- ║                                                                                ║
- ║                                                                                ║
- ║                                                                                ║
- ║                                                                                ║
- ║                                                                                ║
- ║                                                                                ║
- ║                                                                                ║
- ║                                                                                ║
- ║                                                                                ║
- ║                                                                                ║
- ║                                                                                ║
- ╚════════════════════════════════════════════════════════════════════════════════╝
 
 
 
@@ -1041,43 +622,19 @@ Character mode widget test -- this window is the desktop
 
 
 
+Color query test                                                   frame 20
 
+There should be an color query dialog
+Both the dialog and this window should be fully reactive
+The color pa_white should be the default selection
 
+Dialog should have completed now
+Colors are: red: 2147483647 green: 2147483647 blue: 2147483647
 
 
 
 
 
-Character mode widget test -- this window is the desktop
- ╔════════════════════════════════════════════════════════════════════════════════╗
- ║                           widget_test: frame 15                          - ▯ X ║
- ╠════════════════════════════════════════════════════════════════════════════════╣
- ║Character dropdown edit box test                                                ║
- ║                                                                                ║
- ║Note that it is normal for this box to not fill to exact                        ║
- ║character cells.                                                                ║
- ║                                                                                ║
- ║                                                                                ║
- ║                                                                                ║
- ║                                                                                ║
- ║                                                                                ║
- ║         Tortillas  v                                                           ║
- ║                                                                                ║
- ║                                                                                ║
- ║                                                                                ║
- ║                                                                                ║
- ║                                                                                ║
- ║                                                                                ║
- ║                                                                                ║
- ║                                                                                ║
- ║                                                                                ║
- ║                                                                                ║
- ║                                                                                ║
- ║                                                                                ║
- ║                                                                                ║
- ║                                                                                ║
- ║                                                                                ║
- ╚════════════════════════════════════════════════════════════════════════════════╝
 
 
 
@@ -1089,8 +646,14 @@ Character mode widget test -- this window is the desktop
 
 
 
+Open file query test                                               frame 21
 
+There should be an open file query dialog
+Both the dialog and this window should be fully reactive
+The dialog should have "myfile.txt" as the default filename
 
+Dialog should have completed now
+Filename is: myfile.txt
 
 
 
@@ -1098,36 +661,6 @@ Character mode widget test -- this window is the desktop
 
 
 
-Character mode widget test -- this window is the desktop
- ╔════════════════════════════════════════════════════════════════════════════════╗
- ║                           widget_test: frame 16                          - ▯ X ║
- ╠════════════════════════════════════════════════════════════════════════════════╣
- ║Character slider test                                                           ║
- ║Bottom and right sliders should not have tick marks                             ║
- ║                                                                                ║
- ║                                                                                ║
- ║                                                                                ║
- ║                                                                                ║
- ║                                                                                ║
- ║                                                                                ║
- ║                                                                                ║
- ║         #-+-+-+-+--+-+-+-+-+          #         #                              ║
- ║                                       +         |                              ║
- ║                                       +         |                              ║
- ║                                       +         |                              ║
- ║                                       +         |                              ║
- ║                                       +         |                              ║
- ║                                       +         |                              ║
- ║                                       +         |                              ║
- ║                                       +         |                              ║
- ║                                       +         |                              ║
- ║         #-------------------                                                   ║
- ║                                                                                ║
- ║                                                                                ║
- ║                                                                                ║
- ║                                                                                ║
- ║                                                                                ║
- ╚════════════════════════════════════════════════════════════════════════════════╝
 
 
 
@@ -1137,8 +670,14 @@ Character mode widget test -- this window is the desktop
 
 
 
+Save file query test                                               frame 22
 
+There should be an save file query dialog
+Both the dialog and this window should be fully reactive
+The dialog should have "myfile.txt" as the default filename
 
+Dialog should have completed now
+Filename is: myfile.txt
 
 
 
@@ -1148,36 +687,6 @@ Character mode widget test -- this window is the desktop
 
 
 
-Character mode widget test -- this window is the desktop
- ╔════════════════════════════════════════════════════════════════════════════════╗
- ║                           widget_test: frame 17                          - ▯ X ║
- ╠════════════════════════════════════════════════════════════════════════════════╣
- ║Character tab bar test                                                          ║
- ║                                                                                ║
- ║              Left|Center|Right                                                 ║
- ║                                                                                ║
- ║                                                                                ║
- ║                                                                                ║
- ║    T                                     T                                     ║
- ║    o                                     o                                     ║
- ║    p                                     p                                     ║
- ║    -                                     -                                     ║
- ║    C                                     C                                     ║
- ║    e                                     e                                     ║
- ║    n                                     n                                     ║
- ║    t                                     t                                     ║
- ║    e                                     e                                     ║
- ║    r                                     r                                     ║
- ║    -                                     -                                     ║
- ║    B                                     B                                     ║
- ║    o                                     o                                     ║
- ║    t                                     t                                     ║
- ║                                                                                ║
- ║                                                                                ║
- ║              Left|Center|Right                                                 ║
- ║                                                                                ║
- ║                                                                                ║
- ╚════════════════════════════════════════════════════════════════════════════════╝
 
 
 
@@ -1185,8 +694,17 @@ Character mode widget test -- this window is the desktop
 
 
 
+Find query test                                                    frame 23
 
+There should be a find query dialog
+Both the dialog and this window should be fully reactive
+The dialog should have "mystuff" as the default search string
 
+Dialog should have completed now
+Search string is: "mystuff"
+Case sensitive is off
+Search down
+Use literal expression
 
 
 
@@ -1198,40 +716,24 @@ Character mode widget test -- this window is the desktop
 
 
 
-Character mode widget test -- this window is the desktop
- ╔════════════════════════════════════════════════════════════════════════════════╗
- ║                           widget_test: frame 18                          - ▯ X ║
- ╠════════════════════════════════════════════════════════════════════════════════╣
- ║Character overlaid tab bar test                                                 ║
- ║                                                                                ║
- ║                                                                                ║
- ║                                                                                ║
- ║                  Left|Center|Right                                             ║
- ║                 T                                 T                            ║
- ║                 o                                 o                            ║
- ║                 p                                 p                            ║
- ║                 -                                 -                            ║
- ║                 C                                 C                            ║
- ║                 e                                 e                            ║
- ║                 n                                 n                            ║
- ║                 t                                 t                            ║
- ║                 e                                 e                            ║
- ║                 r                                 r                            ║
- ║                 -                                 -                            ║
- ║                 B                                 B                            ║
- ║                 o                                 o                            ║
- ║                 t                                 t                            ║
- ║                                                                                ║
- ║                  Left|Center|Right                                             ║
- ║                                                                                ║
- ║                                                                                ║
- ║                                                                                ║
- ║                                                                                ║
- ╚════════════════════════════════════════════════════════════════════════════════╝
 
 
+Find/replace query test                                            frame 24
 
+There should be a find/replace query dialog
+Both the dialog and this window should be fully reactive
+The dialog should have "bark" as the default search string
+and should have "sniff" as the default replacement string
 
+Dialog should have completed now
+Search string is: "bark"
+Replace string is: "sniff"
+Case sensitive is off
+Search/replace down
+Regular expressions are off
+Mode is find/replace
+Mode is find/replace first in file
+Mode is find/replace first on line(s)
 
 
 
@@ -1240,350 +742,16 @@ Character mode widget test -- this window is the desktop
 
 
 
+Font query test                                                    frame 25
 
+There should be a font query dialog
+Both the dialog and this window should be fully reactive
 
-
-
-
-
-
-
-Character mode widget test -- this window is the desktop
- ╔════════════════════════════════════════════════════════════════════════════════╗
- ║                           widget_test: frame 19                          - ▯ X ║
- ╠════════════════════════════════════════════════════════════════════════════════╣
- ║Alert test                                                                      ║
- ║                                                                                ║
- ║There should be an pa_alert dialog                                              ║
- ║Both the dialog and this window should be fully reactive                        ║
- ║                                                                                ║
- ║Alert dialog should have completed now                                          ║
- ║                                                                                ║
- ║                                                                                ║
- ║                                                                                ║
- ║                                                                                ║
- ║                                                                                ║
- ║                                                                                ║
- ║                                                                                ║
- ║                                                                                ║
- ║                                                                                ║
- ║                                                                                ║
- ║                                                                                ║
- ║                                                                                ║
- ║                                                                                ║
- ║                                                                                ║
- ║                                                                                ║
- ║                                                                                ║
- ║                                                                                ║
- ║                                                                                ║
- ║                                                                                ║
- ╚════════════════════════════════════════════════════════════════════════════════╝
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-Character mode widget test -- this window is the desktop
- ╔════════════════════════════════════════════════════════════════════════════════╗
- ║                           widget_test: frame 20                          - ▯ X ║
- ╠════════════════════════════════════════════════════════════════════════════════╣
- ║Color query test                                                                ║
- ║                                                                                ║
- ║There should be an color query dialog                                           ║
- ║Both the dialog and this window should be fully reactive                        ║
- ║The color pa_white should be the default selection                              ║
- ║                                                                                ║
- ║Dialog should have completed now                                                ║
- ║Colors are: red: 2147483647 green: 2147483647 blue: 2147483647                  ║
- ║                                                                                ║
- ║                                                                                ║
- ║                                                                                ║
- ║                                                                                ║
- ║                                                                                ║
- ║                                                                                ║
- ║                                                                                ║
- ║                                                                                ║
- ║                                                                                ║
- ║                                                                                ║
- ║                                                                                ║
- ║                                                                                ║
- ║                                                                                ║
- ║                                                                                ║
- ║                                                                                ║
- ║                                                                                ║
- ║                                                                                ║
- ╚════════════════════════════════════════════════════════════════════════════════╝
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-Character mode widget test -- this window is the desktop
- ╔════════════════════════════════════════════════════════════════════════════════╗
- ║                           widget_test: frame 21                          - ▯ X ║
- ╠════════════════════════════════════════════════════════════════════════════════╣
- ║Open file query test                                                            ║
- ║                                                                                ║
- ║There should be an open file query dialog                                       ║
- ║Both the dialog and this window should be fully reactive                        ║
- ║The dialog should have "myfile.txt" as the default filename                     ║
- ║                                                                                ║
- ║Dialog should have completed now                                                ║
- ║Filename is: myfile.txt                                                         ║
- ║                                                                                ║
- ║                                                                                ║
- ║                                                                                ║
- ║                                                                                ║
- ║                                                                                ║
- ║                                                                                ║
- ║                                                                                ║
- ║                                                                                ║
- ║                                                                                ║
- ║                                                                                ║
- ║                                                                                ║
- ║                                                                                ║
- ║                                                                                ║
- ║                                                                                ║
- ║                                                                                ║
- ║                                                                                ║
- ║                                                                                ║
- ╚════════════════════════════════════════════════════════════════════════════════╝
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-Character mode widget test -- this window is the desktop
- ╔════════════════════════════════════════════════════════════════════════════════╗
- ║                           widget_test: frame 22                          - ▯ X ║
- ╠════════════════════════════════════════════════════════════════════════════════╣
- ║Save file query test                                                            ║
- ║                                                                                ║
- ║There should be an save file query dialog                                       ║
- ║Both the dialog and this window should be fully reactive                        ║
- ║The dialog should have "myfile.txt" as the default filename                     ║
- ║                                                                                ║
- ║Dialog should have completed now                                                ║
- ║Filename is: myfile.txt                                                         ║
- ║                                                                                ║
- ║                                                                                ║
- ║                                                                                ║
- ║                                                                                ║
- ║                                                                                ║
- ║                                                                                ║
- ║                                                                                ║
- ║                                                                                ║
- ║                                                                                ║
- ║                                                                                ║
- ║                                                                                ║
- ║                                                                                ║
- ║                                                                                ║
- ║                                                                                ║
- ║                                                                                ║
- ║                                                                                ║
- ║                                                                                ║
- ╚════════════════════════════════════════════════════════════════════════════════╝
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-Character mode widget test -- this window is the desktop
- ╔════════════════════════════════════════════════════════════════════════════════╗
- ║                           widget_test: frame 23                          - ▯ X ║
- ╠════════════════════════════════════════════════════════════════════════════════╣
- ║Find query test                                                                 ║
- ║                                                                                ║
- ║There should be a find query dialog                                             ║
- ║Both the dialog and this window should be fully reactive                        ║
- ║The dialog should have "mystuff" as the default search string                   ║
- ║                                                                                ║
- ║Dialog should have completed now                                                ║
- ║Search string is: "mystuff"                                                     ║
- ║Case sensitive is off                                                           ║
- ║Search down                                                                     ║
- ║Use literal expression                                                          ║
- ║                                                                                ║
- ║                                                                                ║
- ║                                                                                ║
- ║                                                                                ║
- ║                                                                                ║
- ║                                                                                ║
- ║                                                                                ║
- ║                                                                                ║
- ║                                                                                ║
- ║                                                                                ║
- ║                                                                                ║
- ║                                                                                ║
- ║                                                                                ║
- ║                                                                                ║
- ╚════════════════════════════════════════════════════════════════════════════════╝
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-Character mode widget test -- this window is the desktop
- ╔════════════════════════════════════════════════════════════════════════════════╗
- ║                           widget_test: frame 24                          - ▯ X ║
- ╠════════════════════════════════════════════════════════════════════════════════╣
- ║Find/replace query test                                                         ║
- ║                                                                                ║
- ║There should be a find/replace query dialog                                     ║
- ║Both the dialog and this window should be fully reactive                        ║
- ║The dialog should have "bark" as the default search string                      ║
- ║and should have "sniff" as the default replacement string                       ║
- ║                                                                                ║
- ║Dialog should have completed now                                                ║
- ║Search string is: "bark"                                                        ║
- ║Replace string is: "sniff"                                                      ║
- ║Case sensitive is off                                                           ║
- ║Search/replace down                                                             ║
- ║Regular expressions are off                                                     ║
- ║Mode is find/replace                                                            ║
- ║Mode is find/replace first in file                                              ║
- ║Mode is find/replace first on line(s)                                           ║
- ║                                                                                ║
- ║                                                                                ║
- ║                                                                                ║
- ║                                                                                ║
- ║                                                                                ║
- ║                                                                                ║
- ║                                                                                ║
- ║                                                                                ║
- ║                                                                                ║
- ╚════════════════════════════════════════════════════════════════════════════════╝
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-Character mode widget test -- this window is the desktop
- ╔════════════════════════════════════════════════════════════════════════════════╗
- ║                           widget_test: frame 25                          - ▯ X ║
- ╠════════════════════════════════════════════════════════════════════════════════╣
- ║Font query test                                                                 ║
- ║                                                                                ║
- ║There should be a font query dialog                                             ║
- ║Both the dialog and this window should be fully reactive                        ║
- ║                                                                                ║
- ║Dialog should have completed now                                                ║
- ║Font code: 1                                                                    ║
- ║Font size: 1                                                                    ║
- ║Foreground color: Red: 0 Green: 0 Blue: 0                                       ║
- ║Background color: Red: 2147483647 Green: 2147483647 Blue: 2147483647            ║
- ║                                                                                ║
- ║                                                                                ║
- ║                                                                                ║
- ║                                                                                ║
- ║                                                                                ║
- ║                                                                                ║
- ║                                                                                ║
- ║                                                                                ║
- ║                                                                                ║
- ║                                                                                ║
- ║                                                                                ║
- ║                                                                                ║
- ║                                                                                ║
- ║                                                                                ║
- ║                                                                                ║
- ╚════════════════════════════════════════════════════════════════════════════════╝
-
-
-
-
-
-
+Dialog should have completed now
+Font code: 1
+Font size: 1
+Foreground color: Red: 0 Green: 0 Blue: 0
+Background color: Red: 2147483647 Green: 2147483647 Blue: 2147483647
 
 
 
