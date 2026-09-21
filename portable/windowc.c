@@ -7771,23 +7771,39 @@ static wigptr fndwig(winptr win, ami_long id)
 }
 
 /* The highlight a part of a widget face draws with. A selected part shows
-   on green, the focus on cyan, and the part under the mouse reversed, as
-   the frame parts do. The text keeps its own color on the highlight,
-   unless that is the highlight's, when it goes black: a colored entry in a
-   list stays its color when selected. Selection outranks the hover, which
-   outranks the focus, so the mouse over the focused button still shows it
-   live. */
+   on green, the focus on cyan; selection outranks the focus for the ground.
+   The text keeps its own color on the highlight, unless that is the
+   highlight's, when it goes black: a colored entry in a list stays its
+   color when selected. The part under the mouse shows live over either: on
+   a plain face it is reversed, as the frame parts are; on a green or cyan
+   ground the ground stays and the text goes to its complement, black to
+   white, so a selected entry under the mouse is still seen to be selected.
+   Reversing the ground instead lost the selection's green under the
+   hover. */
 #define HLNONE 0 /* plain */
-#define HLFOC  1 /* the focus: cyan */
-#define HLHOV  2 /* under the mouse: reverse video */
-#define HLSEL  3 /* selected: green */
+#define HLFOC  1 /* the focus: cyan ground */
+#define HLSEL  2 /* selected: green ground */
+#define HLHOV  4 /* under the mouse: reversed, or the text flipped on a
+                    ground; combines with the others */
 
-/* the highlight from the states, by rank */
+/* the highlight from the states */
 static int wighl(int sel, int hov, int foc)
 
 {
 
-    return sel? HLSEL: hov? HLHOV: foc? HLFOC: HLNONE;
+    return (sel? HLSEL: foc? HLFOC: HLNONE) | (hov? HLHOV: 0);
+
+}
+
+/* the complement of a color */
+static ami_color colcomp(ami_color c)
+
+{
+
+    ami_long r, g, b;
+
+    colnumrgb(c, &r, &g, &b);
+    return colrgbnum(LONG_MAX-r, LONG_MAX-g, LONG_MAX-b);
 
 }
 
@@ -7796,14 +7812,19 @@ static void wigset(winptr win, int hl)
 
 {
 
-    switch (hl) {
+    if (hl & HLSEL) win->bcolor = ami_green;
+    else if (hl & HLFOC) win->bcolor = ami_cyan;
+    if (win->fcolor == win->bcolor) win->fcolor = ami_black;
+    if (hl & HLHOV) {
 
-        case HLHOV: win->attr |= BIT(sarev); break;
-        case HLFOC: win->bcolor = ami_cyan; break;
-        case HLSEL: win->bcolor = ami_green; break;
+        if (hl & (HLSEL|HLFOC)) { /* on a ground: the text flips */
+
+            win->fcolor = colcomp(win->fcolor);
+            if (win->fcolor == win->bcolor) win->fcolor = ami_white;
+
+        } else win->attr |= BIT(sarev); /* plain: reversed */
 
     }
-    if (win->fcolor == win->bcolor) win->fcolor = ami_black;
 
 }
 
@@ -8274,8 +8295,7 @@ static void wigdrw(wigptr wg)
                 char c = i+x-1 < n? wg->face[i+x-1]: ' ';
                 /* hover reverses the field; the edit cursor cell shows
                    the focus, so it stays visible within the highlight */
-                hl = win->focus && i+x-1 == wg->curs? HLFOC:
-                     wighl(FALSE, hp != 0, FALSE);
+                hl = wighl(FALSE, hp != 0, win->focus && i+x-1 == wg->curs);
                 buf[0] = c; buf[1] = 0;
                 wigtxt(wg, x, 1, buf, hl);
 
@@ -8352,8 +8372,7 @@ static void wigdrw(wigptr wg)
             for (x = 1; x <= w-1; x++) {
 
                 char c = i+x-1 < n? wg->face[i+x-1]: ' ';
-                hl = win->focus && i+x-1 == wg->curs? HLFOC:
-                     wighl(FALSE, hp == 1, FALSE);
+                hl = wighl(FALSE, hp == 1, win->focus && i+x-1 == wg->curs);
                 buf[0] = c; buf[1] = 0;
                 wigtxt(wg, x, 1, buf, hl);
 
