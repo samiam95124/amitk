@@ -262,7 +262,10 @@ int main(int argc, char* argv[])
     if (setjmp(terminate_buf)) goto terminate;
 
     /* The widgets are laid on the root window, as widget_test lays them on
-       its window: the terminal is the surface under test. */
+       its window: the terminal is the surface under test. The test runs on
+       the window's second screen, as terminal_test does, so the first, the
+       one it was started from, is as it was when it ends. */
+    ami_select(stdout, 2, 2);
     ami_curvis(stdout, FALSE);
     ami_auto(stdout, FALSE);
     printf("Widget test vs. 0.1\n");
@@ -1309,7 +1312,12 @@ int main(int argc, char* argv[])
 
     terminate:;
 
-    fputc('\f', stdout);
+    /* back to the first screen, as it was, with the cursor and the wrap
+       the test turned off */
+    ami_select(stdout, 1, 1);
+    ami_curvis(stdout, TRUE);
+    ami_auto(stdout, TRUE);
+    printf("\n");
     printf("Test complete\n");
 
 }
