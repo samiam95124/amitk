@@ -7770,8 +7770,66 @@ static wigptr fndwig(winptr win, ami_long id)
 
 }
 
-/* write a string into a widget face, with reverse video select */
-static void wigtxt(wigptr wg, ami_long x, ami_long y, const char* s, int rev)
+/* The highlight a part of a widget face draws with. A selected part shows
+   on green, the focus on cyan; selection outranks the focus for the ground.
+   The text keeps its own color on the highlight, unless that is the
+   highlight's, when it goes black: a colored entry in a list stays its
+   color when selected. The part under the mouse shows live over either: on
+   a plain face it is reversed, as the frame parts are; on a green or cyan
+   ground the ground stays and the text goes to its complement, black to
+   white, so a selected entry under the mouse is still seen to be selected.
+   Reversing the ground instead lost the selection's green under the
+   hover. */
+#define HLNONE 0 /* plain */
+#define HLFOC  1 /* the focus: cyan ground */
+#define HLSEL  2 /* selected: green ground */
+#define HLHOV  4 /* under the mouse: reversed, or the text flipped on a
+                    ground; combines with the others */
+
+/* the highlight from the states */
+static int wighl(int sel, int hov, int foc)
+
+{
+
+    return (sel? HLSEL: foc? HLFOC: HLNONE) | (hov? HLHOV: 0);
+
+}
+
+/* the complement of a color */
+static ami_color colcomp(ami_color c)
+
+{
+
+    ami_long r, g, b;
+
+    colnumrgb(c, &r, &g, &b);
+    return colrgbnum(LONG_MAX-r, LONG_MAX-g, LONG_MAX-b);
+
+}
+
+/* set a face's drawing state for a highlight; the caller restores it */
+static void wigset(winptr win, int hl)
+
+{
+
+    if (hl & HLSEL) win->bcolor = ami_green;
+    else if (hl & HLFOC) win->bcolor = ami_cyan;
+    if (win->fcolor == win->bcolor) win->fcolor = ami_black;
+    if (hl & HLHOV) {
+
+        if (hl & (HLSEL|HLFOC)) { /* on a ground: the text flips */
+
+            win->fcolor = colcomp(win->fcolor);
+            if (win->fcolor == win->bcolor) win->fcolor = ami_white;
+
+        } else win->attr |= BIT(sarev); /* plain: reversed */
+
+    }
+
+}
+
+/* write a string into a widget face, with its highlight */
+static void wigtxt(wigptr wg, ami_long x, ami_long y, const char* s, int hl)
 
 {
 
@@ -7780,11 +7838,14 @@ static void wigtxt(wigptr wg, ami_long x, ami_long y, const char* s, int rev)
     ami_long   sat = win->attr; /* restored whole: a face can carry its own
                                attributes, and clearing just the reverse
                                bit was dropping them */
+    ami_color  sfc = win->fcolor, sbc = win->bcolor; /* the face's colors */
 
     icursor(wg->wf, x, y); /* place cursor */
-    if (rev) win->attr |= BIT(sarev);
+    wigset(win, hl);
     while (*s && n-- > 0) plcchr(wg->wf, *s++);
     win->attr = sat;
+    win->fcolor = sfc;
+    win->bcolor = sbc;
 
 }
 
@@ -7809,10 +7870,12 @@ static void wigclr(wigptr wg)
 }
 
 /* draw a centered label into a row, clipped to width */
-static void wiglab(wigptr wg, ami_long y, const char* s, int rev)
+static void wiglab(wigptr wg, ami_long y, const char* s, int hl)
 
 {
 
+    ami_long  sat = wg->win->attr;
+    ami_color sfc = wg->win->fcolor, sbc = wg->win->bcolor;
     ami_long w = wg->win->cmaxx;
     ami_long l = strlen(s);
     ami_long x;
@@ -7820,9 +7883,11 @@ static void wiglab(wigptr wg, ami_long y, const char* s, int rev)
     if (l > w) l = w; /* clip */
     x = (w-l)/2+1; /* center */
     icursor(wg->wf, x, y);
-    if (rev) wg->win->attr |= BIT(sarev);
+    wigset(wg->win, hl);
     while (l--) plcchr(wg->wf, *s++);
-    wg->win->attr &= ~BIT(sarev);
+    wg->win->attr = sat;
+    wg->win->fcolor = sfc;
+    wg->win->bcolor = sbc;
 
 }
 
@@ -8041,10 +8106,10 @@ static void drwmbar(wigptr wg)
 
         int enb = menenb(wg->parent, p->id);
 
-        wigtxt(wg, x, 1, " ", FALSE);
+        wigtxt(wg, x, 1, " ", HLNONE);
         /* a disabled item shows grey; selected or hovered shows reversed */
         if (!enb) wg->win->attr |= BIT(sagrey);
-        wigtxt(wg, x+1, 1, p->face, wg->sel == x || hp == x);
+        wigtxt(wg, x+1, 1, p->face, wighl(wg->sel == x, hp == x, FALSE));
         wg->win->attr &= ~BIT(sagrey);
         x += strlen(p->face)+2;
 
@@ -8088,7 +8153,7 @@ static void wigdrw(wigptr wg)
        the drawing; setcur() below restores it, with its visibility, at
        the focus window when the face is done. */
     setcurvis(FALSE);
-    int    rev;
+    int    hl;
     /* the live part under the mouse shows reversed, as frame parts do */
     ami_long   hp = wg == hovwig? hovwprt: 0;
 
@@ -8100,7 +8165,7 @@ static void wigdrw(wigptr wg)
 
         case wtbutton:
             wigclr(wg);
-            rev = wg->sel || hp || (win->focus && wg->enb);
+            hl = wighl(wg->sel, hp, win->focus && wg->enb);
             if (h >= 3) { /* boxed face */
 
                 icursor(wg->wf, 1, 1);
@@ -8117,13 +8182,13 @@ static void wigdrw(wigptr wg)
                 plcchr(wg->wf, '+');
                 for (x = 2; x < w; x++) plcchr(wg->wf, '-');
                 plcchr(wg->wf, '+');
-                wiglab(wg, (h+1)/2, wg->face, rev);
+                wiglab(wg, (h+1)/2, wg->face, hl);
 
             } else { /* single row face */
 
                 icursor(wg->wf, 1, 1); plcchr(wg->wf, '[');
                 icursor(wg->wf, w, 1); plcchr(wg->wf, ']');
-                wiglab(wg, 1, wg->face, rev);
+                wiglab(wg, 1, wg->face, hl);
 
             }
             break;
@@ -8131,13 +8196,13 @@ static void wigdrw(wigptr wg)
         case wtcheckbox:
             wigclr(wg);
             snprintf(buf, sizeof(buf), "[%c] %s", wg->sel? 'X': ' ', wg->face);
-            wigtxt(wg, 1, 1, buf, hp || (win->focus && wg->enb));
+            wigtxt(wg, 1, 1, buf, wighl(wg->sel, hp, win->focus && wg->enb));
             break;
 
         case wtradio:
             wigclr(wg);
             snprintf(buf, sizeof(buf), "(%c) %s", wg->sel? '*': ' ', wg->face);
-            wigtxt(wg, 1, 1, buf, hp || (win->focus && wg->enb));
+            wigtxt(wg, 1, 1, buf, wighl(wg->sel, hp, win->focus && wg->enb));
             break;
 
         case wtgroup:
@@ -8186,11 +8251,11 @@ static void wigdrw(wigptr wg)
                 tp = wigmul(n-ts, wg->val); /* offset */
 
             }
-            wigtxt(wg, 1, 1, "^", hp == 1);
+            wigtxt(wg, 1, 1, "^", wighl(FALSE, hp == 1, FALSE));
             for (y = 2; y < h; y++)
-                wigtxt(wg, 1, y, ".", y-2 < tp? hp == 4: hp == 5);
-            wigtxt(wg, 1, h, "v", hp == 2);
-            for (y = 0; y < ts; y++) wigtxt(wg, 1, 2+tp+y, "#", hp == 3);
+                wigtxt(wg, 1, y, ".", wighl(FALSE, y-2 < tp? hp == 4: hp == 5, FALSE));
+            wigtxt(wg, 1, h, "v", wighl(FALSE, hp == 2, FALSE));
+            for (y = 0; y < ts; y++) wigtxt(wg, 1, 2+tp+y, "#", wighl(FALSE, hp == 3, FALSE));
             break;
 
         case wtscrollhoriz:
@@ -8204,19 +8269,19 @@ static void wigdrw(wigptr wg)
                 tp = wigmul(n-ts, wg->val);
 
             }
-            wigtxt(wg, 1, 1, "<", hp == 1);
+            wigtxt(wg, 1, 1, "<", wighl(FALSE, hp == 1, FALSE));
             for (x = 2; x < w; x++)
-                wigtxt(wg, x, 1, ".", x-2 < tp? hp == 4: hp == 5);
-            wigtxt(wg, w, 1, ">", hp == 2);
-            for (x = 0; x < ts; x++) wigtxt(wg, 2+tp+x, 1, "#", hp == 3);
+                wigtxt(wg, x, 1, ".", wighl(FALSE, x-2 < tp? hp == 4: hp == 5, FALSE));
+            wigtxt(wg, w, 1, ">", wighl(FALSE, hp == 2, FALSE));
+            for (x = 0; x < ts; x++) wigtxt(wg, 2+tp+x, 1, "#", wighl(FALSE, hp == 3, FALSE));
             break;
 
         case wtnumselbox:
             wigclr(wg);
-            wigtxt(wg, 1, 1, "-", hp == 1);
-            wigtxt(wg, w, 1, "+", hp == 2);
+            wigtxt(wg, 1, 1, "-", wighl(FALSE, hp == 1, FALSE));
+            wigtxt(wg, w, 1, "+", wighl(FALSE, hp == 2, FALSE));
             snprintf(buf, sizeof(buf), "%*lld", (int)(w-2), AMI_LONG_CAST(wg->val));
-            wigtxt(wg, 2, 1, buf, win->focus);
+            wigtxt(wg, 2, 1, buf, wighl(FALSE, FALSE, win->focus));
             break;
 
         case wteditbox:
@@ -8228,11 +8293,11 @@ static void wigdrw(wigptr wg)
             for (x = 1; x <= w; x++) {
 
                 char c = i+x-1 < n? wg->face[i+x-1]: ' ';
-                /* hover reverses the field; the edit cursor cell flips
-                   back, so it stays visible within the highlight */
-                rev = (win->focus && (i+x-1 == wg->curs)) ^ (hp != 0);
+                /* hover reverses the field; the edit cursor cell shows
+                   the focus, so it stays visible within the highlight */
+                hl = wighl(FALSE, hp != 0, win->focus && i+x-1 == wg->curs);
                 buf[0] = c; buf[1] = 0;
-                wigtxt(wg, x, 1, buf, rev);
+                wigtxt(wg, x, 1, buf, hl);
 
             }
             break;
@@ -8241,7 +8306,7 @@ static void wigdrw(wigptr wg)
             for (x = 1; x <= w; x++) {
 
                 n = wigmul(w, wg->val);
-                wigtxt(wg, x, 1, x <= n? "=": ".", FALSE);
+                wigtxt(wg, x, 1, x <= n? "=": ".", HLNONE);
 
             }
             break;
@@ -8250,28 +8315,28 @@ static void wigdrw(wigptr wg)
             wigclr(wg);
             for (y = 1; y <= h && wg->top+y <= wg->listn; y++)
                 wigtxt(wg, 1, y, wg->list[wg->top+y-1],
-                       wg->top+y == wg->sel || y == hp);
+                       wighl(wg->top+y == wg->sel, y == hp, FALSE));
             break;
 
         case wtslidehoriz:
-            for (x = 1; x <= w; x++) wigtxt(wg, x, 1, "-", FALSE);
+            for (x = 1; x <= w; x++) wigtxt(wg, x, 1, "-", HLNONE);
             /* tick marks spaced evenly along the rail, ends included */
             if (wg->marks > 1)
                 for (i = 0; i < wg->marks; i++)
                     wigtxt(wg, 1+((w-1)*i+(wg->marks-1)/2)/(wg->marks-1), 1,
-                           "+", FALSE);
+                           "+", HLNONE);
             n = 1+wigmul(w-1, wg->val);
-            wigtxt(wg, n, 1, "#", hp != 0);
+            wigtxt(wg, n, 1, "#", wighl(FALSE, hp != 0, FALSE));
             break;
 
         case wtslidevert:
-            for (y = 1; y <= h; y++) wigtxt(wg, 1, y, "|", FALSE);
+            for (y = 1; y <= h; y++) wigtxt(wg, 1, y, "|", HLNONE);
             if (wg->marks > 1)
                 for (i = 0; i < wg->marks; i++)
                     wigtxt(wg, 1, 1+((h-1)*i+(wg->marks-1)/2)/(wg->marks-1),
-                           "+", FALSE);
+                           "+", HLNONE);
             n = 1+wigmul(h-1, wg->val);
-            wigtxt(wg, 1, n, "#", hp != 0);
+            wigtxt(wg, 1, n, "#", wighl(FALSE, hp != 0, FALSE));
             break;
 
         case wtdropbox:
@@ -8289,12 +8354,12 @@ static void wigdrw(wigptr wg)
                     if (win->fcolor == ami_white) win->bcolor = ami_black;
 
                 }
-                wigtxt(wg, 1, 1, wg->list[wg->sel-1], win->focus || hp);
+                wigtxt(wg, 1, 1, wg->list[wg->sel-1], wighl(FALSE, hp, win->focus));
                 win->fcolor = sf;
                 win->bcolor = sb;
 
             }
-            wigtxt(wg, w, 1, "v", hp != 0);
+            wigtxt(wg, w, 1, "v", wighl(FALSE, hp != 0, FALSE));
             break;
 
         case wtdropeditbox:
@@ -8307,12 +8372,12 @@ static void wigdrw(wigptr wg)
             for (x = 1; x <= w-1; x++) {
 
                 char c = i+x-1 < n? wg->face[i+x-1]: ' ';
-                rev = (win->focus && (i+x-1 == wg->curs)) ^ (hp == 1);
+                hl = wighl(FALSE, hp == 1, win->focus && i+x-1 == wg->curs);
                 buf[0] = c; buf[1] = 0;
-                wigtxt(wg, x, 1, buf, rev);
+                wigtxt(wg, x, 1, buf, hl);
 
             }
-            wigtxt(wg, w, 1, "v", hp == 2);
+            wigtxt(wg, w, 1, "v", wighl(FALSE, hp == 2, FALSE));
             break;
 
         case wttabbar:
@@ -8324,9 +8389,9 @@ static void wigdrw(wigptr wg)
                 for (i = 0; i < wg->listn && x <= w; i++) {
 
                     wigtxt(wg, x, 1, wg->list[i],
-                           wg->sel == i+1 || hp == i+1);
+                           wighl(wg->sel == i+1, hp == i+1, FALSE));
                     x += strlen(wg->list[i]);
-                    if (i+1 < wg->listn) { wigtxt(wg, x, 1, "|", FALSE); x++; }
+                    if (i+1 < wg->listn) { wigtxt(wg, x, 1, "|", HLNONE); x++; }
 
                 }
 
@@ -8341,11 +8406,11 @@ static void wigdrw(wigptr wg)
                     while (*p && y <= h) {
 
                         buf[0] = *p++; buf[1] = 0;
-                        wigtxt(wg, 1, y++, buf, wg->sel == i+1 || hp == i+1);
+                        wigtxt(wg, 1, y++, buf, wighl(wg->sel == i+1, hp == i+1, FALSE));
 
                     }
                     if (i+1 < wg->listn && y <= h)
-                        wigtxt(wg, 1, y++, "-", FALSE);
+                        wigtxt(wg, 1, y++, "-", HLNONE);
 
                 }
 
@@ -8357,8 +8422,8 @@ static void wigdrw(wigptr wg)
             break;
 
         case wtpopup:
-            /* the list, one entry per line, current selection reversed; a
-               disabled menu entry shows grey */
+            /* the list, one entry per line, the current selection on green;
+               a disabled menu entry shows grey */
             wigclr(wg);
             for (y = 1; y <= h && y <= wg->listn; y++) {
 
@@ -8378,12 +8443,12 @@ static void wigdrw(wigptr wg)
 
                     win->fcolor = wg->lcol[y-1];
                     if (win->fcolor == ami_white) win->bcolor = ami_black;
-                    wigtxt(wg, 1, y, wg->list[y-1], y == wg->sel || y == hp);
+                    wigtxt(wg, 1, y, wg->list[y-1], wighl(y == wg->sel, y == hp, FALSE));
                     win->fcolor = sf;
                     win->bcolor = sb;
 
                 } else
-                    wigtxt(wg, 1, y, wg->list[y-1], y == wg->sel || y == hp);
+                    wigtxt(wg, 1, y, wg->list[y-1], wighl(y == wg->sel, y == hp, FALSE));
                 wg->win->attr &= ~BIT(sagrey);
 
             }
