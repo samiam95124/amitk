@@ -653,6 +653,7 @@ static winptr  hovflt;   /* frame cells draw only where this window is top */
 static winptr fndtop(ami_long x, ami_long y); /* forward */
 static winptr   drgwin;       /* drag window */
 static wigptr   drgwig;       /* drag widget (slider or scroll thumb) */
+static wigptr   prswig;       /* the button held down by the mouse */
 #define MAXPOP 8              /* maximum popup nesting (menu cascade) */
 static wigptr   popstk[MAXPOP]; /* open popup stack, bottom first */
 static int      popcnt;       /* number of open popups */
@@ -2802,6 +2803,7 @@ static ami_long wighit(wigptr wg, ami_long lx, ami_long ly); /* forward */
 static void wigdrag(void); /* forward */
 static void clspops(int downto); /* forward */
 static void wigdrw(wigptr wg); /* forward */
+static void wigsig(wigptr wg, ami_evtcod e, ami_long v); /* forward */
 static int  menselkey(ami_long etype);   /* forward: menu select mode */
 static void menselpops(void);
 static int  menselstart(void);
@@ -3878,6 +3880,7 @@ static void closewin(int ofn)
         win->wiglst = wg->next;
         wg->parent = NULL; /* it is being taken down with the owner */
         if (hovwig == wg) hovwig = NULL; /* the highlight dies with it */
+        if (prswig == wg) prswig = NULL; /* so does the press */
         if (xltwin[wg->win->wid+MAXFIL] >= 0) fclose(wg->wf);
         if (wg->face) free(wg->face);
         if (wg->lcol) free(wg->lcol);
@@ -5643,6 +5646,20 @@ static void intevent(FILE* f)
             }
             break;
         case ami_etmoubd:  /* mouse button deassertion */
+            if (prswig) { /* a button was held down */
+
+                /* it shows plain again, and fires if the mouse is still on
+                   it; let go elsewhere, it does nothing, as a graphical
+                   button does */
+                wigptr wg = prswig;
+
+                prswig = NULL;
+                wg->sel = FALSE;
+                wigdrw(wg);
+                if (fndtop(mousex, mousey) == wg->win && wg->enb)
+                    wigsig(wg, ami_etbutton, 0);
+
+            }
             win = fndtop(mousex, mousey); /* find the enclosing window */
             if (win && win->focus && inclient(win, mousex, mousey)) {
 
@@ -7914,6 +7931,7 @@ static void clspops(int downto)
         wg = popstk[--popcnt];
         popstk[popcnt] = NULL;
         if (hovwig == wg) hovwig = NULL; /* the highlight dies with it */
+        if (prswig == wg) prswig = NULL; /* so does the press */
         /* unlink from its owner's widget list and drop it */
         if (wg->parent) {
 
@@ -8729,7 +8747,15 @@ static void wigevt(wigptr wg, ami_evtrec* er)
             ly = mousey-absy(win)+1;
             switch (wg->typ) {
 
-                case wtbutton: wigsig(wg, ami_etbutton, 0); break;
+                case wtbutton:
+                    /* the button shows pressed while the mouse holds it,
+                       and fires on the release, as a graphical button
+                       does; the release is handled where the mouse events
+                       come in, since it may land off the button */
+                    wg->sel = TRUE;
+                    prswig = wg;
+                    wigdrw(wg);
+                    break;
                 case wtcheckbox: wigsig(wg, ami_etchkbox, 0); break;
                 case wtradio: wigsig(wg, ami_etradbut, 0); break;
                 case wtscrollvert:
@@ -9276,6 +9302,7 @@ void ami_killwidget(FILE* f, ami_long id)
 
     if (!wg) error("No widget by given id");
     if (hovwig == wg) hovwig = NULL; /* the highlight dies with it */
+    if (prswig == wg) prswig = NULL; /* so does the press */
     /* unlink from the owner */
     lp = &win->wiglst;
     while (*lp != wg) lp = &(*lp)->next;
@@ -9314,8 +9341,9 @@ void ami_enablewidget(FILE* f, ami_long id, ami_long e)
 
     if (!wg) error("No widget by given id");
     wg->enb = !!e;
-    /* a disabled widget takes no hover highlight */
+    /* a disabled widget takes no hover highlight, and a held button lets go */
     if (!wg->enb && hovwig == wg) hovwig = NULL;
+    if (!wg->enb && prswig == wg) { prswig = NULL; wg->sel = FALSE; }
     wigdrw(wg);
 
 }
