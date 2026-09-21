@@ -524,7 +524,8 @@ typedef struct imrec { /* intermessage record */
             ami_long fntbr;    /* background red */
             ami_long fntbg;    /* background green */
             ami_long fntbb;    /* bakcground blue */
-            ami_long fntsiz;   /* size */
+            ami_long fntsiz;   /* size: the em square, in and out */
+            ami_long fntdpm;   /* the display's dots per meter in y */
 
         };
         struct { /* imupdown */
@@ -15718,9 +15719,14 @@ static void iqueryfont(winptr win, ami_long* fc, ami_long* s, ami_long* fr, ami_
 
 {
 
-    imptr ip;               /* intratask message pointer */
-    BOOL  b;                /* result */
-    char  fns[LF_FACESIZE]; /* name of font */
+    imptr      ip;               /* intratask message pointer */
+    BOOL       b;                /* result */
+    char       fns[LF_FACESIZE]; /* name of font */
+    scnptr     sc;               /* screen pointer */
+    HFONT      tf;               /* probe font at the cell height */
+    HGDIOBJ    of;               /* previous font in DC */
+    TEXTMETRIC tm;               /* text metric structure */
+    int        em;               /* em square of the cell */
 
     getitm(&ip); /* get a im pointer */
     ip->im = imqfont; /* set is font query */
@@ -15733,7 +15739,29 @@ static void iqueryfont(winptr win, ami_long* fc, ami_long* s, ami_long* fr, ami_
     ip->fntbr = *br;
     ip->fntbg = *bg;
     ip->fntbb = *bb;
-    ip->fntsiz = *s; /* place font size */
+    /* The size is a cell height, as fontsiz takes it, and the dialog works
+       in em squares, its point size being an em: so the face is measured at
+       the cell height, as setpoints measures it, and the dialog is primed
+       with the em the cell holds. Primed with the cell as an em it showed a
+       point size larger than the font's. */
+    em = 0; /* no size: the dialog's default */
+    if (*s > 0) {
+
+        sc = win->screens[win->curupd-1];
+        GDICALL(tf = CreateFont(*s, 0, 0, 0, FW_REGULAR, FALSE, FALSE, FALSE,
+                        ANSI_CHARSET, OUT_TT_ONLY_PRECIS, CLIP_DEFAULT_PRECIS,
+                        FQUALITY, DEFAULT_PITCH, fns), !tf); /* process windows error */
+        of = SelectObject(sc->bdc, tf); /* select to buffer DC */
+        if (of == HGDI_ERROR) error(enosel);
+        GDICALL(b = GetTextMetrics(sc->bdc, &tm), !b); /* process windows error */
+        of = SelectObject(sc->bdc, of); /* restore previous font */
+        if (of == HGDI_ERROR) error(enosel);
+        GDICALL(b = DeleteObject(tf), !b); /* process windows error */
+        em = tm.tmHeight-tm.tmInternalLeading; /* the em square */
+
+    }
+    ip->fntsiz = em; /* place font size, as the em */
+    ip->fntdpm = win->sdpmy; /* and the display's metric, for the points */
     /* send request */
     b = PostMessage(dialogwin, UM_IM, (WPARAM)ip, 0);
     if (!b) winerr(); /* process windows error */
@@ -16462,7 +16490,24 @@ static LRESULT CALLBACK wndprocdialog(HWND hwnd, UINT imsg, WPARAM wparam,
             case imqfont:
                 lf = imalloc(sizeof(LOGFONT)); /* get a logical font structure */
                 /* initalize logical font structure */
-                lf->lfHeight = ip->fntsiz; /* use default height */
+                /* The dialog works in points, and reckons them from the
+                   screen's logical dots per inch; the port reckons them from
+                   the display's physical size, as setpoints and points do.
+                   So the em given is taken to points on the port's metric,
+                   and to the dialog's height on its own: primed so, the
+                   dialog shows the point size points() gives. */
+                lf->lfHeight = 0; /* no size: the dialog's default */
+                if (ip->fntsiz > 0 && ip->fntdpm > 0) {
+
+                    HDC   sdc;   /* the screen */
+                    float pts;   /* the point size */
+
+                    sdc = GetDC(NULL);
+                    pts = (float)ip->fntsiz*2835.0f/(float)ip->fntdpm;
+                    lf->lfHeight = -(int)(pts*GetDeviceCaps(sdc, LOGPIXELSY)/72.0f+0.5f);
+                    ReleaseDC(NULL, sdc);
+
+                }
                 lf->lfWidth = 0; /* use default width */
                 lf->lfEscapement = 0; /* no escapement */
                 lf->lfOrientation = 0; /* orient to x axis */
@@ -16531,7 +16576,42 @@ static LRESULT CALLBACK wndprocdialog(HWND hwnd, UINT imsg, WPARAM wparam,
                     /* place foreground colors */
                     win2rgb(fns.rgbColors, &ip->fntfr, &ip->fntfg, &ip->fntfb);
                     strncpy(ip->fntstr, lf->lfFaceName, 32); /* copy font string back */
-                    ip->fntsiz = abs(lf->lfHeight); /* set size */
+                    /* The dialog gives the size chosen in points, and its
+                       height in the screen's logical dots; the size fontsiz
+                       takes is a cell height. The points chosen are taken to
+                       an em on the port's metric, as setpoints takes them,
+                       the chosen face is measured at that em, and its cell
+                       height is the size: applied with fontsiz it gives the
+                       point size chosen, and points() reads it back. Returned
+                       as the dialog's height, the em stood as a cell, and the
+                       number was neither the points chosen nor their cell. */
+                    {
+
+                        HFONT      pf; /* the font chosen, at the port's em */
+                        HDC        dc; /* the screen */
+                        HGDIOBJ    of; /* previous font in DC */
+                        TEXTMETRIC tm; /* text metric structure */
+                        int        em; /* the em square */
+
+                        em = abs(lf->lfHeight); /* the dialog's, failing better */
+                        if (ip->fntdpm > 0)
+                            em = (int)((float)fns.iPointSize/10.0f*(float)ip->fntdpm/2835.0f+0.5f);
+                        if (em < 1) em = 1;
+                        lf->lfHeight = -em;
+                        pf = CreateFontIndirect(lf);
+                        dc = GetDC(NULL);
+                        ip->fntsiz = em; /* failing the measure, the em itself */
+                        if (pf && dc) {
+
+                            of = SelectObject(dc, pf);
+                            if (GetTextMetrics(dc, &tm)) ip->fntsiz = tm.tmHeight;
+                            SelectObject(dc, of);
+
+                        }
+                        if (pf) DeleteObject(pf);
+                        if (dc) ReleaseDC(NULL, dc);
+
+                    }
 
                 }
                 /* signal complete */
