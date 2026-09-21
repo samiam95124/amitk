@@ -1,0 +1,769 @@
+Widget test vs. 0.1                                                 frame 0
+
+Hit return in any window to continue for each test
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+Character buttons test                                              frame 1
+
+Hit the buttons, or return to continue
+
+
+
+         [ Hello, there ]
+
+
+         [ Bark! ]
+
+
+         [ Sniff ]
+
+
+
+
+
+
+
+
+
+
+
+Character buttons test                                              frame 1
+
+Hit the buttons, or return to continue
+
+Now the middle button is disabled, and should not be able to
+be pressed.
+Hit the b[ Hello, there ]n to continue
+
+
+         [ Bark! ]
+
+
+         [ Sniff ]
+
+
+
+
+
+
+
+
+
+
+
+Character checkbox test                                             frame 2
+
+Hit the checkbox, or return to continue
+
+
+
+         [ ] Pick me
+
+
+         [ ] Or me
+
+
+         [ ] No, me
+
+
+
+
+
+
+
+
+
+
+
+Character checkbox test                                             frame 2
+
+Hit the checkbox, or return to continue
+
+Now the middle checkbox is disabled, and should not be able to
+be pressed.
+Hit the c[ ] Pick me return to continue
+
+
+         [ ] Or me
+
+
+         [ ] No, me
+
+
+
+
+
+
+
+
+
+
+
+Character radio button test                                         frame 3
+
+Hit the radio button, or return to continue
+
+
+
+         ( ) Station 1
+
+
+         ( ) Station 2
+
+
+         ( ) Station 3
+
+
+
+
+
+
+
+
+
+
+
+Character radio button test                                         frame 3
+
+Hit the radio button, or return to continue
+
+Now the middle radio button is disabled, and should not be able
+to be pressed.
+Hit the r( ) Station 1or return to continue
+
+
+         ( ) Station 2
+
+
+         ( ) Station 3
+
+
+
+
+
+
+
+
+
+
+
+Character group box test                                            frame 4
+
+This is a group box with a null client area
+Hit return to continue
+
+
+
+
+
+         +- Hello there +
+         |              |
+         +--------------+
+
+
+
+
+
+
+
+
+
+
+
+
+Character group box test                                            frame 4
+
+This is a group box with a null client area
+Hit return to continue
+This is a group box with a 20,10 client area
+Hit return to continue
+
+
+
+         +- Hello there -------+
+         |                     |
+         |                     |
+         |                     |
+         |                     |
+         |                     |
+         |                     |
+         |                     |
+         |                     |
+         |                     |
+         |                     |
+         |                     |
+         +---------------------+
+
+
+Character group box test                                            frame 4
+
+This is a group box with a null client area
+Hit return to continue
+This is a group box with a 20,10 client area
+Hit return to continue
+This is a group box with a 20,10 layered button
+Hit return to continue
+
+         +- Hello there -------+
+         |+------------------+ |
+         ||                  | |
+         ||                  | |
+         ||                  | |
+         ||   Bark, bark!    | |
+         ||                  | |
+         ||                  | |
+         ||                  | |
+         ||                  | |
+         |+------------------+ |
+         |                     |
+         +---------------------+
+
+
+Character background test                                           frame 5
+
+Hit return to continue
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+Character background test                                           frame 5
+
+Hit return to continue
+This is a background with a layered button
+Hit return to continue
+
+
+
+
+
+          +---------------------------+
+          |                           |
+          |                           |
+          |                           |
+          |        Bark, bark!        |
+          |                           |
+          |                           |
+          |                           |
+          +---------------------------+
+
+
+
+
+
+Character scroll bar test                                           frame 6
+
+
+
+
+
+
+
+
+         ^    <##.................>
+         #
+         .
+         .
+         .
+         .
+         .
+         .
+         .
+         .
+         v
+
+
+
+
+Character scroll bar sizing test                                    frame 7
+
+Now should be four scrollbars, decending in size to the right.
+All of the scrollbars can be manipulated.
+
+
+
+
+
+         ^    ^    ^    ^
+         #    #    #    #
+         #    #    #    .
+         #    #    .    .
+         #    #    .    .
+         #    .    .    .
+         #    .    .    .
+         #    .    .    .
+         .    .    .    .
+         .    .    .    .
+         v    v    v    v
+
+
+
+
+Character scroll bar minimums test                                  frame 8
+
+
+
+
+
+
+
+
+         ^    <#.>
+         #
+         .
+         v
+
+
+
+
+
+
+
+
+
+
+
+Character scroll bar fat and skinny bars test                       frame 9
+
+
+
+
+
+
+
+
+         ^ ^                 <##.................>
+         # #
+         . .                 <##.................>
+         . .
+         . .
+         . .
+         . .
+         . .
+         . .
+         . .
+         v v
+
+
+
+
+Character number select box test                                   frame 10
+
+
+
+
+
+
+
+
+         - 1+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+Character edit box test                                            frame 11
+
+
+
+
+
+
+
+
+         Hi there, george
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+Character progress bar test                                        frame 12
+
+
+
+
+
+
+
+
+         ..........
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+Character list box test                                            frame 13
+
+Note that it is normal for this box to not fill to exact
+character cells.
+
+
+
+
+
+         Green
+         Red
+         Blue
+
+
+
+
+
+
+
+
+
+
+
+
+Character dropdown box test                                        frame 14
+
+Note that it is normal for this box to not fill to exact
+character cells.
+
+
+
+
+
+         bird  v
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+Character dropdown edit box test                                   frame 15
+
+Note that it is normal for this box to not fill to exact
+character cells.
+
+
+
+
+
+         Tortillas  v
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+Character slider test                                              frame 16
+Bottom and right sliders should not have tick marks
+
+
+
+
+
+
+
+         #-+-+-+-+--+-+-+-+-+          #         #
+                                       +         |
+                                       +         |
+                                       +         |
+                                       +         |
+                                       +         |
+                                       +         |
+                                       +         |
+                                       +         |
+                                       +         |
+         #-------------------
+
+
+
+
+Character tab bar test                                             frame 17
+
+              Left|Center|Right
+
+
+
+    T                                     T
+    o                                     o
+    p                                     p
+    -                                     -
+    C                                     C
+    e                                     e
+    n                                     n
+    t                                     t
+    e                                     e
+    r                                     r
+    -                                     -
+    B                                     B
+    o                                     o
+    t                                     t
+
+
+              Left|Center|Right
+
+Character overlaid tab bar test                                    frame 18
+
+
+
+                  Left|Center|Right
+                 T                                 T
+                 o                                 o
+                 p                                 p
+                 -                                 -
+                 C                                 C
+                 e                                 e
+                 n                                 n
+                 t                                 t
+                 e                                 e
+                 r                                 r
+                 -                                 -
+                 B                                 B
+                 o                                 o
+                 t                                 t
+
+                  Left|Center|Right
+
+
+
+Alert test                                                         frame 19
+
+There should be an pa_alert dialog
+Both the dialog and this window should be fully reactive
+
+Alert dialog should have completed now
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+Color query test                                                   frame 20
+
+There should be an color query dialog
+Both the dialog and this window should be fully reactive
+The color pa_white should be the default selection
+
+Dialog should have completed now
+Colors are: red: 2147483647 green: 2147483647 blue: 2147483647
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+Open file query test                                               frame 21
+
+There should be an open file query dialog
+Both the dialog and this window should be fully reactive
+The dialog should have "myfile.txt" as the default filename
+
+Dialog should have completed now
+Filename is: myfile.txt
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+Save file query test                                               frame 22
+
+There should be an save file query dialog
+Both the dialog and this window should be fully reactive
+The dialog should have "myfile.txt" as the default filename
+
+Dialog should have completed now
+Filename is: myfile.txt
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+Find query test                                                    frame 23
+
+There should be a find query dialog
+Both the dialog and this window should be fully reactive
+The dialog should have "mystuff" as the default search string
+
+Dialog should have completed now
+Search string is: "mystuff"
+Case sensitive is off
+Search down
+Use literal expression
+
+
+
+
+
+
+
+
+
+
+
+
+
+Find/replace query test                                            frame 24
+
+There should be a find/replace query dialog
+Both the dialog and this window should be fully reactive
+The dialog should have "bark" as the default search string
+and should have "sniff" as the default replacement string
+
+Dialog should have completed now
+Search string is: "bark"
+Replace string is: "sniff"
+Case sensitive is off
+Search/replace down
+Regular expressions are off
+Mode is find/replace
+Mode is find/replace first in file
+Mode is find/replace first on line(s)
+
+
+
+
+
+
+
+
+Font query test                                                    frame 25
+
+There should be a font query dialog
+Both the dialog and this window should be fully reactive
+
+Dialog should have completed now
+Font code: 1
+Font size: 1
+Foreground color: Red: 0 Green: 0 Blue: 0
+Background color: Red: 2147483647 Green: 2147483647 Blue: 2147483647
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
