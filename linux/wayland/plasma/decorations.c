@@ -821,9 +821,15 @@ static int desksel(void)
 
 {
 
+#ifdef AMI_DESKTOP_FORCE
+    /* built as the program's only decorations: register whatever the
+       running desktop is */
+    return (1);
+#else
     const char* d = getenv("XDG_CURRENT_DESKTOP");
 
     return (d && strstr(d, "KDE"));
+#endif
 
 }
 

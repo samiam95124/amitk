@@ -8934,14 +8934,19 @@ Widgets startup
 
 /* This package serves the KDE desktops; the Gnome package serves the
    rest. The two share every symbol privately, so both ride in the same
-   binary and the session decides */
+   binary and the session decides. Built with AMI_DESKTOP_FORCE (the build
+   chose this package alone) it serves every desktop. */
 static int desksel(void)
 
 {
 
+#ifdef AMI_DESKTOP_FORCE
+    return (1); /* the only package linked: take every desktop */
+#else
     const char* d = getenv("XDG_CURRENT_DESKTOP");
 
     return (d && strstr(d, "KDE"));
+#endif
 
 }
 
