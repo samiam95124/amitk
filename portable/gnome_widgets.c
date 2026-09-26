@@ -8729,14 +8729,20 @@ Widgets startup
 
 /* The KDE desktops are served by the Plasma package when it is linked
    in; this package serves the rest. The two share every symbol
-   privately, so both ride in the same binary and the session decides */
+   privately, so both ride in the same binary and the session decides.
+   Built with AMI_DESKTOP_FORCE (the build chose this package alone) it
+   serves every desktop. */
 static int desksel(void)
 
 {
 
+#ifdef AMI_DESKTOP_FORCE
+    return (0); /* never yield to the Plasma package */
+#else
     const char* d = getenv("XDG_CURRENT_DESKTOP");
 
     return (d && strstr(d, "KDE"));
+#endif
 
 }
 
