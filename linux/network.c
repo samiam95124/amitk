@@ -499,6 +499,45 @@ static void sslerror(SSL* ssl, int r)
 
 /*******************************************************************************
 
+Get peer certificate
+
+Returns the certificate of the peer of an SSL connection, or NULL if it has
+none. The caller owns a reference to it, and frees it with X509_free().
+
+OpenSSL 3 renamed SSL_get_peer_certificate() to SSL_get1_peer_certificate(),
+keeping the old name only as a macro, so its library has no symbol by the old
+name, and OpenSSL 1.1 has none by the new one. Programs link OpenSSL statically
+from the host they are built on, which can have either version whatever this
+module was compiled against: a hosts tree leaf built on Ubuntu 20.04 (1.1) is
+also used on 22.04 (3.0). So both are referenced weakly, and the one the linked
+library supplies is called. Both live in the same library member as SSL_new(),
+which every link pulls in, so a static link resolves whichever exists.
+
+*******************************************************************************/
+
+#if defined(__linux__) && !defined(USE_LIBRESSL)
+extern X509* ssl_get1_peer_certificate(const SSL* s)
+    __asm__("SSL_get1_peer_certificate") __attribute__((weak));
+extern X509* ssl_get_peer_certificate(const SSL* s)
+    __asm__("SSL_get_peer_certificate") __attribute__((weak));
+#endif
+
+static X509* getpeercert(SSL* ssl)
+
+{
+
+#if defined(__linux__) && !defined(USE_LIBRESSL)
+    if (ssl_get1_peer_certificate) return ssl_get1_peer_certificate(ssl);
+    if (ssl_get_peer_certificate) return ssl_get_peer_certificate(ssl);
+    return NULL;
+#else
+    return SSL_get_peer_certificate(ssl);
+#endif
+
+}
+
+/*******************************************************************************
+
 Get file entry
 
 Gets a file entry, either from the free stack or by allocation. Clears the
@@ -1112,7 +1151,7 @@ static FILE* opennet(
 
         /* Get the remote certificate into the X509 structure.
            Right now we don't do anything with this (don't verify it) */
-        cert = SSL_get_peer_certificate(ssl);
+        cert = getpeercert(ssl);
         if (!cert) error(esslcer);
 
         /* Update to file entry. The semantics of socket() and dup() dictate
@@ -2232,7 +2271,7 @@ ami_long ami_certmsg(ami_long fn, ami_long which, string buff, ami_long len)
     if (!opnfil[fn]->sudp && !opnfil[fn]->sec) error(enotsec);
 
     /* get the certificate */
-    peer = SSL_get_peer_certificate(opnfil[fn]->ssl);
+    peer = getpeercert(opnfil[fn]->ssl);
     if (!peer) error(enocert);
     cert = peer;
     certstk = NULL;
@@ -2673,7 +2712,7 @@ void ami_certlistmsg(ami_long fn, ami_long which, ami_certptr* list)
     if (!opnfil[fn]->sudp && !opnfil[fn]->sec) error(enotsec);
 
     /* get the certificate */
-    peer = SSL_get_peer_certificate(opnfil[fn]->ssl);
+    peer = getpeercert(opnfil[fn]->ssl);
     if (!peer) error(enocert);
     cert = peer;
     certstk = NULL;
