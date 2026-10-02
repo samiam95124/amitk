@@ -6236,6 +6236,13 @@ static void ami_init_terminal(int argc, char* argv[])
     signal(SIGTERM, sigfatal);
     signal(SIGHUP,  sigfatal);
     signal(SIGQUIT, sigfatal);
+    /* and the faults: a crash in the alternate screen with the mouse on
+       leaves no message to read and a shell that types mouse movement */
+    signal(SIGSEGV, sigfatal);
+    signal(SIGBUS,  sigfatal);
+    signal(SIGILL,  sigfatal);
+    signal(SIGFPE,  sigfatal);
+    signal(SIGABRT, sigfatal);
 
     /* enable windows change signal */
     winchsev = system_event_addsesig(SIGWINCH);
@@ -6320,6 +6327,14 @@ static void ami_deinit_terminal()
         strcpy(trmnam, fini); /* place first part */
         /* place program name */
         strcat(trmnam, program_invocation_short_name);
+#else
+        /* Mac OS X and BSD have no program_invocation_short_name; the name
+           comes from getprogname(). Left unset, trmnam is a wild pointer and
+           the title write below crashes the deinit before the terminal is
+           put back. */
+        trmnam = malloc(strlen(fini)+strlen(getprogname())+1);
+        strcpy(trmnam, fini); /* place first part */
+        strcat(trmnam, getprogname()); /* place program name */
 #endif
         if (xtermtitle) {
 
