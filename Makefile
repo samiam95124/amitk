@@ -627,7 +627,8 @@ else ifeq ($(OSTYPE),Darwin)
              -framework CoreGraphics \
              -framework ImageIO \
              -framework CoreMIDI \
-             -framework AudioToolbox
+             -framework AudioToolbox \
+             -framework IOKit
     GLIBS += $(SSL_LIBS) \
              -framework Cocoa \
              -framework CoreGraphics \
@@ -959,6 +960,9 @@ macosx/graphics_cocoa.o: macosx/graphics_cocoa.m macosx/pa_cocoa.h Makefile
 macosx/graphics.o: macosx/graphics.c macosx/pa_cocoa.h include/graphics.h Makefile
 	$(CC) $(CFLAGS) -c macosx/graphics.c -o macosx/graphics.o
 	
+macosx/joystick_hid.o: macosx/joystick_hid.c macosx/joystick_hid.h Makefile
+	$(CC) $(CFLAGS) -c macosx/joystick_hid.c -o macosx/joystick_hid.o
+
 macosx/system_event.o: macosx/system_event.c linux/system_event.h Makefile
 	$(CC) $(CFLAGS) -fPIC -c macosx/system_event.c -o macosx/system_event.o
 
@@ -1169,10 +1173,10 @@ lib/libami_plain.a: macosx/services.o macosx/sound.o macosx/network.o \
 	
 lib/libami_term.a: macosx/services.o macosx/sound.o macosx/network.o \
     macosx/system_event.o macosx/terminal.o utils/config.o utils/option.o \
-    macosx/stdio.o portable/txtterminal.o
+    macosx/stdio.o portable/txtterminal.o macosx/joystick_hid.o
 	ar rcs lib/libami_term.a macosx/services.o macosx/sound.o \
 	    macosx/network.o macosx/system_event.o macosx/terminal.o \
-	    utils/config.o utils/option.o macosx/stdio.o portable/txtterminal.o
+	    utils/config.o utils/option.o macosx/stdio.o portable/txtterminal.o macosx/joystick_hid.o
 
 # The termc variant is the terminal library with the character mode window
 # manager (windowc) always included. windowc is constructor-registered and
@@ -1184,10 +1188,10 @@ macosx/termc.o: macosx/terminal.o portable/windowc.o
 
 lib/libami_termc.a: macosx/services.o macosx/sound.o macosx/network.o \
     macosx/system_event.o macosx/termc.o utils/config.o utils/option.o \
-    macosx/stdio.o portable/txtterminal.o
+    macosx/stdio.o portable/txtterminal.o macosx/joystick_hid.o
 	ar rcs lib/libami_termc.a macosx/services.o macosx/sound.o \
 	    macosx/network.o macosx/system_event.o macosx/termc.o \
-	    utils/config.o utils/option.o macosx/stdio.o portable/txtterminal.o
+	    utils/config.o utils/option.o macosx/stdio.o portable/txtterminal.o macosx/joystick_hid.o
 
 lib/libami_graph.a: macosx/services.o macosx/sound.o macosx/network.o \
     macosx/system_event.o macosx/graphics.o macosx/graphics_cocoa.o \
@@ -1638,9 +1642,20 @@ endif
 #
 # Test graph model compliant output
 #
+# Optional hooks the tests weak-reference and NULL-check before use: wg_hold
+# (windowg) and grx_glassdiff (the framebuffer backend) in window_test and
+# management_test; pd_evtpost (the Wayland input rig) and x11_seat (the X
+# rig, through XTest) in auto_event, which the picture tests link. GNU ld
+# resolves an undefined weak reference to NULL, so the guards skip a hook the
+# platform lacks. Apple ld64 refuses to leave a static-link symbol undefined
+# unless told which ones may be absent: -U marks just these, so they resolve
+# to NULL at load and the guards skip them, matching Linux. Do not add stubs
+# for them: a stub would make the guards believe the feature exists.
+WEAKOPT = -Wl,-U,_wg_hold -Wl,-U,_grx_glassdiff -Wl,-U,_pd_evtpost -Wl,-U,_x11_seat
+
 ifeq ($(OSTYPE),Darwin)
 graphics_test: $(GLIBSD) tests/graphics_test.c tests/auto_event.o $(GSCREEN_CAPTURE_OBJ)
-	$(CC) $(CFLAGS) tests/graphics_test.c tests/auto_event.o $(GSCREEN_CAPTURE_OBJ) $(GLIBS) -o bin/graphics_test
+	$(CC) $(CFLAGS) tests/graphics_test.c tests/auto_event.o $(GSCREEN_CAPTURE_OBJ) $(GLIBS) $(WEAKOPT) -o bin/graphics_test
 else
 graphics_test: $(GLIBSD) tests/graphics_test.c tests/auto_event.o $(GSCREEN_CAPTURE_OBJ)
 	$(CC) $(CFLAGS) tests/graphics_test.c tests/auto_event.o $(GSCREEN_CAPTURE_OBJ) $(GLIBS) $(XLIBS) -o bin/graphics_test
@@ -1719,15 +1734,6 @@ endif
 #
 # Test windows management model compliant output
 #
-# window_test weak-references two optional backend hooks (wg_hold from
-# windowg, grx_glassdiff from the framebuffer backend) and guards every call
-# with a NULL check. GNU ld resolves an undefined weak reference to NULL, so
-# the guards skip a hook the platform lacks. Apple ld64 refuses to leave a
-# static-link symbol undefined unless told which ones may be absent: -U marks
-# just these two, so they resolve to NULL at load and the guards skip them,
-# matching Linux. Do not add stubs for them: a stub would make the guards
-# believe the feature exists.
-WEAKOPT = -Wl,-U,_wg_hold -Wl,-U,_grx_glassdiff
 ifeq ($(OSTYPE),Darwin)
 window_test: $(GLIBSD) tests/window_test.c tests/auto_event.o $(GSCREEN_CAPTURE_OBJ)
 	$(CC) $(CFLAGS) tests/window_test.c tests/auto_event.o $(GSCREEN_CAPTURE_OBJ) $(GLIBS) $(WEAKOPT) -o bin/window_test
@@ -1808,7 +1814,7 @@ endif
 ifeq ($(OSTYPE),Darwin)
 widget_test: $(GLIBSD) tests/widget_test.c tests/auto_event.o $(GSCREEN_CAPTURE_OBJ)
 	$(CC) $(CFLAGS) tests/widget_test.c tests/auto_event.o $(GSCREEN_CAPTURE_OBJ) $(GLIBS) \
-	    -o bin/widget_test
+	    $(WEAKOPT) -o bin/widget_test
 else ifeq ($(OSTYPE),Windows_NT)
 widget_test: $(GLIBSD) tests/widget_test.c tests/auto_event.o $(GSCREEN_CAPTURE_OBJ)
 	$(CC) $(CFLAGS) tests/widget_test.c tests/auto_event.o $(GSCREEN_CAPTURE_OBJ) $(GLIBS) \

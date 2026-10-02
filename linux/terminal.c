@@ -91,6 +91,20 @@
 #if !defined(__MACH__) && !defined(__FreeBSD__) /* Mac OS X or BSD */
 #include <linux/joystick.h>
 #endif
+#ifdef __MACH__
+/* Mac OS X: joysticks are IOKit HID devices; joystick_hid presents them as the
+   Linux driver would, a pipe of js_event records per stick */
+#include "../macosx/joystick_hid.h"
+struct js_event {
+    uint32_t time;   /* event timestamp in milliseconds */
+    int16_t  value;  /* value */
+    uint8_t  type;   /* event type */
+    uint8_t  number; /* axis/button number */
+};
+#define JS_EVENT_BUTTON 0x01
+#define JS_EVENT_AXIS   0x02
+#define JS_EVENT_INIT   0x80
+#endif
 #include <fcntl.h>
 
 /* Petit-Ami definitions */
@@ -2312,7 +2326,7 @@ static void joyevt(ami_evtrec* er, joyptr jp)
 
 {
 
-#if !defined(__MACH__) && !defined(__FreeBSD__) /* Mac OS X or BSD */
+#if !defined(__FreeBSD__) /* Linux, and Mac OS X through its HID pipe */
     struct js_event ev;
     ssize_t rl;
 
@@ -6140,7 +6154,11 @@ static void ami_init_terminal(int argc, char* argv[])
         do { /* find joysticks */
 
             joyfil[13] = numjoy+'0'; /* set number of joystick to find */
+#ifdef __MACH__
+            joyfid = pa_hid_joy_open(numjoy); /* the IOKit stick's pipe */
+#else
             joyfid = open(joyfil, O_RDONLY);
+#endif
             if (joyfid >= 0) { /* found */
 
                 /* get a joystick table entry */
@@ -6162,6 +6180,9 @@ static void ami_init_terminal(int argc, char* argv[])
                 /* get number of buttons */
                 ioctl(joyfid, JSIOCGBUTTONS, &jc);
                 joytab[numjoy]->button = jc;
+#elif defined(__MACH__)
+                joytab[numjoy]->axis = pa_hid_joy_axes(numjoy);
+                joytab[numjoy]->button = pa_hid_joy_buttons(numjoy);
 #endif
                 numjoy++; /* count joysticks */
 
