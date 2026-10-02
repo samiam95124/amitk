@@ -1638,9 +1638,20 @@ endif
 #
 # Test graph model compliant output
 #
+# Optional hooks the tests weak-reference and NULL-check before use: wg_hold
+# (windowg) and grx_glassdiff (the framebuffer backend) in window_test and
+# management_test; pd_evtpost (the Wayland input rig) and x11_seat (the X
+# rig, through XTest) in auto_event, which the picture tests link. GNU ld
+# resolves an undefined weak reference to NULL, so the guards skip a hook the
+# platform lacks. Apple ld64 refuses to leave a static-link symbol undefined
+# unless told which ones may be absent: -U marks just these, so they resolve
+# to NULL at load and the guards skip them, matching Linux. Do not add stubs
+# for them: a stub would make the guards believe the feature exists.
+WEAKOPT = -Wl,-U,_wg_hold -Wl,-U,_grx_glassdiff -Wl,-U,_pd_evtpost -Wl,-U,_x11_seat
+
 ifeq ($(OSTYPE),Darwin)
 graphics_test: $(GLIBSD) tests/graphics_test.c tests/auto_event.o $(GSCREEN_CAPTURE_OBJ)
-	$(CC) $(CFLAGS) tests/graphics_test.c tests/auto_event.o $(GSCREEN_CAPTURE_OBJ) $(GLIBS) -o bin/graphics_test
+	$(CC) $(CFLAGS) tests/graphics_test.c tests/auto_event.o $(GSCREEN_CAPTURE_OBJ) $(GLIBS) $(WEAKOPT) -o bin/graphics_test
 else
 graphics_test: $(GLIBSD) tests/graphics_test.c tests/auto_event.o $(GSCREEN_CAPTURE_OBJ)
 	$(CC) $(CFLAGS) tests/graphics_test.c tests/auto_event.o $(GSCREEN_CAPTURE_OBJ) $(GLIBS) $(XLIBS) -o bin/graphics_test
@@ -1719,15 +1730,6 @@ endif
 #
 # Test windows management model compliant output
 #
-# window_test weak-references two optional backend hooks (wg_hold from
-# windowg, grx_glassdiff from the framebuffer backend) and guards every call
-# with a NULL check. GNU ld resolves an undefined weak reference to NULL, so
-# the guards skip a hook the platform lacks. Apple ld64 refuses to leave a
-# static-link symbol undefined unless told which ones may be absent: -U marks
-# just these two, so they resolve to NULL at load and the guards skip them,
-# matching Linux. Do not add stubs for them: a stub would make the guards
-# believe the feature exists.
-WEAKOPT = -Wl,-U,_wg_hold -Wl,-U,_grx_glassdiff
 ifeq ($(OSTYPE),Darwin)
 window_test: $(GLIBSD) tests/window_test.c tests/auto_event.o $(GSCREEN_CAPTURE_OBJ)
 	$(CC) $(CFLAGS) tests/window_test.c tests/auto_event.o $(GSCREEN_CAPTURE_OBJ) $(GLIBS) $(WEAKOPT) -o bin/window_test
@@ -1808,7 +1810,7 @@ endif
 ifeq ($(OSTYPE),Darwin)
 widget_test: $(GLIBSD) tests/widget_test.c tests/auto_event.o $(GSCREEN_CAPTURE_OBJ)
 	$(CC) $(CFLAGS) tests/widget_test.c tests/auto_event.o $(GSCREEN_CAPTURE_OBJ) $(GLIBS) \
-	    -o bin/widget_test
+	    $(WEAKOPT) -o bin/widget_test
 else ifeq ($(OSTYPE),Windows_NT)
 widget_test: $(GLIBSD) tests/widget_test.c tests/auto_event.o $(GSCREEN_CAPTURE_OBJ)
 	$(CC) $(CFLAGS) tests/widget_test.c tests/auto_event.o $(GSCREEN_CAPTURE_OBJ) $(GLIBS) \
