@@ -5798,6 +5798,43 @@ before the client program runs.
 
 *******************************************************************************/
 
+/* The modes a running program leaves the terminal in: mouse tracking and its
+   SGR encoding, focus reporting, the cursor, the character attributes and the
+   alternate screen. They must all come off before the program goes, or the
+   shell it returns to turns mouse movement into characters on its command
+   line. */
+#define TRMRESTORE "\33[?1006l\33[?1003l\33[?1004l\33[0m\33[?25h\33[?1049l"
+
+/* Put the terminal back. Written with write(2) and tcsetattr, which are safe
+   in a signal handler, where the sequence assembler and stdio are not. */
+static void restore_trm(void)
+
+{
+
+    ssize_t rc;
+
+    rc = write(OUTFIL, TRMRESTORE, sizeof(TRMRESTORE)-1);
+    (void)rc; /* going anyway: there is nowhere to report a failed write */
+    tcsetattr(0, TCSAFLUSH, &trmsav);
+
+}
+
+/* A signal that ends the program: the destructor will not run, so put the
+   terminal back here, then die of the signal as we would have, so the exit
+   status and any core are the ones the caller expects. The keyboard raises
+   none of these while the terminal is raw (ISIG is off, so interrupt and quit
+   arrive as characters); these come from a kill, a closed terminal window, or
+   a shell ending its session. */
+static void sigfatal(int sn)
+
+{
+
+    restore_trm();
+    signal(sn, SIG_DFL);
+    raise(sn);
+
+}
+
 static void ami_init_terminal (int argc, char* argv[]) __attribute__((constructor (106)));
 static void ami_init_terminal(int argc, char* argv[])
 
@@ -6193,6 +6230,13 @@ static void ami_init_terminal(int argc, char* argv[])
     /* signal we want xterm focus in/out events */
     putstrc("\33[?1004h");
 
+    /* the signals that would end the program without running the destructor:
+       put the terminal back before they do */
+    signal(SIGINT,  sigfatal);
+    signal(SIGTERM, sigfatal);
+    signal(SIGHUP,  sigfatal);
+    signal(SIGQUIT, sigfatal);
+
     /* enable windows change signal */
     winchsev = system_event_addsesig(SIGWINCH);
 
@@ -6321,8 +6365,12 @@ static void ami_deinit_terminal()
     /* turn off xterm focus in/out events */
     putstrc("\33[?1004l");
 
-    /* turn off mouse tracking */
+    /* turn off mouse tracking, and the SGR encoding that was turned on with
+       it: both were set, both come off */
     putstrc("\33[?1003l");
+#ifdef MOUSESGR
+    putstrc("\33[?1006l");
+#endif
 
     /* swap old vectors for existing vectors */
     ovr_read(ofpread, &cppread);
