@@ -363,34 +363,27 @@ returned.
 *******************************************************************************/
 
 int system_event_addsetim(int sid, ami_long t, ami_long r)
-
 {
-
-    pid_t pid;
-
+    struct kevent ke; /* the timer's registration */
     pthread_mutex_lock(&evtlock); /* take the event lock */
     if (!sid) { /* no previous system id */
-
         sid = getsys(); /* get a new system event id */
         systab[sid-1]->typ = se_tim; /* set type */
-        systab[sid-1]->ei = nchg; /* link to event entry */
+        systab[sid-1]->ei = -1; /* timers are not on the change list */
         systab[sid-1]->rep = !!r; /* save repeat flag */
-        nchg++; /* count events registered */
-
     }
-
-    /* construct timer event */
-    EV_SET(&chgevt[systab[sid-1]->ei], sid, EVFILT_TIMER, 
-           EV_ADD | EV_ENABLE | EV_ONESHOT*!!r,
+    /* A timer is registered here and now, once, and not through the change
+       list: the wait loop re-applies that list on every call, and re-adding
+       a kqueue timer re-arms it, so a timer longer than the interval between
+       wake-ups could never expire while anything periodic ran. A timer that
+       does not repeat is one-shot to the kqueue, which drops it as it fires;
+       one that does is re-armed by the kqueue itself. A timer already set
+       is re-armed with the new period. */
+    EV_SET(&ke, sid, EVFILT_TIMER, EV_ADD | EV_ENABLE | (r? 0: EV_ONESHOT),
            NOTE_USECONDS, (int64_t)t*100, 0);
+    kevent(kerque, &ke, 1, NULL, 0, NULL);
     pthread_mutex_unlock(&evtlock); /* release the event lock */
-
-    /* send reset to this process */
-    pid = getpid();
-    kill(pid, SIGUSR1);
-
     return (sid);
-
 }
 
 /** *****************************************************************************
@@ -404,24 +397,16 @@ in reserve.
 *******************************************************************************/
 
 void system_event_deasetim(int sid)
-
 {
-
+    struct kevent ke; /* the timer's deletion */
     pthread_mutex_lock(&evtlock); /* take the event lock */
-    if (sid <= 0 || !systab[sid-1]) {
-
-        pthread_mutex_unlock(&evtlock); /* release the event lock */
-        fprintf(stderr, "*** System event: Invalid system event id\n");
-        fflush(stderr);
-        exit(1);
-
+    if (sid > 0 && systab[sid-1] && systab[sid-1]->typ == se_tim) {
+        /* gone from the kqueue now; a one-shot that has fired is gone
+           already, and the kqueue says so, which is no error here */
+        EV_SET(&ke, sid, EVFILT_TIMER, EV_DELETE, 0, 0, 0);
+        kevent(kerque, &ke, 1, NULL, 0, NULL);
     }
-
-    /* construct timer event */
-    EV_SET(&chgevt[systab[sid-1]->ei], sid, EVFILT_TIMER, EV_ADD | EV_DISABLE,
-           0, 0, 0);
     pthread_mutex_unlock(&evtlock); /* release the event lock */
-
 }
 
 /** *****************************************************************************
@@ -501,11 +486,6 @@ void system_event_getsevt(sevptr ev)
 
             } else if (events[ei].filter == EVFILT_TIMER) {
 
-                if (!systab[events[ei].ident-1]->rep)
-                    /* the EV_ONESHOT flag appears to do nothing on the Mac, so we
-                       disable it instead */
-                    EV_SET(&chgevt[events[ei].ident-1], events[ei].ident,
-                           EVFILT_TIMER, EV_ADD | EV_DISABLE, 0, 0, 0);
                 /* ident carries the sid */
                 ev->typ = systab[events[ei].ident-1]->typ; /* set key event occurred */
                 ev->lse = events[ei].ident; /* set system logical event no */
