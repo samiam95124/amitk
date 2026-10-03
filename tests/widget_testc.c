@@ -44,6 +44,18 @@ static enum { /* debug levels */
 
 } dbglvl = dlinfo;
 
+
+/* A full scale color as 0..255: the number printed is then the same on
+   every platform, where the full scale value is LONG_MAX, the width of
+   long, 32 bits on Windows and 64 elsewhere. The conversion is the one the
+   character window manager makes for its own colors. */
+static int clr255(ami_long v)
+{
+    if (v <= 0) return (0);
+    if (v >= LONG_MAX-LONG_MAX/255) return (255);
+    return ((int)(v/(LONG_MAX/255)));
+}
+
 #define dbg_printf(lvl, fmt, ...) \
         do { if (lvl >= dbglvl) fprintf(stderr, "%s:%s():%d: " fmt, __FILE__, \
                                 __func__, __LINE__, ##__VA_ARGS__); \
@@ -1165,7 +1177,7 @@ int main(int argc, char* argv[])
     ami_querycolor(&r, &g, &b);
     printf("\n");
     printf("Dialog should have completed now\n");
-    printf("Colors are: red: %lld green: %lld blue: %lld\n", AMI_LONG_CAST(r), AMI_LONG_CAST(g), AMI_LONG_CAST(b));
+    printf("Colors are: red: %d green: %d blue: %d\n", clr255(r), clr255(g), clr255(b));
     waitnext();
 
     /* ************************* Open file query test ************************ */
@@ -1290,8 +1302,8 @@ int main(int argc, char* argv[])
     printf("Dialog should have completed now\n");
     printf("Font code: %lld\n", AMI_LONG_CAST(fc));
     printf("Font size: %lld\n", AMI_LONG_CAST(fs));
-    printf("Foreground color: Red: %lld Green: %lld Blue: %lld\n", AMI_LONG_CAST(fr), AMI_LONG_CAST(fg), AMI_LONG_CAST(fb));
-    printf("Background color: Red: %lld Green: %lld Blue: %lld\n", AMI_LONG_CAST(br), AMI_LONG_CAST(bg), AMI_LONG_CAST(bb));
+    printf("Foreground color: Red: %d Green: %d Blue: %d\n", clr255(fr), clr255(fg), clr255(fb));
+    printf("Background color: Red: %d Green: %d Blue: %d\n", clr255(br), clr255(bg), clr255(bb));
     if (BIT(ami_qfteblink)&fe) printf("Blink\n");
     if (BIT(ami_qftereverse)&fe) printf("Reverse\n");
     if (BIT(ami_qfteunderline)&fe) printf("Underline\n");
