@@ -2557,31 +2557,29 @@ static void openwin_ivf(FILE** infile, FILE** outfile, FILE* parent, ami_long wi
     if (!inited) pa_graphics_init();
 
     /* The input side is the caller's: a window takes the input stream it is
-     * given, typically stdin, the way the other platforms do (Linux and
-     * Windows find the given stream among their open files and open a null
-     * one only when there is none). Opening a null input for every window
-     * leaked its descriptor, as nothing closes the input of a closed window,
-     * and a program that opens and closes windows in a loop, as the window
-     * test does a hundred times over, ran out of descriptors below MAXFIL
-     * after thirty or so and got no window.
+     * given, typically stdin, and a window closed later leaves it be. (It
+     * once opened a /dev/null input of its own for every window, and as
+     * nothing closes the input of a closed window, each window left a
+     * descriptor behind; a program that opens and closes windows in a loop,
+     * as the window test does a hundred times over, ran out of descriptors
+     * below MAXFIL after thirty or so and got no window.) No stream, or a
+     * stream that is not open, or the output side of a window, is an error.
      *
      * The output side is a /dev/null stream of its own: its descriptor
      * indexes opnfil[]/wintbl[], so iwrite() can route writes to plcchr(). */
-    FILE* inf    = *infile;
-    int   newinf = !inf || fileno(inf) < 0;
-    if (newinf) {
-        inf = fopen("/dev/null", "r");
-        if (!inf) return;
-        setvbuf(inf, NULL, _IONBF, 0);
+    FILE* inf = *infile;
+    int   ifn = inf? fileno(inf): -1;
+    if (ifn < 0 || (ifn < MAXFIL && opnfil[ifn] && wintbl[ifn].han)) {
+        fprintf(stderr, "\nError: Graphics: Input side of window in wrong mode\n");
+        exit(1);
     }
     FILE* outf = fopen("/dev/null", "w");
-    if (!outf) { if (newinf) fclose(inf); return; }
+    if (!outf) return;
     setvbuf(outf, NULL, _IONBF, 0);
 
     int ofn = fileno(outf);
     if (ofn < 0 || ofn >= MAXFIL) {
         fprintf(stderr, "*** graphics: cannot open window: out of file slots\n");
-        if (newinf) fclose(inf);
         fclose(outf);
         return;
     }
@@ -2598,7 +2596,7 @@ static void openwin_ivf(FILE** infile, FILE** outfile, FILE* parent, ami_long wi
                                            maxxd, maxyd);
     else
         han = pa_cocoa_create_window(wx, wy, maxxd, maxyd, "");
-    if (!han) { if (newinf) fclose(inf); fclose(outf); return; }
+    if (!han) { fclose(outf); return; }
 
     winptr win = &wintbl[ofn];
     win_init(win, wid, parent ? fileno(parent) : 0, maxxd, maxyd);
