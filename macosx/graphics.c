@@ -2556,18 +2556,32 @@ static void openwin_ivf(FILE** infile, FILE** outfile, FILE* parent, ami_long wi
 {
     if (!inited) pa_graphics_init();
 
-    /* Open /dev/null to obtain real file descriptors.  The fd numbers index
-     * into opnfil[]/wintbl[], so iwrite() can route writes to plcchr(). */
-    FILE* inf  = fopen("/dev/null", "r");
+    /* The input side is the caller's: a window takes the input stream it is
+     * given, typically stdin, and a window closed later leaves it be. (It
+     * once opened a /dev/null input of its own for every window, and as
+     * nothing closes the input of a closed window, each window left a
+     * descriptor behind; a program that opens and closes windows in a loop,
+     * as the window test does a hundred times over, ran out of descriptors
+     * below MAXFIL after thirty or so and got no window.) No stream, or a
+     * stream that is not open, or the output side of a window, is an error.
+     *
+     * The output side is a /dev/null stream of its own: its descriptor
+     * indexes opnfil[]/wintbl[], so iwrite() can route writes to plcchr(). */
+    FILE* inf = *infile;
+    int   ifn = inf? fileno(inf): -1;
+    if (ifn < 0 || (ifn < MAXFIL && opnfil[ifn] && wintbl[ifn].han)) {
+        fprintf(stderr, "\nError: Graphics: Input side of window in wrong mode\n");
+        exit(1);
+    }
     FILE* outf = fopen("/dev/null", "w");
-    if (!inf || !outf) { if (inf) fclose(inf); if (outf) fclose(outf); return; }
-    setvbuf(inf,  NULL, _IONBF, 0);
+    if (!outf) return;
     setvbuf(outf, NULL, _IONBF, 0);
 
-    int ifn = fileno(inf);
     int ofn = fileno(outf);
-    if (ifn < 0 || ofn < 0 || ofn >= MAXFIL) {
-        fclose(inf); fclose(outf); return;
+    if (ofn < 0 || ofn >= MAXFIL) {
+        fprintf(stderr, "*** graphics: cannot open window: out of file slots\n");
+        fclose(outf);
+        return;
     }
 
     /* create the Cocoa window: with a parent it becomes an embedded child
@@ -2582,7 +2596,7 @@ static void openwin_ivf(FILE** infile, FILE** outfile, FILE* parent, ami_long wi
                                            maxxd, maxyd);
     else
         han = pa_cocoa_create_window(wx, wy, maxxd, maxyd, "");
-    if (!han) { fclose(inf); fclose(outf); return; }
+    if (!han) { fclose(outf); return; }
 
     winptr win = &wintbl[ofn];
     win_init(win, wid, parent ? fileno(parent) : 0, maxxd, maxyd);
