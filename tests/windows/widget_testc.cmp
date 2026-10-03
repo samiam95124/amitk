@@ -324,7 +324,7 @@ All of the scrollbars can be manipulated.
          #    #    #    .
          #    #    .    .
          #    #    .    .
-         #    #    .    .
+         #    .    .    .
          #    .    .    .
          #    .    .    .
          .    .    .    .
@@ -629,7 +629,7 @@ Both the dialog and this window should be fully reactive
 The color pa_white should be the default selection
 
 Dialog should have completed now
-Colors are: red: 9223372036854775807 green: 9223372036854775807 blue: 9223372036
+Colors are: red: 2147483647 green: 2147483647 blue: 2147483647
 
 
 
@@ -751,7 +751,7 @@ Dialog should have completed now
 Font code: 1
 Font size: 1
 Foreground color: Red: 0 Green: 0 Blue: 0
-Background color: Red: 9223372036854775807 Green: 9223372036854775807 Blue: 9223
+Background color: Red: 2147483647 Green: 2147483647 Blue: 2147483647
 
 
 
