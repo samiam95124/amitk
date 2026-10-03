@@ -622,9 +622,9 @@ for t in $tests; do
             {
                 echo "screens differ from $std"
                 echo "standard: $(wc -c < "$std") bytes,\
- $(grep -a -o "$pngsig" "$std" | wc -l) screens"
+ $(LC_ALL=C grep -a -o "$pngsig" "$std" | wc -l) screens"
                 echo "this run: $(wc -c < "$out") bytes,\
- $(grep -a -o "$pngsig" "$out" | wc -l) screens"
+ $(LC_ALL=C grep -a -o "$pngsig" "$out" | wc -l) screens"
                 cmp "$std" "$out" 2>&1
                 echo "this run kept as $keep"
                 echo "view either with: bin/testviewer <file>"
