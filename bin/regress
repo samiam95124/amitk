@@ -358,8 +358,30 @@ runtest()
 
             fi
 
+        elif [ "$(uname -s)" = Darwin ]; then
+            # A tmux session, a terminal emulator with no display: at each
+            # frame the test asks tmux for the contents of its own pane (see
+            # macosx/terminal_capture.c), so no X server and no process per
+            # page. The session is on a socket of its own, apart from any
+            # tmux of the user's. The test's stdout is the pane; its stderr
+            # is the run's output. A run has 600 seconds, terminal_testc
+            # 1200: a tmux client is started per page, and terminal_test's
+            # three thousand pages take some five minutes. The wait ends
+            # with the session, so the limit only bounds a stuck run.
+            lim=1200
+            if [ "$1" = "terminal_testc" ]; then lim=2400; fi
+            tsock="pa_regress_$$"
+            (cd tests/terminal && \
+             LANG=en_US.UTF-8 tmux -L "$tsock" new-session -d -s run \
+                 -x "${geom%x*}" -y "${geom#*x}" \
+                 "exec '$root/$(binof "$1")' auto '$root/tests/$1.lst' 2> '$root/tests/$1.out'")
+            i=0
+            while tmux -L "$tsock" has-session -t run 2> /dev/null && [ "$i" -lt "$lim" ]; do
+                sleep 0.5
+                i=$((i+1))
+            done
+            tmux -L "$tsock" kill-server 2> /dev/null
         else
-
             Xvfb -displayfd 3 -screen 0 800x600x24 3> "tests/$1.dpy" \
                 > /dev/null 2>&1 &
             xvfbpid=$!
@@ -388,8 +410,12 @@ runtest()
         # prints a line as far as it was written, and the manager paints
         # every cell of a line, so the same screen prints with or without
         # them. Both are judged without them.
+        # (written through a temporary: GNU sed's -i takes an optional
+        # suffix, BSD sed's requires one, and the two disagree on the
+        # spelling, so in-place editing is not portable between them)
         if [ -f "tests/$1.lst" ]; then
-            sed -i 's/ *$//' "tests/$1.lst"
+            sed 's/ *$//' "tests/$1.lst" > "tests/$1.lst.tmp" &&
+                mv "tests/$1.lst.tmp" "tests/$1.lst"
         fi
         ;;
 
