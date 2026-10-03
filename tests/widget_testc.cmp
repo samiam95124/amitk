@@ -629,7 +629,7 @@ Both the dialog and this window should be fully reactive
 The color pa_white should be the default selection
 
 Dialog should have completed now
-Colors are: red: 2147483647 green: 2147483647 blue: 2147483647
+Colors are: red: 255 green: 255 blue: 255
 
 
 
@@ -751,7 +751,7 @@ Dialog should have completed now
 Font code: 1
 Font size: 1
 Foreground color: Red: 0 Green: 0 Blue: 0
-Background color: Red: 2147483647 Green: 2147483647 Blue: 2147483647
+Background color: Red: 255 Green: 255 Blue: 255
 
 
 

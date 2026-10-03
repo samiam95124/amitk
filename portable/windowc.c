@@ -8636,10 +8636,20 @@ static ami_long wigmul(ami_long range, ami_long val)
 
 {
 
+    ami_long q; /* the value at the 31 bit scale */
+
     if (val <= 0 || range <= 0) return (0);
     if (val >= LONG_MAX) return (range);
+    /* range*val/LONG_MAX to the nearest. The full scale is LONG_MAX, which
+       is the width of long: 32 bits on Windows, 64 elsewhere, and a value
+       such as LONG_MAX/2 is a different fraction on each, a hair under a
+       half at 32 bits, so near as makes no difference at 64. Rounded at
+       its own width, each lands the thumb on a different row. So the value
+       is taken to the 31 bit scale every platform has first, and rounded
+       there, in integers: the same numbers, the same row, everywhere. */
+    q = val/(LONG_MAX/INT_MAX);
 
-    return ((ami_long)((double)range*val/(double)LONG_MAX+0.5));
+    return ((2*range*q+INT_MAX)/(2*(ami_long)INT_MAX));
 
 }
 
