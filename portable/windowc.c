@@ -122,7 +122,11 @@ static char* progshortname(void)
 
 #define program_invocation_short_name progshortname()
 
-#elif !defined(__MACH__) /* Mac OS X */
+#elif defined(__MACH__)
+/* Mac OS X has no program_invocation_short_name either; getprogname() is
+   its name for the same thing */
+#define program_invocation_short_name getprogname()
+#else
 extern char *program_invocation_short_name;
 #endif
 
@@ -3666,7 +3670,6 @@ static void opnwin(int fn, int pfn, ami_long wid, int subclient, int root)
     win->curupd = 1; /* set current update screen */
     win->visible = FALSE; /* set not visible */
     win->title = NULL; /* set no title */
-#ifndef __MACH__ /* Mac OS X */
     /* Every window titles as the invoking program until the program sets
        its own, as the graphical window managers present it; only the root
        carried the default before, and a fresh child window showed an
@@ -3674,7 +3677,6 @@ static void opnwin(int fn, int pfn, ami_long wid, int subclient, int root)
     win->title = malloc(strlen(program_invocation_short_name)+1);
     if (!win->title) error("Out of memory");
     strcpy(win->title, program_invocation_short_name);
-#endif
 
     iniscn(win, win->screens[0]); /* initalize screen buffer */
     restore(win); /* update to screen */
