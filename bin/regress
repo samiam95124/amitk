@@ -358,21 +358,30 @@ runtest()
 
             fi
 
+        elif [ "$(uname -s)" = Darwin ]; then
+            # A tmux session, a terminal emulator with no display: at each
+            # frame the test asks tmux for the contents of its own pane (see
+            # macosx/terminal_capture.c), so no X server and no process per
+            # page. The session is on a socket of its own, apart from any
+            # tmux of the user's. The test's stdout is the pane; its stderr
+            # is the run's output. A run has 600 seconds, terminal_testc
+            # 1200: a tmux client is started per page, and terminal_test's
+            # three thousand pages take some five minutes. The wait ends
+            # with the session, so the limit only bounds a stuck run.
+            lim=1200
+            if [ "$1" = "terminal_testc" ]; then lim=2400; fi
+            tsock="pa_regress_$$"
+            (cd tests/terminal && \
+             LANG=en_US.UTF-8 tmux -L "$tsock" new-session -d -s run \
+                 -x "${geom%x*}" -y "${geom#*x}" \
+                 "exec '$root/$(binof "$1")' auto '$root/tests/$1.lst' 2> '$root/tests/$1.out'")
+            i=0
+            while tmux -L "$tsock" has-session -t run 2> /dev/null && [ "$i" -lt "$lim" ]; do
+                sleep 0.5
+                i=$((i+1))
+            done
+            tmux -L "$tsock" kill-server 2> /dev/null
         else
-
-            # The printer appends each page to the listing. On Linux it is
-            # cat, started afresh per page and closed after it. Under
-            # XQuartz's xterm a closed printer never sees end of file (each
-            # later printer inherits the earlier pipes), so every page's
-            # printer stays, and a long test runs out of processes part
-            # way ("spawn: fork() failed"). There the printer copies the page
-            # byte by byte, unbuffered, and exits at its form feed on its own:
-            # the pipe never closing, a line reader would wait forever for the
-            # newline that does not follow the form feed. The form feed is
-            # named by number: the resource parser eats a backslash escape.
-            prtcmd="cat"
-            [ "$(uname -s)" = Darwin ] && \
-                prtcmd="perl -e 'while (sysread(STDIN, \$c, 1)) { syswrite(STDOUT, \$c); exit if ord(\$c) == 12 }'"
             Xvfb -displayfd 3 -screen 0 800x600x24 3> "tests/$1.dpy" \
                 > /dev/null 2>&1 &
             xvfbpid=$!
@@ -384,7 +393,7 @@ runtest()
             if [ -n "$dpy" ]; then
                 (cd tests/terminal && \
                  DISPLAY=":$dpy" timeout 300 xterm -geometry "$geom" \
-                     -xrm "*printerCommand: $prtcmd >> $root/tests/$1.lst" \
+                     -xrm "*printerCommand: cat >> $root/tests/$1.lst" \
                      -xrm '*printAttributes: 0' \
                      -xrm '*printerAutoClose: true' \
                      -e "$root/$(binof "$1")" auto "$root/tests/$1.lst") \

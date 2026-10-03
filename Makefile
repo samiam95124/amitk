@@ -924,9 +924,10 @@ windows/terminal.o: windows/terminal.c include/terminal.h Makefile
 windows/graphics.o: windows/graphics.c include/graphics.h Makefile
 	$(CC) $(CFLAGS) -c windows/graphics.c -o windows/graphics.o
 
-# the same module for Mac OS X, where the terminal tests run in an XQuartz xterm
-macosx/terminal_capture.o: linux/terminal_capture.c Makefile
-	$(CC) $(CFLAGS) -c linux/terminal_capture.c -o macosx/terminal_capture.o
+# Mac OS X: the terminal tests run in a tmux session, and the capture reads
+# the pane (see macosx/terminal_capture.c)
+macosx/terminal_capture.o: macosx/terminal_capture.c Makefile
+	$(CC) $(CFLAGS) -c macosx/terminal_capture.c -o macosx/terminal_capture.o
 
 windows/screen_capture.o: windows/screen_capture.c Makefile
 	$(CC) $(CFLAGS) -c windows/screen_capture.c -o windows/screen_capture.o
@@ -1597,9 +1598,9 @@ ifeq ($(OSTYPE),Windows_NT)
 SCREEN_CAPTURE_OBJ = windows/terminal_capture.o
 GSCREEN_CAPTURE_OBJ = windows/screen_capture.o
 else ifeq ($(OSTYPE),Darwin)
-# as on Linux: the terminal tests run in an xterm (XQuartz) and are judged on
-# the pages it prints, so they take the terminal capture; only the graphical
-# programs read their own window
+# the terminal tests run in a tmux session and are judged on the pages its
+# pane shows, so they take the terminal capture; only the graphical programs
+# read their own window
 SCREEN_CAPTURE_OBJ = macosx/terminal_capture.o
 GSCREEN_CAPTURE_OBJ = macosx/screen_capture.o
 else ifeq ($(OSTYPE),FreeBSD)
