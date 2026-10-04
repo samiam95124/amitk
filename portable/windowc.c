@@ -10297,6 +10297,11 @@ static void imenu(FILE* f, ami_menuptr m)
         if (*lp) *lp = win->mbar->next;
         fclose(win->mbar->wf);
         if (win->mbar->face) free(win->mbar->face);
+        /* the mouse may be on the bar: the highlight and the press die with it,
+           as with every other widget freed; left pointing at the freed bar,
+           the next mouse move redrew it and crashed */
+        if (hovwig == win->mbar) hovwig = NULL;
+        if (prswig == win->mbar) prswig = NULL;
         free(win->mbar);
         win->mbar = NULL;
 
