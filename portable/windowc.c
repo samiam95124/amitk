@@ -2463,7 +2463,19 @@ static void restoreclp(winptr win,   /* window to restore */
     intersection(&rcc, cr, &rca);
     cr = &rcc;
     setcurvis(FALSE); /* turn off cursor for drawing */
-    if (win->frame) drwfrm(win, cr); /* draw window frame */
+    if (win->frame) {
+        /* The frame draws only where this window is the topmost, the way
+           the client cells do by the forward mask. Clipped to the
+           rectangle alone, a whole window restore (a clear, a buffer
+           change, a decoration change) painted the frame over any window
+           lying across it: window_test's reference window, created over
+           the main window and straddling its left edge, got that edge
+           drawn through it by the clear that followed. */
+        winptr hf = hovflt; /* a caller may be filtering already */
+        hovflt = win;
+        drwfrm(win, cr);
+        hovflt = hf;
+    }
     if (!win->bufmod) {
 
         /* Follow mode: there is no content store, the program owns the
