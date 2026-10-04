@@ -1749,6 +1749,7 @@ a clear (as the ANSI spec says). We fake this by adding a specific cursor home.
 
 /** clear screen and home cursor */
 static void trm_clear(void) { putstrc("\33[2J\33[H"); }
+static void trm_clrlin(void) { putstrc("\33[2K"); } /* erase the whole line */
 /** home cursor */ static void trm_home(void) { putstrc("\33[H"); }
 /** move cursor up */ static void trm_up(void) { putstrc("\33[A"); }
 /** move cursor down */ static void trm_down(void) { putstrc("\33[B"); }
@@ -2198,6 +2199,13 @@ static void restore(scnptr sc)
     /* copy buffer to screen */
     for (yi = 1; yi <= cbufy; yi++) { /* lines */
 
+        /* The line is erased before it is painted. What the buffer does not
+           cover is not painted, and after the window has shrunk that includes
+           the columns past its edge: xterm drops a line's characters beyond
+           the new width, but Mac OS X's Terminal keeps them, and shows what
+           it can of the first of them, so the frame of a resized program
+           had a second right edge. Erasing the line takes those with it. */
+        trm_clrlin();
         for (xi = 1; xi <= cbufx; xi++) { /* characters */
 
             /* for each new character, we compare the attributes and colors
