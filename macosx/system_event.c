@@ -128,7 +128,6 @@ static sevtptr systab[MAXSYS];
 static int sysno; /* number of system event ids allocated */
 
 static sigset_t sigmsk; /* signal mask */
-static sigset_t sigact; /* signal active */
 
 static struct kevent chgevt[MAXSYS];  /* event change list */
 static struct kevent chgevtc[MAXSYS]; /* event change list copy */
@@ -157,8 +156,9 @@ static void sig_handler(int signo)
 
 {
 
-    /* add this signal to active set */
-    sigaddset(&sigact, signo);
+    /* nothing to do: the queue reports the signal; the handler is here so
+       the signal's default action, which may end the process, is not taken */
+    (void)signo;
 
 }
 
@@ -244,6 +244,7 @@ int system_event_addseinp(int fid)
 
     /* construct event for fid */
     EV_SET(&chgevt[nchg], fid, EVFILT_READ, EV_ADD | EV_ENABLE, 0, 0, 0);
+    kevent(kerque, &chgevt[nchg], 1, NULL, 0, NULL); /* register now */
     systab[sid-1]->ei = nchg; /* link to event entry */
     nchg++; /* count events registered */
     pthread_mutex_unlock(&evtlock); /* release the event lock */
@@ -339,6 +340,7 @@ int system_event_addsesig(int sig)
 
     /* construct event for fid */
     EV_SET(&chgevt[nchg], sig, EVFILT_SIGNAL, EV_ADD | EV_ENABLE, 0, 0, 0);
+    kevent(kerque, &chgevt[nchg], 1, NULL, 0, NULL); /* register now */
     systab[sid-1]->ei = nchg; /* link to event entry */
     nchg++; /* count events registered */
     pthread_mutex_unlock(&evtlock); /* release the event lock */
@@ -436,12 +438,13 @@ void system_event_getsevt(sevptr ev)
 
         if (ei >= nev) { /* out of events, read the next ones */
 
-            /* because chgevt/nchg could be changed by another thread, we make
-               a copy and pass that while still holding the lock */
-            memcpy(chgevtc, chgevt, nchg*sizeof(struct kevent));
-            nchgc = nchg;
+            /* Every registration was applied to the queue as it was made (and a
+               removal as it was made): nothing is passed here. The change list
+               used to be passed on every read, re-adding each filter, and a
+               re-added signal filter forgets a signal that came while the queue
+               was not being read: a window resize during a busy moment was lost. */
             pthread_mutex_unlock(&evtlock); /* release the event lock */
-            nev = kevent(kerque, chgevtc, nchgc, events, MAXSYS, NULL);
+            nev = kevent(kerque, NULL, 0, events, MAXSYS, NULL);
             pthread_mutex_lock(&evtlock); /* take the event lock */
             if (nev <= 0) {
 
@@ -472,15 +475,16 @@ void system_event_getsevt(sevptr ev)
                 }
 
             } else if (events[ei].filter == EVFILT_SIGNAL) { /* it's a signal */
+/* the event names its signal; the handler is not consulted, as it
+   runs on whatever thread the kernel picks, maybe after this */
 
                 for (si = 0; si < sysno; si++) if (systab[si])
                     if (systab[si]->typ == se_sig && systab[si]->sig > 0 &&
-                        sigismember(&sigact, systab[si]->sig)) {
+                        events[ei].ident == (uintptr_t)systab[si]->sig) {
 
                     /* signal has flagged */
                     ev->typ = systab[si]->typ; /* set key event occurred */
                     ev->lse = si+1; /* set system logical event no */
-                    sigdelset(&sigact, systab[si]->sig); /* remove signal */
 
                 }
 
