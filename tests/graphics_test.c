@@ -482,11 +482,32 @@ static bench bi;
 
 /* Find random number between 0 and N. */
 
+/* The test's own generator (Knuth's MMIX linear congruential generator, on
+   the high bits), so a run is the same every time on every platform: the C
+   library's rand() is one state for the whole process, and on Mac OS X the
+   frameworks were seen to take a value from it now and then, on their own
+   threads, at moments of their own, so the animation's squares started out
+   in different places from one run to the next. */
+
+#define RANDMAX 0x7fffffff /* the generator's largest value */
+
+static unsigned long long randstate = 1; /* a fixed seed */
+
+static ami_long random1(void)
+
+{
+
+    randstate = randstate*6364136223846793005ULL+1442695040888963407ULL;
+
+    return ((ami_long)(randstate >> 33));
+
+}
+
 static ami_long randn(ami_long limit)
 
 {
 
-    return (double)limit*rand()/RAND_MAX;
+    return (double)limit*random1()/RANDMAX;
 
 }
 
