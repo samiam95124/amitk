@@ -2707,7 +2707,7 @@ void pa_cocoa_menu(pa_winhan win, void* menu_list)
         NSMenu* mainMenu = [[NSMenu alloc] initWithTitle:@""];
         mainMenu.autoenablesItems = NO;
 
-        /* preserve app menu (first item), append PA items into its submenu */
+        /* the application menu stays first, as it is */
         if (!savedAppMenu) {
             NSMenu* cur = [NSApp mainMenu];
             if (cur && cur.numberOfItems > 0) {
@@ -2715,24 +2715,43 @@ void pa_cocoa_menu(pa_winhan win, void* menu_list)
             }
         }
         if (savedAppMenu) {
-            NSMenuItem* appItem = [savedAppMenu copy];
-            if (list) {
-                NSMenu* appSub = appItem.submenu;
-                appSub.autoenablesItems = NO;
-                [appSub addItem:[NSMenuItem separatorItem]];
-                buildMenu(appSub, list, menuTarget);
-            }
-            [mainMenu addItem:appItem];
-        } else if (list) {
+            [mainMenu addItem:[savedAppMenu copy]];
+        } else {
             NSString* progName = [NSProcessInfo processInfo].processName;
             NSMenuItem* appItem = [[NSMenuItem alloc] initWithTitle:progName
                                                               action:nil
                                                        keyEquivalent:@""];
-            NSMenu* appSub = [[NSMenu alloc] initWithTitle:progName];
-            appSub.autoenablesItems = NO;
-            buildMenu(appSub, list, menuTarget);
-            appItem.submenu = appSub;
+            appItem.submenu = [[NSMenu alloc] initWithTitle:progName];
             [mainMenu addItem:appItem];
+        }
+
+        /* The program's top level items are the titles across the bar, as
+           on the other platforms. A title with a branch drops the branch.
+           A title with none, a one shot item at the top level, which the
+           bar has no way to fire, drops a menu of that one item, which
+           fires it: the bar then reads the same on every platform. (The
+           manual tells programs that a one shot at the top level may not
+           be obeyed; this is what becomes of one here.) */
+        for (pa_menu_node* m = list; m; m = m->next) {
+            NSString* title = m->face ? [NSString stringWithUTF8String:m->face]
+                                      : @"";
+            NSMenuItem* top = [[NSMenuItem alloc] initWithTitle:title
+                                                         action:nil
+                                                  keyEquivalent:@""];
+            NSMenu* sub = [[NSMenu alloc] initWithTitle:title];
+            top.tag = m->id;
+            sub.autoenablesItems = NO;
+            if (m->branch) buildMenu(sub, m->branch, menuTarget);
+            else {
+                NSMenuItem* item = [[NSMenuItem alloc] initWithTitle:title
+                                                              action:@selector(menuItemAction:)
+                                                       keyEquivalent:@""];
+                item.target = menuTarget;
+                item.tag = m->id;
+                [sub addItem:item];
+            }
+            top.submenu = sub;
+            [mainMenu addItem:top];
         }
 
         [NSApp setMainMenu:mainMenu];
@@ -2746,6 +2765,12 @@ void pa_cocoa_menu_enable(pa_winhan win, int id, int on)
         if (!mainMenu) return;
         NSMenuItem* item = findMenuItemByTag(mainMenu, id);
         if (item) item.enabled = on ? YES : NO;
+        /* a top level item is a title across the bar: the title goes grey
+           with it, as the item does on the other platforms */
+        for (NSInteger i = 1; i < mainMenu.numberOfItems; i++) {
+            NSMenuItem* top = [mainMenu itemAtIndex:i];
+            if (top.tag == id && top.hasSubmenu) top.enabled = on ? YES : NO;
+        }
     });
 }
 
