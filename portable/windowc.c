@@ -8034,7 +8034,8 @@ static wigptr opnpop(winptr par, ami_long rx, ami_long ry, char** strs, ami_long
     wg->win->curv = FALSE; /* a widget face never shows the cursor */
     wg->next = par->wiglst; /* on the owner's list for cleanup */
     par->wiglst = wg;
-    /* frame it, no system bar: a plain bordered list */
+    /* no size bars, no system bar: nothing of the frame draws, and the
+       popup is a plain block of its rows, a column of margin each side */
     wg->win->frame = TRUE;
     wg->win->size = FALSE;
     wg->win->sysbar = FALSE;
@@ -8048,10 +8049,13 @@ static wigptr opnpop(winptr par, ami_long rx, ami_long ry, char** strs, ami_long
 
     }
     recompcli(wg->win);
-    intsetsiz(wg->win, w, n+2);
+    /* one row an entry: the height was given two rows over, as if for a
+       border that is never drawn, and the two came out as blank rows under
+       the last entry */
+    intsetsiz(wg->win, w, n);
     /* keep it on the surface */
     if (rx+w-1 > dimx) rx = dimx-w+1;
-    if (ry+n+1 > dimy) ry = dimy-n-1;
+    if (ry+n-1 > dimy) ry = dimy-n+1;
     if (rx < 1) rx = 1;
     if (ry < 1) ry = 1;
     intsetpos(wg->win, rx, ry);
