@@ -3715,7 +3715,6 @@ static void blockcopyg_ivf(FILE* f, ami_long s, ami_long d, ami_long sx1, ami_lo
     CGContextRef dst = pa_cocoa_get_screen_context(win->han, (int)d - 1);
     if (!src || !dst) return;
     CGFloat sh = (CGFloat)CGBitmapContextGetHeight(src);
-    CGFloat dh = (CGFloat)CGBitmapContextGetHeight(dst);
 
     CGImageRef whole = CGBitmapContextCreateImage(src);
     if (!whole) return;
@@ -3728,8 +3727,13 @@ static void blockcopyg_ivf(FILE* f, ami_long s, ami_long d, ami_long sx1, ami_lo
     CGContextConcatCTM(dst, CGAffineTransformInvert(CGContextGetCTM(dst)));
     CGContextSetBlendMode(dst, cs->fmod == mdnorm ? kCGBlendModeCopy
                                                   : mode2blend(cs->fmod));
+    /* The destination is given in the surface's own terms, top down: the
+       block drew mirrored about the middle of the surface, so that a copy
+       placed below a figure landed above it (the copies of window_test's
+       block copy frame that sit level with their source hid this, being
+       their own mirror image). */
     CGContextDrawImage(dst,
-        CGRectMake(PX(dx1), dh - dy2, dx2 - dx1 + 1, dy2 - dy1 + 1), blk);
+        CGRectMake(PX(dx1), PX(dy1), dx2 - dx1 + 1, dy2 - dy1 + 1), blk);
     CGContextRestoreGState(dst);
     CGImageRelease(blk);
     pa_cocoa_flush(win->han);
