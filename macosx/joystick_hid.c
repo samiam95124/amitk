@@ -55,6 +55,9 @@
 
 #define MAXJOY 10   /* joysticks, as the terminal's table */
 #define MAXJAX 6    /* axes carried per joystick, as the terminal reads */
+#define ABS_HAT0X 16 /* the Linux driver's codes for the hat switch's axes */
+#define ABS_HAT0Y 17
+#define ABS_CODES 18 /* codes carried: 0..17 */
 
 /* the Linux joystick event, as linux/joystick.h lays it out */
 struct js_event {
@@ -71,6 +74,7 @@ typedef struct {
     int            rfd, wfd;     /* the pipe: the terminal reads rfd */
     int            axes;         /* axes found */
     int            buttons;      /* buttons found */
+    int            absidx[ABS_CODES]; /* axis number by Linux code, -1 none */
     long           axmin[MAXJAX];
     long           axmax[MAXJAX];
 } joyrec;
@@ -92,17 +96,35 @@ static int joy_find(IOHIDDeviceRef dev)
     return -1;
 }
 
-static int axis_index_for_usage(uint32_t usage)
+/* The Linux driver's absolute axis code for a HID usage, or -1 for none:
+   the order the Linux joystick device numbers a stick's axes in, so a
+   program sees the same axis numbers here as there. Generic desktop X..Rz
+   are ABS_X..ABS_RZ (0..5), the slider, dial and wheel ABS_THROTTLE,
+   ABS_RUDDER and ABS_WHEEL (6..8), the simulation controls likewise, and
+   the hat switch is two axes, ABS_HAT0X and ABS_HAT0Y (16, 17). */
+static int abs_code_for_usage(uint32_t page, uint32_t usage)
 {
-    switch (usage) {
-    case kHIDUsage_GD_X:  return 0;
-    case kHIDUsage_GD_Y:  return 1;
-    case kHIDUsage_GD_Z:  return 2;
-    case kHIDUsage_GD_Rx: return 3;
-    case kHIDUsage_GD_Ry: return 4;
-    case kHIDUsage_GD_Rz: return 5;
-    default: return -1;
+    if (page == kHIDPage_GenericDesktop) switch (usage) {
+    case kHIDUsage_GD_X:         return 0;
+    case kHIDUsage_GD_Y:         return 1;
+    case kHIDUsage_GD_Z:         return 2;
+    case kHIDUsage_GD_Rx:        return 3;
+    case kHIDUsage_GD_Ry:        return 4;
+    case kHIDUsage_GD_Rz:        return 5;
+    case kHIDUsage_GD_Slider:    return 6;
+    case kHIDUsage_GD_Dial:      return 7;
+    case kHIDUsage_GD_Wheel:     return 8;
+    case kHIDUsage_GD_Hatswitch: return ABS_HAT0X;
+    default:                     return -1;
     }
+    if (page == kHIDPage_Simulation) switch (usage) {
+    case kHIDUsage_Sim_Throttle:    return 6;
+    case kHIDUsage_Sim_Rudder:      return 7;
+    case kHIDUsage_Sim_Accelerator: return 9;
+    case kHIDUsage_Sim_Brake:       return 10;
+    default:                        return -1;
+    }
+    return (-1);
 }
 
 /* a raw axis reading to the Linux driver's +-32767 */
@@ -153,16 +175,30 @@ static void hid_input_cb(void* ctx, IOReturn result, void* sender,
     page  = IOHIDElementGetUsagePage(elem);
     usage = IOHIDElementGetUsage(elem);
     raw   = IOHIDValueGetIntegerValue(value);
-    if (page == kHIDPage_GenericDesktop) {
-        int ai = axis_index_for_usage(usage);
-        if (ai >= 0 && ai < jp->axes)
-            send_event(jp, JS_EVENT_AXIS, (uint8_t)ai,
-                       scale_axis(raw, jp->axmin[ai], jp->axmax[ai]));
-    } else if (page == kHIDPage_Button) {
+    if (page == kHIDPage_Button) {
         /* HID numbers buttons from 1; the Linux driver from 0, and the
            terminal adds one back */
         if (usage >= 1)
             send_event(jp, JS_EVENT_BUTTON, (uint8_t)(usage - 1), raw ? 1 : 0);
+    } else {
+        int code = abs_code_for_usage(page, usage);
+        if (code == ABS_HAT0X) {
+            /* the hat: a direction 0..7 clockwise from up, or out of range
+               for centered, as two axes, the way the Linux driver gives it */
+            static const int hx[8] = { 0, 1, 1, 1, 0, -1, -1, -1 };
+            static const int hy[8] = { -1, -1, 0, 1, 1, 1, 0, -1 };
+            long d = raw - IOHIDElementGetLogicalMin(elem);
+            int x = 0, y = 0;
+            if (d >= 0 && d < 8) { x = hx[d]; y = hy[d]; }
+            if (jp->absidx[ABS_HAT0X] >= 0)
+                send_event(jp, JS_EVENT_AXIS, (uint8_t)jp->absidx[ABS_HAT0X], (int16_t)(x*32767));
+            if (jp->absidx[ABS_HAT0Y] >= 0)
+                send_event(jp, JS_EVENT_AXIS, (uint8_t)jp->absidx[ABS_HAT0Y], (int16_t)(y*32767));
+        } else if (code >= 0 && jp->absidx[code] >= 0) {
+            int ai = jp->absidx[code];
+            send_event(jp, JS_EVENT_AXIS, (uint8_t)ai,
+                       scale_axis(raw, jp->axmin[ai], jp->axmax[ai]));
+        }
     }
     pthread_mutex_unlock(&lock);
 }
@@ -173,7 +209,8 @@ static void hid_match_cb(void* ctx, IOReturn result, void* sender,
     joyrec* jp;
     CFArrayRef elems;
     CFIndex n, i;
-    int nax = 0, nbtn = 0, fds[2];
+    int nax = 0, nbtn = 0, fds[2], code, c;
+    long absmin[ABS_CODES], absmax[ABS_CODES];
     (void)ctx; (void)result; (void)sender;
     pthread_mutex_lock(&lock);
     if (numjoy >= MAXJOY || joy_find(dev) >= 0) { pthread_mutex_unlock(&lock); return; }
@@ -185,6 +222,7 @@ static void hid_match_cb(void* ctx, IOReturn result, void* sender,
     jp->dev = dev;
     jp->rfd = fds[0];
     jp->wfd = fds[1];
+    for (c = 0; c < ABS_CODES; c++) jp->absidx[c] = -1;
     n = CFArrayGetCount(elems);
     for (i = 0; i < n; i++) {
         IOHIDElementRef el = (IOHIDElementRef)CFArrayGetValueAtIndex(elems, i);
@@ -194,19 +232,35 @@ static void hid_match_cb(void* ctx, IOReturn result, void* sender,
             et != kIOHIDElementTypeInput_Button) continue;
         pg = IOHIDElementGetUsagePage(el);
         us = IOHIDElementGetUsage(el);
-        if (pg == kHIDPage_GenericDesktop) {
-            int ai = axis_index_for_usage(us);
-            if (ai >= 0 && ai < MAXJAX) {
-                jp->axmin[ai] = IOHIDElementGetLogicalMin(el);
-                jp->axmax[ai] = IOHIDElementGetLogicalMax(el);
-                if (ai + 1 > nax) nax = ai + 1;
-            }
-        } else if (pg == kHIDPage_Button) {
+        if (pg == kHIDPage_Button) {
             if ((int)us > nbtn) nbtn = (int)us;
+        } else {
+            /* an axis: noted by its Linux code; the hat is two of them */
+            code = abs_code_for_usage(pg, us);
+            if (code == ABS_HAT0X) {
+                jp->absidx[ABS_HAT0X] = jp->absidx[ABS_HAT0Y] = 0;
+                absmin[ABS_HAT0X] = absmin[ABS_HAT0Y] = -1;
+                absmax[ABS_HAT0X] = absmax[ABS_HAT0Y] = 1;
+            } else if (code >= 0) {
+                jp->absidx[code] = 0;
+                absmin[code] = IOHIDElementGetLogicalMin(el);
+                absmax[code] = IOHIDElementGetLogicalMax(el);
+            }
         }
     }
     CFRelease(elems);
-    jp->axes = nax > MAXJAX ? MAXJAX : nax;
+    /* the axes are numbered in the order of their Linux codes, as the Linux
+       joystick device numbers them, up to what the terminal carries */
+    for (c = 0; c < ABS_CODES; c++) {
+        if (jp->absidx[c] < 0) continue;
+        if (nax < MAXJAX) {
+            jp->absidx[c] = nax;
+            jp->axmin[nax] = absmin[c];
+            jp->axmax[nax] = absmax[c];
+            nax++;
+        } else jp->absidx[c] = -1; /* beyond what is carried */
+    }
+    jp->axes = nax;
     jp->buttons = nbtn;
     numjoy++;
     pthread_mutex_unlock(&lock);
