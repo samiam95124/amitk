@@ -2755,6 +2755,9 @@ static void clrscn(FILE* f)
 
 }
 
+static ami_long wrapx(winptr win); /* forward */
+static ami_long wrapy(winptr win);
+
 /** ****************************************************************************
 
 Process tab
@@ -2780,7 +2783,7 @@ static void itab(FILE* f)
     if (i < 1) i = 1; /* don't bother to search to left of screen */
     /* find tab or end of screen; the stop for column i is tab[i-1], as
        settab and the default stops place it */
-    while (i < MAXTAB && !win->tab[i-1] && i < win->maxx) i++;
+    while (i < MAXTAB && !win->tab[i-1] && i < wrapx(win)) i++;
     if (win->tab[i-1]) /* not off right of tabs */
        win->curx = i; /* set position to that tab */
     setcur(win); /* update screen */
@@ -4530,6 +4533,24 @@ static void ihome(FILE* f)
 
 }
 
+/* The extent the cursor runs to with auto on: the buffer, or the client
+   where the client shows less of the buffer. A line wraps, and the screen
+   scrolls, at the edge of what the window shows. The buffer can be larger
+   than the client (the window is then sized without regard to the client
+   the frame leaves), and wrapping at the buffer's edge put characters in
+   columns and rows nobody could see: a line typed into a framed child
+   window ran two characters past its right edge before it wrapped. A
+   client with no room at all (a bar only window) leaves the buffer's
+   extent in force. */
+static ami_long wrapx(winptr win)
+{
+    return (win->cmaxx >= 1 && win->cmaxx < win->maxx? win->cmaxx: win->maxx);
+}
+static ami_long wrapy(winptr win)
+{
+    return (win->cmaxy >= 1 && win->cmaxy < win->maxy? win->cmaxy: win->maxy);
+}
+
 /** ****************************************************************************
 
 Move cursor up
@@ -4577,7 +4598,7 @@ static void idown(FILE* f)
     win = txt2win(f); /* get window from file */
 
     /* check not bottom of screen */
-    if (win->cury < win->maxy) win->cury++; /* update position */
+    if (win->cury < wrapy(win)) win->cury++; /* update position */
     else if (win->autof) intscroll(win, 0, +1); /* scroll down */
     /* check won't overflow */
     else if (win->cury < LONG_MAX) win->cury++; /* set new position */
@@ -4609,7 +4630,7 @@ static void ileft(FILE* f)
         if (win->autof) { /* autowrap is on */
 
             iup(f); /* move cursor up one line */
-            win->curx = win->maxx; /* set cursor to extreme right */
+            win->curx = wrapx(win); /* set cursor to extreme right */
 
         } else
             /* check won't overflow */
@@ -4636,7 +4657,7 @@ static void iright(FILE* f)
 
     win = txt2win(f); /* get window from file */
     /* check not at extreme right */
-    if (win->curx < win->maxx) win->curx++; /* update position */
+    if (win->curx < wrapx(win)) win->curx++; /* update position */
     else { /* wrap cursor motion */
 
         if (win->autof) { /* autowrap is on */
@@ -8026,6 +8047,10 @@ static wigptr opnpop(winptr par, ami_long rx, ami_long ry, char** strs, ami_long
     wg->win->frame = TRUE;
     wg->win->size = FALSE;
     wg->win->sysbar = FALSE;
+    /* A face is drawn by position, to its last column and row, and must
+       never wrap or scroll: with auto on, the character put in the last
+       cell carried the cursor past the edge and scrolled the face away. */
+    wg->win->autof = FALSE;
     /* a pulldown menu is colored apart from the text it opens over, black
        on cyan, so that it can be told from the screen beneath; a dropdown
        list belongs to its widget and keeps the widget's colors */
@@ -9228,6 +9253,10 @@ static wigptr wigcre(FILE* f, ami_long x1, ami_long y1, ami_long x2, ami_long y2
     wg->win->frame = FALSE;
     wg->win->size = FALSE;
     wg->win->sysbar = FALSE;
+    /* A face is drawn by position, to its last column and row, and must
+       never wrap or scroll: with auto on, the character put in the last
+       cell carried the cursor past the edge and scrolled the face away. */
+    wg->win->autof = FALSE;
     recompcli(wg->win);
     intsetsiz(wg->win, x2-x1+1, y2-y1+1);
     intsetpos(wg->win, x1, y1); /* placed in the owner's client space */
