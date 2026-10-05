@@ -52,9 +52,16 @@ extern void ovr_close(pclose_t nfp, pclose_t* ofp);
 #define MAXCON      10      /* maximum screen contexts per window */
 #define MAXXD       80      /* default terminal width in chars */
 #define MAXYD       25      /* default terminal height in chars */
-#define CONPNT      11      /* the console font's size in points, as on
-                               Linux and as Terminal has it; the pixel
-                               height follows from the screen's density */
+/* The console font's size in printer's points, the pixel height following
+   from the screen's density. Linux has eleven. Mac OS X draws its own
+   "point" as a pixel, so Terminal's eleven are 7.4 printer's points on a
+   screen of this density; the console font takes that size on the Mac,
+   so that a program's text reads the size of the terminal's beside it. */
+#if defined(__MACH__)
+#define CONPNT      7.4f
+#else
+#define CONPNT      11.0f
+#endif
 #define PTMETER     2835.0  /* points in a meter */
 
 /* PA angles: LONG_MAX = 360 degrees */
@@ -180,7 +187,8 @@ static int      joyenb;               /* enable joysticks */
 static int      dmpevt;               /* enable dump Petit-Ami events */
 static int      dmpmsg;               /* enable dump messages (diagnostic) */
 static int      prtftm;               /* print font metrics (diagnostic) */
-static int      conpnt;               /* size of console font in points */
+static float    conpnt;               /* size of console font in points,
+                                         fractions allowed */
 static int      deffnth;              /* the console font's height in pixels,
                                          from its points and the screen */
 
@@ -708,7 +716,7 @@ static void win_init(winptr win, int wid, int parwid, int w, int h)
     int spx_h  = pa_cocoa_screen_h();
     win->dpmx  = (smm_w > 0) ? spx_w * 1000 / smm_w : 3780; /* ~96 dpi */
     win->dpmy  = (smm_h > 0) ? spx_h * 1000 / smm_h : 3780;
-    win->gfpoint = (win->fontsz == deffnth)? (float)conpnt
+    win->gfpoint = (win->fontsz == deffnth)? conpnt
                                             : win->fontsz * 2835.0f / (float)win->dpmy;
 
     /* character cell size from font metrics */
@@ -846,7 +854,7 @@ static void pa_graphics_init(void)
             vp = ami_schlst("console_points", graph_root->sublist);
             if (vp) {
 
-                conpnt = strtol(vp->value, &errstr, 10);
+                conpnt = strtof(vp->value, &errstr);
                 if (*errstr) conpnt = 0;
 
             }
