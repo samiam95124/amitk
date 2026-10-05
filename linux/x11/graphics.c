@@ -1317,7 +1317,7 @@ static int joyenb;    /* enable joysticks */
 static int dmpmsg;    /* enable dump messages (diagnostic, windows only) */
 static int dmpevt;    /* enable dump Petit-Ami messages */
 static int prtftm;    /* print font metrics (diagnostic) */
-static int conpnt;    /* size of console font in points */
+static float conpnt;  /* size of console font in points, fractions allowed */
 
 static void iopenwin(FILE** infile, FILE** outfile, FILE* parent, ami_long wid,
                      ami_long subclient);
@@ -18376,7 +18376,7 @@ static void ami_init_graphics(int argc, char *argv[])
         vp = ami_schlst("console_points", graph_root->sublist);
         if (vp) {
 
-            conpnt = strtol(vp->value, &errstr, 10);
+            conpnt = strtof(vp->value, &errstr);
             if (*errstr) error(ecfgval);
 
         }
