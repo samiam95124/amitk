@@ -6812,6 +6812,7 @@ below that, and child 1 on the bottom.
  ║                             ╔════════════════════╗                             ║
  ║                             ║ window_testc - ▯ X ║                             ║
  ║                             ╠════════════════════╣                             ║
+ ║                             ║12345678901234567890║                             ║
  ║                             ║2                   ║                             ║
  ║                             ║3                   ║                             ║
  ║                             ║4                   ║                             ║
@@ -6821,7 +6822,6 @@ below that, and child 1 on the bottom.
  ║                             ║8                   ║                             ║
  ║                             ║9                   ║                             ║
  ║                             ║0                   ║                             ║
- ║                             ║                    ║                             ║
  ║                             ╚════════════════════╝                             ║
  ║                                                                                ║
  ║                                                                                ║
@@ -6860,6 +6860,7 @@ below that, and child 1 on the bottom.
  ║                                                                                ║
  ║                                                                                ║
  ║                             ╔════════════════════╗                             ║
+ ║                             ║12345678901234567890║                             ║
  ║                             ║2                   ║                             ║
  ║                             ║3                   ║                             ║
  ║                             ║4                   ║                             ║
@@ -6869,7 +6870,6 @@ below that, and child 1 on the bottom.
  ║                             ║8                   ║                             ║
  ║                             ║9                   ║                             ║
  ║                             ║0                   ║                             ║
- ║                             ║                    ║                             ║
  ║                             ╚════════════════════╝                             ║
  ║                                                                                ║
  ║                                                                                ║
@@ -6911,6 +6911,7 @@ below that, and child 1 on the bottom.
  ║For (20, 10) client, no size bars, window size is: 20,12                        ║
  ║Check client window has (20, ╔ window_tes - ▯ X X                               ║
  ║                             ╠══════════════════╣                               ║
+ ║                             12345678901234567890                               ║
  ║                             2                                                  ║
  ║                             3                                                  ║
  ║                             4                                                  ║
@@ -6920,7 +6921,6 @@ below that, and child 1 on the bottom.
  ║                             8                                                  ║
  ║                             9                                                  ║
  ║                             0                                                  ║
- ║                                                                                ║
  ║                                                                                ║
  ║                                                                                ║
  ║                                                                                ║
@@ -6959,16 +6959,16 @@ below that, and child 1 on the bottom.
  ║Check client window has (20, 10) surface                                        ║
  ║Sizing bars off                                                                 ║
  ║For (20, 10) client, no size bars, window size is: 20,12                        ║
- ║Check client window has (20, 2                                                  ║
- ║frame off                    3                                                  ║
- ║For (20, 10) client, no frame4                   ,10                            ║
- ║Check client window has (20, 5                                                  ║
+ ║Check client window has (20, 12345678901234567890                               ║
+ ║frame off                    2                                                  ║
+ ║For (20, 10) client, no frame3                   ,10                            ║
+ ║Check client window has (20, 4                                                  ║
+ ║                             5                                                  ║
  ║                             6                                                  ║
  ║                             7                                                  ║
  ║                             8                                                  ║
  ║                             9                                                  ║
  ║                             0                                                  ║
- ║                                                                                ║
  ║                                                                                ║
  ║                                                                                ║
  ║                                                                                ║

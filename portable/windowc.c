@@ -419,6 +419,8 @@ typedef struct winrec {
     ami_color bcolor;            /* background color */
     int      curv;              /* cursor visible */
     int      autof;             /* current status of scroll and wrap */
+    int      wrappend;          /* a character sits in the last column the
+                                   window shows: the next one wraps first */
     int      bufmod;            /* buffered screen mode */
     int      tab[MAXTAB];       /* tabbing array */
     metptr   metlst;            /* menu tracking list */
@@ -2149,6 +2151,7 @@ static void resizewinbuf(winptr win, ami_long nx, ami_long ny)
     alcfmask(win);
     if (win->curx > nx) win->curx = nx; /* keep the cursor on the surface */
     if (win->cury > ny) win->cury = ny;
+    win->wrappend = FALSE;
 
 }
 
@@ -2747,6 +2750,7 @@ static void clrscn(FILE* f)
     scnptr sc;
 
     win = txt2win(f); /* get window from file */
+    win->wrappend = FALSE; /* the motion ends a pending wrap */
     sc = win->screens[win->curupd-1]; /* index current update screen */
     win->curx = 1; /* set cursor at home */
     win->cury = 1;
@@ -2756,7 +2760,6 @@ static void clrscn(FILE* f)
 }
 
 static ami_long wrapx(winptr win); /* forward */
-static ami_long wrapy(winptr win);
 
 /** ****************************************************************************
 
@@ -2777,6 +2780,7 @@ static void itab(FILE* f)
     scnptr sc;
 
     win = txt2win(f); /* get window from file */
+    win->wrappend = FALSE; /* the motion ends a pending wrap */
     sc = win->screens[win->curupd-1];
     /* first, find if next tab even exists */
     i = win->curx+1; /* get just after the current x position */
@@ -3642,6 +3646,7 @@ static void opnwin(int fn, int pfn, ami_long wid, int subclient, int root)
        whole -- black, with a black swatch no color could change. */
     win->attr = 0;
     win->autof = TRUE; /* auto on */
+    win->wrappend = FALSE;
     win->fcolor = ami_black; /*foreground black */
     win->bcolor = ami_white; /* background white */
     win->frmcolor = ami_blue; /* frame color blue */
@@ -4463,6 +4468,7 @@ static void icursor(FILE* f, ami_long x, ami_long y)
     winptr win; /* windows record pointer */
 
     win = txt2win(f); /* get window from file */
+    win->wrappend = FALSE; /* the motion ends a pending wrap */
     win->cury = y; /* set new position */
     win->curx = x;
     setcur(win); /* activate cursor onscreen as required */
@@ -4533,22 +4539,18 @@ static void ihome(FILE* f)
 
 }
 
-/* The extent the cursor runs to with auto on: the buffer, or the client
-   where the client shows less of the buffer. A line wraps, and the screen
-   scrolls, at the edge of what the window shows. The buffer can be larger
-   than the client (the window is then sized without regard to the client
+/* The column a line runs to with auto on: the buffer's last, or the
+   client's where the client shows less of the buffer. The buffer can be
+   wider than the client (the window is sized without regard to the client
    the frame leaves), and wrapping at the buffer's edge put characters in
-   columns and rows nobody could see: a line typed into a framed child
-   window ran two characters past its right edge before it wrapped. A
-   client with no room at all (a bar only window) leaves the buffer's
-   extent in force. */
+   columns nobody could see: a line typed into a framed child window ran
+   two characters past its right edge before it wrapped. The rows are not
+   treated so: a buffer taller than the client is a viewport, kept whole,
+   and the screen scrolls at the buffer's last row. A client with no room
+   at all (a bar only window) leaves the buffer's extent in force. */
 static ami_long wrapx(winptr win)
 {
     return (win->cmaxx >= 1 && win->cmaxx < win->maxx? win->cmaxx: win->maxx);
-}
-static ami_long wrapy(winptr win)
-{
-    return (win->cmaxy >= 1 && win->cmaxy < win->maxy? win->cmaxy: win->maxy);
 }
 
 /** ****************************************************************************
@@ -4569,6 +4571,7 @@ static void iup(FILE* f)
     winptr win; /* windows record pointer */
 
     win = txt2win(f); /* get window from file */
+    win->wrappend = FALSE; /* the motion ends a pending wrap */
     /* check not top of screen */
     if (win->cury > 1) win->cury--; /* update position */
     else if (win->autof) intscroll(win, 0, -1); /* scroll up */
@@ -4596,9 +4599,10 @@ static void idown(FILE* f)
     winptr win; /* windows record pointer */
 
     win = txt2win(f); /* get window from file */
+    win->wrappend = FALSE; /* the motion ends a pending wrap */
 
     /* check not bottom of screen */
-    if (win->cury < wrapy(win)) win->cury++; /* update position */
+    if (win->cury < win->maxy) win->cury++; /* update position */
     else if (win->autof) intscroll(win, 0, +1); /* scroll down */
     /* check won't overflow */
     else if (win->cury < LONG_MAX) win->cury++; /* set new position */
@@ -4623,6 +4627,7 @@ static void ileft(FILE* f)
     winptr win; /* windows record pointer */
 
     win = txt2win(f); /* get window from file */
+    win->wrappend = FALSE; /* the motion ends a pending wrap */
     /* check not at extreme left */
     if (win->curx > 1) win->curx--; /* update position */
     else { /* wrap cursor motion */
@@ -4656,6 +4661,7 @@ static void iright(FILE* f)
     winptr win; /* windows record pointer */
 
     win = txt2win(f); /* get window from file */
+    win->wrappend = FALSE; /* the motion ends a pending wrap */
     /* check not at extreme right */
     if (win->curx < wrapx(win)) win->curx++; /* update position */
     else { /* wrap cursor motion */
@@ -7436,13 +7442,17 @@ static void plcchr(FILE* f, char c)
 
     win = txt2win(f); /* get window from file */
     if (!win->visible) winvis(win); /* make sure we are displayed */
-    /* handle special character cases first */
+    /* handle special character cases first. Each of these moves the
+       cursor itself, and so ends a wrap left pending by a character in the
+       last column: a line that exactly fills the width and the newline
+       after it make one line, as on a terminal. */
     if (c == '\r')
         /* carriage return, position to extreme left */
         icursor(f, 1, win->cury);
     else if (c == '\n') {
 
         /* line end */
+        win->wrappend = FALSE;
         idown(f); /* line feed, move down */
         /* position to extreme left */
         icursor(f, 1, win->cury);
@@ -7459,6 +7469,15 @@ static void plcchr(FILE* f, char c)
     /* only output visible characters */
     else if (c >= ' ' && c != 0x7f) {
 
+        /* a wrap left pending by the last character in the line is taken
+           now, by the character that needs the room */
+        if (win->wrappend) {
+
+            win->wrappend = FALSE;
+            idown(f);
+            icursor(f, 1, win->cury);
+
+        }
         /* find character location */
         l = (win->cury-1)*win->bufx+(win->curx-1); 
         /* The store and the display have different bounds. The store is
@@ -7506,8 +7525,16 @@ static void plcchr(FILE* f, char c)
             }
 
         }
-        /* advance to next character */
-        iright(f);
+        /* advance to the next character. At the buffer's edge the cursor
+           wraps at once, as it does on every platform. At the client's
+           edge, where the client shows less of the buffer, the wrap waits
+           for the next character instead: a line that exactly fills the
+           view and the newline after it then make one line, as on a
+           terminal, rather than the view's width deciding the spacing of
+           a program's output. */
+        if (win->autof && win->curx == wrapx(win) && wrapx(win) < win->maxx)
+            win->wrappend = TRUE;
+        else iright(f);
 
     }
 
