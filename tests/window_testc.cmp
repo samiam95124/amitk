@@ -7000,8 +7000,8 @@ below that, and child 1 on the bottom.
 
 Child windows should all be closeder
 
-Child windows place and remove 100 iterations 0.238400 seconds
-0.002384 per iteration
+Child windows place and remove 100 iterations * seconds
+* per iteration
 
 
 
