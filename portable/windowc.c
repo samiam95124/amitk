@@ -2155,26 +2155,6 @@ static void resizewinbuf(winptr win, ami_long nx, ami_long ny)
 
 }
 
-/*******************************************************************************
-
-Grow window buffer
-
-Grows the window buffer to at least the given size, keeping contents. The
-buffer never shrinks: this serves the follow mode root window, which keeps
-its largest extent over terminal size changes.
-
-*******************************************************************************/
-
-static void growwinbuf(winptr win, ami_long nx, ami_long ny)
-
-{
-
-    if (nx <= win->maxx && ny <= win->maxy) return; /* nothing to grow */
-    if (nx < win->maxx) nx = win->maxx; /* never shrink */
-    if (ny < win->maxy) ny = win->maxy;
-    resizewinbuf(win, nx, ny);
-
-}
 
 /*******************************************************************************
 
@@ -5488,11 +5468,15 @@ static void intevent(FILE* f)
                 win->cmaxx = dimx-decorx(win);
                 win->cmaxy = dimy-decory(win);
                 /* In follow mode the buffer is the window, so it tracks
-                   the new surface. In buffered mode the program chose the
-                   buffer size and it keeps it: the window simply shows
+                   the new surface, smaller as well as larger: maxx and
+                   maxy are the client, as the manual has them. It used to
+                   grow only, so that after the terminal had been widened
+                   once a program sizing its children from maxx never saw
+                   them shrink again. In buffered mode the program chose
+                   the buffer size and it keeps it: the window simply shows
                    more or less of it. Growing it here regardless threw
                    away the size a program had asked for. */
-                if (!win->bufmod) growwinbuf(win, win->cmaxx, win->cmaxy);
+                if (!win->bufmod) resizewinbuf(win, win->cmaxx, win->cmaxy);
                 /* The layer below keeps its own screen buffers, sized when
                    it started, and clips writes to them. Grow those through
                    the standard call rather than by reaching into that
