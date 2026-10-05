@@ -10,7 +10,7 @@ mouseoff
 joystickoff
 
 # Graphical scrolling test: the arrows scroll the grid, ten steps each way
-sync 226
+sync 250
 up
 up
 up
@@ -54,7 +54,7 @@ right
 enter
 
 # Graphical mouse movement test: the mouse draws a box and a diagonal
-sync 227
+sync 251
 moumovg 1 200 200
 moumovg 1 1100 200
 moumovg 1 1100 700
@@ -65,7 +65,7 @@ enter
 
 # View drawing scale test: zoom in twice and out once, pan left, right, up
 # and down
-sync 231
+sync 255
 pagu
 pagu
 pagd
