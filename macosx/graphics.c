@@ -3985,17 +3985,23 @@ static void blockcopyg_ivf(FILE* f, ami_long s, ami_long d, ami_long sx1, ami_lo
     CGContextRef src = pa_cocoa_get_screen_context(win->han, (int)s - 1);
     CGContextRef dst = pa_cocoa_get_screen_context(win->han, (int)d - 1);
     if (!src || !dst) return;
+    /* the buffers are at the screen's scale: the block is cut from the
+       source in pixels, and drawn to the destination in points through a
+       transform of that scale alone */
+    CGFloat scl = pa_cocoa_bitmap_scale();
     CGFloat sh = (CGFloat)CGBitmapContextGetHeight(src);
 
     CGImageRef whole = CGBitmapContextCreateImage(src);
     if (!whole) return;
     CGImageRef blk = CGImageCreateWithImageInRect(whole,
-        CGRectMake(PX(sx1), sh - sy2, sx2 - sx1 + 1, sy2 - sy1 + 1));
+        CGRectMake(PX(sx1) * scl, sh - sy2 * scl,
+                   (sx2 - sx1 + 1) * scl, (sy2 - sy1 + 1) * scl));
     CGImageRelease(whole);
     if (!blk) return;
 
     CGContextSaveGState(dst);
     CGContextConcatCTM(dst, CGAffineTransformInvert(CGContextGetCTM(dst)));
+    CGContextScaleCTM(dst, scl, scl);
     CGContextSetBlendMode(dst, cs->fmod == mdnorm ? kCGBlendModeCopy
                                                   : mode2blend(cs->fmod));
     /* The destination is given in the surface's own terms, top down: the

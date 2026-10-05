@@ -142,6 +142,10 @@ static int evt_empty(void) {
     float         bgR, bgG, bgB; /* background color for margins */
     CGImageRef    displayImage;  /* snapshot for drawRect (threaded mode) */
     int           dispW, dispH;  /* dimensions of displayImage */
+    double        lastPresent;   /* when the display was last snapshotted */
+    int           presentPending; /* drawn since, not yet presented */
+    pthread_mutex_t bufLock;     /* the screen buffers, between a resize
+                                    and a present on another thread */
 }
 - (void)createBitmapWidth:(int)w height:(int)h;
 - (void)destroyBitmap;
@@ -162,6 +166,7 @@ static int pa_win_is_child(pa_winhan h);
     self = [super initWithFrame:frame];
     if (self) {
         if (@available(macOS 14.0, *)) self.clipsToBounds = YES;
+        pthread_mutex_init(&bufLock, NULL);
     }
     return self;
 }
@@ -240,17 +245,15 @@ static int pa_win_is_child(pa_winhan h);
 
 - (CGContextRef)createOneBitmapWidth:(int)w height:(int)h
 {
-    /* All screen buffers use a fixed 1x scale (1 pixel == 1 point). This
-       must be consistent across every buffer: screen 0 is created during
-       PAWindow init (window nil) while the page-flip screens are created
-       later (window attached), so keying off backingScaleFactor gave a
-       mix of 1x and 2x buffers -- the flip then alternated between fitted
-       and doubled frames. A fixed 1x also keeps the per-flush pixel copy
-       (done on every draw op) cheap, which matters for the double-buffered
-       games; a Retina buffer quadruples that copy and starves the frame
-       timer. drawRect scales the 1x snapshot up to the window crisply
-       enough. */
-    CGFloat       scale = 1.0;
+    /* Every screen buffer is at the one scale, the main screen's backing
+       scale, found once at the first buffer: a Retina screen's two pixels
+       to the point, so that text and lines are drawn at the screen's own
+       resolution rather than at one pixel to the point and doubled on the
+       way to the window, which left the text soft beside the terminal's.
+       The scale is taken once, as a buffer made while the window is not
+       yet attached must match one made after it is: keyed to the window,
+       the page flip once alternated between fitted and doubled frames. */
+    CGFloat       scale = pa_cocoa_bitmap_scale();
     int           pw    = (int)(w * scale);
     int           ph    = (int)(h * scale);
     CGColorSpaceRef cs  = CGColorSpaceCreateDeviceRGB();
@@ -1096,6 +1099,19 @@ void pa_cocoa_start_event_thread(void)
  * Screen queries
  *----------------------------------------------------------------------------*/
 
+/* the scale of the screen buffers, pixels to the point: the main screen's
+   backing scale, taken once */
+double pa_cocoa_bitmap_scale(void)
+{
+    static CGFloat scale = 0;
+    if (scale <= 0) {
+        NSScreen* scr = [NSScreen mainScreen];
+        scale = scr ? scr.backingScaleFactor : 1.0;
+        if (scale < 1.0) scale = 1.0;
+    }
+    return scale;
+}
+
 int pa_cocoa_screen_w(void)
 {
     return (int)[NSScreen mainScreen].frame.size.width;
@@ -1513,15 +1529,20 @@ void pa_cocoa_send_user_event(pa_winhan win, void* rec)
    worker can keep drawing while the main thread presents. */
 static void present_display(PAView* v)
 {
+    /* A present held back is taken up by whichever thread next waits for
+       an event, and a program with a window a thread may have another
+       thread resizing this one's buffers: the copy is made under the
+       buffer lock the resize takes, else it read a buffer being freed. */
+    pthread_mutex_lock(&v->bufLock);
     CGContextRef ctx = v->screens[v->dspscr];
-    if (!ctx) return;
+    if (!ctx) { pthread_mutex_unlock(&v->bufLock); return; }
     size_t w = CGBitmapContextGetWidth(ctx);
     size_t h = CGBitmapContextGetHeight(ctx);
     size_t bpr = CGBitmapContextGetBytesPerRow(ctx);
     void* data = CGBitmapContextGetData(ctx);
-    if (!data || w == 0 || h == 0) return;
+    if (!data || w == 0 || h == 0) { pthread_mutex_unlock(&v->bufLock); return; }
     CFDataRef pixelData = CFDataCreate(NULL, (const UInt8*)data, h * bpr);
-    if (!pixelData) return;
+    if (!pixelData) { pthread_mutex_unlock(&v->bufLock); return; }
     CGColorSpaceRef cs = CGBitmapContextGetColorSpace(ctx);
     CGDataProviderRef dp = CGDataProviderCreateWithCFData(pixelData);
     CFRelease(pixelData);
@@ -1531,6 +1552,7 @@ static void present_display(PAView* v)
         bpr, cs, CGBitmapContextGetBitmapInfo(ctx),
         dp, NULL, false, kCGRenderingIntentDefault);
     CGDataProviderRelease(dp);
+    pthread_mutex_unlock(&v->bufLock);
     if (!snap) return;
     pthread_mutex_lock(&evt_mutex);
     CGImageRef old = v->displayImage;
@@ -1549,6 +1571,53 @@ static void present_display(PAView* v)
     });
 }
 
+/* The presents held back: a flush within a frame time of the last present
+   marks the view instead of copying the buffer again, and the mark is
+   taken up by the next flush after the frame time, or when the program
+   goes to wait for an event, so that what it drew last is shown. All on
+   the drawing thread, which also resizes the buffers: no copy races one. */
+#define PRESENT_INTERVAL (1.0/60.0)
+static PAView* pendview[32];
+static int     npendview;
+
+static double nowsec(void)
+{
+    struct timespec ts;
+    clock_gettime(CLOCK_MONOTONIC, &ts);
+    return ts.tv_sec + ts.tv_nsec / 1e9;
+}
+
+static void present_now(PAView* v)
+{
+    present_display(v);
+    v->lastPresent = nowsec();
+    v->presentPending = 0;
+}
+
+static void present_pending(void)
+{
+    int i, n;
+    PAView* vs[32];
+    if (!npendview) return;
+    pthread_mutex_lock(&evt_mutex);
+    n = npendview;
+    for (i = 0; i < n; i++) vs[i] = pendview[i];
+    npendview = 0;
+    pthread_mutex_unlock(&evt_mutex);
+    for (i = 0; i < n; i++) if (vs[i]->presentPending) present_now(vs[i]);
+}
+
+static void present_coalesced(PAView* v)
+{
+    int i;
+    if (nowsec() - v->lastPresent >= PRESENT_INTERVAL) { present_now(v); return; }
+    v->presentPending = 1;
+    pthread_mutex_lock(&evt_mutex);
+    for (i = 0; i < npendview; i++) if (pendview[i] == v) break;
+    if (i == npendview && npendview < 32) pendview[npendview++] = v;
+    pthread_mutex_unlock(&evt_mutex);
+}
+
 void pa_cocoa_flush(pa_winhan win)
 {
     PAWindow* pw = (__bridge PAWindow*)win;
@@ -1562,7 +1631,11 @@ void pa_cocoa_flush(pa_winhan win)
            flood the compositor and make the animation flicker. The flip
            (pa_cocoa_select_screens) presents the revealed page instead. */
         if (v->updscr != v->dspscr) return;
-        present_display(v);
+        /* The buffer is copied whole on each present, and at the screen's
+           scale a copy is four times the size it was: once per primitive,
+           as it was, a run of drawing spent its time copying. Held to a
+           frame time apart. */
+        present_coalesced(v);
     } else {
         [pw->view setNeedsDisplay:YES];
         [[NSRunLoop currentRunLoop] runMode:NSDefaultRunLoopMode
@@ -1600,6 +1673,7 @@ void pa_cocoa_resize_bitmap(pa_winhan win, int w, int h)
     int oldW = v->bmpW;
     int oldH = v->bmpH;
 
+    pthread_mutex_lock(&v->bufLock); /* against a present on another thread */
     /* save old display screen bitmap */
     CGContextRef oldCtx = v->screens[v->dspscr];
     CGImageRef oldImg = oldCtx ? CGBitmapContextCreateImage(oldCtx) : NULL;
@@ -1619,6 +1693,7 @@ void pa_cocoa_resize_bitmap(pa_winhan win, int w, int h)
     if (v->updscr != v->dspscr) {
         v->screens[v->updscr] = [v createOneBitmapWidth:w height:h];
     }
+    pthread_mutex_unlock(&v->bufLock);
 
     /* copy intersection of old content into new display bitmap */
     if (oldImg) {
@@ -1678,7 +1753,7 @@ void pa_cocoa_select_screens(pa_winhan win, int upd, int dsp)
            mode present it (flush skips off-screen draws, so this is the
            one place the double-buffered display advances per frame). */
         if (threaded_mode) {
-            present_display(v);
+            present_now(v); /* a flip shows its page at once */
         } else {
             [v setNeedsDisplay:YES];
         }
@@ -1710,6 +1785,7 @@ int pa_cocoa_dequeue(pa_rawevent* evt)
 void pa_cocoa_wait(pa_rawevent* evt)
 {
     if (threaded_mode) {
+        present_pending(); /* the program is done drawing for now: show it */
         pthread_mutex_lock(&evt_mutex);
         while (evt_tail == evt_head)
             pthread_cond_wait(&evt_cond, &evt_mutex);

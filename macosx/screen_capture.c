@@ -37,8 +37,10 @@ static int       cap_disabled    = 0;
 /* Function pointers resolved at runtime via dlsym so screen_capture works
    in both graphical and terminal (non-graphical) builds. */
 typedef pa_winhan (*fn_stdout_winhan)(void);
+typedef double    (*fn_bitmap_scale)(void);
 typedef CGContextRef (*fn_get_context)(pa_winhan);
 static fn_stdout_winhan  p_stdout_winhan;
+static fn_bitmap_scale   p_bitmap_scale;
 static fn_get_context    p_get_context;
 static int               syms_resolved;
 
@@ -80,6 +82,8 @@ void screen_capture(void) {
                                                    "pa_stdout_winhan");
         p_get_context   = (fn_get_context)dlsym(RTLD_DEFAULT,
                                                  "pa_cocoa_get_context");
+        p_bitmap_scale  = (fn_bitmap_scale)dlsym(RTLD_DEFAULT,
+                                                 "pa_cocoa_bitmap_scale");
     }
     if (!p_stdout_winhan || !p_get_context) return;
 
@@ -95,13 +99,19 @@ void screen_capture(void) {
     /* CGBitmapContextCreateImage returns an image in CG's Y-up coordinate
      * system, but our bitmap was drawn in a flipped (Y-down) context.
      * Flip it so the PNG is right-side up when viewed in any standard tool. */
-    size_t pw = CGImageGetWidth(raw);
-    size_t ph = CGImageGetHeight(raw);
+    /* The buffer is at the screen's scale, two pixels to the point on a
+     * Retina screen; the capture is the screen in points, as the other
+     * platforms capture it, the buffer scaled down to it. */
+    double scale = p_bitmap_scale ? p_bitmap_scale() : 1.0;
+    if (scale < 1.0) scale = 1.0;
+    size_t pw = (size_t)(CGImageGetWidth(raw) / scale + 0.5);
+    size_t ph = (size_t)(CGImageGetHeight(raw) / scale + 0.5);
     CGColorSpaceRef cs = CGColorSpaceCreateDeviceRGB();
     CGContextRef flipCtx = CGBitmapContextCreate(NULL, pw, ph, 8, pw * 4, cs,
                                kCGImageAlphaPremultipliedFirst | kCGBitmapByteOrder32Host);
     CGColorSpaceRelease(cs);
     if (!flipCtx) { CGImageRelease(raw); return; }
+    CGContextSetInterpolationQuality(flipCtx, kCGInterpolationHigh);
     CGContextTranslateCTM(flipCtx, 0, ph);
     CGContextScaleCTM(flipCtx, 1.0, -1.0);
     CGContextDrawImage(flipCtx, CGRectMake(0, 0, pw, ph), raw);
