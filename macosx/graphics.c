@@ -183,6 +183,7 @@ static ssize_t iread(int fd, void* buff, size_t count);
 static int     iclose(int fd);
 static void    update_metrics(winptr win);
 static int     glyphspan(CTFontRef f);
+static void    fontcell(CTFontRef f, int* cs, int* ls);
 static void    buildfont(winptr win, const char* name, int bold, int italic);
 
 
@@ -602,6 +603,24 @@ static int glyphspan(CTFontRef f)
     return ((int)CTFontGetAscent(f) + (int)CTFontGetDescent(f));
 }
 
+/* The character cell of a font: the row is the glyph span and the gap,
+   the column the advance of 'M', standing in for the widest. The one
+   measure, taken here for the window's size at start and for each window
+   as it opens: the two had their own formulas, and when they differed the
+   window held fewer rows than the terminal's height. */
+static void fontcell(CTFontRef f, int* cs, int* ls)
+{
+    CGGlyph glyph;
+    UniChar ch = 'M';
+    CGSize  adv;
+
+    *ls = glyphspan(f) + 2;
+    CTFontGetGlyphsForCharacters(f, &ch, &glyph, 1);
+    CTFontGetAdvancesForGlyphs(f, kCTFontOrientationDefault, &glyph, &adv, 1);
+    *cs = (int)(adv.width + 0.5);
+    if (*cs <= 0) *cs = *ls / 2;
+}
+
 /* Build the window's font to its cell. The cell, once set, is kept over
    font changes, and each face is built at the largest size whose glyphs
    fit the cell less the gap, so that every face shares the row height,
@@ -671,19 +690,11 @@ static void win_init(winptr win, int wid, int parwid, int w, int h)
     /* character cell size from font metrics */
     CTFontRef f = fntlst ? fntlst->ctfont : NULL;
     if (f) {
-        win->cellh      = glyphspan(f) + 2;
-        win->linespace  = win->cellh;
-        {
-            /* use advance of 'M' as max_advance approximation */
-            CGGlyph  glyph;
-            UniChar  ch = 'M';
-            CTFontGetGlyphsForCharacters(f, &ch, &glyph, 1);
-            CGSize   adv;
-            CTFontGetAdvancesForGlyphs(f, kCTFontOrientationDefault,
-                                       &glyph, &adv, 1);
-            win->charspace = (int)(adv.width + 0.5);
-        }
-        if (win->charspace <= 0) win->charspace = win->linespace / 2;
+        int cs, ls;
+        fontcell(f, &cs, &ls);
+        win->charspace = cs;
+        win->linespace = ls;
+        win->cellh = ls;
     } else {
         win->linespace = DEF_FONT_H + 2;
         win->charspace = (DEF_FONT_H + 2) / 2;
@@ -871,13 +882,10 @@ static void pa_graphics_init(void)
             }
         }
 
-        CGGlyph glyph; UniChar ch = 'M'; CGSize adv;
-        CTFontGetGlyphsForCharacters(fp->ctfont, &ch, &glyph, 1);
-        CTFontGetAdvancesForGlyphs(fp->ctfont, kCTFontOrientationDefault,
-                                   &glyph, &adv, 1);
-        int cs = (int)(adv.width + 0.5);
-        int ls = (int)(fp->size + 0.5);
-        if (cs <= 0) cs = ls / 2;
+        /* the terminal font's cell, then the window as the terminal's
+           columns and rows of it */
+        int cs, ls;
+        fontcell(fp->ctfont, &cs, &ls);
         maxxd = termw * cs;
         maxyd = termh * ls;
     }
