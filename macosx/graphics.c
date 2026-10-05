@@ -136,6 +136,8 @@ typedef struct winrec {
                                   NULL until built, when the record's default
                                   size face serves (see winfont) */
     CGFloat     fontsz;        /* font size in pixels (CTFont logical size) */
+    int         cellh;         /* the character cell height the fonts are
+                                  fitted to; 0 until the first font sets it */
     float       gfpoint;       /* current font size in typographic points */
 
     /* event handler */
@@ -180,6 +182,9 @@ static ssize_t iwrite(int fd, const void* buff, size_t count);
 static ssize_t iread(int fd, void* buff, size_t count);
 static int     iclose(int fd);
 static void    update_metrics(winptr win);
+static int     glyphspan(CTFontRef f);
+static void    fontcell(CTFontRef f, int* cs, int* ls);
+static void    buildfont(winptr win, const char* name, int bold, int italic);
 
 
 /* standard color table: ami_color → RGBA */
@@ -316,8 +321,7 @@ static void rebuild_font(winptr win)
     int b = sc->bold || sc->xbold;
     int it = sc->italic;
 
-    if (win->ctfont) CFRelease(win->ctfont);
-    win->ctfont = make_ctfont(fp->name, win->fontsz, b, it);
+    buildfont(win, fp->name, b, it);
 
     /* apply condensed/extended via a matrix transform */
     if (win->ctfont && (sc->condensed || sc->extended)) {
@@ -529,8 +533,19 @@ static void draw_string(CGContextRef ctx, winptr win, scnptr sc,
     CGFloat tx = PX(x);
     CGFloat ty = PY(y) + ascent + yoff;
 
-    /* draw text */
+    /* draw text. The context has antialiasing off, for the lines and
+       figures, which are drawn to the pixel; glyphs are drawn smoothed, as
+       the system draws its own, else they come out ragged, each stem
+       snapped to a pixel at the font's size. */
     CGContextSaveGState(ctx);
+    CGContextSetAllowsAntialiasing(ctx, true);
+    CGContextSetShouldAntialias(ctx, true);
+    CGContextSetAllowsFontSmoothing(ctx, true);
+    CGContextSetShouldSmoothFonts(ctx, true);
+    CGContextSetAllowsFontSubpixelPositioning(ctx, true);
+    CGContextSetShouldSubpixelPositionFonts(ctx, true);
+    CGContextSetAllowsFontSubpixelQuantization(ctx, false);
+    CGContextSetShouldSubpixelQuantizeFonts(ctx, false);
     CGContextTranslateCTM(ctx, tx, ty);
     CGContextScaleCTM(ctx, 1.0, -1.0);
     if (sc->textpath != LONG_MAX / 4) {
@@ -585,6 +600,76 @@ static void draw_string(CGContextRef ctx, winptr win, scnptr sc,
 *                        Window init / deinit                                  *
 *                                                                              *
 *******************************************************************************/
+/* A font's glyph span: its ascent and descent, each to the pixel below.
+   The character cell is that and two for the gap, as the Linux backend
+   has it from FreeType. The cell was the font size asked for, with the
+   font built at that size, and a font's glyphs run taller than its size
+   (Menlo at 16 spans 18.6), so rows were cut short: descenders ran into
+   the row below, and a row's background fill, the size of the cell,
+   covered less than the glyphs and more than the row it was meant to, as
+   the last row of a buffer did a bar drawn along the buffer's bottom
+   edge. */
+static int glyphspan(CTFontRef f)
+{
+    return ((int)CTFontGetAscent(f) + (int)CTFontGetDescent(f));
+}
+
+/* The character cell of a font: the row is the glyph span and the gap,
+   the column the advance of 'M', standing in for the widest. The one
+   measure, taken here for the window's size at start and for each window
+   as it opens: the two had their own formulas, and when they differed the
+   window held fewer rows than the terminal's height. */
+static void fontcell(CTFontRef f, int* cs, int* ls)
+{
+    CGGlyph glyph;
+    UniChar ch = 'M';
+    CGSize  adv;
+
+    *ls = glyphspan(f) + 2;
+    CTFontGetGlyphsForCharacters(f, &ch, &glyph, 1);
+    CTFontGetAdvancesForGlyphs(f, kCTFontOrientationDefault, &glyph, &adv, 1);
+    *cs = (int)(adv.width + 0.5);
+    if (*cs <= 0) *cs = *ls / 2;
+}
+
+/* Build the window's font to its cell. The cell, once set, is kept over
+   font changes, and each face is built at the largest size whose glyphs
+   fit the cell less the gap, so that every face shares the row height,
+   as on Linux. With no cell set yet, the size asked for builds the font
+   and the font's span sets the cell. */
+static void buildfont(winptr win, const char* name, int bold, int italic)
+{
+    CGFloat   em;
+    int       target;
+    CTFontRef t;
+
+    if (win->ctfont) { CFRelease(win->ctfont); win->ctfont = NULL; }
+    if (win->cellh <= 0) {
+        win->ctfont = make_ctfont(name, win->fontsz, bold, italic);
+        if (win->ctfont) win->cellh = glyphspan(win->ctfont) + 2;
+        return;
+    }
+    target = win->cellh - 2;
+    if (target < 1) target = 1;
+    em = target;
+    win->ctfont = make_ctfont(name, em, bold, italic);
+    if (!win->ctfont) return;
+    while (em > 1 && glyphspan(win->ctfont) > target) { /* too tall: smaller */
+        em--;
+        CFRelease(win->ctfont);
+        win->ctfont = make_ctfont(name, em, bold, italic);
+        if (!win->ctfont) return;
+    }
+    for (;;) { /* room to spare: larger, while it still fits */
+        t = make_ctfont(name, em + 1, bold, italic);
+        if (!t || glyphspan(t) > target) { if (t) CFRelease(t); break; }
+        CFRelease(win->ctfont);
+        win->ctfont = t;
+        em++;
+    }
+    win->fontsz = em;
+}
+
 
 static void win_init(winptr win, int wid, int parwid, int w, int h)
 {
@@ -616,18 +701,11 @@ static void win_init(winptr win, int wid, int parwid, int w, int h)
     /* character cell size from font metrics */
     CTFontRef f = fntlst ? fntlst->ctfont : NULL;
     if (f) {
-        win->linespace  = (int)(win->fontsz + 0.5);
-        {
-            /* use advance of 'M' as max_advance approximation */
-            CGGlyph  glyph;
-            UniChar  ch = 'M';
-            CTFontGetGlyphsForCharacters(f, &ch, &glyph, 1);
-            CGSize   adv;
-            CTFontGetAdvancesForGlyphs(f, kCTFontOrientationDefault,
-                                       &glyph, &adv, 1);
-            win->charspace = (int)(adv.width + 0.5);
-        }
-        if (win->charspace <= 0) win->charspace = win->linespace / 2;
+        int cs, ls;
+        fontcell(f, &cs, &ls);
+        win->charspace = cs;
+        win->linespace = ls;
+        win->cellh = ls;
     } else {
         win->linespace = DEF_FONT_H + 2;
         win->charspace = (DEF_FONT_H + 2) / 2;
@@ -815,13 +893,10 @@ static void pa_graphics_init(void)
             }
         }
 
-        CGGlyph glyph; UniChar ch = 'M'; CGSize adv;
-        CTFontGetGlyphsForCharacters(fp->ctfont, &ch, &glyph, 1);
-        CTFontGetAdvancesForGlyphs(fp->ctfont, kCTFontOrientationDefault,
-                                   &glyph, &adv, 1);
-        int cs = (int)(adv.width + 0.5);
-        int ls = (int)(fp->size + 0.5);
-        if (cs <= 0) cs = ls / 2;
+        /* the terminal font's cell, then the window as the terminal's
+           columns and rows of it */
+        int cs, ls;
+        fontcell(fp->ctfont, &cs, &ls);
         maxxd = termw * cs;
         maxyd = termh * ls;
     }
@@ -1674,9 +1749,8 @@ static void setpoints_ivf(FILE* f, float ps)
     win->gfpoint = ps;
     scnptr sc = curscn(win);
     if (sc->font && sc->font->name) {
-        if (win->ctfont) CFRelease(win->ctfont);
-        win->ctfont = make_ctfont(sc->font->name, win->fontsz,
-                                       sc->bold, sc->italic);
+        win->cellh = 0; /* the point size builds the font; its span sets the cell */
+        buildfont(win, sc->font->name, sc->bold, sc->italic);
         sc->font->size   = win->fontsz;
         update_metrics(win);
     }
@@ -1748,16 +1822,36 @@ static void title_ivf(FILE* f, char* ts)
     pa_cocoa_set_title(win->han, ts);
 }
 
-static void eventover_ivf(ami_evtcod e, ami_pevthan eh, ami_pevthan* oeh)
+/* The event handlers a program hooks in: one for each event code, and a
+   master handler ahead of them, as the Linux backend keeps them. Each
+   event goes to the master handler, then to its code's handler, and comes
+   back to the caller only if neither takes it. The hooks were not kept
+   here, so a program's handler was never called: terminal_test hooks the
+   terminate event to end the program, and with the hook unheeded the
+   window's close button and a control-c in the window did nothing. */
+static ami_pevthan evthan[ami_etdsize+1];
+static ami_pevthan evtshan;
+
+static void defaultevent(ami_evtrec* ev)
 {
-    /* no override system in this implementation */
-    if (oeh) *oeh = NULL;
+    ev->handled = 0; /* not handled: it goes on */
 }
 
+static void eventover_ivf(ami_evtcod e, ami_pevthan eh, ami_pevthan* oeh)
+{
+    if (e < 0 || e > ami_etdsize) { if (oeh) *oeh = NULL; return; }
+    if (!evtshan) evtshan = defaultevent;
+    if (!evthan[e]) evthan[e] = defaultevent;
+    if (oeh) *oeh = evthan[e];
+    evthan[e] = eh;
+}
 static void eventsover_ivf(ami_pevthan eh, ami_pevthan* oeh)
 {
-    if (oeh) *oeh = NULL;
+    if (!evtshan) evtshan = defaultevent;
+    if (oeh) *oeh = evtshan;
+    evtshan = eh;
 }
+
 
 /* Send an event to the window's input queue, as the x11 backend does: a
    copy of the record, its window id stamped to this window's, delivered
@@ -2102,10 +2196,7 @@ static void update_metrics(winptr win)
     fontptr fp = sc->font ? sc->font : fntlst;
     CTFontRef cf = winfont(win);
     if (!cf) return;
-    /* cf: the window's font, above */
-    /* linespace = requested font height (fontsz), matching Linux behavior
-     * where linespace = gfhigh. This ensures chrsizy/fontsiz round-trip. */
-    win->linespace = (int)(win->fontsz + 0.5);
+    win->linespace = win->cellh > 0 ? win->cellh : glyphspan(cf) + 2;
     CGGlyph  glyph;
     UniChar  ch = 'M';
     CTFontGetGlyphsForCharacters(cf, &ch, &glyph, 1);
@@ -2131,11 +2222,8 @@ static void font_ivf(FILE* f, ami_long fc)
         win->cfont        = fp;
         /* a face change always builds the window's font at its size: the
            font is the window's, so there is no record cache to consult */
-        if (fp->name) {
-            if (win->ctfont) CFRelease(win->ctfont);
-            win->ctfont = make_ctfont(fp->name, win->fontsz,
-                                     curscn(win)->bold, curscn(win)->italic);
-        }
+        if (fp->name)
+            buildfont(win, fp->name, curscn(win)->bold, curscn(win)->italic);
         update_metrics(win);
     }
 }
@@ -2152,16 +2240,15 @@ static void fontnam_ivf(FILE* f, ami_long fc, char* fns, ami_long fnsl)
 static void fontsiz_ivf(FILE* f, ami_long s)
 {
     winptr win = f2win(f); if (!win) return;
-    win->fontsz = (CGFloat)(s > 0 ? s : DEF_FONT_H);
-    win->gfpoint = win->fontsz * 2835.0f / (float)win->dpmy;
-    /* rebuild current font at new size */
+    /* the size asked for is the cell's height: the font is fitted to it */
+    win->cellh = (int)(s > 0 ? s : DEF_FONT_H);
+    win->fontsz = (CGFloat)win->cellh;
     scnptr sc = curscn(win);
     if (sc->font && sc->font->name) {
-        if (win->ctfont) CFRelease(win->ctfont);
-        win->ctfont = make_ctfont(sc->font->name, win->fontsz,
-                                       sc->bold, sc->italic);
+        buildfont(win, sc->font->name, sc->bold, sc->italic);
         update_metrics(win);
     }
+    win->gfpoint = win->fontsz * 2835.0f / (float)win->dpmy;
 }
 
 static void chrspcy_ivf(FILE* f, ami_long s)  { /* stub */ }
@@ -2949,10 +3036,20 @@ pa_winhan pa_stdout_winhan(void)
 static void event_ivf(FILE* f, ami_evtrec* er)
 {
     pa_rawevent raw;
-    pa_cocoa_process_ns_events();
-    pa_cocoa_wait(&raw);
-    translate_event(&raw, er);
-    if (er->etype == ami_etterm) fend = TRUE;
+    do {
+        pa_cocoa_process_ns_events();
+        pa_cocoa_wait(&raw);
+        translate_event(&raw, er);
+        if (er->etype == ami_etterm) fend = TRUE;
+        /* the program's handlers, master first, then the code's own; an
+           event they take is not returned */
+        er->handled = 1;
+        if (evtshan) (*evtshan)(er); else er->handled = 0;
+        if (!er->handled && er->etype >= 0 && er->etype <= ami_etdsize && evthan[er->etype]) {
+            er->handled = 1;
+            (*evthan[er->etype])(er);
+        }
+    } while (er->handled);
 }
 
 static void timer_ivf(FILE* f, ami_long i, ami_long t, ami_long r)
@@ -3714,17 +3811,23 @@ static void blockcopyg_ivf(FILE* f, ami_long s, ami_long d, ami_long sx1, ami_lo
     CGContextRef src = pa_cocoa_get_screen_context(win->han, (int)s - 1);
     CGContextRef dst = pa_cocoa_get_screen_context(win->han, (int)d - 1);
     if (!src || !dst) return;
+    /* the buffers are at the screen's scale: the block is cut from the
+       source in pixels, and drawn to the destination in points through a
+       transform of that scale alone */
+    CGFloat scl = pa_cocoa_bitmap_scale();
     CGFloat sh = (CGFloat)CGBitmapContextGetHeight(src);
 
     CGImageRef whole = CGBitmapContextCreateImage(src);
     if (!whole) return;
     CGImageRef blk = CGImageCreateWithImageInRect(whole,
-        CGRectMake(PX(sx1), sh - sy2, sx2 - sx1 + 1, sy2 - sy1 + 1));
+        CGRectMake(PX(sx1) * scl, sh - sy2 * scl,
+                   (sx2 - sx1 + 1) * scl, (sy2 - sy1 + 1) * scl));
     CGImageRelease(whole);
     if (!blk) return;
 
     CGContextSaveGState(dst);
     CGContextConcatCTM(dst, CGAffineTransformInvert(CGContextGetCTM(dst)));
+    CGContextScaleCTM(dst, scl, scl);
     CGContextSetBlendMode(dst, cs->fmod == mdnorm ? kCGBlendModeCopy
                                                   : mode2blend(cs->fmod));
     /* The destination is given in the surface's own terms, top down: the

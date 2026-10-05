@@ -121,6 +121,7 @@ void pa_cocoa_deinit(void);
  * Screen queries
  *----------------------------------------------------------------------------*/
 
+double pa_cocoa_bitmap_scale(void); /* pixels to the point of the screen buffers */
 int pa_cocoa_screen_w(void);       /* screen width  in pixels  */
 int pa_cocoa_screen_h(void);       /* screen height in pixels  */
 int pa_cocoa_screen_wmm(void);     /* screen width  in mm      */

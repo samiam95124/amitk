@@ -419,6 +419,8 @@ typedef struct winrec {
     ami_color bcolor;            /* background color */
     int      curv;              /* cursor visible */
     int      autof;             /* current status of scroll and wrap */
+    int      wrappend;          /* a character sits in the last column the
+                                   window shows: the next one wraps first */
     int      bufmod;            /* buffered screen mode */
     int      tab[MAXTAB];       /* tabbing array */
     metptr   metlst;            /* menu tracking list */
@@ -2149,29 +2151,10 @@ static void resizewinbuf(winptr win, ami_long nx, ami_long ny)
     alcfmask(win);
     if (win->curx > nx) win->curx = nx; /* keep the cursor on the surface */
     if (win->cury > ny) win->cury = ny;
+    win->wrappend = FALSE;
 
 }
 
-/*******************************************************************************
-
-Grow window buffer
-
-Grows the window buffer to at least the given size, keeping contents. The
-buffer never shrinks: this serves the follow mode root window, which keeps
-its largest extent over terminal size changes.
-
-*******************************************************************************/
-
-static void growwinbuf(winptr win, ami_long nx, ami_long ny)
-
-{
-
-    if (nx <= win->maxx && ny <= win->maxy) return; /* nothing to grow */
-    if (nx < win->maxx) nx = win->maxx; /* never shrink */
-    if (ny < win->maxy) ny = win->maxy;
-    resizewinbuf(win, nx, ny);
-
-}
 
 /*******************************************************************************
 
@@ -2463,7 +2446,19 @@ static void restoreclp(winptr win,   /* window to restore */
     intersection(&rcc, cr, &rca);
     cr = &rcc;
     setcurvis(FALSE); /* turn off cursor for drawing */
-    if (win->frame) drwfrm(win, cr); /* draw window frame */
+    if (win->frame) {
+        /* The frame draws only where this window is the topmost, the way
+           the client cells do by the forward mask. Clipped to the
+           rectangle alone, a whole window restore (a clear, a buffer
+           change, a decoration change) painted the frame over any window
+           lying across it: window_test's reference window, created over
+           the main window and straddling its left edge, got that edge
+           drawn through it by the clear that followed. */
+        winptr hf = hovflt; /* a caller may be filtering already */
+        hovflt = win;
+        drwfrm(win, cr);
+        hovflt = hf;
+    }
     if (!win->bufmod) {
 
         /* Follow mode: there is no content store, the program owns the
@@ -2747,6 +2742,7 @@ static void clrscn(FILE* f)
     scnptr sc;
 
     win = txt2win(f); /* get window from file */
+    win->wrappend = FALSE; /* the motion ends a pending wrap */
     sc = win->screens[win->curupd-1]; /* index current update screen */
     win->curx = 1; /* set cursor at home */
     win->cury = 1;
@@ -2754,6 +2750,8 @@ static void clrscn(FILE* f)
     if (indisp(win)) restore(win); /* also process to display */
 
 }
+
+static ami_long wrapx(winptr win); /* forward */
 
 /** ****************************************************************************
 
@@ -2774,13 +2772,14 @@ static void itab(FILE* f)
     scnptr sc;
 
     win = txt2win(f); /* get window from file */
+    win->wrappend = FALSE; /* the motion ends a pending wrap */
     sc = win->screens[win->curupd-1];
     /* first, find if next tab even exists */
     i = win->curx+1; /* get just after the current x position */
     if (i < 1) i = 1; /* don't bother to search to left of screen */
     /* find tab or end of screen; the stop for column i is tab[i-1], as
        settab and the default stops place it */
-    while (i < MAXTAB && !win->tab[i-1] && i < win->maxx) i++;
+    while (i < MAXTAB && !win->tab[i-1] && i < wrapx(win)) i++;
     if (win->tab[i-1]) /* not off right of tabs */
        win->curx = i; /* set position to that tab */
     setcur(win); /* update screen */
@@ -3639,6 +3638,7 @@ static void opnwin(int fn, int pfn, ami_long wid, int subclient, int root)
        whole -- black, with a black swatch no color could change. */
     win->attr = 0;
     win->autof = TRUE; /* auto on */
+    win->wrappend = FALSE;
     win->fcolor = ami_black; /*foreground black */
     win->bcolor = ami_white; /* background white */
     win->frmcolor = ami_blue; /* frame color blue */
@@ -4460,6 +4460,7 @@ static void icursor(FILE* f, ami_long x, ami_long y)
     winptr win; /* windows record pointer */
 
     win = txt2win(f); /* get window from file */
+    win->wrappend = FALSE; /* the motion ends a pending wrap */
     win->cury = y; /* set new position */
     win->curx = x;
     setcur(win); /* activate cursor onscreen as required */
@@ -4530,6 +4531,20 @@ static void ihome(FILE* f)
 
 }
 
+/* The column a line runs to with auto on: the buffer's last, or the
+   client's where the client shows less of the buffer. The buffer can be
+   wider than the client (the window is sized without regard to the client
+   the frame leaves), and wrapping at the buffer's edge put characters in
+   columns nobody could see: a line typed into a framed child window ran
+   two characters past its right edge before it wrapped. The rows are not
+   treated so: a buffer taller than the client is a viewport, kept whole,
+   and the screen scrolls at the buffer's last row. A client with no room
+   at all (a bar only window) leaves the buffer's extent in force. */
+static ami_long wrapx(winptr win)
+{
+    return (win->cmaxx >= 1 && win->cmaxx < win->maxx? win->cmaxx: win->maxx);
+}
+
 /** ****************************************************************************
 
 Move cursor up
@@ -4548,6 +4563,7 @@ static void iup(FILE* f)
     winptr win; /* windows record pointer */
 
     win = txt2win(f); /* get window from file */
+    win->wrappend = FALSE; /* the motion ends a pending wrap */
     /* check not top of screen */
     if (win->cury > 1) win->cury--; /* update position */
     else if (win->autof) intscroll(win, 0, -1); /* scroll up */
@@ -4575,6 +4591,7 @@ static void idown(FILE* f)
     winptr win; /* windows record pointer */
 
     win = txt2win(f); /* get window from file */
+    win->wrappend = FALSE; /* the motion ends a pending wrap */
 
     /* check not bottom of screen */
     if (win->cury < win->maxy) win->cury++; /* update position */
@@ -4602,6 +4619,7 @@ static void ileft(FILE* f)
     winptr win; /* windows record pointer */
 
     win = txt2win(f); /* get window from file */
+    win->wrappend = FALSE; /* the motion ends a pending wrap */
     /* check not at extreme left */
     if (win->curx > 1) win->curx--; /* update position */
     else { /* wrap cursor motion */
@@ -4609,7 +4627,7 @@ static void ileft(FILE* f)
         if (win->autof) { /* autowrap is on */
 
             iup(f); /* move cursor up one line */
-            win->curx = win->maxx; /* set cursor to extreme right */
+            win->curx = wrapx(win); /* set cursor to extreme right */
 
         } else
             /* check won't overflow */
@@ -4635,8 +4653,9 @@ static void iright(FILE* f)
     winptr win; /* windows record pointer */
 
     win = txt2win(f); /* get window from file */
+    win->wrappend = FALSE; /* the motion ends a pending wrap */
     /* check not at extreme right */
-    if (win->curx < win->maxx) win->curx++; /* update position */
+    if (win->curx < wrapx(win)) win->curx++; /* update position */
     else { /* wrap cursor motion */
 
         if (win->autof) { /* autowrap is on */
@@ -5449,11 +5468,15 @@ static void intevent(FILE* f)
                 win->cmaxx = dimx-decorx(win);
                 win->cmaxy = dimy-decory(win);
                 /* In follow mode the buffer is the window, so it tracks
-                   the new surface. In buffered mode the program chose the
-                   buffer size and it keeps it: the window simply shows
+                   the new surface, smaller as well as larger: maxx and
+                   maxy are the client, as the manual has them. It used to
+                   grow only, so that after the terminal had been widened
+                   once a program sizing its children from maxx never saw
+                   them shrink again. In buffered mode the program chose
+                   the buffer size and it keeps it: the window simply shows
                    more or less of it. Growing it here regardless threw
                    away the size a program had asked for. */
-                if (!win->bufmod) growwinbuf(win, win->cmaxx, win->cmaxy);
+                if (!win->bufmod) resizewinbuf(win, win->cmaxx, win->cmaxy);
                 /* The layer below keeps its own screen buffers, sized when
                    it started, and clips writes to them. Grow those through
                    the standard call rather than by reaching into that
@@ -7415,13 +7438,17 @@ static void plcchr(FILE* f, char c)
 
     win = txt2win(f); /* get window from file */
     if (!win->visible) winvis(win); /* make sure we are displayed */
-    /* handle special character cases first */
+    /* handle special character cases first. Each of these moves the
+       cursor itself, and so ends a wrap left pending by a character in the
+       last column: a line that exactly fills the width and the newline
+       after it make one line, as on a terminal. */
     if (c == '\r')
         /* carriage return, position to extreme left */
         icursor(f, 1, win->cury);
     else if (c == '\n') {
 
         /* line end */
+        win->wrappend = FALSE;
         idown(f); /* line feed, move down */
         /* position to extreme left */
         icursor(f, 1, win->cury);
@@ -7438,6 +7465,15 @@ static void plcchr(FILE* f, char c)
     /* only output visible characters */
     else if (c >= ' ' && c != 0x7f) {
 
+        /* a wrap left pending by the last character in the line is taken
+           now, by the character that needs the room */
+        if (win->wrappend) {
+
+            win->wrappend = FALSE;
+            idown(f);
+            icursor(f, 1, win->cury);
+
+        }
         /* find character location */
         l = (win->cury-1)*win->bufx+(win->curx-1); 
         /* The store and the display have different bounds. The store is
@@ -7485,8 +7521,16 @@ static void plcchr(FILE* f, char c)
             }
 
         }
-        /* advance to next character */
-        iright(f);
+        /* advance to the next character. At the buffer's edge the cursor
+           wraps at once, as it does on every platform. At the client's
+           edge, where the client shows less of the buffer, the wrap waits
+           for the next character instead: a line that exactly fills the
+           view and the newline after it then make one line, as on a
+           terminal, rather than the view's width deciding the spacing of
+           a program's output. */
+        if (win->autof && win->curx == wrapx(win) && wrapx(win) < win->maxx)
+            win->wrappend = TRUE;
+        else iright(f);
 
     }
 
@@ -8022,10 +8066,15 @@ static wigptr opnpop(winptr par, ami_long rx, ami_long ry, char** strs, ami_long
     wg->win->curv = FALSE; /* a widget face never shows the cursor */
     wg->next = par->wiglst; /* on the owner's list for cleanup */
     par->wiglst = wg;
-    /* frame it, no system bar: a plain bordered list */
+    /* no size bars, no system bar: nothing of the frame draws, and the
+       popup is a plain block of its rows, a column of margin each side */
     wg->win->frame = TRUE;
     wg->win->size = FALSE;
     wg->win->sysbar = FALSE;
+    /* A face is drawn by position, to its last column and row, and must
+       never wrap or scroll: with auto on, the character put in the last
+       cell carried the cursor past the edge and scrolled the face away. */
+    wg->win->autof = FALSE;
     /* a pulldown menu is colored apart from the text it opens over, black
        on cyan, so that it can be told from the screen beneath; a dropdown
        list belongs to its widget and keeps the widget's colors */
@@ -8036,10 +8085,13 @@ static wigptr opnpop(winptr par, ami_long rx, ami_long ry, char** strs, ami_long
 
     }
     recompcli(wg->win);
-    intsetsiz(wg->win, w, n+2);
+    /* one row an entry: the height was given two rows over, as if for a
+       border that is never drawn, and the two came out as blank rows under
+       the last entry */
+    intsetsiz(wg->win, w, n);
     /* keep it on the surface */
     if (rx+w-1 > dimx) rx = dimx-w+1;
-    if (ry+n+1 > dimy) ry = dimy-n-1;
+    if (ry+n-1 > dimy) ry = dimy-n+1;
     if (rx < 1) rx = 1;
     if (ry < 1) ry = 1;
     intsetpos(wg->win, rx, ry);
@@ -9228,6 +9280,10 @@ static wigptr wigcre(FILE* f, ami_long x1, ami_long y1, ami_long x2, ami_long y2
     wg->win->frame = FALSE;
     wg->win->size = FALSE;
     wg->win->sysbar = FALSE;
+    /* A face is drawn by position, to its last column and row, and must
+       never wrap or scroll: with auto on, the character put in the last
+       cell carried the cursor past the edge and scrolled the face away. */
+    wg->win->autof = FALSE;
     recompcli(wg->win);
     intsetsiz(wg->win, x2-x1+1, y2-y1+1);
     intsetpos(wg->win, x1, y1); /* placed in the owner's client space */
@@ -10286,10 +10342,22 @@ static void imenu(FILE* f, ami_menuptr m)
     if (win->mbar) { /* remove the previous bar */
 
         wigptr* lp = &win->wiglst;
+        int pi;
+        /* A pulldown open from the bar, and its cascade, close with it. A
+           menu opened by the mouse stayed open when the program took the
+           menu down or put up another: on the screen, on the popup stack,
+           and owned by a widget that was gone. */
+        for (pi = 0; pi < popcnt; pi++)
+            if (popstk[pi]->owner == win->mbar) { clspops(pi); break; }
         while (*lp && *lp != win->mbar) lp = &(*lp)->next;
         if (*lp) *lp = win->mbar->next;
         fclose(win->mbar->wf);
         if (win->mbar->face) free(win->mbar->face);
+        /* the mouse may be on the bar: the highlight and the press die with it,
+           as with every other widget freed; left pointing at the freed bar,
+           the next mouse move redrew it and crashed */
+        if (hovwig == win->mbar) hovwig = NULL;
+        if (prswig == win->mbar) prswig = NULL;
         free(win->mbar);
         win->mbar = NULL;
 
@@ -10772,6 +10840,11 @@ static void hslrgb(double h, double s, double l, ami_long* r, ami_long* g, ami_l
 
 }
 
+/* an 8 bit component as a percentage of full scale, to the nearest */
+static ami_long col8pct(ami_long v8)
+{
+    return ((v8*100+127)/255);
+}
 /* the luminosity of the held color, 0..255 */
 static ami_long qcollum(qcolst* st)
 
@@ -10841,9 +10914,12 @@ static void qcolshow(FILE* wf, winptr dwin, qcolst* st)
 
     }
     ami_bcolor(wf, ami_white);
-    ami_cursor(wf, 47, 12); fprintf(wf, "%3lld", AMI_LONG_CAST(st->r));
-    ami_cursor(wf, 47, 14); fprintf(wf, "%3lld", AMI_LONG_CAST(st->g));
-    ami_cursor(wf, 47, 16); fprintf(wf, "%3lld", AMI_LONG_CAST(st->b));
+    /* the readouts are percentages of full scale: the 8 bit values the
+       dialog works in are an implementation detail, and mean nothing to
+       the user of a color that has no fixed range */
+    ami_cursor(wf, 47, 12); fprintf(wf, "%3lld%%", AMI_LONG_CAST(col8pct(st->r)));
+    ami_cursor(wf, 47, 14); fprintf(wf, "%3lld%%", AMI_LONG_CAST(col8pct(st->g)));
+    ami_cursor(wf, 47, 16); fprintf(wf, "%3lld%%", AMI_LONG_CAST(col8pct(st->b)));
 
 }
 

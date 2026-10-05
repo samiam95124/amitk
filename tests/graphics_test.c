@@ -441,6 +441,13 @@ typedef enum {
 
 static jmp_buf   terminate_buf;
 static int       framenum = 0;
+static int       bginvis = FALSE; /* the background mode the test has set:
+                                     the frame stamp changes it for itself
+                                     and puts it back, as the library has
+                                     no way to ask */
+static int       stampon = FALSE; /* a frame stamp is on the screen */
+static int       stampcol;        /* where it is, and what it says */
+static char      stamptxt[80];
 static int       tstlo = 1;      /* first frame in the selected range */
 static int       tsthi = 0;      /* last frame, 0 for no limit */
 static int       stepnum = 0;    /* animation step within the frame */
@@ -482,11 +489,32 @@ static bench bi;
 
 /* Find random number between 0 and N. */
 
+/* The test's own generator (Knuth's MMIX linear congruential generator, on
+   the high bits), so a run is the same every time on every platform: the C
+   library's rand() is one state for the whole process, and on Mac OS X the
+   frameworks were seen to take a value from it now and then, on their own
+   threads, at moments of their own, so the animation's squares started out
+   in different places from one run to the next. */
+
+#define RANDMAX 0x7fffffff /* the generator's largest value */
+
+static unsigned long long randstate = 1; /* a fixed seed */
+
+static ami_long random1(void)
+
+{
+
+    randstate = randstate*6364136223846793005ULL+1442695040888963407ULL;
+
+    return ((ami_long)(randstate >> 33));
+
+}
+
 static ami_long randn(ami_long limit)
 
 {
 
-    return (double)limit*rand()/RAND_MAX;
+    return (double)limit*random1()/RANDMAX;
 
 }
 
@@ -554,6 +582,33 @@ static void frmnext(void)
 
 }
 
+/* The background mode, through the test's own record of it. The frame
+   stamp draws with the background invisible and must put back whatever
+   the pattern had set, which the library cannot be asked for. */
+static void bover(void) { bginvis = FALSE; ami_bover(stdout); }
+static void binvis(void) { bginvis = TRUE; ami_binvis(stdout); }
+static void bgrestore(void) { if (bginvis) ami_binvis(stdout); else ami_bover(stdout); }
+
+/* clear the screen: the frame stamp goes with it */
+static void clrscr(void) { stampon = FALSE; putchar('\f'); }
+
+/* The frame stamp, drawn in xor so it reads on any field: the same call
+   takes it off again. The stamp of the frame before is taken off first
+   if the screen was not cleared since, else the two xor into a mess, as
+   the polar lines frames did, nine stamps deep. */
+static void stampxor(const char* txt, int col)
+{
+    ami_binvis(stdout);
+    ami_fxor(stdout);
+    ami_fcolor(stdout, ami_white);
+    ami_cursor(stdout, col, 1);
+    printf("%s", txt);
+    ami_cursor(stdout, 1, 1); /* leave the cursor on a safe place */
+    ami_fover(stdout);
+    ami_fcolor(stdout, ami_black);
+    bgrestore();
+}
+
 /* Mark and capture the pattern just drawn: the frame number on the title
    and on the top line at the right, a tenth of the width in from the edge,
    out of the way of what the patterns write there, and the capture. The label draws in xor
@@ -574,14 +629,11 @@ static void frmmark(void)
     /* the label centered on the top line, in the current font as the
        rest of the surface's writing, xor so it reads on any field */
     sprintf(buf, "frame %d", framenum);
-    ami_binvis(stdout);
-    ami_fxor(stdout);
-    ami_fcolor(stdout, ami_white);
-    ami_cursor(stdout, ami_maxx(stdout)-ami_maxx(stdout)/10-(ami_long)strlen(buf)+1, 1);
-    printf("%s", buf);
-    ami_cursor(stdout, 1, 1); /* leave the cursor on a safe place */
-    ami_fover(stdout);
-    ami_fcolor(stdout, ami_black);
+    if (stampon) stampxor(stamptxt, stampcol); /* the last one off */
+    stampcol = ami_maxx(stdout)-ami_maxx(stdout)/10-(int)strlen(buf)+1;
+    strcpy(stamptxt, buf);
+    stampxor(stamptxt, stampcol);
+    stampon = TRUE;
 
     /* capture test screens, the label as the picture's title */
     screen_capture_label(buf);
@@ -607,19 +659,12 @@ static void frmstep(void)
     sprintf(buf, "graphics_test: frame %d.%d", framenum, stepnum);
     ami_title(stdout, buf);
     sprintf(buf, "frame %d.%d", framenum, stepnum);
-    ami_binvis(stdout);
-    ami_fxor(stdout);
-    ami_fcolor(stdout, ami_white);
     for (i = 0; i < 2; i++) { /* the label on, capture, the label off */
 
-        ami_cursor(stdout, ami_maxx(stdout)-ami_maxx(stdout)/10-(ami_long)strlen(buf)+1, 1);
-        printf("%s", buf);
+        stampxor(buf, ami_maxx(stdout)-ami_maxx(stdout)/10-(int)strlen(buf)+1);
         if (!i) { screen_capture_label(buf); screen_capture(); }
 
     }
-    ami_cursor(stdout, 1, 1); /* leave the cursor on a safe place */
-    ami_fover(stdout);
-    ami_fcolor(stdout, ami_black);
     auto_event_frame(framenum, stepnum);
 
 }
@@ -937,7 +982,7 @@ static void squares(void)
             ami_select(stdout, !cd+1, cd+1);
 
         }
-        putchar('\f');
+        clrscr();
         ami_fover(stdout);
         ami_fcolor(stdout, ami_black);
         prtcen(ami_maxy(stdout), "Animation test");
@@ -1125,7 +1170,7 @@ static void linespeed(int w, int t, ami_long* s)
 
     ami_auto(stdout, FALSE);
     ami_curvis(stdout, FALSE);
-    putchar('\f');
+    clrscr();
     ami_linewidth(stdout, w);
     c = ami_clock();
     for (i = 1; i <= t; i++) {
@@ -1151,7 +1196,7 @@ static void rectspeed(int w, int t, ami_long* s)
 
     ami_auto(stdout, FALSE);
     ami_curvis(stdout, FALSE);
-    putchar('\f');
+    clrscr();
     ami_linewidth(stdout, w);
     c = ami_clock();
     for (i = 1; i <= t; i++) {
@@ -1177,7 +1222,7 @@ static void rrectspeed(int w, int t, ami_long* s)
 
     ami_auto(stdout, FALSE);
     ami_curvis(stdout, FALSE);
-    putchar('\f');
+    clrscr();
     ami_linewidth(stdout, w);
     c = ami_clock();
     for (i = 1; i <= t; i++) {
@@ -1204,7 +1249,7 @@ static void frectspeed(int w, int t, ami_long* s)
 
     ami_auto(stdout, FALSE);
     ami_curvis(stdout, FALSE);
-    putchar('\f');
+    clrscr();
     c = ami_clock();
     for (i = 1; i <= t; i++) {
 
@@ -1229,7 +1274,7 @@ static void frrectspeed(int w, int t, ami_long* s)
 
     ami_auto(stdout, FALSE);
     ami_curvis(stdout, FALSE);
-    putchar('\f');
+    clrscr();
     c = ami_clock();
     for (i = 1; i <= t; i++) {
 
@@ -1255,7 +1300,7 @@ static void ellipsespeed(int w, int t, ami_long* s)
 
     ami_auto(stdout, FALSE);
     ami_curvis(stdout, FALSE);
-    putchar('\f');
+    clrscr();
     ami_linewidth(stdout, w);
     c = ami_clock();
     for (i = 1; i <= t; i++) {
@@ -1281,7 +1326,7 @@ static void fellipsespeed(int w, int t, ami_long* s)
 
     ami_auto(stdout, FALSE);
     ami_curvis(stdout, FALSE);
-    putchar('\f');
+    clrscr();
     c = ami_clock();
     for (i = 1; i <= t; i++) {
 
@@ -1307,7 +1352,7 @@ static void arcspeed(int w, int t, ami_long* s)
 
     ami_auto(stdout, FALSE);
     ami_curvis(stdout, FALSE);
-    putchar('\f');
+    clrscr();
     ami_linewidth(stdout, w);
     c = ami_clock();
     for (i = 1; i <= t; i++) {
@@ -1341,7 +1386,7 @@ static void farcspeed(int w, int t, ami_long* s)
 
     ami_auto(stdout, FALSE);
     ami_curvis(stdout, FALSE);
-    putchar('\f');
+    clrscr();
     c = ami_clock();
     for (i = 1; i <= t; i++) {
 
@@ -1374,7 +1419,7 @@ static void fchordspeed(int w, int t, ami_long* s)
 
     ami_auto(stdout, FALSE);
     ami_curvis(stdout, FALSE);
-    putchar('\f');
+    clrscr();
     c = ami_clock();
     for (i = 1; i <= t; i++) {
 
@@ -1406,7 +1451,7 @@ static void ftrianglespeed(int w, int t, ami_long* s)
 
     ami_auto(stdout, FALSE);
     ami_curvis(stdout, FALSE);
-    putchar('\f');
+    clrscr();
     c = ami_clock();
     for (i = 1; i <= t; i++) {
 
@@ -1432,7 +1477,7 @@ static void ftextspeed(int w, int t, ami_long* s)
 
     ami_auto(stdout, FALSE);
     ami_curvis(stdout, FALSE);
-    putchar('\f');
+    clrscr();
     c = ami_clock();
     for (i = 1; i <= t; i++) {
 
@@ -1460,7 +1505,7 @@ static void fpictspeed(int w, int t, ami_long* s)
 
     ami_auto(stdout, FALSE);
     ami_curvis(stdout, FALSE);
-    putchar('\f');
+    clrscr();
     ami_loadpict(stdout, 1, "tests/mypic");
     c = ami_clock();
     for (i = 1; i <= t; i++) {
@@ -1492,7 +1537,7 @@ static void fpictnsspeed(int w, int t, ami_long* s)
 
     ami_auto(stdout, FALSE);
     ami_curvis(stdout, FALSE);
-    putchar('\f');
+    clrscr();
     ami_loadpict(stdout, 1, "tests/mypic");
     xs = ami_pictsizx(stdout, 1);
     ys = ami_pictsizy(stdout, 1);
@@ -1542,7 +1587,7 @@ static void blockcopy(void)
 
     /* ********************* Block copy within a buffer ******************** */
 
-    putchar('\f');
+    clrscr();
     grid();
     /* three figures in the left panel */
     x = m;
@@ -1569,7 +1614,7 @@ static void blockcopy(void)
 
     /* ********************* Block copy of a picture ******************** */
 
-    putchar('\f');
+    clrscr();
     grid();
     ami_maknam(fn, 100, "tests", "mypic", "");
     ami_loadpict(stdout, 1, fn);
@@ -1602,10 +1647,10 @@ static void blockcopy(void)
     /* the picture and the figures are drawn in buffer 2 and shown there
        first, the source; then buffer 1 is shown again, empty but for the
        grid, and they are moved into it, the destination */
-    putchar('\f');
+    clrscr();
     grid();
     ami_select(stdout, 2, 2); /* draw in 2, and show it */
-    putchar('\f');
+    clrscr();
     ami_maknam(fn, 100, "tests", "mypic1", "bmp");
     ami_loadpict(stdout, 1, fn);
     x = m;
@@ -1635,9 +1680,9 @@ static void blockcopy(void)
     /* the display holds a stencil, white figures on black; the picture in
        buffer 2 is copied over it with and, and shows in the white alone */
     fsiz = ami_chrsizy(stdout); /* save character size to restore */
-    putchar('\f');
+    clrscr();
     ami_select(stdout, 2, 1); /* the picture in 2, across the three panels */
-    putchar('\f');
+    clrscr();
     ami_maknam(fn, 100, "tests", "mypic", "");
     ami_loadpict(stdout, 1, fn);
     x = m;
@@ -1654,7 +1699,7 @@ static void blockcopy(void)
     ami_font(stdout, AMI_FONT_SIGN);
     ami_fontsiz(stdout, p/2);
     ami_cursorg(stdout, x+2*(p+m)+p/2-ami_strsiz(stdout, "Ami")/2, y+p/2-p/4);
-    ami_binvis(stdout);
+    binvis();
     printf("Ami");
     ami_fontsiz(stdout, fsiz);
     ami_font(stdout, AMI_FONT_TERM);
@@ -1672,7 +1717,7 @@ static void blockcopy(void)
 
     /* the stencil reversed, black figures on white, and the copy with or:
        the picture shows in the black alone */
-    putchar('\f');
+    clrscr();
     ami_fcolor(stdout, ami_black);
     ami_fellipse(stdout, x+p/8, y+p/8, x+p-p/8, y2-p/8);
     ami_frect(stdout, x+p+m+p/8, y+p/8, x+2*p+m-p/8, y2-p/8);
@@ -1696,10 +1741,10 @@ static void blockcopy(void)
     /* the picture at the left; copied with xor onto white in the middle it
        comes out reversed; the middle copied with xor onto white at the right
        comes out reversed again, the picture itself */
-    putchar('\f');
+    clrscr();
     grid();
     ami_select(stdout, 2, 1);
-    putchar('\f');
+    clrscr();
     ami_select(stdout, 1, 1);
     ami_maknam(fn, 100, "tests", "mypic1", "bmp");
     ami_loadpict(stdout, 1, fn);
@@ -1722,7 +1767,7 @@ static void blockcopy(void)
     prtcen(3, "in the middle, and the middle copied the same way is the picture again");
     prtcen(ami_maxy(stdout), "Block copy xor test");
     waitnext();
-    ami_binvis(stdout);
+    binvis();
 
 }
 
@@ -1744,7 +1789,7 @@ int main(int argc, char* argv[])
     ami_frametimer(stdout, TRUE); /* start frame timer */
     if (setjmp(terminate_buf)) goto terminate;
     ami_curvis(stdout, FALSE);
-    ami_binvis(stdout);
+    binvis();
     /* "graphics_test bench" runs the benchmark section alone, without
        walking the interactive patterns: for timing comparisons and the
        headless rig */
@@ -1807,38 +1852,38 @@ int main(int argc, char* argv[])
 
     /* ************************ Graphical figures test ************************* */
 
-    putchar('\f');
+    clrscr();
 
     grid();
     printf("\n");
-    ami_bover(stdout);
+    bover();
     graphtest(1);
-    ami_binvis(stdout);
+    binvis();
     prtcen(ami_maxy(stdout), "Graphical figures test, linewidth == 1");
     waitnext();
 
-    putchar('\f');
+    clrscr();
     grid();
     printf("\n");
     graphtest(2);
     prtcen(ami_maxy(stdout), "Graphical figures test, linewidth == 2");
     waitnext();
 
-    putchar('\f');
+    clrscr();
     grid();
     printf("\n");
     graphtest(3);
     prtcen(ami_maxy(stdout), "Graphical figures test, linewidth == 3");
     waitnext();
 
-    putchar('\f');
+    clrscr();
     grid();
     printf("\n");
     graphtest(5);
     prtcen(ami_maxy(stdout), "Graphical figures test, linewidth == 5");
     waitnext();
 
-    putchar('\f');
+    clrscr();
     grid();
     printf("\n");
     graphtest(11);
@@ -1847,12 +1892,12 @@ int main(int argc, char* argv[])
 
    /* ***************************** Standard Fonts test *********************** */
 
-    putchar('\f');
+    clrscr();
     chrgrid();
     prtcen(ami_maxy(stdout), "Standard fonts test");
     ami_auto(stdout, FALSE);
     ami_home(stdout);
-    ami_binvis(stdout);
+    binvis();
     ami_fontnam(stdout, AMI_FONT_TERM, fns, 100);
     if (strlen(fns) > 0) {
 
@@ -1919,7 +1964,7 @@ int main(int argc, char* argv[])
 
    /* ********************** Graphical cursor movement test ******************* */
 
-    putchar('\f');
+    clrscr();
     ami_auto(stdout, FALSE);
     prtcen(ami_maxy(stdout), "Graphical cursor movement test");
     x = 1;
@@ -1977,7 +2022,7 @@ int main(int argc, char* argv[])
 
     /* ************************** Horizontal lines test ************************ */
 
-    putchar('\f');
+    clrscr();
     grid();
     prtcen(ami_maxy(stdout), "Horizontal lines test");
     yspace = ami_maxyg(stdout)/20;
@@ -1997,7 +2042,7 @@ int main(int argc, char* argv[])
 
     /* ************************** Vertical lines test ************************** */
 
-    putchar('\f');
+    clrscr();
     grid();
     prtcen(ami_maxy(stdout), "Vertical lines test");
     yspace = ami_maxyg(stdout)/20;
@@ -2017,7 +2062,7 @@ int main(int argc, char* argv[])
 
     /* ************************** 45 degree lines test ************************* */
 
-    putchar('\f');
+    clrscr();
     grid();
     yspace = ami_maxyg(stdout)/20;
     xspace = ami_maxxg(stdout)/20;
@@ -2053,7 +2098,7 @@ int main(int argc, char* argv[])
 
     /* ********************* Horizontal lines test — dashed ******************** */
 
-    putchar('\f');
+    clrscr();
     grid();
     ami_linestyle(stdout, ami_lsdash);
     yspace = ami_maxyg(stdout)/20;
@@ -2075,7 +2120,7 @@ int main(int argc, char* argv[])
 
     /* ********************* Horizontal lines test — dotted ******************** */
 
-    putchar('\f');
+    clrscr();
     grid();
     ami_linestyle(stdout, ami_lsdot);
     yspace = ami_maxyg(stdout)/20;
@@ -2097,7 +2142,7 @@ int main(int argc, char* argv[])
 
     /* ********************** Vertical lines test — dashed ********************* */
 
-    putchar('\f');
+    clrscr();
     grid();
     ami_linestyle(stdout, ami_lsdash);
     yspace = ami_maxyg(stdout)/20;
@@ -2119,7 +2164,7 @@ int main(int argc, char* argv[])
 
     /* ********************** Vertical lines test — dotted ********************* */
 
-    putchar('\f');
+    clrscr();
     grid();
     ami_linestyle(stdout, ami_lsdot);
     yspace = ami_maxyg(stdout)/20;
@@ -2141,7 +2186,7 @@ int main(int argc, char* argv[])
 
     /* ********************* 45 degree lines test — dashed ********************* */
 
-    putchar('\f');
+    clrscr();
     grid();
     ami_linestyle(stdout, ami_lsdash);
     yspace = ami_maxyg(stdout)/20;
@@ -2164,7 +2209,7 @@ int main(int argc, char* argv[])
 
     /* ********************* 45 degree lines test — dotted ********************* */
 
-    putchar('\f');
+    clrscr();
     grid();
     ami_linestyle(stdout, ami_lsdot);
     yspace = ami_maxyg(stdout)/20;
@@ -2187,7 +2232,7 @@ int main(int argc, char* argv[])
 
     /* **************************** Polar lines test *************************** */
 
-    putchar('\f');
+    clrscr();
     grid();
     prtcen(ami_maxy(stdout), "Polar lines test");
     x = ami_maxxg(stdout)/2;
@@ -2198,7 +2243,7 @@ int main(int argc, char* argv[])
     ami_fcolor(stdout, ami_blue);
     ami_ellipse(stdout, x-l, y-l, x+l, y+l);
     ami_fcolor(stdout, ami_black);
-    ami_bover(stdout);
+    bover();
     while (w < 10) {
 
         a = 0; /* set angle */
@@ -2214,12 +2259,12 @@ int main(int argc, char* argv[])
         waitnext();
 
     }
-    ami_binvis(stdout);
+    binvis();
     ami_linewidth(stdout, 1);
 
     /* ******************************* Color test 1 ****************************** */
 
-    putchar('\f');
+    clrscr();
     y = 1; /* set 1st row */
     r = 0; /* set colors */
     g = 0;
@@ -2253,14 +2298,14 @@ int main(int argc, char* argv[])
     }
     ami_fcolor(stdout, ami_black);
     ami_bcolor(stdout, ami_white);
-    ami_bover(stdout);
+    bover();
     prtcen(ami_maxy(stdout), "Color test 1");
-    ami_binvis(stdout);
+    binvis();
     waitnext();
 
     /* ******************************* Color test 2 ****************************** */
 
-    putchar('\f');
+    clrscr();
     x = 1; /* set 2st collumn */
     while (x < ami_maxxg(stdout)) {
 
@@ -2269,17 +2314,17 @@ int main(int argc, char* argv[])
         x = x+1;
 
     }
-    ami_binvis(stdout);
+    binvis();
     ami_fcolor(stdout, ami_black);
     ami_bcolor(stdout, ami_white);
-    ami_bover(stdout);
+    bover();
     prtcen(ami_maxy(stdout), "Color test 2");
-    ami_binvis(stdout);
+    binvis();
     waitnext();
 
     /* ******************************* Color test 3 ****************************** */
 
-    putchar('\f');
+    clrscr();
     x = 1; /* set 2st collumn */
     while (x < ami_maxxg(stdout)) {
 
@@ -2288,17 +2333,17 @@ int main(int argc, char* argv[])
         x = x+1;
 
     }
-    ami_binvis(stdout);
+    binvis();
     ami_fcolor(stdout, ami_black);
     ami_bcolor(stdout, ami_white);
-    ami_bover(stdout);
+    bover();
     prtcen(ami_maxy(stdout), "Color test 3");
-    ami_binvis(stdout);
+    binvis();
     waitnext();
 
     /* ******************************* Color test 4 ****************************** */
 
-    putchar('\f');
+    clrscr();
     x = 1; /* set 2st collumn */
     while (x < ami_maxxg(stdout)) {
 
@@ -2307,17 +2352,17 @@ int main(int argc, char* argv[])
         x = x+1;
 
     }
-    ami_binvis(stdout);
+    binvis();
     ami_fcolor(stdout, ami_black);
     ami_bcolor(stdout, ami_white);
-    ami_bover(stdout);
+    bover();
     prtcen(ami_maxy(stdout), "Color test 4");
-    ami_binvis(stdout);
+    binvis();
     waitnext();
 
     /* ***************************** Rectangle test **************************** */
 
-    putchar('\f');
+    clrscr();
     grid();
     l = 10;
     x = ami_maxxg(stdout)/2; /* find center */
@@ -2338,13 +2383,13 @@ int main(int argc, char* argv[])
     };
     ami_linewidth(stdout, 1);
     ami_fcolor(stdout, ami_black);
-    ami_binvis(stdout);
+    binvis();
     prtcen(ami_maxy(stdout), "Rectangle test");
     waitnext();
 
     /* ************************ Filled rectangle test 1 ************************ */
 
-    putchar('\f');
+    clrscr();
     grid();
     if (ami_maxxg(stdout) > ami_maxyg(stdout)) l = ami_maxyg(stdout)/2-ami_chrsizy(stdout);
     else l = ami_maxxg(stdout)/2-ami_chrsizy(stdout);
@@ -2362,13 +2407,13 @@ int main(int argc, char* argv[])
 
     }
     ami_fcolor(stdout, ami_black);
-    ami_binvis(stdout);
+    binvis();
     prtcen(ami_maxy(stdout), "Filled rectangle test 1");
     waitnext();
 
     /* ************************ Filled rectangle test 2 ************************ */
 
-    putchar('\f');
+    clrscr();
     grid();
     l = 10;
     x = 20;
@@ -2391,17 +2436,17 @@ int main(int argc, char* argv[])
 
     }
     ami_fcolor(stdout, ami_black);
-    ami_binvis(stdout);
+    binvis();
     prtcen(ami_maxy(stdout), "Filled rectangle test 2");
     waitnext();
 
     /* ************************* Rounded rectangle test ************************ */
 
-    ami_binvis(stdout);
+    binvis();
     r = 1;
     while (r < 100) {
 
-        putchar('\f');
+        clrscr();
         grid();
         l = 10;
         x = ami_maxxg(stdout)/2; /* find center */
@@ -2429,7 +2474,7 @@ int main(int argc, char* argv[])
     }
     /* ******************* rounded rectangle minimums test **************** */
 
-    putchar('\f');
+    clrscr();
     xsize = ami_maxxg(stdout)/20;
     ysize = ami_maxyg(stdout)/20;
 
@@ -2495,11 +2540,11 @@ int main(int argc, char* argv[])
 
     /* ******************** Filled rounded rectangle test 1 ******************** */
 
-    ami_binvis(stdout);
+    binvis();
     r = 1;
     while (r < 100) {
 
-        putchar('\f');
+        clrscr();
         grid();
         if (ami_maxxg(stdout) > ami_maxyg(stdout)) l = ami_maxyg(stdout)/2-ami_chrsizy(stdout);
         else l = ami_maxxg(stdout)/2-ami_chrsizy(stdout);
@@ -2525,11 +2570,11 @@ int main(int argc, char* argv[])
 
     /* ******************** Filled rounded rectangle test 2 ******************** */
 
-    ami_binvis(stdout);
+    binvis();
     r = 1;
     while (r < 100) {
 
-        putchar('\f');
+        clrscr();
         grid();
         printf("r: %lld\n", AMI_LONG_CAST(r));
         l = 10;
@@ -2553,7 +2598,7 @@ int main(int argc, char* argv[])
 
         }
         ami_fcolor(stdout, ami_black);
-        ami_binvis(stdout);
+        binvis();
         prtcen(ami_maxy(stdout), "Filled rounded rectangle test 2");
         waitnext();
         r = r+10;
@@ -2562,7 +2607,7 @@ int main(int argc, char* argv[])
 
     /* ******************* filled rounded rectangle minimums test **************** */
 
-    putchar('\f');
+    clrscr();
     xsize = ami_maxxg(stdout)/20;
     ysize = ami_maxyg(stdout)/20;
 
@@ -2628,11 +2673,11 @@ int main(int argc, char* argv[])
 
     /* ****************************** Ellipse test ***************************** */
 
-    ami_binvis(stdout);
+    binvis();
     w = 1;
     while (w < 10) {
 
-        putchar('\f');
+        clrscr();
         grid();
         lx = ami_maxxg(stdout)/2-10;
         lx = lx-lx%10;
@@ -2665,7 +2710,7 @@ int main(int argc, char* argv[])
 
     /* ************************** Filled ellipse test 1 ************************** */
 
-    putchar('\f');
+    clrscr();
     grid();
     lx = ami_maxxg(stdout)/2-10;
     lx = lx-lx%10;
@@ -2692,7 +2737,7 @@ int main(int argc, char* argv[])
 
     /* ************************ Filled ellipse test 2 ************************ */
 
-    putchar('\f');
+    clrscr();
     grid();
     l = 10;
     x = 20;
@@ -2715,17 +2760,17 @@ int main(int argc, char* argv[])
 
     }
     ami_fcolor(stdout, ami_black);
-    ami_binvis(stdout);
+    binvis();
     prtcen(ami_maxy(stdout), "Filled ellipse test 2");
     waitnext();
 
     /* ******************************* Arc test 1 ******************************** */
 
-    ami_binvis(stdout);
+    binvis();
     w = 1;
     while (w < 10) {
 
-        putchar('\f');
+        clrscr();
         grid();
         a = 0;
         c = ami_black;
@@ -2757,13 +2802,13 @@ int main(int argc, char* argv[])
 
     /* ************************ Arc test 2 ************************ */
 
-    ami_binvis(stdout);
+    binvis();
     w = 1;
     xspace = ami_maxxg(stdout)/40;
     yspace = ami_maxyg(stdout)/40;
     while (w < 10) {
 
-        putchar('\f');
+        clrscr();
         grid();
         printf("Linewidth: %d\n", w);
         l = ami_maxxg(stdout)/40;
@@ -2790,7 +2835,7 @@ int main(int argc, char* argv[])
             y = y+l*2+yspace;
 
         }
-        ami_binvis(stdout);
+        binvis();
         prtcen(ami_maxy(stdout), "Arc test 2");
         waitnext();
         w = w+1;
@@ -2799,13 +2844,13 @@ int main(int argc, char* argv[])
 
     /* ************************ Arc test 3 ************************ */
 
-    ami_binvis(stdout);
+    binvis();
     w = 1;
     xspace = ami_maxxg(stdout)/25;
     yspace = xspace;
     while (w < 10) {
 
-        putchar('\f');
+        clrscr();
         grid();
         printf("Linewidth: %d\n", w);
         l = xspace;
@@ -2832,7 +2877,7 @@ int main(int argc, char* argv[])
             y = y+l*2+yspace;
 
         }
-        ami_binvis(stdout);
+        binvis();
         prtcen(ami_maxy(stdout), "Arc test 3");
         waitnext();
         w = w+1;
@@ -2841,13 +2886,13 @@ int main(int argc, char* argv[])
 
     /* ************************ Arc test 4 ************************ */
 
-    ami_binvis(stdout);
+    binvis();
     w = 1;
     xspace = ami_maxxg(stdout)/25;
     yspace = xspace;
     while (w < 10) {
 
-        putchar('\f');
+        clrscr();
         grid();
         printf("Linewidth: %d\n", w);
         l = xspace;
@@ -2874,7 +2919,7 @@ int main(int argc, char* argv[])
             y = y+l*2+yspace;
 
         }
-        ami_binvis(stdout);
+        binvis();
         prtcen(ami_maxy(stdout), "Arc test 4");
         waitnext();
         w = w+1;
@@ -2883,7 +2928,7 @@ int main(int argc, char* argv[])
 
     /* **************************** Filled arc test 1 **************************** */
 
-    putchar('\f');
+    clrscr();
     grid();
     a = 0;
     c = ami_black;
@@ -2901,14 +2946,14 @@ int main(int argc, char* argv[])
         if (c == ami_white) c++;
 
     };
-    ami_binvis(stdout);
+    binvis();
     ami_fcolor(stdout, ami_black);
     prtcen(ami_maxy(stdout), "Filled arc test 1");
     waitnext();
 
     /* ************************ filled arc test 2 ************************ */
 
-    putchar('\f');
+    clrscr();
     xspace = ami_maxxg(stdout)/40;
     yspace = ami_maxyg(stdout)/40;
     grid();
@@ -2937,14 +2982,14 @@ int main(int argc, char* argv[])
         y = y+l*2+yspace;
 
     }
-    ami_binvis(stdout);
+    binvis();
     ami_fcolor(stdout, ami_black);
     prtcen(ami_maxy(stdout), "Filled arc test 2");
     waitnext();
 
     /* ************************ Filled arc test 3 ************************ */
 
-    putchar('\f');
+    clrscr();
     xspace = ami_maxxg(stdout)/40;
     yspace = ami_maxyg(stdout)/40;
     grid();
@@ -2970,14 +3015,14 @@ int main(int argc, char* argv[])
         y = y+l*2+yspace;
 
     }
-    ami_binvis(stdout);
+    binvis();
     ami_fcolor(stdout, ami_black);
     prtcen(ami_maxy(stdout), "Arc test 3");
     waitnext();
 
     /* ************************ Filled arc test 4 ************************ */
 
-    putchar('\f');
+    clrscr();
     xspace = ami_maxxg(stdout)/40;
     yspace = ami_maxyg(stdout)/40;
     grid();
@@ -3003,14 +3048,14 @@ int main(int argc, char* argv[])
         y = y+l*2+yspace;
 
     }
-    ami_binvis(stdout);
+    binvis();
     ami_fcolor(stdout, ami_black);
     prtcen(ami_maxy(stdout), "Arc test 4");
     waitnext();
 
     /* *************************** Filled chord test 1 *************************** */
 
-    putchar('\f');
+    clrscr();
     grid();
     a = 0;
     c = ami_black;
@@ -3035,7 +3080,7 @@ int main(int argc, char* argv[])
 
     /* ************************ filled chord test 2 ************************ */
 
-    putchar('\f');
+    clrscr();
     xspace = ami_maxxg(stdout)/50;
     yspace = xspace;
     grid();
@@ -3061,14 +3106,14 @@ int main(int argc, char* argv[])
         y = y+l*2+yspace;
 
     }
-    ami_binvis(stdout);
+    binvis();
     ami_fcolor(stdout, ami_black);
     prtcen(ami_maxy(stdout), "Filled chord test 2");
     waitnext();
 
     /* ************************ Filled chord test 3 ************************ */
 
-    putchar('\f');
+    clrscr();
     xspace = ami_maxxg(stdout)/50;
     yspace = xspace;
     grid();
@@ -3094,14 +3139,14 @@ int main(int argc, char* argv[])
         y = y+l*2+yspace;
 
     }
-    ami_binvis(stdout);
+    binvis();
     ami_fcolor(stdout, ami_black);
     prtcen(ami_maxy(stdout), "Filled chord test 3");
     waitnext();
 
     /* ************************ Filled chord test 4 ************************ */
 
-    putchar('\f');
+    clrscr();
     xspace = ami_maxxg(stdout)/50;
     yspace = xspace;
     grid();
@@ -3127,14 +3172,14 @@ int main(int argc, char* argv[])
         y = y+l*2+yspace;
 
     }
-    ami_binvis(stdout);
+    binvis();
     ami_fcolor(stdout, ami_black);
     prtcen(ami_maxy(stdout), "Filled chord test 4");
     waitnext();
 
     /* ************************** Filled triangle test 1 ************************* */
 
-    putchar('\f');
+    clrscr();
     grid();
     tx1 = 10;
     ty1 = ami_maxyg(stdout)-ami_chrsizy(stdout)-10;
@@ -3161,13 +3206,13 @@ int main(int argc, char* argv[])
 
     }
     ami_fcolor(stdout, ami_black);
-    ami_binvis(stdout);
+    binvis();
     prtcen(ami_maxy(stdout), "Filled triangle test 1");
     waitnext();
 
     /* ************************** Filled triangle test 2 ************************* */
 
-    putchar('\f');
+    clrscr();
     grid();
     x = 20;
     y = 20;
@@ -3189,13 +3234,13 @@ int main(int argc, char* argv[])
 
     }
     ami_fcolor(stdout, ami_black);
-    ami_binvis(stdout);
+    binvis();
     prtcen(ami_maxy(stdout), "Filled triangle test 2");
     waitnext();
 
     /* ************************** Filled triangle test 3 ************************* */
 
-    putchar('\f');
+    clrscr();
     grid();
     x = 20;
     y = 20;
@@ -3217,13 +3262,13 @@ int main(int argc, char* argv[])
 
     }
     ami_fcolor(stdout, ami_black);
-    ami_binvis(stdout);
+    binvis();
     prtcen(ami_maxy(stdout), "Filled triangle test 3");
     waitnext();
 
     /* ************************** Filled triangle test 4 ************************* */
 
-    putchar('\f');
+    clrscr();
     grid();
     x = 20;
     y = 20;
@@ -3245,13 +3290,13 @@ int main(int argc, char* argv[])
 
     }
     ami_fcolor(stdout, ami_black);
-    ami_binvis(stdout);
+    binvis();
     prtcen(ami_maxy(stdout), "Filled triangle test 4");
     waitnext();
 
     /* ************************** Filled triangle test 5 ************************* */
 
-    putchar('\f');
+    clrscr();
     grid();
     x = 20;
     y = 20;
@@ -3273,13 +3318,13 @@ int main(int argc, char* argv[])
 
     }
     ami_fcolor(stdout, ami_black);
-    ami_binvis(stdout);
+    binvis();
     prtcen(ami_maxy(stdout), "Filled triangle test 5");
     waitnext();
 
     /* ************************** Filled triangle test 6 ************************* */
 
-    putchar('\f');
+    clrscr();
     grid();
     x = 20;
     y = 20;
@@ -3302,13 +3347,13 @@ int main(int argc, char* argv[])
 
     }
     ami_fcolor(stdout, ami_black);
-    ami_binvis(stdout);
+    binvis();
     prtcen(ami_maxy(stdout), "Filled triangle test 6");
     waitnext();
 
     /* ************************** Filled triangle test 7 ************************* */
 
-    putchar('\f');
+    clrscr();
     grid();
     c = ami_black;
     ami_fcolor(stdout, c);
@@ -3327,27 +3372,27 @@ int main(int argc, char* argv[])
     ami_ftriangle(stdout, 350, 100, 400, 300, 300, 200);
     if (c < ami_magenta) c++; else c = ami_black;
     if (c == ami_white) c++;
-    ami_binvis(stdout);
+    binvis();
     ami_fcolor(stdout, ami_black);
     prtcen(ami_maxy(stdout), "Filled triangle test 7");
     waitnext();
 
     /* ************************** Filled triangle test 8 ************************* */
 
-    putchar('\f');
+    clrscr();
     grid();
     ami_fcolor(stdout, ami_black);
     ami_ftriangle(stdout, 50, 50, 50, 100, 200, 50);
     ami_ftriangle(stdout, 50, 100, 300, 200, 200, 50);
     ami_ftriangle(stdout, 200, 50, 300, 200, 350, 100);
     ami_ftriangle(stdout, 350, 100, 400, 300, 300, 200);
-    ami_binvis(stdout);
+    binvis();
     prtcen(ami_maxy(stdout), "Filled triangle test 8");
     waitnext();
 
     /* **************************** Font sizing test *************************** */
 
-    putchar('\f');
+    clrscr();
     grid();
     fsiz = ami_chrsizy(stdout); /* save character size to restore */
     h = 10;
@@ -3355,7 +3400,7 @@ int main(int argc, char* argv[])
     ami_font(stdout, AMI_FONT_SIGN);
     c1 = ami_black;
     c2 = ami_blue;
-    ami_bover(stdout);
+    bover();
     while (ami_curyg(stdout)+ami_chrsizy(stdout) <= ami_maxyg(stdout)-20) {
 
         ami_fcolor(stdout, c1);
@@ -3373,13 +3418,13 @@ int main(int argc, char* argv[])
     ami_fcolor(stdout, ami_black);
     ami_bcolor(stdout, ami_white);
     ami_font(stdout, AMI_FONT_TERM);
-    ami_binvis(stdout);
+    binvis();
     prtcen(ami_maxy(stdout), "Font sizing test");
     waitnext();
 
     /* ************************ Font point sizing test ************************* */
 
-    putchar('\f');
+    clrscr();
     grid();
     fsiz = ami_chrsizy(stdout); /* save character size to restore */
     {
@@ -3388,7 +3433,7 @@ int main(int argc, char* argv[])
         ami_font(stdout, AMI_FONT_SIGN);
         c1 = ami_black;
         c2 = ami_blue;
-        ami_bover(stdout);
+        bover();
         while (ami_curyg(stdout)+ami_chrsizy(stdout) <= ami_maxyg(stdout)-20) {
 
             ami_fcolor(stdout, c1);
@@ -3407,13 +3452,13 @@ int main(int argc, char* argv[])
     ami_fcolor(stdout, ami_black);
     ami_bcolor(stdout, ami_white);
     ami_font(stdout, AMI_FONT_TERM);
-    ami_binvis(stdout);
+    binvis();
     prtcen(ami_maxy(stdout), "Font point sizing test");
     waitnext();
 
     /* ***************************** Font list test **************************** */
 
-    putchar('\f');
+    clrscr();
     grid();
     printf("Number of fonts: %lld\n", AMI_LONG_CAST(ami_fonts(stdout)));
     printf("\n");
@@ -3426,7 +3471,7 @@ int main(int argc, char* argv[])
 
             printf("Press return to continue");
             waitnext();
-            putchar('\f');
+            clrscr();
             grid();
 
         }
@@ -3438,11 +3483,11 @@ int main(int argc, char* argv[])
 
     /* *************************** Font examples test ************************** */
 
-    putchar('\f');
+    clrscr();
     grid();
     ami_auto(stdout, OFF);
     ami_bcolor(stdout, ami_cyan);
-    ami_bover(stdout);
+    bover();
     cnt = ami_fonts(stdout);
     for (i = 1; i <= cnt; i++) { /* visit each font code */
 
@@ -3455,7 +3500,7 @@ int main(int argc, char* argv[])
             printf("Press return to continue");
             waitnext();
             ami_bcolor(stdout, ami_white);
-            putchar('\f');
+            clrscr();
             grid();
             ami_bcolor(stdout, ami_cyan);
 
@@ -3464,14 +3509,14 @@ int main(int argc, char* argv[])
     }
     ami_bcolor(stdout, ami_white);
     ami_font(stdout, AMI_FONT_TERM);
-    ami_binvis(stdout);
+    binvis();
     printf("\n");
     printf("List complete\n");
     waitnext();
 
     /* ************************** Extended effects test ************************ */
 
-    putchar('\f');
+    clrscr();
     grid();
     ami_auto(stdout, OFF);
     ami_font(stdout, AMI_FONT_SIGN);
@@ -3502,7 +3547,7 @@ int main(int argc, char* argv[])
 
     /* ****************** Character sizes and positions test ******************* */
 
-    putchar('\f');
+    clrscr();
     grid();
     ami_auto(stdout, OFF);
     fsiz = ami_chrsizy(stdout); /* save character size to restore */
@@ -3513,7 +3558,7 @@ int main(int argc, char* argv[])
     x = (ami_maxxg(stdout)/2)-(ami_strsiz(stdout, S3)/2);
     ami_cursorg(stdout, x, ami_curyg(stdout)); /* go to centered */
     ami_bcolor(stdout, ami_cyan);
-    ami_bover(stdout);
+    bover();
     printf("%s\n", S3);
     ami_fcolor(stdout, ami_white);
     ami_frect(stdout, x, ami_curyg(stdout), x+ami_strsiz(stdout, S3)-1,
@@ -3534,21 +3579,21 @@ int main(int argc, char* argv[])
 
     ami_fontsiz(stdout, fsiz); /* restore font size */
     ami_font(stdout, AMI_FONT_TERM);
-    ami_binvis(stdout);
+    binvis();
     prtcen(ami_maxy(stdout), "Character sizes and positions");
     waitnext();
     ami_bcolor(stdout, ami_white);
 
     /* ************************** Polar text lines test ************************ */
 
-    putchar('\f');
+    clrscr();
     grid();
     ami_auto(stdout, OFF); /* rotated text is incompatible with the text grid */
     x = ami_maxxg(stdout)/2; /* window center */
     y = ami_maxyg(stdout)/2;
     l = ami_chrsizx(stdout)*5; /* start radius — 5 char widths from center */
     ami_fcolor(stdout, ami_black);
-    ami_bover(stdout);
+    bover();
     a = 0;
     while (a < 360) {
 
@@ -3572,14 +3617,14 @@ int main(int argc, char* argv[])
 
     }
     ami_path(stdout, LONG_MAX/4); /* restore default (90° / east-reading) */
-    ami_binvis(stdout);
+    binvis();
     prtcen(ami_maxy(stdout), "Polar text lines");
     waitnext();
     ami_auto(stdout, ON); /* re-enable the text grid */
 
     /* ************************* Graphical tabbing test ************************ */
 
-    putchar('\f');
+    clrscr();
     grid();
     ami_auto(stdout, OFF);
     ami_font(stdout, AMI_FONT_TERM);
@@ -3613,7 +3658,7 @@ int main(int argc, char* argv[])
 
     /* ************************** Picture draw test **************************** */
 
-    putchar('\f');
+    clrscr();
     grid();
     ami_maknam(fn, 100, "tests", "mypic", "");
     ami_loadpict(stdout, 1, fn);
@@ -3646,13 +3691,13 @@ int main(int argc, char* argv[])
 
     /* ********************** Invisible foreground test ************************ */
 
-    putchar('\f');
+    clrscr();
     grid();
     printf("\n");
-    ami_bover(stdout);
+    bover();
     ami_finvis(stdout);
     graphtest(1);
-    ami_binvis(stdout);
+    binvis();
     ami_fover(stdout);
     prtcen(ami_maxy(stdout), "Invisible foreground test");
     waitnext();
@@ -3660,27 +3705,27 @@ int main(int argc, char* argv[])
 
     /* ********************** Invisible background test ************************ */
 
-    putchar('\f');
+    clrscr();
     grid();
     printf("\n");
-    ami_binvis(stdout);
+    binvis();
     ami_fover(stdout);
     graphtest(1);
-    ami_binvis(stdout);
+    binvis();
     ami_fover(stdout);
     prtcen(ami_maxy(stdout), "Invisible background test");
     waitnext();
-    ami_bover(stdout);
+    bover();
 
     /* ************************** Xor foreground test ************************** */
 
-    putchar('\f');
+    clrscr();
     grid();
     printf("\n");
-    ami_bover(stdout);
+    bover();
     ami_fxor(stdout);
     graphtest(1);
-    ami_binvis(stdout);
+    binvis();
     ami_fover(stdout);
     prtcen(ami_maxy(stdout), "Xor foreground test");
     waitnext();
@@ -3688,23 +3733,23 @@ int main(int argc, char* argv[])
 
     /* ************************* Xor background test *************************** */
 
-    putchar('\f');
+    clrscr();
     grid();
     printf("\n");
     ami_bxor(stdout);
     ami_fover(stdout);
     graphtest(1);
-    ami_binvis(stdout);
+    binvis();
     ami_fover(stdout);
     prtcen(ami_maxy(stdout), "Xor background test");
     waitnext();
-    ami_bover(stdout);
+    bover();
 
     /* ************************** Graphical scrolling test **************************** */
 
-    putchar('\f');
+    clrscr();
     grid();
-    ami_binvis(stdout);
+    binvis();
     prtcen(2, "Use up, down, right && left keys to scroll by pixel");
     prtcen(3, "Hit enter to continue");
     prtcen(4, "Note that edges will clear to green as screen moves");
@@ -3726,12 +3771,12 @@ int main(int argc, char* argv[])
     } while (er.etype != ami_etenter && (!autorun || auto_event_ready()));
     frmmark(); /* capture where the scrolling left it */
     frmnext();
-    ami_bover(stdout);
+    bover();
     ami_bcolor(stdout, ami_white);
 
     /* ************************** Graphical mouse movement test **************************** */
 
-    putchar('\f');
+    clrscr();
     prtcen(2, "Move the mouse around");
     prtcen(3, "Hit Enter to continue");
     prtcen(ami_maxy(stdout), "Graphical mouse movement test");
@@ -3763,7 +3808,7 @@ int main(int argc, char* argv[])
 
     /* ************************** View offset test **************************** */
 
-    putchar('\f');
+    clrscr();
     ami_auto(stdout, OFF); /* turn off autoscroll */
     ami_curvis(stdout, FALSE); /* turn off cursor */
     edge();
@@ -3784,7 +3829,7 @@ int main(int argc, char* argv[])
 
    /* ************************** View scale test **************************** */
 
-    putchar('\f');
+    clrscr();
     ami_auto(stdout, OFF);
     ami_curvis(stdout, FALSE); /* turn off cursor */
     edge();
@@ -3804,7 +3849,7 @@ int main(int argc, char* argv[])
 
     /* ************************ Viewport scaling test ************************** */
 
-    putchar('\f');
+    clrscr();
     ami_auto(stdout, OFF);
     ami_curvis(stdout, FALSE); /* turn off cursor */
     fsiz = ami_chrsizy(stdout); /* save default font size */
@@ -3827,7 +3872,7 @@ int main(int argc, char* argv[])
 
         while (!done) {
 
-            putchar('\f');
+            clrscr();
             /* draw boundary lines showing valid coordinate space */
             ami_fcolor(stdout, ami_cyan);
             ami_line(stdout, 1, 1, ami_maxxg(stdout), 1);
@@ -3980,7 +4025,7 @@ int main(int argc, char* argv[])
 
     benchmarks:
 
-    ami_bover(stdout);
+    bover();
 
     benchtest(linespeed, bnline1, 1);
     i = benchtab[bnline1].iter;
@@ -4094,7 +4139,7 @@ int main(int argc, char* argv[])
     printf("Seconds per filled triangle %f\n", s*0.0001/i);
     chkbrk(); /* check user break*/
 
-    ami_bover(stdout);
+    bover();
     ami_fover(stdout);
     benchtest(ftextspeed, bntext, 1);
     i = benchtab[bntext].iter;
@@ -4104,13 +4149,13 @@ int main(int argc, char* argv[])
     printf("Seconds per write %f\n", s*0.0001/i);
     chkbrk(); /* check user break*/
 
-    ami_binvis(stdout);
+    binvis();
     ami_fover(stdout);
     benchtest(ftextspeed, bntextbi, 1);
     i = benchtab[bntextbi].iter;
     s = benchtab[bntextbi].time;
     ami_home(stdout);
-    ami_bover(stdout);
+    bover();
     printf("Text speed, invisible background, %d iterations %f seconds\n", i, s*0.0001);
     printf("Seconds per write %f\n", s*0.0001/i);
     chkbrk(); /* check user break*/
@@ -4172,7 +4217,7 @@ int main(int argc, char* argv[])
 
     terminate: /* terminate */
 
-    putchar('\f');
+    clrscr();
     ami_auto(stdout, OFF);
     ami_font(stdout, AMI_FONT_SIGN);
     ami_fontsiz(stdout, 50);

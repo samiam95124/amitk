@@ -5811,7 +5811,7 @@ Character mode window management test -- this window is the desktop
 ║ window_tes - ▯ X ║║ window_tes - ▯ X ║║ window_tes - ▯ X ║
 ╠══════════════════╣╠══════════════════╣╠══════════════════╣
 ║I am child window ║║I am child window ║║I am child window ║
-║                  ║║                  ║║                  ║
+║1                 ║║2                 ║║3                 ║
 ║                  ║║                  ║║                  ║
 ║                  ║║                  ║║                  ║
 ║                  ║║                  ║║                  ║
@@ -5857,8 +5857,8 @@ Character mode window management test -- this window is the desktop
 
 
 
-I am child window 1 I am child window 2 I am child window 3
-
+I am child window   I am child window   I am child window
+1                   2                   3
 
 
 
@@ -5965,7 +5965,7 @@ I am child window 1 I am child window 2 I am child window 3
  ║║ window_tes - ▯ X ║║ window_tes - ▯ X ║║ window_tes - ▯ X ║                    ║
  ║╠══════════════════╣╠══════════════════╣╠══════════════════╣                    ║
  ║║I am child window ║║I am child window ║║I am child window ║                    ║
- ║║                  ║║                  ║║                  ║                    ║
+ ║║1                 ║║2                 ║║3                 ║                    ║
  ║║                  ║║                  ║║                  ║                    ║
  ║║                  ║║                  ║║                  ║                    ║
  ║║                  ║║                  ║║                  ║                    ║
@@ -6011,8 +6011,8 @@ I am child window 1 I am child window 2 I am child window 3
  ║                                                                                ║
  ║                                                                                ║
  ║                                                                                ║
- ║I am child window 1 I am child window 2 I am child window 3                     ║
- ║                                                                                ║
+ ║I am child window   I am child window   I am child window                       ║
+ ║1                   2                   3                                       ║
  ║                                                                                ║
  ║                                                                                ║
  ║                                                                                ║
@@ -6207,13 +6207,13 @@ with child 1 on the bottom, child 2 middle, and child 3 top.
     ║ window_tes - ▯ X ║
     ╠══════════════════╣
     ║I am chil╔══════════════════╗
-    ║         ║ window_tes - ▯ X ║
+    ║1        ║ window_tes - ▯ X ║
     ║         ╠══════════════════╣
     ║         ║I am chil╔══════════════════╗
-    ║         ║         ║ window_tes - ▯ X ║
+    ║         ║2        ║ window_tes - ▯ X ║
     ║         ║         ╠══════════════════╣
     ╚═════════║         ║I am child window ║
-              ║         ║                  ║
+              ║         ║3                 ║
               ║         ║                  ║
               ╚═════════║                  ║
                         ║                  ║
@@ -6257,7 +6257,7 @@ below that, and child 3 on the bottom.
     ║ window_tes - ▯ X ║
     ╠══════════════════╣
     ║I am child window ║═════════╗
-    ║                  ║es - ▯ X ║
+    ║1                 ║es - ▯ X ║
     ║                  ║═════════╣
     ║                  ║d window ║═════════╗
     ║                  ║         ║es - ▯ X ║
@@ -6307,13 +6307,13 @@ below that, and child 1 on the bottom.
     ║ window_tes - ▯ X ║
     ╠══════════════════╣
     ║I am chil╔══════════════════╗
-    ║         ║ window_tes - ▯ X ║
+    ║1        ║ window_tes - ▯ X ║
     ║         ╠══════════════════╣
     ║         ║I am chil╔══════════════════╗
-    ║         ║         ║ window_tes - ▯ X ║
+    ║         ║2        ║ window_tes - ▯ X ║
     ║         ║         ╠══════════════════╣
     ╚═════════║         ║I am child window ║
-              ║         ║                  ║
+              ║         ║3                 ║
               ║         ║                  ║
               ╚═════════║                  ║
                         ║                  ║
@@ -6411,13 +6411,13 @@ below that, and child 1 on the bottom.
  ║    ║ window_tes - ▯ X ║                                                        ║
  ║    ╠══════════════════╣                                                        ║
  ║    ║I am chil╔══════════════════╗                                              ║
- ║    ║         ║ window_tes - ▯ X ║                                              ║
+ ║    ║1        ║ window_tes - ▯ X ║                                              ║
  ║    ║         ╠══════════════════╣                                              ║
  ║    ║         ║I am chil╔══════════════════╗                                    ║
- ║    ║         ║         ║ window_tes - ▯ X ║                                    ║
+ ║    ║         ║2        ║ window_tes - ▯ X ║                                    ║
  ║    ║         ║         ╠══════════════════╣                                    ║
  ║    ╚═════════║         ║I am child window ║                                    ║
- ║              ║         ║                  ║                                    ║
+ ║              ║         ║3                 ║                                    ║
  ║              ║         ║                  ║                                    ║
  ║              ╚═════════║                  ║                                    ║
  ║                        ║                  ║                                    ║
@@ -6461,7 +6461,7 @@ below that, and child 1 on the bottom.
  ║    ║ window_tes - ▯ X ║                                                        ║
  ║    ╠══════════════════╣                                                        ║
  ║    ║I am child window ║═════════╗                                              ║
- ║    ║                  ║es - ▯ X ║                                              ║
+ ║    ║1                 ║es - ▯ X ║                                              ║
  ║    ║                  ║═════════╣                                              ║
  ║    ║                  ║d window ║═════════╗                                    ║
  ║    ║                  ║         ║es - ▯ X ║                                    ║
@@ -6511,13 +6511,13 @@ below that, and child 1 on the bottom.
  ║    ║ window_tes - ▯ X ║                                                        ║
  ║    ╠══════════════════╣                                                        ║
  ║    ║I am chil╔══════════════════╗                                              ║
- ║    ║         ║ window_tes - ▯ X ║                                              ║
+ ║    ║1        ║ window_tes - ▯ X ║                                              ║
  ║    ║         ╠══════════════════╣                                              ║
  ║    ║         ║I am chil╔══════════════════╗                                    ║
- ║    ║         ║         ║ window_tes - ▯ X ║                                    ║
+ ║    ║         ║2        ║ window_tes - ▯ X ║                                    ║
  ║    ║         ║         ╠══════════════════╣                                    ║
  ║    ╚═════════║         ║I am child window ║                                    ║
- ║              ║         ║                  ║                                    ║
+ ║              ║         ║3                 ║                                    ║
  ║              ║         ║                  ║                                    ║
  ║              ╚═════════║                  ║                                    ║
  ║                        ║                  ║                                    ║

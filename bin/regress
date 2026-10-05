@@ -252,7 +252,9 @@ mask()
         -e '/^\f?Timer test, measuring/,/^Average time was:/ s|^\*+$|*|' \
         -e '/^\f?Framing timer test, measuring/,/^Average time was:/ s|^\.+$|*|' \
         -e 's|(place and remove [0-9]+ iterations )[0-9]+\.[0-9]+( seconds) +|\1*\2 *|' \
-        -e 's|[0-9]+\.[0-9]+( per iteration) +|*\1 *|'
+        -e 's|[0-9]+\.[0-9]+( per iteration) +|*\1 *|' \
+        -e 's|(place and remove [0-9]+ iterations )[0-9]+\.[0-9]+( seconds)$|\1*\2|' \
+        -e 's|^[0-9]+\.[0-9]+( per iteration)$|*\1|'
 
 }
 
