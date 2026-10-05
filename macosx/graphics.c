@@ -52,7 +52,10 @@ extern void ovr_close(pclose_t nfp, pclose_t* ofp);
 #define MAXCON      10      /* maximum screen contexts per window */
 #define MAXXD       80      /* default terminal width in chars */
 #define MAXYD       25      /* default terminal height in chars */
-#define DEF_FONT_H  16      /* default font height in points */
+#define CONPNT      11      /* the console font's size in points, as on
+                               Linux and as Terminal has it; the pixel
+                               height follows from the screen's density */
+#define PTMETER     2835.0  /* points in a meter */
 
 /* PA angles: LONG_MAX = 360 degrees */
 #define ANG2RAD(a)  ((a) * (2.0 * M_PI) / (double)LONG_MAX)
@@ -178,6 +181,8 @@ static int      dmpevt;               /* enable dump Petit-Ami events */
 static int      dmpmsg;               /* enable dump messages (diagnostic) */
 static int      prtftm;               /* print font metrics (diagnostic) */
 static int      conpnt;               /* size of console font in points */
+static int      deffnth;              /* the console font's height in pixels,
+                                         from its points and the screen */
 
 /* forward declarations */
 static void    clear_window(winptr win);
@@ -365,7 +370,7 @@ static void init_fonts(void)
         fontptr fp = calloc(1, sizeof(fontrec));
         /* for TERM slot, try system monospace font (SF Mono) first */
         if (slot == 0) {
-            CTFontRef f = pa_cocoa_system_mono_font((CGFloat)DEF_FONT_H);
+            CTFontRef f = pa_cocoa_system_mono_font((CGFloat)deffnth);
             if (f) {
                 CFStringRef fname = CTFontCopyFullName(f);
                 char nbuf[256];
@@ -374,18 +379,18 @@ static void init_fonts(void)
                 CFRelease(fname);
                 fp->ctfont = f;
                 fp->name   = strdup(nbuf);
-                fp->size   = DEF_FONT_H;
+                fp->size   = deffnth;
                 fp->fixed  = 1;
             }
         }
         /* fall through to name list if system mono not available */
         if (!fp->ctfont) {
             for (const char** np = lists[slot]; *np; np++) {
-                CTFontRef f = make_ctfont(*np, DEF_FONT_H, 0, 0);
+                CTFontRef f = make_ctfont(*np, deffnth, 0, 0);
                 if (f) {
                     fp->ctfont = f;
                     fp->name   = strdup(*np);
-                    fp->size   = DEF_FONT_H;
+                    fp->size   = deffnth;
                     fp->fixed  = (slot == 0);
                     break;
                 }
@@ -394,9 +399,9 @@ static void init_fonts(void)
         if (!fp->ctfont) {
             /* last resort: system font */
             fp->ctfont = CTFontCreateUIFontForLanguage(kCTFontUIFontSystem,
-                                                       DEF_FONT_H, NULL);
+                                                       deffnth, NULL);
             fp->name   = strdup("System");
-            fp->size   = DEF_FONT_H;
+            fp->size   = deffnth;
         }
         fp->next = fntlst;
         fntlst   = fp;
@@ -439,13 +444,13 @@ static void init_fonts(void)
                 }
                 if (dup) continue;
 
-                CTFontRef f = make_ctfont(namebuf, DEF_FONT_H, 0, 0);
+                CTFontRef f = make_ctfont(namebuf, deffnth, 0, 0);
                 if (!f) continue;
 
                 fontptr fp = calloc(1, sizeof(fontrec));
                 fp->ctfont = f;
                 fp->name   = strdup(namebuf);
-                fp->size   = DEF_FONT_H;
+                fp->size   = deffnth;
                 fp->fixed  = (CTFontGetSymbolicTraits(f) & kCTFontTraitMonoSpace) != 0;
                 fp->next   = NULL;
 
@@ -694,7 +699,7 @@ static void win_init(winptr win, int wid, int parwid, int w, int h)
     win->inpptr  = -1; /* no line typed */
     win->inpbuf[0] = 0;
     if (win->ctfont) { CFRelease(win->ctfont); win->ctfont = NULL; } /* a reused slot */
-    win->fontsz  = DEF_FONT_H;
+    win->fontsz  = deffnth;
 
     /* screen size in mm from shim */
     int smm_w  = pa_cocoa_screen_wmm();
@@ -703,7 +708,8 @@ static void win_init(winptr win, int wid, int parwid, int w, int h)
     int spx_h  = pa_cocoa_screen_h();
     win->dpmx  = (smm_w > 0) ? spx_w * 1000 / smm_w : 3780; /* ~96 dpi */
     win->dpmy  = (smm_h > 0) ? spx_h * 1000 / smm_h : 3780;
-    win->gfpoint = win->fontsz * 2835.0f / (float)win->dpmy;
+    win->gfpoint = (win->fontsz == deffnth)? (float)conpnt
+                                            : win->fontsz * 2835.0f / (float)win->dpmy;
 
     /* character cell size from font metrics */
     CTFontRef f = fntlst ? fntlst->ctfont : NULL;
@@ -714,8 +720,8 @@ static void win_init(winptr win, int wid, int parwid, int w, int h)
         win->linespace = ls;
         win->cellh = ls;
     } else {
-        win->linespace = DEF_FONT_H + 2;
-        win->charspace = (DEF_FONT_H + 2) / 2;
+        win->linespace = deffnth + 2;
+        win->charspace = (deffnth + 2) / 2;
     }
     win->maxx = w / win->charspace;
     win->maxy = h / win->linespace;
@@ -760,6 +766,18 @@ static void pa_graphics_init(void)
     inited = TRUE;
 
     pa_cocoa_init();
+    /* The console font is given in points, as on Linux, and its height in
+       pixels follows from the screen's density, so that it reads the same
+       size on any screen. It was a pixel count, sixteen, which is eleven
+       points only on a screen of a particular density. */
+    {
+        int smm = pa_cocoa_screen_hmm();
+        int spx = pa_cocoa_screen_h();
+        double dpm = (smm > 0) ? spx * 1000.0 / smm : 3780.0; /* ~96 dpi */
+        conpnt = CONPNT;
+        deffnth = (int)(conpnt * dpm / PTMETER + 0.5);
+        if (deffnth < 1) deffnth = 1;
+    }
     init_fonts();
     memset(opnfil, 0, sizeof(opnfil));
 
@@ -887,9 +905,14 @@ static void pa_graphics_init(void)
         fontptr fp = fntlst;
         int termw = cfgmaxxd > 0 ? cfgmaxxd : MAXXD;
         int termh = cfgmaxyd > 0 ? cfgmaxyd : MAXYD;
-        int fontsz = conpnt > 0 ? conpnt : DEF_FONT_H;
-
-        if (conpnt > 0 && fp) {
+        /* a configured console size is in points too: the fonts were
+           built at the default's pixels, and are rebuilt at the new */
+        if (conpnt != CONPNT && conpnt > 0 && fp) {
+            int smm = pa_cocoa_screen_hmm();
+            int spx = pa_cocoa_screen_h();
+            double dpm = (smm > 0) ? spx * 1000.0 / smm : 3780.0;
+            int fontsz = (int)(conpnt * dpm / PTMETER + 0.5);
+            if (fontsz < 1) fontsz = 1;
             CTFontRef newfont = CTFontCreateCopyWithAttributes(fp->ctfont,
                                     (CGFloat)fontsz, NULL, NULL);
             if (newfont) {
@@ -897,6 +920,7 @@ static void pa_graphics_init(void)
                 fp->ctfont = newfont;
                 fp->size = fontsz;
                 CFRelease(old);
+                deffnth = fontsz;
             }
         }
 
@@ -2391,7 +2415,7 @@ static void fontsiz_ivf(FILE* f, ami_long s)
 {
     winptr win = f2win(f); if (!win) return;
     /* the size asked for is the cell's height: the font is fitted to it */
-    win->cellh = (int)(s > 0 ? s : DEF_FONT_H);
+    win->cellh = (int)(s > 0 ? s : deffnth);
     win->fontsz = (CGFloat)win->cellh;
     scnptr sc = curscn(win);
     if (sc->font && sc->font->name) {
