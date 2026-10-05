@@ -10840,6 +10840,11 @@ static void hslrgb(double h, double s, double l, ami_long* r, ami_long* g, ami_l
 
 }
 
+/* an 8 bit component as a percentage of full scale, to the nearest */
+static ami_long col8pct(ami_long v8)
+{
+    return ((v8*100+127)/255);
+}
 /* the luminosity of the held color, 0..255 */
 static ami_long qcollum(qcolst* st)
 
@@ -10909,9 +10914,12 @@ static void qcolshow(FILE* wf, winptr dwin, qcolst* st)
 
     }
     ami_bcolor(wf, ami_white);
-    ami_cursor(wf, 47, 12); fprintf(wf, "%3lld", AMI_LONG_CAST(st->r));
-    ami_cursor(wf, 47, 14); fprintf(wf, "%3lld", AMI_LONG_CAST(st->g));
-    ami_cursor(wf, 47, 16); fprintf(wf, "%3lld", AMI_LONG_CAST(st->b));
+    /* the readouts are percentages of full scale: the 8 bit values the
+       dialog works in are an implementation detail, and mean nothing to
+       the user of a color that has no fixed range */
+    ami_cursor(wf, 47, 12); fprintf(wf, "%3lld%%", AMI_LONG_CAST(col8pct(st->r)));
+    ami_cursor(wf, 47, 14); fprintf(wf, "%3lld%%", AMI_LONG_CAST(col8pct(st->g)));
+    ami_cursor(wf, 47, 16); fprintf(wf, "%3lld%%", AMI_LONG_CAST(col8pct(st->b)));
 
 }
 
