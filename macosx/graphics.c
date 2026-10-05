@@ -45,6 +45,7 @@ extern void ovr_close(pclose_t nfp, pclose_t* ofp);
 *******************************************************************************/
 
 #define MAXFIL      100     /* maximum open file/window slots */
+#define MAXLIN      250     /* the longest line typed to a window */
 #define MAXPIC      50      /* maximum loadable pictures */
 #define MAXTIM      10      /* maximum timers per window */
 #define FRMTIM      (MAXTIM-1) /* reserved slot for frame timer (0-based) */
@@ -103,6 +104,9 @@ typedef struct winrec {
     pa_winhan   han;            /* Cocoa window handle */
     FILE*       infile;         /* associated input  stream */
     FILE*       outfile;        /* associated output stream */
+    char        inpbuf[MAXLIN]; /* the line being typed, or typed and not
+                                   yet read */
+    int         inpptr;         /* the cursor in it; -1 for no line */
     int         wid;            /* window id */
     int         parwid;         /* parent window id */
 
@@ -182,6 +186,7 @@ static ssize_t iwrite(int fd, const void* buff, size_t count);
 static ssize_t iread(int fd, void* buff, size_t count);
 static int     iclose(int fd);
 static void    update_metrics(winptr win);
+static void    plcchr(winptr win, char c);
 static int     glyphspan(CTFontRef f);
 static void    fontcell(CTFontRef f, int* cs, int* ls);
 static void    buildfont(winptr win, const char* name, int bold, int italic);
@@ -686,6 +691,8 @@ static void win_init(winptr win, int wid, int parwid, int w, int h)
     win->curdsp  = 1;
     win->curupd  = 1;
     win->cfont   = fntlst;
+    win->inpptr  = -1; /* no line typed */
+    win->inpbuf[0] = 0;
     if (win->ctfont) { CFRelease(win->ctfont); win->ctfont = NULL; } /* a reused slot */
     win->fontsz  = DEF_FONT_H;
 
@@ -913,6 +920,8 @@ static void pa_graphics_init(void)
         winptr win = &wintbl[1];
         win_init(win, 1, 0, maxxd, maxyd);
         win->han   = han;
+        win->infile  = stdin;  /* the main window reads the standard input */
+        win->outfile = stdout;
         win->focus = TRUE;
         opnfil[1]  = 1; /* mark slot in use */
         pa_cocoa_set_bufmod(han, win->bufmod);
@@ -1237,10 +1246,151 @@ static ssize_t iwrite(int fd, const void* buff, size_t count)
     return (*ofpwrite)(fd, buff, count);
 }
 
-/* Read interceptor: routes reads from window input fds (future: keyboard queue) */
+/* the window of a logical window id, or NULL */
+static winptr wid2win(int wid)
+{
+    for (int i = 0; i < MAXFIL; i++)
+        if (opnfil[i] && wintbl[i].han && wintbl[i].wid == wid) return &wintbl[i];
+    return NULL;
+}
+
+/* a window reading from the descriptor: one holding typed input first,
+   else any; the slot or -1. A window takes the input stream it is given,
+   so several may read the one descriptor, and the line is the window's
+   it was typed in. */
+static int fndinp(int fd, int typed)
+{
+    for (int i = 0; i < MAXFIL; i++)
+        if (opnfil[i] && wintbl[i].han && wintbl[i].infile &&
+            fileno(wintbl[i].infile) == fd &&
+            (!typed || (wintbl[i].inpptr >= 0 && wintbl[i].inpbuf[0]))) return i;
+    return -1;
+}
+
+/* Read a line from a window's keyboard, with echo and editing, into the
+   window's line buffer: the Linux backend's line editor, which serves
+   reads of a window's input the same way. A read of stdin went to the
+   process's stdin, the shell the program was started from, and a program
+   reading a line, as terminal_test does, waited there for keys typed in
+   the window. The events are taken through the library's own event call,
+   so timers and the rest keep running while the line is typed. */
+static void readline(int fd)
+{
+    ami_evtrec er;
+    winptr     win;
+    int        ins = 1;
+    int        lcmp = FALSE;
+    int        i;
+
+    do {
+        ami_event(stdin, &er);
+        win = wid2win((int)er.winid);
+        if (!win || !win->infile || fileno(win->infile) != fd) continue;
+        if (win->inpptr < 0) { win->inpptr = 0; win->inpbuf[0] = 0; ins = 1; }
+        switch (er.etype) {
+        case ami_etterm: exit(1);
+        case ami_etenter:
+            while (win->inpbuf[win->inpptr]) win->inpptr++;
+            win->inpbuf[win->inpptr] = '\n';
+            win->inpbuf[win->inpptr+1] = 0;
+            plcchr(win, '\r'); plcchr(win, '\n');
+            lcmp = TRUE;
+            break;
+        case ami_etchar:
+            if (win->inpptr < MAXLIN-2) {
+                if (ins) {
+                    i = win->inpptr;
+                    while (win->inpbuf[i]) i++;
+                    while (win->inpptr <= i) { win->inpbuf[i+1] = win->inpbuf[i]; i--; }
+                    win->inpbuf[win->inpptr] = (char)er.echar;
+                    i = win->inpptr;
+                    while (win->inpbuf[i]) plcchr(win, win->inpbuf[i++]);
+                    i = win->inpptr;
+                    while (win->inpbuf[i++]) plcchr(win, '\b');
+                    plcchr(win, win->inpbuf[win->inpptr]);
+                    win->inpptr++;
+                } else {
+                    if (!win->inpbuf[win->inpptr]) win->inpbuf[win->inpptr+1] = 0;
+                    win->inpbuf[win->inpptr] = (char)er.echar;
+                    plcchr(win, win->inpbuf[win->inpptr]);
+                    win->inpptr++;
+                }
+            }
+            break;
+        case ami_etdelcb:
+            if (win->inpptr > 0) {
+                win->inpptr--;
+                i = win->inpptr;
+                while (win->inpbuf[i]) { win->inpbuf[i] = win->inpbuf[i+1]; i++; }
+                plcchr(win, '\b');
+                i = win->inpptr;
+                while (win->inpbuf[i]) plcchr(win, win->inpbuf[i++]);
+                plcchr(win, ' ');
+                plcchr(win, '\b');
+                i = win->inpptr;
+                while (win->inpbuf[i++]) plcchr(win, '\b');
+            }
+            break;
+        case ami_etdelcf:
+            if (win->inpbuf[win->inpptr]) {
+                i = win->inpptr;
+                while (win->inpbuf[i]) { win->inpbuf[i] = win->inpbuf[i+1]; i++; }
+                i = win->inpptr;
+                while (win->inpbuf[i]) plcchr(win, win->inpbuf[i++]);
+                plcchr(win, ' ');
+                plcchr(win, '\b');
+                i = win->inpptr;
+                while (win->inpbuf[i++]) plcchr(win, '\b');
+            }
+            break;
+        case ami_etright:
+            if (win->inpbuf[win->inpptr]) { plcchr(win, win->inpbuf[win->inpptr]); win->inpptr++; }
+            break;
+        case ami_etleft:
+            if (win->inpptr > 0) { plcchr(win, '\b'); win->inpptr--; }
+            break;
+        case ami_ethomel:
+            while (win->inpptr) { plcchr(win, '\b'); win->inpptr--; }
+            break;
+        case ami_etendl:
+            while (win->inpbuf[win->inpptr]) { plcchr(win, win->inpbuf[win->inpptr]); win->inpptr++; }
+            break;
+        case ami_etinsertt:
+            ins = !ins;
+            break;
+        default: break;
+        }
+    } while (!lcmp);
+    win->inpptr = 0; /* the line is read from its start */
+}
+
+/* Read interceptor: a read of a window's input is served from the
+   window's keyboard, a line at a time; any other read goes through. */
 static ssize_t iread(int fd, void* buff, size_t count)
 {
-    return (*ofpread)(fd, buff, count);
+    unsigned char* ba = (unsigned char*)buff;
+    size_t         l = count;
+    int            wi;
+    winptr         win;
+
+    if (fndinp(fd, 0) < 0) return (*ofpread)(fd, buff, count);
+    while (l > 0) {
+        wi = fndinp(fd, 1); /* a window with typed input */
+        if (wi < 0) readline(fd); /* none: read a line */
+        else {
+            win = &wintbl[wi];
+            while (win->inpbuf[win->inpptr] && l) {
+                *ba++ = win->inpbuf[win->inpptr];
+                if (win->inpptr < MAXLIN) win->inpptr++;
+                if (!win->inpbuf[win->inpptr]) { /* the last of the line: it is gone */
+                    win->inpptr = -1;
+                    win->inpbuf[0] = 0;
+                }
+                l--;
+            }
+        }
+    }
+    return (ssize_t)count;
 }
 
 static int iclose(int fd)
