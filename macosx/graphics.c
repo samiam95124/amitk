@@ -1811,16 +1811,36 @@ static void title_ivf(FILE* f, char* ts)
     pa_cocoa_set_title(win->han, ts);
 }
 
-static void eventover_ivf(ami_evtcod e, ami_pevthan eh, ami_pevthan* oeh)
+/* The event handlers a program hooks in: one for each event code, and a
+   master handler ahead of them, as the Linux backend keeps them. Each
+   event goes to the master handler, then to its code's handler, and comes
+   back to the caller only if neither takes it. The hooks were not kept
+   here, so a program's handler was never called: terminal_test hooks the
+   terminate event to end the program, and with the hook unheeded the
+   window's close button and a control-c in the window did nothing. */
+static ami_pevthan evthan[ami_etdsize+1];
+static ami_pevthan evtshan;
+
+static void defaultevent(ami_evtrec* ev)
 {
-    /* no override system in this implementation */
-    if (oeh) *oeh = NULL;
+    ev->handled = 0; /* not handled: it goes on */
 }
 
+static void eventover_ivf(ami_evtcod e, ami_pevthan eh, ami_pevthan* oeh)
+{
+    if (e < 0 || e > ami_etdsize) { if (oeh) *oeh = NULL; return; }
+    if (!evtshan) evtshan = defaultevent;
+    if (!evthan[e]) evthan[e] = defaultevent;
+    if (oeh) *oeh = evthan[e];
+    evthan[e] = eh;
+}
 static void eventsover_ivf(ami_pevthan eh, ami_pevthan* oeh)
 {
-    if (oeh) *oeh = NULL;
+    if (!evtshan) evtshan = defaultevent;
+    if (oeh) *oeh = evtshan;
+    evtshan = eh;
 }
+
 
 /* Send an event to the window's input queue, as the x11 backend does: a
    copy of the record, its window id stamped to this window's, delivered
@@ -3005,10 +3025,20 @@ pa_winhan pa_stdout_winhan(void)
 static void event_ivf(FILE* f, ami_evtrec* er)
 {
     pa_rawevent raw;
-    pa_cocoa_process_ns_events();
-    pa_cocoa_wait(&raw);
-    translate_event(&raw, er);
-    if (er->etype == ami_etterm) fend = TRUE;
+    do {
+        pa_cocoa_process_ns_events();
+        pa_cocoa_wait(&raw);
+        translate_event(&raw, er);
+        if (er->etype == ami_etterm) fend = TRUE;
+        /* the program's handlers, master first, then the code's own; an
+           event they take is not returned */
+        er->handled = 1;
+        if (evtshan) (*evtshan)(er); else er->handled = 0;
+        if (!er->handled && er->etype >= 0 && er->etype <= ami_etdsize && evthan[er->etype]) {
+            er->handled = 1;
+            (*evthan[er->etype])(er);
+        }
+    } while (er->handled);
 }
 
 static void timer_ivf(FILE* f, ami_long i, ami_long t, ami_long r)
