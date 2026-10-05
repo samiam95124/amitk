@@ -90,6 +90,7 @@ static int        maxcnt;       /* maximize counter */
 static int        nrmcnt;       /* normalize counter */
 static int        i;
 static ami_long   xs, ys;
+static ami_long   xw;           /* a child window wider than square */
 static ami_long   mxs, mys;      /* maximum window size the WM will grant */
 static ami_long   cs;
 static ami_long   t, et;
@@ -1126,22 +1127,25 @@ int main(int argc, char* argv[])
 
     fputc('\f', tw);
     sqrrat(&xs, &ys, 2.5); /* find square ratio */
+    /* five characters wider than square: the label "I am child window N"
+       then sits on one line in a window whose cells run wide */
+    xw = xs+5*ami_chrsizx(tw);
     prtcen(ami_maxy(tw), "Child windows test pixel");
     ami_openwin(&stdin, &win2, tw, wid2);
     ami_curvis(win2, OFF);
-    ami_setposg(win2, xs*0+1, ys/2.5);
-    ami_sizbufg(win2, xs, ys);
-    ami_setsizg(win2, xs, ys);
+    ami_setposg(win2, xw*0+1, ys/2.5);
+    ami_sizbufg(win2, xw, ys);
+    ami_setsizg(win2, xw, ys);
     ami_openwin(&stdin, &win3, tw, wid3);
     ami_curvis(win3, OFF);
-    ami_setposg(win3, xs*1+1, ys/2.5);
-    ami_sizbufg(win3, xs, ys);
-    ami_setsizg(win3, xs, ys);
+    ami_setposg(win3, xw*1+1, ys/2.5);
+    ami_sizbufg(win3, xw, ys);
+    ami_setsizg(win3, xw, ys);
     ami_openwin(&stdin, &win4, tw, wid4);
     ami_curvis(win4, OFF);
-    ami_setposg(win4, xs*2+1, ys/2.5);
-    ami_sizbufg(win4, xs, ys);
-    ami_setsizg(win4, xs, ys);
+    ami_setposg(win4, xw*2+1, ys/2.5);
+    ami_sizbufg(win4, xw, ys);
+    ami_setsizg(win4, xw, ys);
     ami_bcolor(win2, ami_cyan);
     putc('\f', win2);
     fprintf(win2, "I am child window 1\n");
