@@ -10302,10 +10302,22 @@ static void imenu(FILE* f, ami_menuptr m)
     if (win->mbar) { /* remove the previous bar */
 
         wigptr* lp = &win->wiglst;
+        int pi;
+        /* A pulldown open from the bar, and its cascade, close with it. A
+           menu opened by the mouse stayed open when the program took the
+           menu down or put up another: on the screen, on the popup stack,
+           and owned by a widget that was gone. */
+        for (pi = 0; pi < popcnt; pi++)
+            if (popstk[pi]->owner == win->mbar) { clspops(pi); break; }
         while (*lp && *lp != win->mbar) lp = &(*lp)->next;
         if (*lp) *lp = win->mbar->next;
         fclose(win->mbar->wf);
         if (win->mbar->face) free(win->mbar->face);
+        /* the mouse may be on the bar: the highlight and the press die with it,
+           as with every other widget freed; left pointing at the freed bar,
+           the next mouse move redrew it and crashed */
+        if (hovwig == win->mbar) hovwig = NULL;
+        if (prswig == win->mbar) prswig = NULL;
         free(win->mbar);
         win->mbar = NULL;
 
