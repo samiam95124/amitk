@@ -136,6 +136,8 @@ typedef struct winrec {
                                   NULL until built, when the record's default
                                   size face serves (see winfont) */
     CGFloat     fontsz;        /* font size in pixels (CTFont logical size) */
+    int         cellh;         /* the character cell height the fonts are
+                                  fitted to; 0 until the first font sets it */
     float       gfpoint;       /* current font size in typographic points */
 
     /* event handler */
@@ -180,6 +182,9 @@ static ssize_t iwrite(int fd, const void* buff, size_t count);
 static ssize_t iread(int fd, void* buff, size_t count);
 static int     iclose(int fd);
 static void    update_metrics(winptr win);
+static int     glyphspan(CTFontRef f);
+static void    fontcell(CTFontRef f, int* cs, int* ls);
+static void    buildfont(winptr win, const char* name, int bold, int italic);
 
 
 /* standard color table: ami_color → RGBA */
@@ -316,8 +321,7 @@ static void rebuild_font(winptr win)
     int b = sc->bold || sc->xbold;
     int it = sc->italic;
 
-    if (win->ctfont) CFRelease(win->ctfont);
-    win->ctfont = make_ctfont(fp->name, win->fontsz, b, it);
+    buildfont(win, fp->name, b, it);
 
     /* apply condensed/extended via a matrix transform */
     if (win->ctfont && (sc->condensed || sc->extended)) {
@@ -585,6 +589,76 @@ static void draw_string(CGContextRef ctx, winptr win, scnptr sc,
 *                        Window init / deinit                                  *
 *                                                                              *
 *******************************************************************************/
+/* A font's glyph span: its ascent and descent, each to the pixel below.
+   The character cell is that and two for the gap, as the Linux backend
+   has it from FreeType. The cell was the font size asked for, with the
+   font built at that size, and a font's glyphs run taller than its size
+   (Menlo at 16 spans 18.6), so rows were cut short: descenders ran into
+   the row below, and a row's background fill, the size of the cell,
+   covered less than the glyphs and more than the row it was meant to, as
+   the last row of a buffer did a bar drawn along the buffer's bottom
+   edge. */
+static int glyphspan(CTFontRef f)
+{
+    return ((int)CTFontGetAscent(f) + (int)CTFontGetDescent(f));
+}
+
+/* The character cell of a font: the row is the glyph span and the gap,
+   the column the advance of 'M', standing in for the widest. The one
+   measure, taken here for the window's size at start and for each window
+   as it opens: the two had their own formulas, and when they differed the
+   window held fewer rows than the terminal's height. */
+static void fontcell(CTFontRef f, int* cs, int* ls)
+{
+    CGGlyph glyph;
+    UniChar ch = 'M';
+    CGSize  adv;
+
+    *ls = glyphspan(f) + 2;
+    CTFontGetGlyphsForCharacters(f, &ch, &glyph, 1);
+    CTFontGetAdvancesForGlyphs(f, kCTFontOrientationDefault, &glyph, &adv, 1);
+    *cs = (int)(adv.width + 0.5);
+    if (*cs <= 0) *cs = *ls / 2;
+}
+
+/* Build the window's font to its cell. The cell, once set, is kept over
+   font changes, and each face is built at the largest size whose glyphs
+   fit the cell less the gap, so that every face shares the row height,
+   as on Linux. With no cell set yet, the size asked for builds the font
+   and the font's span sets the cell. */
+static void buildfont(winptr win, const char* name, int bold, int italic)
+{
+    CGFloat   em;
+    int       target;
+    CTFontRef t;
+
+    if (win->ctfont) { CFRelease(win->ctfont); win->ctfont = NULL; }
+    if (win->cellh <= 0) {
+        win->ctfont = make_ctfont(name, win->fontsz, bold, italic);
+        if (win->ctfont) win->cellh = glyphspan(win->ctfont) + 2;
+        return;
+    }
+    target = win->cellh - 2;
+    if (target < 1) target = 1;
+    em = target;
+    win->ctfont = make_ctfont(name, em, bold, italic);
+    if (!win->ctfont) return;
+    while (em > 1 && glyphspan(win->ctfont) > target) { /* too tall: smaller */
+        em--;
+        CFRelease(win->ctfont);
+        win->ctfont = make_ctfont(name, em, bold, italic);
+        if (!win->ctfont) return;
+    }
+    for (;;) { /* room to spare: larger, while it still fits */
+        t = make_ctfont(name, em + 1, bold, italic);
+        if (!t || glyphspan(t) > target) { if (t) CFRelease(t); break; }
+        CFRelease(win->ctfont);
+        win->ctfont = t;
+        em++;
+    }
+    win->fontsz = em;
+}
+
 
 static void win_init(winptr win, int wid, int parwid, int w, int h)
 {
@@ -616,18 +690,11 @@ static void win_init(winptr win, int wid, int parwid, int w, int h)
     /* character cell size from font metrics */
     CTFontRef f = fntlst ? fntlst->ctfont : NULL;
     if (f) {
-        win->linespace  = (int)(win->fontsz + 0.5);
-        {
-            /* use advance of 'M' as max_advance approximation */
-            CGGlyph  glyph;
-            UniChar  ch = 'M';
-            CTFontGetGlyphsForCharacters(f, &ch, &glyph, 1);
-            CGSize   adv;
-            CTFontGetAdvancesForGlyphs(f, kCTFontOrientationDefault,
-                                       &glyph, &adv, 1);
-            win->charspace = (int)(adv.width + 0.5);
-        }
-        if (win->charspace <= 0) win->charspace = win->linespace / 2;
+        int cs, ls;
+        fontcell(f, &cs, &ls);
+        win->charspace = cs;
+        win->linespace = ls;
+        win->cellh = ls;
     } else {
         win->linespace = DEF_FONT_H + 2;
         win->charspace = (DEF_FONT_H + 2) / 2;
@@ -815,13 +882,10 @@ static void pa_graphics_init(void)
             }
         }
 
-        CGGlyph glyph; UniChar ch = 'M'; CGSize adv;
-        CTFontGetGlyphsForCharacters(fp->ctfont, &ch, &glyph, 1);
-        CTFontGetAdvancesForGlyphs(fp->ctfont, kCTFontOrientationDefault,
-                                   &glyph, &adv, 1);
-        int cs = (int)(adv.width + 0.5);
-        int ls = (int)(fp->size + 0.5);
-        if (cs <= 0) cs = ls / 2;
+        /* the terminal font's cell, then the window as the terminal's
+           columns and rows of it */
+        int cs, ls;
+        fontcell(fp->ctfont, &cs, &ls);
         maxxd = termw * cs;
         maxyd = termh * ls;
     }
@@ -1674,9 +1738,8 @@ static void setpoints_ivf(FILE* f, float ps)
     win->gfpoint = ps;
     scnptr sc = curscn(win);
     if (sc->font && sc->font->name) {
-        if (win->ctfont) CFRelease(win->ctfont);
-        win->ctfont = make_ctfont(sc->font->name, win->fontsz,
-                                       sc->bold, sc->italic);
+        win->cellh = 0; /* the point size builds the font; its span sets the cell */
+        buildfont(win, sc->font->name, sc->bold, sc->italic);
         sc->font->size   = win->fontsz;
         update_metrics(win);
     }
@@ -2102,10 +2165,7 @@ static void update_metrics(winptr win)
     fontptr fp = sc->font ? sc->font : fntlst;
     CTFontRef cf = winfont(win);
     if (!cf) return;
-    /* cf: the window's font, above */
-    /* linespace = requested font height (fontsz), matching Linux behavior
-     * where linespace = gfhigh. This ensures chrsizy/fontsiz round-trip. */
-    win->linespace = (int)(win->fontsz + 0.5);
+    win->linespace = win->cellh > 0 ? win->cellh : glyphspan(cf) + 2;
     CGGlyph  glyph;
     UniChar  ch = 'M';
     CTFontGetGlyphsForCharacters(cf, &ch, &glyph, 1);
@@ -2131,11 +2191,8 @@ static void font_ivf(FILE* f, ami_long fc)
         win->cfont        = fp;
         /* a face change always builds the window's font at its size: the
            font is the window's, so there is no record cache to consult */
-        if (fp->name) {
-            if (win->ctfont) CFRelease(win->ctfont);
-            win->ctfont = make_ctfont(fp->name, win->fontsz,
-                                     curscn(win)->bold, curscn(win)->italic);
-        }
+        if (fp->name)
+            buildfont(win, fp->name, curscn(win)->bold, curscn(win)->italic);
         update_metrics(win);
     }
 }
@@ -2152,16 +2209,15 @@ static void fontnam_ivf(FILE* f, ami_long fc, char* fns, ami_long fnsl)
 static void fontsiz_ivf(FILE* f, ami_long s)
 {
     winptr win = f2win(f); if (!win) return;
-    win->fontsz = (CGFloat)(s > 0 ? s : DEF_FONT_H);
-    win->gfpoint = win->fontsz * 2835.0f / (float)win->dpmy;
-    /* rebuild current font at new size */
+    /* the size asked for is the cell's height: the font is fitted to it */
+    win->cellh = (int)(s > 0 ? s : DEF_FONT_H);
+    win->fontsz = (CGFloat)win->cellh;
     scnptr sc = curscn(win);
     if (sc->font && sc->font->name) {
-        if (win->ctfont) CFRelease(win->ctfont);
-        win->ctfont = make_ctfont(sc->font->name, win->fontsz,
-                                       sc->bold, sc->italic);
+        buildfont(win, sc->font->name, sc->bold, sc->italic);
         update_metrics(win);
     }
+    win->gfpoint = win->fontsz * 2835.0f / (float)win->dpmy;
 }
 
 static void chrspcy_ivf(FILE* f, ami_long s)  { /* stub */ }
