@@ -533,8 +533,19 @@ static void draw_string(CGContextRef ctx, winptr win, scnptr sc,
     CGFloat tx = PX(x);
     CGFloat ty = PY(y) + ascent + yoff;
 
-    /* draw text */
+    /* draw text. The context has antialiasing off, for the lines and
+       figures, which are drawn to the pixel; glyphs are drawn smoothed, as
+       the system draws its own, else they come out ragged, each stem
+       snapped to a pixel at the font's size. */
     CGContextSaveGState(ctx);
+    CGContextSetAllowsAntialiasing(ctx, true);
+    CGContextSetShouldAntialias(ctx, true);
+    CGContextSetAllowsFontSmoothing(ctx, true);
+    CGContextSetShouldSmoothFonts(ctx, true);
+    CGContextSetAllowsFontSubpixelPositioning(ctx, true);
+    CGContextSetShouldSubpixelPositionFonts(ctx, true);
+    CGContextSetAllowsFontSubpixelQuantization(ctx, false);
+    CGContextSetShouldSubpixelQuantizeFonts(ctx, false);
     CGContextTranslateCTM(ctx, tx, ty);
     CGContextScaleCTM(ctx, 1.0, -1.0);
     if (sc->textpath != LONG_MAX / 4) {
