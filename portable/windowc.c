@@ -8122,13 +8122,15 @@ static ami_long mencol(winptr win, ami_menuptr m, char*** strs)
         int ena = TRUE;
         for (me = win->menena; me; me = me->next)
             if (me->id == p->id) ena = me->ena;
-        snprintf(buf, sizeof(buf), "%c%c%s%s",
-                 ena? ' ': '(', /* disabled shown in parens */
+        /* a disabled entry is drawn grey, as a disabled widget is; it was
+           also put in parentheses, which the grey makes redundant */
+        (void)ena;
+        snprintf(buf, sizeof(buf), " %c%s%s",
                  p->onoff? '*': ' ', /* check mark: the set state only; the
                                         oneof flag is group structure, not a
                                         selection */
                  p->face,
-                 p->branch? " >": (ena? "": ")"));
+                 p->branch? " >": "");
         (*strs)[i] = malloc(strlen(buf)+1);
         if (!(*strs)[i]) error("Out of memory");
         strcpy((*strs)[i], buf);
