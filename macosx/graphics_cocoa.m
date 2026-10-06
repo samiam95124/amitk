@@ -146,6 +146,7 @@ static int evt_empty(void) {
     int           presentPending; /* drawn since, not yet presented */
     pthread_mutex_t bufLock;     /* the screen buffers, between a resize
                                     and a present on another thread */
+    int           retired;       /* the window is closed: no snapshot */
 }
 - (void)createBitmapWidth:(int)w height:(int)h;
 - (void)destroyBitmap;
@@ -1181,15 +1182,42 @@ static void close_and_refocus_parent(PAWindow* pw)
     [pw->window close];
 }
 
+#define PRESENT_INTERVAL (1.0/60.0)
+static PAView* pendview[32];
+static int     npendview;
+
+/* a view that is going: off the list of presents held back, and its
+   screen buffers freed, under the lock a present takes */
+static void retire_view(PAView* v)
+{
+    int i, j;
+    CGImageRef old;
+    /* the snapshot goes, and the mark that no other may come, in the one
+       hold of the lock: a snapshot stored between the two was nobody's */
+    pthread_mutex_lock(&evt_mutex);
+    for (i = j = 0; i < npendview; i++) if (pendview[i] != v) pendview[j++] = pendview[i];
+    npendview = j;
+    v->retired = 1;
+    old = v->displayImage;
+    v->displayImage = NULL;
+    pthread_mutex_unlock(&evt_mutex);
+    if (old) CGImageRelease(old);
+    pthread_mutex_lock(&v->bufLock);
+    [v destroyBitmap];
+    pthread_mutex_unlock(&v->bufLock);
+}
+
 void pa_cocoa_destroy_window(pa_winhan win)
 {
     if (threaded_mode) {
         PAWindow* pw = (__bridge PAWindow*)win;
-        pthread_mutex_lock(&evt_mutex);
-        CGImageRef old = pw->view->displayImage;
-        pw->view->displayImage = NULL;
-        pthread_mutex_unlock(&evt_mutex);
-        if (old) CGImageRelease(old);
+        /* The screen buffers went with nothing when a window closed: a
+           program opening and closing child windows, as random_test does
+           without end, grew by the buffers of each; at the screen's scale,
+           gigabytes in a minute, and the kernel killed it for its swap. A
+           present held back for the window would also have found the
+           buffers still there and made it a snapshot nobody released. */
+        retire_view(pw->view);
         run_on_main(^{
             PAWindow* pw2 = (__bridge PAWindow*)win;
             close_and_refocus_parent(pw2);
@@ -1203,6 +1231,7 @@ void pa_cocoa_destroy_window(pa_winhan win)
             CGImageRelease(pw->view->displayImage);
             pw->view->displayImage = NULL;
         }
+        [pw->view destroyBitmap];
         close_and_refocus_parent(pw);
         CFRelease(win);
     }
@@ -1555,6 +1584,12 @@ static void present_display(PAView* v)
     pthread_mutex_unlock(&v->bufLock);
     if (!snap) return;
     pthread_mutex_lock(&evt_mutex);
+    if (v->retired) { /* closed while the snapshot was made: nobody will
+                         release a snapshot put in it now */
+        pthread_mutex_unlock(&evt_mutex);
+        CGImageRelease(snap);
+        return;
+    }
     CGImageRef old = v->displayImage;
     v->displayImage = snap;
     /* drawRect draws the snapshot into a POINT-sized rect (its context is
@@ -1576,9 +1611,6 @@ static void present_display(PAView* v)
    taken up by the next flush after the frame time, or when the program
    goes to wait for an event, so that what it drew last is shown. All on
    the drawing thread, which also resizes the buffers: no copy races one. */
-#define PRESENT_INTERVAL (1.0/60.0)
-static PAView* pendview[32];
-static int     npendview;
 
 static double nowsec(void)
 {
