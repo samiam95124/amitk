@@ -2376,13 +2376,20 @@ static void setcur(winptr win)
     if (curfocus && win != curfocus) return;
     if (indisp(win)) { /* in display */
 
-        /* check cursor in bounds */
+        /* The cursor shows where its cell shows: in the window, and with
+           no window over that cell. Checked for the window alone, the
+           cursor of a focus window lying under another was put on the
+           cell regardless, and stood in the window on top as a stray. */
         if (intcurbnd(win)) {
 
-            setcurvis(win->curv); /* set cursor on or off */
-            /* position actual cursor */
-            setcursor(win->curx+absx(win)-1+win->coffx,
-                      win->cury+absy(win)-1+win->coffy);
+            ami_long x = win->curx+absx(win)-1+win->coffx;
+            ami_long y = win->cury+absy(win)-1+win->coffy;
+            if (fndtop(x, y) == win) {
+
+                setcurvis(win->curv); /* set cursor on or off */
+                setcursor(x, y); /* position actual cursor */
+
+            } else setcurvis(FALSE); /* the cell is covered */
 
         } else setcurvis(FALSE); /* set cursor off out of bounds */
 
