@@ -567,6 +567,32 @@ static void resumetestwin(void)
 
 }
 
+/* 
+
+    set window and client size
+
+    given a window size, sets the window to that size, then sets the buffer size
+    to be the net resulting client size.
+
+*/
+
+static void setsize(FILE* f, ami_long x, ami_long y)
+
+{
+
+    ami_long ox, oy;
+
+    ami_setsiz(f, x, y); /* set window size */
+    /* find the decoration overhead: the window a client of this size needs,
+       less the client */
+    ami_winclient(f, x, y, &ox, &oy,
+                  BIT(ami_wmframe) | BIT(ami_wmsize) | BIT(ami_wmsysbar));
+    ox -= x;
+    oy -= y;
+    ami_sizbuf(f, x-ox, y-oy); /* the buffer is the client */
+
+}
+
 /* Run the child windows test with children of the given parent. */
 
 static void childtest(FILE* par)
@@ -580,18 +606,15 @@ static void childtest(FILE* par)
     ami_openwin(&stdin, &win2, par, 3);
     ami_curvis(win2, OFF);
     ami_setpos(win2, 1, 10);
-    ami_sizbuf(win2, 22, 10);
-    ami_setsiz(win2, 22, 10);
+    setsize(win2, 22, 10);
     ami_openwin(&stdin, &win3, par, 4);
     ami_curvis(win3, OFF);
     ami_setpos(win3, 23, 10);
-    ami_sizbuf(win3, 22, 10);
-    ami_setsiz(win3, 22, 10);
+    setsize(win3, 22, 10);
     ami_openwin(&stdin, &win4, par, 5);
     ami_curvis(win4, OFF);
     ami_setpos(win4, 45, 10);
-    ami_sizbuf(win4, 22, 10);
-    ami_setsiz(win4, 22, 10);
+    setsize(win4, 22, 10);
     ami_bcolor(win2, ami_cyan);
     putc('\f', win2);
     fprintf(win2, "I am child window 1\n");
@@ -634,12 +657,10 @@ static void childindtest(FILE* par, ami_long parid)
     prtcen(ami_maxy(par), "Child windows independent test character");
     ami_openwin(&stdin, &win2, par, 3);
     ami_setpos(win2, 11, 10);
-    ami_sizbuf(win2, 30, 10);
-    ami_setsiz(win2, 30, 10);
+    setsize(win2, 30, 10);
     ami_openwin(&stdin, &win3, par, 4);
     ami_setpos(win3, 41, 10);
-    ami_sizbuf(win3, 30, 10);
-    ami_setsiz(win3, 30, 10);
+    setsize(win3, 30, 10);
     ami_bcolor(win2, ami_cyan);
     putc('\f', win2);
     fprintf(win2, "I am child window 1\n");
@@ -855,16 +876,13 @@ static void childtorture(FILE* par)
 
         ami_openwin(&stdin, &win2, par, 3);
         ami_setpos(win2, 2, 3);
-        ami_sizbuf(win2, xs, ys);
-        ami_setsiz(win2, xs, ys);
+        setsize(win2, xs, ys);
         ami_openwin(&stdin, &win3, par, 4);
         ami_setpos(win3, 2+xs, 3);
-        ami_sizbuf(win3, xs, ys);
-        ami_setsiz(win3, xs, ys);
+        setsize(win3, xs, ys);
         ami_openwin(&stdin, &win4, par, 5);
         ami_setpos(win4, 2+xs*2, 3);
-        ami_sizbuf(win4, xs, ys);
-        ami_setsiz(win4, xs, ys);
+        setsize(win4, xs, ys);
         ami_bcolor(win2, c1);
         c1 = nextcolor(c1);
         putc('\f', win2);
@@ -1365,9 +1383,12 @@ int main(int argc, char* argv[])
     ami_winclient(tw, 20, 10, &x, &y, BIT(ami_wmframe) | BIT(ami_wmsize) | BIT(ami_wmsysbar));
     fprintf(tw, "For (20, 10) client, full frame, window size is: %lld,%lld\n", AMI_LONG_CAST(x), AMI_LONG_CAST(y));
     ami_setsiz(win2, x, y);
+    ami_sizbuf(win2, 20, 10); /* the buffer is the client */
     putc('\f', win2);
     ami_fcolor(win2, ami_black);
-    fprintf(win2, "12345678901234567890\n");
+    /* the line fills the client's width, and the cursor goes on to the
+       next row of itself: a newline here would make a blank row of it */
+    fprintf(win2, "12345678901234567890");
     fprintf(win2, "2\n");
     fprintf(win2, "3\n");
     fprintf(win2, "4\n");
@@ -1376,7 +1397,8 @@ int main(int argc, char* argv[])
     fprintf(win2, "7\n");
     fprintf(win2, "8\n");
     fprintf(win2, "9\n");
-    fprintf(win2, "0\n");
+    /* the last row: a newline here would scroll the ten rows up one */
+    fprintf(win2, "0");
     ami_curvis(win2, OFF);
     fprintf(tw, "Check client window has (20, 10) surface\n");
     waitnext();
@@ -1386,9 +1408,12 @@ int main(int argc, char* argv[])
     ami_winclient(tw, 20, 10, &x, &y, BIT(ami_wmframe) | BIT(ami_wmsize));
     fprintf(tw, "For (20, 10) client, no system bar, window size is: %lld,%lld\n", AMI_LONG_CAST(x), AMI_LONG_CAST(y));
     ami_setsiz(win2, x, y);
+    ami_sizbuf(win2, 20, 10); /* the buffer is the client */
     putc('\f', win2);
     ami_fcolor(win2, ami_black);
-    fprintf(win2, "12345678901234567890\n");
+    /* the line fills the client's width, and the cursor goes on to the
+       next row of itself: a newline here would make a blank row of it */
+    fprintf(win2, "12345678901234567890");
     fprintf(win2, "2\n");
     fprintf(win2, "3\n");
     fprintf(win2, "4\n");
@@ -1397,7 +1422,8 @@ int main(int argc, char* argv[])
     fprintf(win2, "7\n");
     fprintf(win2, "8\n");
     fprintf(win2, "9\n");
-    fprintf(win2, "0\n");
+    /* the last row: a newline here would scroll the ten rows up one */
+    fprintf(win2, "0");
     ami_curvis(win2, OFF);
     fprintf(tw, "Check client window has (20, 10) surface\n");
     waitnext();
@@ -1408,9 +1434,12 @@ int main(int argc, char* argv[])
     ami_winclient(tw, 20, 10, &x, &y, BIT(ami_wmframe) | BIT(ami_wmsysbar));
     fprintf(tw, "For (20, 10) client, no size bars, window size is: %lld,%lld\n", AMI_LONG_CAST(x), AMI_LONG_CAST(y));
     ami_setsiz(win2, x, y);
+    ami_sizbuf(win2, 20, 10); /* the buffer is the client */
     putc('\f', win2);
     ami_fcolor(win2, ami_black);
-    fprintf(win2, "12345678901234567890\n");
+    /* the line fills the client's width, and the cursor goes on to the
+       next row of itself: a newline here would make a blank row of it */
+    fprintf(win2, "12345678901234567890");
     fprintf(win2, "2\n");
     fprintf(win2, "3\n");
     fprintf(win2, "4\n");
@@ -1419,7 +1448,8 @@ int main(int argc, char* argv[])
     fprintf(win2, "7\n");
     fprintf(win2, "8\n");
     fprintf(win2, "9\n");
-    fprintf(win2, "0\n");
+    /* the last row: a newline here would scroll the ten rows up one */
+    fprintf(win2, "0");
     ami_curvis(win2, OFF);
     fprintf(tw, "Check client window has (20, 10) surface\n");
     waitnext();
@@ -1431,9 +1461,12 @@ int main(int argc, char* argv[])
     ami_winclient(tw, 20, 10, &x, &y, BIT(ami_wmsize) | BIT(ami_wmsysbar));
     fprintf(tw, "For (20, 10) client, no frame, window size is: %lld,%lld\n", AMI_LONG_CAST(x), AMI_LONG_CAST(y));
     ami_setsiz(win2, x, y);
+    ami_sizbuf(win2, 20, 10); /* the buffer is the client */
     putc('\f', win2);
     ami_fcolor(win2, ami_black);
-    fprintf(win2, "12345678901234567890\n");
+    /* the line fills the client's width, and the cursor goes on to the
+       next row of itself: a newline here would make a blank row of it */
+    fprintf(win2, "12345678901234567890");
     fprintf(win2, "2\n");
     fprintf(win2, "3\n");
     fprintf(win2, "4\n");
@@ -1442,7 +1475,8 @@ int main(int argc, char* argv[])
     fprintf(win2, "7\n");
     fprintf(win2, "8\n");
     fprintf(win2, "9\n");
-    fprintf(win2, "0\n");
+    /* the last row: a newline here would scroll the ten rows up one */
+    fprintf(win2, "0");
     ami_curvis(win2, OFF);
     fprintf(tw, "Check client window has (20, 10) surface\n");
     waitnext();
