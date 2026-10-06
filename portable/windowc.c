@@ -4237,6 +4237,7 @@ static void intsetsiz(winptr win, ami_long x, ami_long y)
     }
     recalcfmask(); /* recalculate the forward masks */
     mbarsiz(win); /* the menu bar follows the client width */
+    if (curfocus) setcur(curfocus); /* the cursor follows the size, as the move */
 
 }
 
@@ -4443,6 +4444,10 @@ static void intsetpos(winptr win, ami_long x, ami_long y)
 
     }
     recalcfmask(); /* recalculate the forward masks */
+    /* the cursor is the focus window's, and whether its cell shows has
+       changed with the move: put back from that window. A window dragged
+       over the focus window's cursor and away again left no cursor. */
+    if (curfocus) setcur(curfocus);
 
 }
 
