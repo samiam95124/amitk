@@ -575,21 +575,23 @@ static void childtest(FILE* par)
 
     fputc('\f', par);
     prtcen(ami_maxy(par), "Child windows test character");
+    /* 22 wide: the frame takes two columns, and "I am child window N" is
+       nineteen; at 20 the label wrapped its digit onto the next line */
     ami_openwin(&stdin, &win2, par, 3);
     ami_curvis(win2, OFF);
     ami_setpos(win2, 1, 10);
-    ami_sizbuf(win2, 20, 10);
-    ami_setsiz(win2, 20, 10);
+    ami_sizbuf(win2, 22, 10);
+    ami_setsiz(win2, 22, 10);
     ami_openwin(&stdin, &win3, par, 4);
     ami_curvis(win3, OFF);
-    ami_setpos(win3, 21, 10);
-    ami_sizbuf(win3, 20, 10);
-    ami_setsiz(win3, 20, 10);
+    ami_setpos(win3, 23, 10);
+    ami_sizbuf(win3, 22, 10);
+    ami_setsiz(win3, 22, 10);
     ami_openwin(&stdin, &win4, par, 5);
     ami_curvis(win4, OFF);
-    ami_setpos(win4, 41, 10);
-    ami_sizbuf(win4, 20, 10);
-    ami_setsiz(win4, 20, 10);
+    ami_setpos(win4, 45, 10);
+    ami_sizbuf(win4, 22, 10);
+    ami_setsiz(win4, 22, 10);
     ami_bcolor(win2, ami_cyan);
     putc('\f', win2);
     fprintf(win2, "I am child window 1\n");
