@@ -10366,6 +10366,15 @@ static void imenu(FILE* f, ami_menuptr m)
        is not used after this call */
     if (win->amenu) frmenu(win->amenu);
     win->amenu = cpymenu(m);
+    /* The enable states go with the menu they were set on: an item of
+       the new menu that happens to carry the id of a disabled item of the
+       old came up disabled (window_test disables "Walk", id 3, in its
+       sample menu, and the standard menu's "Close" is id 3). */
+    while (win->menena) {
+        menenaptr me = win->menena;
+        win->menena = me->next;
+        free(me);
+    }
     if (!m) { /* menu removed: the client gets its row back */
 
         recompcli(win);
