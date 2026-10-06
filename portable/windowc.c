@@ -7146,6 +7146,11 @@ static void fronttree(winptr win)
     placetree(win, anchor);
     treerect(win, &r);
     redraw(zmax2min, r.x1, r.y1, r.x2, r.y2); /* repaint its region */
+    /* the cursor is the focus window's, and whether its cell shows has
+       changed with the order: it is put back from that window, on or off
+       and where. Left as it was, the cursor of a window just covered
+       stood in the window brought over it. */
+    if (curfocus) setcur(curfocus);
 
 }
 
@@ -7163,6 +7168,7 @@ static void backtree(winptr win)
     placetree(win, win->parwin); /* NULL parent: the root, the very back */
     treerect(win, &r);
     redraw(zmax2min, r.x1, r.y1, r.x2, r.y2); /* repaint its region */
+    if (curfocus) setcur(curfocus); /* the cursor follows the order, as above */
 
 }
 
