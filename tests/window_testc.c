@@ -688,6 +688,19 @@ static void childindtest(FILE* par, ami_long parid)
             if (er.winid == 3) fputc('\n', win2);
             else if (er.winid == 4) fputc('\n', win3);
 
+        } else if (er.etype == ami_etresize &&
+                   (er.winid == 3 || er.winid == 4)) {
+
+            /* buffer following: the child's buffer takes the size of its
+               client as the user resizes it, so that wrap and scroll can
+               be tried at any size. The resize clears the buffer, and the
+               label is written again. */
+            FILE* w = er.winid == 3? win2: win3;
+
+            ami_sizbuf(w, er.rszx, er.rszy);
+            putc('\f', w);
+            fprintf(w, "I am child window %d\n", er.winid == 3? 1: 2);
+
         } else if (er.etype == ami_etterm &&
                    (er.winid == 1 || er.winid == parid))
             /* only take terminations from the desktop or the parent */
