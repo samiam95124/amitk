@@ -589,6 +589,20 @@ static void bover(void) { bginvis = FALSE; ami_bover(stdout); }
 static void binvis(void) { bginvis = TRUE; ami_binvis(stdout); }
 static void bgrestore(void) { if (bginvis) ami_binvis(stdout); else ami_bover(stdout); }
 
+/* The next width in a family of lines of growing width, drawn gap pixels
+   apart: the width stops at half the gap, so the lines stay apart. The
+   widths step in pixels while the gap is a fraction of the window, and in
+   a small window (the Mac's default is 560 by 350) the later lines ran
+   together into a solid field. The gap of the 45 degree lines is given
+   across them, 7/10 of their step along the axis. */
+static int widlim(int w, int gap)
+{
+    int lim = gap/2;
+
+    if (lim < 1) lim = 1;
+    return (w > lim? lim: w);
+}
+
 /* clear the screen: the frame stamp goes with it */
 static void clrscr(void) { stampon = FALSE; putchar('\f'); }
 
@@ -2034,7 +2048,7 @@ int main(int argc, char* argv[])
         ami_linewidth(stdout, w);
         ami_line(stdout, xspace, y, ami_maxxg(stdout)-xspace, y);
         y = y+yspace;
-        w = w+1;
+        w = widlim(w+1, yspace);
 
     }
     ami_linewidth(stdout, 1);
@@ -2054,7 +2068,7 @@ int main(int argc, char* argv[])
         ami_linewidth(stdout, w);
         ami_line(stdout, x, yspace, x, ami_maxyg(stdout)-ami_chrsizy(stdout));
         x = x+xspace;
-        w = w+1;
+        w = widlim(w+1, xspace);
 
     }
     ami_linewidth(stdout, 1);
@@ -2078,7 +2092,7 @@ int main(int argc, char* argv[])
         ami_linewidth(stdout, w);
         ami_line(stdout, 0, y, ysize, y+ysize);
         y = y+xspace;
-        w = w+1;
+        w = widlim(w+1, xspace*7/10);
 
     }
     ami_linewidth(stdout, 1);
@@ -2110,7 +2124,7 @@ int main(int argc, char* argv[])
         ami_linewidth(stdout, w);
         ami_line(stdout, xspace, y, ami_maxxg(stdout)-xspace, y);
         y = y+yspace;
-        w = w+1;
+        w = widlim(w+1, yspace);
 
     }
     ami_linewidth(stdout, 1);
@@ -2132,7 +2146,7 @@ int main(int argc, char* argv[])
         ami_linewidth(stdout, w);
         ami_line(stdout, xspace, y, ami_maxxg(stdout)-xspace, y);
         y = y+yspace;
-        w = w+1;
+        w = widlim(w+1, yspace);
 
     }
     ami_linewidth(stdout, 1);
@@ -2154,7 +2168,7 @@ int main(int argc, char* argv[])
         ami_linewidth(stdout, w);
         ami_line(stdout, x, yspace, x, ami_maxyg(stdout)-ami_chrsizy(stdout));
         x = x+xspace;
-        w = w+1;
+        w = widlim(w+1, xspace);
 
     }
     ami_linewidth(stdout, 1);
@@ -2176,7 +2190,7 @@ int main(int argc, char* argv[])
         ami_linewidth(stdout, w);
         ami_line(stdout, x, yspace, x, ami_maxyg(stdout)-ami_chrsizy(stdout));
         x = x+xspace;
-        w = w+1;
+        w = widlim(w+1, xspace);
 
     }
     ami_linewidth(stdout, 1);
@@ -2199,7 +2213,7 @@ int main(int argc, char* argv[])
         ami_linewidth(stdout, w);
         ami_line(stdout, 0, y, ysize, y+ysize);
         y = y+xspace;
-        w = w+1;
+        w = widlim(w+1, xspace*7/10);
 
     }
     ami_linewidth(stdout, 1);
@@ -2222,7 +2236,7 @@ int main(int argc, char* argv[])
         ami_linewidth(stdout, w);
         ami_line(stdout, 0, y, ysize, y+ysize);
         y = y+xspace;
-        w = w+1;
+        w = widlim(w+1, xspace*7/10);
 
     }
     ami_linewidth(stdout, 1);
