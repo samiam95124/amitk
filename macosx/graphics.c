@@ -1431,13 +1431,28 @@ static ssize_t iread(int fd, void* buff, size_t count)
     return (ssize_t)count;
 }
 
+/* held while an event is matched to its window and the window used, and
+   while a closing window is taken out of the table */
+static pthread_mutex_t winlock = PTHREAD_MUTEX_INITIALIZER;
+
 static int iclose(int fd)
 {
     if (fd >= 0 && fd < MAXFIL && opnfil[fd] && wintbl[fd].han) {
+        pa_winhan han;
+
+        /* The window leaves the table before it is destroyed, and under
+           the lock event translation holds: a thread in ami_event found
+           the window of a focus event in the table while another closed
+           it, and set the cursor in a window already released
+           (random_test, whose threads open and close windows under the
+           one that takes the events). */
+        pthread_mutex_lock(&winlock);
         if (wintbl[fd].ctfont) { CFRelease(wintbl[fd].ctfont); wintbl[fd].ctfont = NULL; }
-        pa_cocoa_destroy_window(wintbl[fd].han);
+        han = wintbl[fd].han;
         wintbl[fd].han = NULL;
         opnfil[fd] = 0;
+        pthread_mutex_unlock(&winlock);
+        pa_cocoa_destroy_window(han);
     }
     return (*ofpclose)(fd);
 }
@@ -3227,7 +3242,9 @@ static void event_ivf(FILE* f, ami_evtrec* er)
     do {
         pa_cocoa_process_ns_events();
         pa_cocoa_wait(&raw);
+        pthread_mutex_lock(&winlock); /* no window closes under it */
         translate_event(&raw, er);
+        pthread_mutex_unlock(&winlock);
         if (er->etype == ami_etterm) fend = TRUE;
         /* the program's handlers, master first, then the code's own; an
            event they take is not returned */
