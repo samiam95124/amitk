@@ -473,6 +473,53 @@ static void frametest(const string s)
 
 }
 
+/*
+
+    set window and client size
+
+    given a window size, sets the window to that size, then sets the buffer size
+    to be the net resulting client size. A buffer the size of the window is
+    larger than the client the frame leaves, and what is written past the
+    client's edge is not seen: a line typed into a child window ran on out of
+    sight before it wrapped. In characters the overhead is rounded up to whole
+    cells, so the buffer never exceeds the client.
+
+*/
+
+static void setsize(FILE* f, ami_long x, ami_long y)
+
+{
+
+    ami_long ox, oy;
+
+    ami_setsiz(f, x, y); /* set window size */
+    /* find the decoration overhead: the window a client of this size needs,
+       less the client */
+    ami_winclient(f, x, y, &ox, &oy,
+                  BIT(ami_wmframe) | BIT(ami_wmsize) | BIT(ami_wmsysbar));
+    ox -= x;
+    oy -= y;
+    ami_sizbuf(f, x-ox, y-oy); /* the buffer is the client */
+
+}
+
+/* the same in pixels */
+
+static void setsizeg(FILE* f, ami_long x, ami_long y)
+
+{
+
+    ami_long ox, oy;
+
+    ami_setsizg(f, x, y); /* set window size */
+    ami_winclientg(f, x, y, &ox, &oy,
+                   BIT(ami_wmframe) | BIT(ami_wmsize) | BIT(ami_wmsysbar));
+    ox -= x;
+    oy -= y;
+    ami_sizbufg(f, x-ox, y-oy); /* the buffer is the client */
+
+}
+
 /* Finds the largest square that fits into the screen, then applies a ratio to
    that. Used to determine a relative size that fits the screen. */
 static void sqrrat(ami_long* xs, ami_long* ys, float rat)
@@ -1086,18 +1133,15 @@ int main(int argc, char* argv[])
     ami_openwin(&stdin, &win2, tw, wid2);
     ami_curvis(win2, OFF);
     ami_setpos(win2, 1, 10);
-    ami_sizbuf(win2, 22, 10);
-    ami_setsiz(win2, 22, 10);
+    setsize(win2, 22, 10);
     ami_openwin(&stdin, &win3, tw, wid3);
     ami_curvis(win3, OFF);
     ami_setpos(win3, 23, 10);
-    ami_sizbuf(win3, 22, 10);
-    ami_setsiz(win3, 22, 10);
+    setsize(win3, 22, 10);
     ami_openwin(&stdin, &win4, tw, wid4);
     ami_curvis(win4, OFF);
     ami_setpos(win4, 45, 10);
-    ami_sizbuf(win4, 22, 10);
-    ami_setsiz(win4, 22, 10);
+    setsize(win4, 22, 10);
     ami_bcolor(win2, ami_cyan);
     putc('\f', win2);
     fprintf(win2, "I am child window 1\n");
@@ -1136,18 +1180,15 @@ int main(int argc, char* argv[])
     ami_openwin(&stdin, &win2, tw, wid2);
     ami_curvis(win2, OFF);
     ami_setposg(win2, xw*0+1, ys/2.5);
-    ami_sizbufg(win2, xw, ys);
-    ami_setsizg(win2, xw, ys);
+    setsizeg(win2, xw, ys);
     ami_openwin(&stdin, &win3, tw, wid3);
     ami_curvis(win3, OFF);
     ami_setposg(win3, xw*1+1, ys/2.5);
-    ami_sizbufg(win3, xw, ys);
-    ami_setsizg(win3, xw, ys);
+    setsizeg(win3, xw, ys);
     ami_openwin(&stdin, &win4, tw, wid4);
     ami_curvis(win4, OFF);
     ami_setposg(win4, xw*2+1, ys/2.5);
-    ami_sizbufg(win4, xw, ys);
-    ami_setsizg(win4, xw, ys);
+    setsizeg(win4, xw, ys);
     ami_bcolor(win2, ami_cyan);
     putc('\f', win2);
     fprintf(win2, "I am child window 1\n");
@@ -1184,12 +1225,10 @@ int main(int argc, char* argv[])
     prtcen(ami_maxy(tw), "Child windows independent test character");
     ami_openwin(&stdin, &win2, tw, wid2);
     ami_setpos(win2, 11, 10);
-    ami_sizbuf(win2, 30, 10);
-    ami_setsiz(win2, 30, 10);
+    setsize(win2, 30, 10);
     ami_openwin(&stdin, &win3, tw, wid3);
     ami_setpos(win3, 41, 10);
-    ami_sizbuf(win3, 30, 10);
-    ami_setsiz(win3, 30, 10);
+    setsize(win3, 30, 10);
     ami_bcolor(win2, ami_cyan);
     putc('\f', win2);
     fprintf(win2, "I am child window 1\n");
@@ -1253,12 +1292,10 @@ int main(int argc, char* argv[])
     prtcen(ami_maxy(tw), "Child windows test pixel");
     ami_openwin(&stdin, &win2, tw, wid2);
     ami_setposg(win2, xs*0+xs/5, ys/2);
-    ami_sizbufg(win2, xs, ys);
-    ami_setsizg(win2, xs, ys);
+    setsizeg(win2, xs, ys);
     ami_openwin(&stdin, &win3, tw, wid3);
     ami_setposg(win3, xs*1+xs/5, ys/2);
-    ami_sizbufg(win3, xs, ys);
-    ami_setsizg(win3, xs, ys);
+    setsizeg(win3, xs, ys);
     ami_bcolor(win2, ami_cyan);
     putc('\f', win2);
     fprintf(win2, "I am child window 1\n");
@@ -1322,18 +1359,15 @@ int main(int argc, char* argv[])
     ami_openwin(&stdin, &win2, tw, wid2);
     ami_curvis(win2, OFF);
     ami_setposg(win2, xs/2*0+xs/5, ys/2.5+ys*0/4);
-    ami_sizbufg(win2, xs, ys);
-    ami_setsizg(win2, xs, ys);
+    setsizeg(win2, xs, ys);
     ami_openwin(&stdin, &win3, tw, wid3);
     ami_curvis(win3, OFF);
     ami_setposg(win3, xs/2*1+xs/5, ys/2.5+ys*1/4);
-    ami_sizbufg(win3, xs, ys);
-    ami_setsizg(win3, xs, ys);
+    setsizeg(win3, xs, ys);
     ami_openwin(&stdin, &win4, tw, wid4);
     ami_curvis(win4, OFF);
     ami_setposg(win4, xs/2*2+xs/5, ys/2.5+ys*2/4);
-    ami_sizbufg(win4, xs, ys);
-    ami_setsizg(win4, xs, ys);
+    setsizeg(win4, xs, ys);
     ami_bcolor(win2, ami_cyan);
     putc('\f', win2);
     fprintf(win2, "I am child window 1\n");
@@ -1375,16 +1409,13 @@ int main(int argc, char* argv[])
     ami_auto(tw, OFF);
     ami_openwin(&stdin, &win2, tw, wid2);
     ami_setposg(win2, xs/2*1, ys/2*1);
-    ami_sizbufg(win2, ami_maxxg(tw)-xs*2, ami_maxyg(tw)-ys*2);
-    ami_setsizg(win2, ami_maxxg(tw)-xs*2, ami_maxyg(tw)-ys*2);
+    setsizeg(win2, ami_maxxg(tw)-xs*2, ami_maxyg(tw)-ys*2);
     ami_openwin(&stdin, &win3, tw, wid3);
     ami_setposg(win3, xs/2*2, ys/2*2);
-    ami_sizbufg(win3, ami_maxxg(tw)-xs*2, ami_maxyg(tw)-ys*2);
-    ami_setsizg(win3, ami_maxxg(tw)-xs*2, ami_maxyg(tw)-ys*2);
+    setsizeg(win3, ami_maxxg(tw)-xs*2, ami_maxyg(tw)-ys*2);
     ami_openwin(&stdin, &win4, tw, wid4);
     ami_setposg(win4, xs/2*3, ys/2*3);
-    ami_sizbufg(win4, ami_maxxg(tw)-xs*2, ami_maxyg(tw)-ys*2);
-    ami_setsizg(win4, ami_maxxg(tw)-xs*2, ami_maxyg(tw)-ys*2);
+    setsizeg(win4, ami_maxxg(tw)-xs*2, ami_maxyg(tw)-ys*2);
     ami_curvis(win2, OFF);
     ami_bcolor(win2, ami_cyan);
     putc('\f', win2);
@@ -1805,16 +1836,13 @@ int main(int argc, char* argv[])
 
         ami_openwin(&stdin, &win2, tw, wid2);
         ami_setposg(win2, xs/10, ys/5);
-        ami_sizbufg(win2, xs, ys);
-        ami_setsizg(win2, xs, ys);
+        setsizeg(win2, xs, ys);
         ami_openwin(&stdin, &win3, tw, wid3);
         ami_setposg(win3, xs/10+xs, ys/5);
-        ami_sizbufg(win3, xs, ys);
-        ami_setsizg(win3, xs, ys);
+        setsizeg(win3, xs, ys);
         ami_openwin(&stdin, &win4, tw, wid4);
         ami_setposg(win4, xs/10+xs*2, ys/5);
-        ami_sizbufg(win4, xs, ys);
-        ami_setsizg(win4, xs, ys);
+        setsizeg(win4, xs, ys);
         ami_bcolor(win2, c1);
         c1 = nextcolor(c1);
         putc('\f', win2);
