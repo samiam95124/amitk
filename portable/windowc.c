@@ -8140,13 +8140,15 @@ static ami_long mencol(winptr win, ami_menuptr m, char*** strs)
         int ena = TRUE;
         for (me = win->menena; me; me = me->next)
             if (me->id == p->id) ena = me->ena;
-        snprintf(buf, sizeof(buf), "%c%c%s%s",
-                 ena? ' ': '(', /* disabled shown in parens */
+        /* a disabled entry is drawn grey, as a disabled widget is; it was
+           also put in parentheses, which the grey makes redundant */
+        (void)ena;
+        snprintf(buf, sizeof(buf), " %c%s%s",
                  p->onoff? '*': ' ', /* check mark: the set state only; the
                                         oneof flag is group structure, not a
                                         selection */
                  p->face,
-                 p->branch? " >": (ena? "": ")"));
+                 p->branch? " >": "");
         (*strs)[i] = malloc(strlen(buf)+1);
         if (!(*strs)[i]) error("Out of memory");
         strcpy((*strs)[i], buf);
@@ -10384,6 +10386,15 @@ static void imenu(FILE* f, ami_menuptr m)
        is not used after this call */
     if (win->amenu) frmenu(win->amenu);
     win->amenu = cpymenu(m);
+    /* The enable states go with the menu they were set on: an item of
+       the new menu that happens to carry the id of a disabled item of the
+       old came up disabled (window_test disables "Walk", id 3, in its
+       sample menu, and the standard menu's "Close" is id 3). */
+    while (win->menena) {
+        menenaptr me = win->menena;
+        win->menena = me->next;
+        free(me);
+    }
     if (!m) { /* menu removed: the client gets its row back */
 
         recompcli(win);
