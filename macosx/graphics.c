@@ -552,18 +552,24 @@ static void draw_string(CGContextRef ctx, winptr win, scnptr sc,
     CGFloat ty = PY(y) + ascent + yoff;
 
     /* draw text. The context has antialiasing off, for the lines and
-       figures, which are drawn to the pixel; glyphs are drawn smoothed, as
-       the system draws its own, else they come out ragged, each stem
-       snapped to a pixel at the font's size. */
+       figures, which are drawn to the pixel. Glyphs written over their
+       own background (both modes overwrite) are drawn smoothed, as the
+       system draws its own, else they come out ragged, each stem snapped
+       to a pixel at the font's size. In any other mode they are 1 bit, as
+       they are on the other platforms: a smoothed glyph is a blend with
+       what lies under it, and neither a second xor nor the same string in
+       the background's color takes a blend off again. The moving string
+       left a trail of grey edges, and the xor'd frame stamp a smear. */
+    int smooth = sc->fmod == mdnorm && sc->bmod == mdnorm;
     CGContextSaveGState(ctx);
-    CGContextSetAllowsAntialiasing(ctx, true);
-    CGContextSetShouldAntialias(ctx, true);
-    CGContextSetAllowsFontSmoothing(ctx, true);
-    CGContextSetShouldSmoothFonts(ctx, true);
-    CGContextSetAllowsFontSubpixelPositioning(ctx, true);
-    CGContextSetShouldSubpixelPositionFonts(ctx, true);
-    CGContextSetAllowsFontSubpixelQuantization(ctx, false);
-    CGContextSetShouldSubpixelQuantizeFonts(ctx, false);
+    CGContextSetAllowsAntialiasing(ctx, smooth);
+    CGContextSetShouldAntialias(ctx, smooth);
+    CGContextSetAllowsFontSmoothing(ctx, smooth);
+    CGContextSetShouldSmoothFonts(ctx, smooth);
+    CGContextSetAllowsFontSubpixelPositioning(ctx, smooth);
+    CGContextSetShouldSubpixelPositionFonts(ctx, smooth);
+    CGContextSetAllowsFontSubpixelQuantization(ctx, !smooth);
+    CGContextSetShouldSubpixelQuantizeFonts(ctx, !smooth);
     CGContextTranslateCTM(ctx, tx, ty);
     CGContextScaleCTM(ctx, 1.0, -1.0);
     if (sc->textpath != LONG_MAX / 4) {
