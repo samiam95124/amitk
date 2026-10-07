@@ -1291,6 +1291,29 @@ int main(int argc, char* argv[])
     /* initialize prime size information */
     x = ami_maxx(tw);
     y = ami_maxy(tw);
+    /* A window on the desktop to cover the test window with. The graphical
+       form is covered by whatever else is on the desktop; where the desktop
+       is the root window there is nothing else, and the test provides it.
+       It lies over the right edge of the test window to start: dragged
+       across and away again, the test window must redraw what it uncovered. */
+    {
+
+        ami_long cx, cy; /* the cover window's size */
+
+        ami_openwin(&stdin, &win2, NULL, 3);
+        ami_winclient(win2, 30, 10, &cx, &cy,
+                      BIT(ami_wmframe) | BIT(ami_wmsize) | BIT(ami_wmsysbar));
+        ami_setsiz(win2, cx, cy);
+        ami_sizbuf(win2, 30, 10);
+        ami_setpos(win2, 70, 6);
+        ami_bcolor(win2, ami_yellow);
+        fputc('\f', win2);
+        fprintf(win2, "cover window\n");
+        fprintf(win2, "\n");
+        fprintf(win2, "Drag me over the test window\n");
+        fprintf(win2, "and away again\n");
+
+    }
     do {
 
         nextevt(&er); /* get next event */
@@ -1316,6 +1339,7 @@ int main(int argc, char* argv[])
         if (er.etype == ami_etterm) longjmp(terminate_buf, 1);
 
     } while (er.etype != ami_etenter);
+    fclose(win2); /* the cover window goes */
     ami_buffer(tw, ON);
     ami_home(tw);
     ami_auto(tw, ON);
