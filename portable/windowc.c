@@ -2376,13 +2376,20 @@ static void setcur(winptr win)
     if (curfocus && win != curfocus) return;
     if (indisp(win)) { /* in display */
 
-        /* check cursor in bounds */
+        /* The cursor shows where its cell shows: in the window, and with
+           no window over that cell. Checked for the window alone, the
+           cursor of a focus window lying under another was put on the
+           cell regardless, and stood in the window on top as a stray. */
         if (intcurbnd(win)) {
 
-            setcurvis(win->curv); /* set cursor on or off */
-            /* position actual cursor */
-            setcursor(win->curx+absx(win)-1+win->coffx,
-                      win->cury+absy(win)-1+win->coffy);
+            ami_long x = win->curx+absx(win)-1+win->coffx;
+            ami_long y = win->cury+absy(win)-1+win->coffy;
+            if (fndtop(x, y) == win) {
+
+                setcurvis(win->curv); /* set cursor on or off */
+                setcursor(x, y); /* position actual cursor */
+
+            } else setcurvis(FALSE); /* the cell is covered */
 
         } else setcurvis(FALSE); /* set cursor off out of bounds */
 
@@ -4230,6 +4237,7 @@ static void intsetsiz(winptr win, ami_long x, ami_long y)
     }
     recalcfmask(); /* recalculate the forward masks */
     mbarsiz(win); /* the menu bar follows the client width */
+    if (curfocus) setcur(curfocus); /* the cursor follows the size, as the move */
 
 }
 
@@ -4436,6 +4444,10 @@ static void intsetpos(winptr win, ami_long x, ami_long y)
 
     }
     recalcfmask(); /* recalculate the forward masks */
+    /* the cursor is the focus window's, and whether its cell shows has
+       changed with the move: put back from that window. A window dragged
+       over the focus window's cursor and away again left no cursor. */
+    if (curfocus) setcur(curfocus);
 
 }
 
@@ -7139,6 +7151,11 @@ static void fronttree(winptr win)
     placetree(win, anchor);
     treerect(win, &r);
     redraw(zmax2min, r.x1, r.y1, r.x2, r.y2); /* repaint its region */
+    /* the cursor is the focus window's, and whether its cell shows has
+       changed with the order: it is put back from that window, on or off
+       and where. Left as it was, the cursor of a window just covered
+       stood in the window brought over it. */
+    if (curfocus) setcur(curfocus);
 
 }
 
@@ -7156,6 +7173,7 @@ static void backtree(winptr win)
     placetree(win, win->parwin); /* NULL parent: the root, the very back */
     treerect(win, &r);
     redraw(zmax2min, r.x1, r.y1, r.x2, r.y2); /* repaint its region */
+    if (curfocus) setcur(curfocus); /* the cursor follows the order, as above */
 
 }
 
