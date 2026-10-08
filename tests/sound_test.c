@@ -50,8 +50,9 @@ ami_long nomidi = FALSE;        /* skip the synthesizer listening tests and go
 ami_long tstlo = 1;             /* first test to run */
 ami_long tsthi = 1000;          /* last test to run */
 
-/* is the test within the selected range? sound_test n runs test n
-   alone; sound_test n x runs n through x; no arguments runs all */
+/* is the test within the selected range? sound_test n skips to test n
+   and runs on to the end; sound_test n x runs n through x; no arguments
+   runs all */
 static int tst(ami_long n)
 
 {
@@ -400,13 +401,23 @@ int main(int argc, char *argv[])
 
     /* parse user options */
     argcl = argc;
-    ami_options(&argi, &argcl, argv, opttbl, TRUE);
+    if (ami_options(&argi, &argcl, argv, opttbl, TRUE)) {
 
-    /* the positionals select a test or a range of tests */
+        /* an option that did not parse: it was left among the positionals
+           and reported as "Bad test range". The long options take two
+           dashes; one dash is a run of single letter options. */
+        fprintf(stderr, "Bad option: %s\n", argv[argi]);
+        fprintf(stderr, "(the options are given as --name or --name=value)\n");
+        exit(1);
+
+    }
+
+    /* the positionals select the test to skip to, and the last to run:
+       "sound_test 40" runs from test 40 on, "sound_test 40 40" that test
+       alone */
     if (argcl == 2 || argcl == 3) {
 
         tstlo = strtol(argv[argi], NULL, 10);
-        tsthi = tstlo; /* one test alone */
         if (argcl == 3) tsthi = strtol(argv[argi+1], NULL, 10);
         if (tstlo < 1 || tsthi < tstlo) {
 
@@ -421,8 +432,8 @@ int main(int argc, char *argv[])
     if (argcl != 1) {
 
         fprintf(stderr, "Usage: sndtst [options] [first [last]]\n");
-        fprintf(stderr, "              first, or first and last, select the\n");
-        fprintf(stderr, "              test or range of tests to run\n");
+        fprintf(stderr, "              first is the test to skip to, last the\n");
+        fprintf(stderr, "              last to run (default: to the end)\n");
         fprintf(stderr, "       options: [--port=<port>|--p=<port>]\n");
         fprintf(stderr, "              [--wport=<port>] wave output port\n");
         fprintf(stderr, "              [--iport=<port>] wave input port\n");
