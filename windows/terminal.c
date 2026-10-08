@@ -2841,6 +2841,10 @@ static int sizevt(ami_evtptr er)
     if (!GetConsoleScreenBufferInfo(sc->han, &bi)) return (FALSE);
     x = bi.srWindow.Right-bi.srWindow.Left+1; /* the window's columns and rows */
     y = bi.srWindow.Bottom-bi.srWindow.Top+1;
+    /* a window too small for a cell, as a drag can take it, has its rectangle
+       inverted by the console (seen as -1 by -2): there is no display to fit,
+       and no size a program could follow, so it is not a change */
+    if (x < 1 || y < 1) return (FALSE);
     changed = x != dspx || y != dspy; /* the display changed */
     /* filter out any change with no net effect: this was seen commonly, and
        our own sizing of the console buffer sends one */
@@ -3487,7 +3491,14 @@ void sizbuf_ivf(FILE* f, ami_long x, ami_long y)
 
     int si;
 
-    if (x < 1 || y < 1 || x > MAXSCN || y > MAXSCN) error(einvsiz);
+    if (x < 1 || y < 1 || x > MAXSCN || y > MAXSCN) {
+
+        /* the size asked, for the report: the error is fatal */
+        fprintf(stderr, "*** Buffer size asked: %lld by %lld\n",
+                AMI_LONG_CAST x, AMI_LONG_CAST y);
+        error(einvsiz);
+
+    }
     if (x == gmaxx && y == gmaxy) return; /* no change */
     gmaxx = x; /* new screens take the size */
     gmaxy = y;
