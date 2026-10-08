@@ -163,6 +163,7 @@ typedef struct {
     int           flt;     /* floating point */
     int           big;     /* big endian */
     AudioQueueRef queue;   /* AudioQueue for streaming */
+    size_t        pend;    /* bytes written and not yet played */
     int           fmtset;  /* format needs (re-)configuration */
     void (*opn)(ami_long p);
     void (*cls)(ami_long p);
@@ -188,6 +189,12 @@ typedef struct {
     int           flt;
     int           big;
     AudioQueueRef queue;
+    byte*         ring;    /* recorded bytes not yet read */
+    size_t        ringsz;  /* its size */
+    size_t        ringhd;  /* where the next recorded byte goes */
+    size_t        ringn;   /* bytes held */
+    pthread_mutex_t rlock; /* guards the ring */
+    pthread_cond_t  rdata; /* data arrived in it */
     void (*opn)(ami_long p);
     void (*cls)(ami_long p);
     ami_long (*chanwavin)(ami_long p);
@@ -1277,6 +1284,8 @@ void ami_openwaveout(ami_long p)
     d->open = TRUE;
 }
 
+static void wowait(waveoutdev* d, size_t lim); /* forward */
+
 void ami_closewaveout(ami_long p)
 {
     if (p < 1 || p > waveout_num) return;
@@ -1284,7 +1293,18 @@ void ami_closewaveout(ami_long p)
     if (!d->open) return;
     if (d->cls) { d->cls(p); d->open = FALSE; return; }
     if (d->queue) {
-        AudioQueueStop(d->queue, true);
+        /* what was written is played out before the queue goes */
+        UInt32 run = 1, sz;
+        int i;
+
+        wowait(d, 0);
+        AudioQueueStop(d->queue, false); /* stops when the last is heard */
+        for (i = 0; i < 100 && run; i++) {
+            sz = sizeof(run);
+            if (AudioQueueGetProperty(d->queue, kAudioQueueProperty_IsRunning,
+                                      &run, &sz) != noErr) break;
+            if (run) usleep(10000);
+        }
         AudioQueueDispose(d->queue, true);
         d->queue = NULL;
     }
@@ -1346,12 +1366,38 @@ void ami_endwaveout(ami_long p, ami_long e)
 }
 
 /* AudioQueue output callback: does nothing (buffer reuse managed in wrwave) */
+static pthread_mutex_t wolock = PTHREAD_MUTEX_INITIALIZER; /* pending counts */
+static pthread_cond_t  wocond = PTHREAD_COND_INITIALIZER;
+
 static void aq_output_cb(void* data, AudioQueueRef q,
                           AudioQueueBufferRef buf)
 {
-    /* buffer is now available for reuse — nothing to do here,
-       wrwave blocks until buffers are available */
-    (void)data; (void)q; (void)buf;
+    /* the buffer has been played: it is counted off what is pending,
+       which releases a writer or a close waiting on it, and freed (each
+       write allocates its own, and none was ever freed) */
+    waveoutdev* d = (waveoutdev*)data;
+
+    pthread_mutex_lock(&wolock);
+    if (d->pend >= buf->mAudioDataByteSize) d->pend -= buf->mAudioDataByteSize;
+    else d->pend = 0;
+    pthread_cond_broadcast(&wocond);
+    pthread_mutex_unlock(&wolock);
+    AudioQueueFreeBuffer(q, buf);
+}
+
+/* wait until no more than lim bytes are pending on a wave output, or the
+   time they take to play, and a second, has gone by */
+static void wowait(waveoutdev* d, size_t lim)
+{
+    struct timespec ts;
+    size_t bps = (size_t)d->rate * d->chan * (d->flt? sizeof(float): (d->bits + 7) / 8);
+
+    pthread_mutex_lock(&wolock);
+    clock_gettime(CLOCK_REALTIME, &ts);
+    ts.tv_sec += (bps? d->pend / bps: 0) + 2;
+    while (d->pend > lim)
+        if (pthread_cond_timedwait(&wocond, &wolock, &ts)) break;
+    pthread_mutex_unlock(&wolock);
 }
 
 static void ensure_aq_out(waveoutdev* d)
@@ -1392,13 +1438,7 @@ static void ensure_aq_out(waveoutdev* d)
                                        NULL, NULL, 0, &d->queue);
     if (st != noErr) error("Cannot create AudioQueue output");
 
-    /* allocate and prime buffers */
-    for (int i = 0; i < WAVBUFS; i++) {
-        AudioQueueBufferRef buf;
-        AudioQueueAllocateBuffer(d->queue, WAVBUFSZ, &buf);
-        buf->mAudioDataByteSize = 0;
-        AudioQueueEnqueueBuffer(d->queue, buf, 0, NULL);
-    }
+    d->pend = 0;
     AudioQueueStart(d->queue, NULL);
     d->fmtset = FALSE;
 }
@@ -1413,11 +1453,28 @@ void ami_wrwave(ami_long p, byte* buff, ami_long len)
     ensure_aq_out(d);
 
     /* write data to AudioQueue buffer */
+    /* the length is in samples (one frame of every channel), as on the
+       other platforms; it was taken as bytes, which played a fraction of
+       what was given */
+    UInt32 nb = (UInt32)(len * d->chan * (d->flt? (int)sizeof(float): (d->bits + 7) / 8));
     AudioQueueBufferRef buf;
-    AudioQueueAllocateBuffer(d->queue, len, &buf);
-    memcpy(buf->mAudioData, buff, len);
-    buf->mAudioDataByteSize = len;
-    AudioQueueEnqueueBuffer(d->queue, buf, 0, NULL);
+    AudioQueueAllocateBuffer(d->queue, nb, &buf);
+    memcpy(buf->mAudioData, buff, nb);
+    buf->mAudioDataByteSize = nb;
+    pthread_mutex_lock(&wolock);
+    d->pend += nb;
+    pthread_mutex_unlock(&wolock);
+    if (AudioQueueEnqueueBuffer(d->queue, buf, 0, NULL) != noErr) {
+        pthread_mutex_lock(&wolock);
+        d->pend -= nb;
+        pthread_mutex_unlock(&wolock);
+        AudioQueueFreeBuffer(d->queue, buf);
+        return;
+    }
+    /* The write holds the caller to the pace of the sound, a quarter
+       second ahead of it, as a blocking device does. It returned at once
+       before, and a close after it cut off what had been written. */
+    wowait(d, (size_t)d->rate * d->chan * (d->flt? sizeof(float): (d->bits + 7) / 8) / 4);
 }
 
 /*******************************************************************************
@@ -1615,13 +1672,78 @@ void ami_waitwave(ami_long p)
 *                                                                              *
 *******************************************************************************/
 
+/* the input queue filled a buffer: its bytes go to the ring, the oldest
+   giving way when the reader has fallen behind, and the buffer goes back */
+static void aq_input_cb(void* user, AudioQueueRef q, AudioQueueBufferRef buf,
+                        const AudioTimeStamp* ts, UInt32 npkt,
+                        const AudioStreamPacketDescription* pd)
+{
+    waveindev* d = (waveindev*)user;
+    const byte* src = (const byte*)buf->mAudioData;
+    size_t n = buf->mAudioDataByteSize;
+
+    (void)ts; (void)npkt; (void)pd;
+    pthread_mutex_lock(&d->rlock);
+    if (d->ring) {
+        if (n > d->ringsz) { src += n - d->ringsz; n = d->ringsz; }
+        for (size_t i = 0; i < n; i++) {
+            d->ring[d->ringhd] = src[i];
+            d->ringhd = (d->ringhd + 1) % d->ringsz;
+        }
+        d->ringn += n;
+        if (d->ringn > d->ringsz) d->ringn = d->ringsz;
+        pthread_cond_broadcast(&d->rdata);
+    }
+    pthread_mutex_unlock(&d->rlock);
+    if (d->open) AudioQueueEnqueueBuffer(q, buf, 0, NULL);
+}
+
 void ami_openwavein(ami_long p)
 {
     if (p < 1 || p > wavein_num) error("Invalid wave input port");
     waveindev* d = &wavein_tab[p - 1];
     if (d->open) return;
     if (d->opn) { d->opn(p); d->open = TRUE; return; }
-    /* TODO: create AudioQueue input */
+
+    /* An AudioQueue records in the port's format into a ring that
+       ami_rdwave() empties. The ring holds two seconds: a reader slower
+       than that loses the oldest sound. */
+    AudioStreamBasicDescription fmt = {0};
+    int bytesPerSample = (d->bits + 7) / 8;
+    fmt.mSampleRate = d->rate;
+    fmt.mChannelsPerFrame = d->chan;
+    fmt.mFormatID = kAudioFormatLinearPCM;
+    if (d->flt) {
+        fmt.mFormatFlags = kAudioFormatFlagIsFloat | kAudioFormatFlagIsPacked;
+        bytesPerSample = sizeof(float);
+        fmt.mBitsPerChannel = 32;
+    } else {
+        fmt.mFormatFlags = kAudioFormatFlagIsPacked;
+        if (d->sgn) fmt.mFormatFlags |= kAudioFormatFlagIsSignedInteger;
+        fmt.mBitsPerChannel = d->bits;
+    }
+    if (d->big) fmt.mFormatFlags |= kAudioFormatFlagIsBigEndian;
+    fmt.mBytesPerFrame = bytesPerSample * fmt.mChannelsPerFrame;
+    fmt.mFramesPerPacket = 1;
+    fmt.mBytesPerPacket = fmt.mBytesPerFrame;
+
+    pthread_mutex_init(&d->rlock, NULL);
+    pthread_cond_init(&d->rdata, NULL);
+    d->ringsz = (size_t)d->rate * 2 * fmt.mBytesPerFrame;
+    d->ring = (byte*)malloc(d->ringsz);
+    if (!d->ring) error("No memory for wave input");
+    d->ringhd = d->ringn = 0;
+
+    if (AudioQueueNewInput(&fmt, aq_input_cb, d, NULL, NULL, 0,
+                           &d->queue) != noErr)
+        error("Cannot create AudioQueue input");
+    for (int i = 0; i < WAVBUFS; i++) {
+        AudioQueueBufferRef buf;
+        AudioQueueAllocateBuffer(d->queue, WAVBUFSZ, &buf);
+        AudioQueueEnqueueBuffer(d->queue, buf, 0, NULL);
+    }
+    if (AudioQueueStart(d->queue, NULL) != noErr)
+        error("Cannot start wave input");
     d->open = TRUE;
 }
 
@@ -1631,12 +1753,18 @@ void ami_closewavein(ami_long p)
     waveindev* d = &wavein_tab[p - 1];
     if (!d->open) return;
     if (d->cls) { d->cls(p); d->open = FALSE; return; }
+    d->open = FALSE; /* the callback gives no more buffers back */
     if (d->queue) {
         AudioQueueStop(d->queue, true);
         AudioQueueDispose(d->queue, true);
         d->queue = NULL;
     }
-    d->open = FALSE;
+    pthread_mutex_lock(&d->rlock);
+    free(d->ring);
+    d->ring = NULL;
+    d->ringn = 0;
+    pthread_cond_broadcast(&d->rdata); /* release a reader */
+    pthread_mutex_unlock(&d->rlock);
 }
 
 ami_long ami_chanwavein(ami_long p)
@@ -1692,8 +1820,26 @@ ami_long ami_rdwave(ami_long p, byte* buff, ami_long len)
     if (p < 1 || p > wavein_num) return 0;
     waveindev* d = &wavein_tab[p - 1];
     if (d->rdwav) return d->rdwav(p, buff, len);
-    /* TODO: implement AudioQueue input */
-    return 0;
+    if (!d->open || len <= 0) return 0;
+
+    /* The length is in samples (one frame of every channel), as on the
+       other platforms. The call waits for sound, and returns what has
+       arrived, at least one sample and no more than asked. It returned
+       nothing at all before, there being no input, and a caller reading
+       until it had its count never came back. */
+    size_t frm = (size_t)d->chan * (d->flt? sizeof(float): (d->bits + 7) / 8);
+    size_t n, tl, i;
+
+    pthread_mutex_lock(&d->rlock);
+    while (d->ring && d->ringn < frm) pthread_cond_wait(&d->rdata, &d->rlock);
+    if (!d->ring) { pthread_mutex_unlock(&d->rlock); return 0; }
+    n = d->ringn / frm;
+    if (n > (size_t)len) n = (size_t)len;
+    tl = (d->ringhd + d->ringsz - d->ringn) % d->ringsz; /* the oldest byte */
+    for (i = 0; i < n * frm; i++) buff[i] = d->ring[(tl + i) % d->ringsz];
+    d->ringn -= n * frm;
+    pthread_mutex_unlock(&d->rlock);
+    return (ami_long)n;
 }
 
 /*******************************************************************************
