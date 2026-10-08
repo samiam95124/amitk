@@ -135,8 +135,10 @@ static enum { /* debug levels */
 #define UIV_HOVER          0x800a /* hover timer matures */
 #define UIV_SIZCHK         0x800b /* display size check due */
 
-#define SIZCHK 250 /* milliseconds between checks of the display's size */
-#define BLKTCK 2   /* size checks per blink phase: blinking text shows and
+#define SIZCHK 100 /* milliseconds between checks of the display's size */
+#define SETTLE 150 /* milliseconds a new window size stands before it is
+                      taken: a drag in motion changes it faster */
+#define BLKTCK 5   /* size checks per blink phase: blinking text shows and
                       hides for half a second each */
 #define INPBUF 64  /* input records read from the queue at a time */
 
@@ -264,6 +266,10 @@ static volatile int sizpend;    /* a size check record is in the queue */
 static ami_long seenx = -1;     /* the window size last seen by the size
                                    check, taken once it has stood */
 static ami_long seeny = -1;
+static DWORD   seentck;         /* when it was first seen, in ticks */
+static HANDLE  mskhan;          /* the blank screen buffer shown while a
+                                   drag is in motion, made at the first */
+static int     masked;          /* it is on display */
 static int     blkoff;          /* the blink phase: blinking text is hidden */
 static int     blktck;          /* size checks since the phase last changed */
 static char    inpbuf[MAXLIN];  /* input line buffer */
@@ -1975,8 +1981,9 @@ static void iselect(ami_long u, ami_long d)
        last shown: fit its console buffer to it, and put its image over it */
     if (screens[curdsp-1] != dsp) fitcon(screens[curdsp-1]);
     flush(screens[curdsp-1]); /* all of it is on its console buffer */
-    /* set display buffer as active display console */
-    SetConsoleActiveScreenBuffer(screens[curdsp-1]->han);
+    /* set display buffer as active display console (a drag in motion keeps
+       its mask on display: the screen goes on when the drag ends) */
+    if (!masked) SetConsoleActiveScreenBuffer(screens[curdsp-1]->han);
     setcur(screens[curdsp-1]); /* make sure the cursor is at correct point */
     flush(screens[curdsp-1]);
 
@@ -2831,6 +2838,59 @@ static void CALLBACK sizcheck(UINT id, UINT msg, DWORD_PTR usr,
 
 }
 
+/* Mask the display while a drag is in motion: a blank screen buffer, the
+   window's size and the screen's background, goes on display in place of the
+   screen's. The console rewraps the buffer on display at every step of a
+   drag, and nothing can put the screen's buffer right until the drag ends;
+   a blank one has nothing to rewrap. The blank buffer takes the window's
+   size first, so that the window does not move or size on the swap. */
+static void mask(scnptr sc, ami_long x, ami_long y)
+
+{
+
+    COORD      sz, xy;
+    SMALL_RECT wr;
+    DWORD      n;
+
+    if (!mskhan) { /* the first drag: make the blank buffer */
+
+        mskhan = CreateConsoleScreenBuffer(GENERIC_READ | GENERIC_WRITE,
+                                          FILE_SHARE_READ | FILE_SHARE_WRITE,
+                                          NULL, CONSOLE_TEXTMODE_BUFFER, NULL);
+        if (mskhan == INVALID_HANDLE_VALUE) { mskhan = NULL; return; }
+
+    }
+    wr.Left = 0; /* its window to nothing, so that its buffer can be sized */
+    wr.Top = 0;
+    wr.Right = 0;
+    wr.Bottom = 0;
+    SetConsoleWindowInfo(mskhan, TRUE, &wr);
+    sz.X = x; /* its buffer the window's size: nothing to scroll */
+    sz.Y = y;
+    SetConsoleScreenBufferSize(mskhan, sz);
+    wr.Right = x-1; /* its window all of it */
+    wr.Bottom = y-1;
+    SetConsoleWindowInfo(mskhan, TRUE, &wr);
+    xy.X = 0; /* blank in the screen's colors, so the swap shows as little
+                 as can be */
+    xy.Y = 0;
+    FillConsoleOutputCharacterW(mskhan, L' ', x*y, xy, &n);
+    FillConsoleOutputAttribute(mskhan, sc->sattr, x*y, xy, &n);
+    SetConsoleActiveScreenBuffer(mskhan);
+    masked = 1;
+
+}
+
+/* The drag ended and the screen is refitted: its buffer goes back on display */
+static void unmask(scnptr sc)
+
+{
+
+    SetConsoleActiveScreenBuffer(sc->han);
+    masked = 0;
+
+}
+
 static int sizevt(ami_evtptr er)
 
 {
@@ -2839,9 +2899,12 @@ static int sizevt(ami_evtptr er)
     scnptr                     sc;
     ami_long                   x, y;
     int                        changed;
+    DWORD                      now;
 
     sc = screens[curdsp-1]; /* index the screen on display */
-    if (!GetConsoleScreenBufferInfo(sc->han, &bi)) return (FALSE);
+    /* the window is the buffer on display's: the blank one while masked */
+    if (!GetConsoleScreenBufferInfo(masked ? mskhan : sc->han, &bi))
+        return (FALSE);
     x = bi.srWindow.Right-bi.srWindow.Left+1; /* the window's columns and rows */
     y = bi.srWindow.Bottom-bi.srWindow.Top+1;
     /* a window too small for a cell, as a drag can take it, has its rectangle
@@ -2852,19 +2915,25 @@ static int sizevt(ami_evtptr er)
     /* A size the window has only just taken is a drag in motion: the console
        rewraps its buffer at every step, and a refit and a resize event for
        each step is repainted over by the next, which is seen as tearing. The
-       window is taken at a size it has stood at since the last look, an event
-       or a check, so a drag is one refit and one event when it ends, a check
-       interval after at most. */
+       display is masked at the first step, and the window is taken at a size
+       it has stood at for SETTLE, so a drag is one refit, one event and one
+       repaint when it ends, a check interval after the settle at most; the
+       console posts more than one event for a step, so a look is not a
+       stand. */
+    now = GetTickCount();
     if (x != seenx || y != seeny) {
 
         seenx = x; /* the size seen, to stand before it is taken */
         seeny = y;
+        seentck = now;
+        if (changed && !masked) mask(sc, x, y); /* a drag begins: hide it */
         if (changed) return (FALSE);
 
     }
+    if ((changed || masked) && now-seentck < SETTLE) return (FALSE);
     /* filter out any change with no net effect: this was seen commonly, and
        our own sizing of the console buffer sends one */
-    if (!changed && bi.dwSize.X >= sc->maxx &&
+    if (!changed && !masked && bi.dwSize.X >= sc->maxx &&
         bi.dwSize.Y >= sc->offy+(sc->maxy > dspy ? sc->maxy : dspy))
         return (FALSE);
     dspx = x; /* set the new display size */
@@ -2872,6 +2941,7 @@ static int sizevt(ami_evtptr er)
     fitcon(sc); /* fit the console buffer to it, and put the image back */
     setcur(sc);
     flush(sc);
+    if (masked) unmask(sc); /* the screen is right: show it */
     if (!changed) return (FALSE); /* the console buffer alone: no event */
     er->etype = ami_etresize; /* set resize */
     er->rszx = x; /* send the new size in the event */
@@ -4400,6 +4470,9 @@ static void ami_deinit_terminal(void)
     flushall(); /* the last of the output */
     /* stop the display size check timer */
     if (sizhan) timeKillEvent(sizhan);
+    /* a drag in motion at the end: the screen goes back on display */
+    if (masked) unmask(screens[curdsp-1]);
+    if (mskhan) CloseHandle(mskhan);
     /* restore previous wrapping behavior */
     SetConsoleMode(screens[curupd-1]->han, cmodes);
     /* release control handler */
