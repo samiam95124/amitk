@@ -401,7 +401,16 @@ int main(int argc, char *argv[])
 
     /* parse user options */
     argcl = argc;
-    ami_options(&argi, &argcl, argv, opttbl, TRUE);
+    if (ami_options(&argi, &argcl, argv, opttbl, TRUE)) {
+
+        /* an option that did not parse: it was left among the positionals
+           and reported as "Bad test range". The long options take two
+           dashes; one dash is a run of single letter options. */
+        fprintf(stderr, "Bad option: %s\n", argv[argi]);
+        fprintf(stderr, "(the options are given as --name or --name=value)\n");
+        exit(1);
+
+    }
 
     /* the positionals select the test to skip to, and the last to run:
        "sound_test 40" runs from test 40 on, "sound_test 40 40" that test
