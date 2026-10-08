@@ -125,6 +125,8 @@
 typedef struct {
     int          open;     /* port is open */
     int          issoft;   /* is the software DLS synth (port 1) */
+    int          isvirt;   /* is the virtual port: a CoreMIDI source of our
+                              own, which other programs connect to */
     /* software synth state (port 1) */
     AUGraph      graph;
     AudioUnit    synthUnit;
@@ -142,11 +144,17 @@ typedef struct {
 
 #define MIDIRING 4096 /* bytes of MIDI input held for the reader */
 
+/* the names the virtual ports go by in the system */
+#define VIRTOUTNAME "PetitAmi virtual out"
+#define VIRTINNAME  "PetitAmi virtual in"
+
 /* synth input port descriptor */
 typedef struct {
     int          open;
     MIDIEndpointRef endpoint;
     MIDIPortRef     midiPort;
+    int             isvirt;  /* is the virtual port: a CoreMIDI destination
+                                of our own, which other programs send to */
     byte            ring[MIDIRING]; /* bytes received and not yet read */
     int             ringhd;  /* where the next goes */
     int             ringn;   /* bytes held */
@@ -455,7 +463,10 @@ static void midisend(ami_long port, UInt32 status, UInt32 data1, UInt32 data2)
         MIDIPacket* pkt = MIDIPacketListInit(&pktList);
         int len = (status >= 0xC0 && status < 0xE0) ? 2 : 3;
         MIDIPacketListAdd(&pktList, sizeof(pktList), pkt, 0, len, buf);
-        MIDISend(d->midiPort, d->endpoint, &pktList);
+        /* the virtual port is a source: what is written is what anyone
+           connected to it receives */
+        if (d->isvirt) MIDIReceived(d->endpoint, &pktList);
+        else MIDISend(d->midiPort, d->endpoint, &pktList);
     }
 }
 
@@ -669,6 +680,21 @@ static void enumerate_devices(void)
         synthin_num++;
     }
 
+    /* The last port each way is "virtual", as on Linux: an endpoint of
+       our own that appears to the system when the port is opened, for
+       other programs to connect to. The output is a CoreMIDI source and
+       the input a destination. */
+    if (midiInited && synthout_num < MAXMIDP) {
+        synthout_tab[synthout_num].isvirt = TRUE;
+        strcpy(synthout_tab[synthout_num].name, "virtual");
+        synthout_num++;
+    }
+    if (midiInited && synthin_num < MAXMIDP) {
+        synthin_tab[synthin_num].isvirt = TRUE;
+        strcpy(synthin_tab[synthin_num].name, "virtual");
+        synthin_num++;
+    }
+
     /* wave output: always 1 default device */
     snprintf(waveout_tab[0].name, sizeof(waveout_tab[0].name),
              "Default Audio Output");
@@ -828,6 +854,10 @@ void ami_opensynthout(ami_long p)
         AUGraphNodeInfo(d->graph, synthNode, NULL, &d->synthUnit);
         AUGraphInitialize(d->graph);
         AUGraphStart(d->graph);
+    } else if (d->isvirt) {
+        if (MIDISourceCreate(midiClient, CFSTR(VIRTOUTNAME),
+                             &d->endpoint) != noErr)
+            error("Cannot create virtual MIDI output");
     } else {
         /* external CoreMIDI destination: port already created in enumerate */
         d->midiPort = midiOutPort;
@@ -850,6 +880,10 @@ void ami_closesynthout(ami_long p)
         DisposeAUGraph(d->graph);
         d->graph = NULL;
         d->synthUnit = NULL;
+    }
+    if (d->isvirt && d->endpoint) {
+        MIDIEndpointDispose(d->endpoint);
+        d->endpoint = 0;
     }
     d->open = FALSE;
 }
@@ -912,11 +946,17 @@ void ami_opensynthin(ami_long p)
     d->pback = -1;
     d->last = 0;
     d->sync = FALSE;
-    if (MIDIInputPortCreate(midiClient, CFSTR("PA Input"), midi_read_cb, d,
-                            &d->midiPort) != noErr)
-        error("Cannot create MIDI input port");
-    if (MIDIPortConnectSource(d->midiPort, d->endpoint, d) != noErr)
-        error("Cannot connect MIDI input port");
+    if (d->isvirt) {
+        if (MIDIDestinationCreate(midiClient, CFSTR(VIRTINNAME), midi_read_cb,
+                                  d, &d->endpoint) != noErr)
+            error("Cannot create virtual MIDI input");
+    } else {
+        if (MIDIInputPortCreate(midiClient, CFSTR("PA Input"), midi_read_cb,
+                                d, &d->midiPort) != noErr)
+            error("Cannot create MIDI input port");
+        if (MIDIPortConnectSource(d->midiPort, d->endpoint, d) != noErr)
+            error("Cannot connect MIDI input port");
+    }
     d->open = TRUE;
 }
 
@@ -926,7 +966,10 @@ void ami_closesynthin(ami_long p)
     synthindev* d = &synthin_tab[p - 1];
     if (!d->open) return;
     if (d->cls) { d->cls(p); d->open = FALSE; return; }
-    if (d->midiPort) {
+    if (d->isvirt) {
+        if (d->endpoint) MIDIEndpointDispose(d->endpoint);
+        d->endpoint = 0;
+    } else if (d->midiPort) {
         MIDIPortDisconnectSource(d->midiPort, d->endpoint);
         MIDIPortDispose(d->midiPort);
         d->midiPort = 0;

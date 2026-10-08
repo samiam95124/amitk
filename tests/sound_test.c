@@ -241,6 +241,87 @@ that appear are ours, in the order they were opened.
 
 *******************************************************************************/
 
+#ifdef __MACH__
+
+/* The wire of the loop test on macOS, which has no aconnect: a CoreMIDI
+   input port on the virtual output (a source), whose every packet is sent
+   on to the virtual input (a destination). The pair are found by the names
+   the sound module gives them. */
+
+#include <CoreMIDI/CoreMIDI.h>
+
+static MIDIClientRef   wirecli;
+static MIDIPortRef     wirein, wireout;
+static MIDIEndpointRef wiresrc, wiredst;
+
+static void wirecb(const MIDIPacketList* pl, void* a, void* b)
+
+{
+
+    (void)a; (void)b;
+    MIDISend(wireout, wiredst, pl);
+
+}
+
+static int wirenamed(MIDIEndpointRef ep, const char* name)
+
+{
+
+    CFStringRef cf = NULL;
+    char        nm[200] = "";
+
+    MIDIObjectGetStringProperty(ep, kMIDIPropertyName, &cf);
+    if (cf) {
+
+        CFStringGetCString(cf, nm, sizeof(nm), kCFStringEncodingUTF8);
+        CFRelease(cf);
+
+    }
+
+    return (!strcmp(nm, name));
+
+}
+
+static void loopbefore(void) { }
+
+/* connect the open virtual output to the open virtual input; returns
+   null, or why not */
+static const char* loopwire(void)
+
+{
+
+    ItemCount i;
+
+    wiresrc = wiredst = 0;
+    for (i = 0; i < MIDIGetNumberOfSources(); i++)
+        if (wirenamed(MIDIGetSource(i), "PetitAmi virtual out"))
+            wiresrc = MIDIGetSource(i);
+    for (i = 0; i < MIDIGetNumberOfDestinations(); i++)
+        if (wirenamed(MIDIGetDestination(i), "PetitAmi virtual in"))
+            wiredst = MIDIGetDestination(i);
+    if (!wiresrc || !wiredst)
+        return ("could not find the virtual endpoints");
+    if (MIDIClientCreate(CFSTR("sound_test wire"), NULL, NULL, &wirecli) ||
+        MIDIInputPortCreate(wirecli, CFSTR("wire in"), wirecb, NULL, &wirein) ||
+        MIDIOutputPortCreate(wirecli, CFSTR("wire out"), &wireout) ||
+        MIDIPortConnectSource(wirein, wiresrc, NULL))
+        return ("CoreMIDI would not connect the pair");
+
+    return (NULL);
+
+}
+
+static void loopunwire(void)
+
+{
+
+    if (wirecli) MIDIClientDispose(wirecli);
+    wirecli = 0;
+
+}
+
+#else
+
 /* the library's own stdio header does not carry these */
 extern FILE* popen(const char* cmd, const char* mode);
 extern int   pclose(FILE* f);
@@ -268,6 +349,50 @@ static int virtclients(int* cl, int max)
     return (n);
 
 }
+
+static int loopnb, loopbf[20];
+
+static void loopbefore(void) { loopnb = virtclients(loopbf, 20); }
+
+/* connect the open virtual output to the open virtual input; returns
+   null, or why not */
+static const char* loopwire(void)
+
+{
+
+    int  after[20];
+    int  na;
+    int  co = -1, ci = -1;
+    int  j, k, found;
+    char cmd[100];
+
+    na = virtclients(after, 20);
+    /* ours are the clients that were not there before, in the order they
+       were opened: the output first */
+    for (j = 0; j < na; j++) {
+
+        found = FALSE;
+        for (k = 0; k < loopnb; k++) if (after[j] == loopbf[k]) found = TRUE;
+        if (!found) {
+
+            if (co < 0) co = after[j];
+            else if (ci < 0) ci = after[j];
+
+        }
+
+    }
+    if (loopnb < 0 || co < 0 || ci < 0)
+        return ("could not tell the virtual clients apart");
+    sprintf(cmd, "aconnect %d:0 %d:0", co, ci);
+    if (system(cmd)) return ("aconnect would not connect the pair");
+
+    return (NULL);
+
+}
+
+static void loopunwire(void) { }
+
+#endif
 
 /* one checked result of the loop test */
 static ami_long loopfails;
@@ -1506,35 +1631,15 @@ newtests:
         }
         if (vout && vin) {
 
-            int before[20], after[20];
-            int nb, na;
-            int co = -1, ci = -1;
-            int j, k, found;
+            const char* why;
 
-            nb = virtclients(before, 20);
+            loopbefore();
             ami_opensynthout(vout);
             ami_opensynthin(vin);
-            na = virtclients(after, 20);
-            /* ours are the clients that were not there before, in the
-               order they were opened: the output first */
-            for (j = 0; j < na; j++) {
+            why = loopwire();
+            if (!why) {
 
-                found = FALSE;
-                for (k = 0; k < nb; k++) if (after[j] == before[k]) found = TRUE;
-                if (!found) {
-
-                    if (co < 0) co = after[j];
-                    else if (ci < 0) ci = after[j];
-
-                }
-
-            }
-            if (nb >= 0 && co >= 0 && ci >= 0) {
-
-                char cmd[100];
-
-                sprintf(cmd, "aconnect %d:0 %d:0", co, ci);
-                if (!system(cmd)) {
+                {
 
                     ami_seqmsg sm;
 
@@ -1569,11 +1674,10 @@ newtests:
                     printf("Loop test: %s\n", loopfails?
                            "*** FAILS ***": "all pass");
 
-                } else printf("aconnect would not connect the pair: "
-                              "not tested\n");
+                }
 
-            } else printf("could not tell the virtual clients apart: "
-                          "not tested\n");
+            } else printf("%s: not tested\n", why);
+            loopunwire();
             ami_closesynthin(vin);
             ami_closesynthout(vout);
 
