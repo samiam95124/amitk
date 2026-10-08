@@ -5699,35 +5699,35 @@ Character mode window management test -- this window is the desktop
 
 
 Character mode window management test -- this window is the desktop
- ╔                           window_test: frame 13                          - ▯ X ╗
+ ╔════════════════════════════════════════════════════════════════════════════════╗
+ ║                           window_test: frame 13                          - ▯ X ║
  ╠════════════════════════════════════════════════════════════════════════════════╣
- Ready for frame controls buffered----------------------------------------------|
- (Note system may not implement all -- or any frame controls)                   |
- Entire frame off                                                               |
- Entire frame on                                                                |
- System bar off                                                                 |
- System bar on                                                                  |
- Size bars off                                                                  |
- |                                                                              |
- |                                                                              |
- |                                                                              |
- |                                                                              |
- |                                                                              |
- |                                                                              |
- |                                                                              |
- |                                                                              |
- |                                                                              |
- |                                                                              |
- |                                                                              |
- |                                                                              |
- |                                                                              |
- |                                                                              |
- |                                                                              |
- |                                                                              |
- |                                                                              |
- |------------------------------------------------------------------------------|
-
-
+ ║Ready for frame controls buffered----------------------------------------------|║
+ ║(Note system may not implement all -- or any frame controls)                   |║
+ ║Entire frame off                                                               |║
+ ║Entire frame on                                                                |║
+ ║System bar off                                                                 |║
+ ║System bar on                                                                  |║
+ ║Size bars off                                                                  |║
+ ║|                                                                              |║
+ ║|                                                                              |║
+ ║|                                                                              |║
+ ║|                                                                              |║
+ ║|                                                                              |║
+ ║|                                                                              |║
+ ║|                                                                              |║
+ ║|                                                                              |║
+ ║|                                                                              |║
+ ║|                                                                              |║
+ ║|                                                                              |║
+ ║|                                                                              |║
+ ║|                                                                              |║
+ ║|                                                                              |║
+ ║|                                                                              |║
+ ║|                                                                              |║
+ ║|                                                                              |║
+ ║|------------------------------------------------------------------------------|║
+ ╚════════════════════════════════════════════════════════════════════════════════╝
 
 
 
@@ -6908,21 +6908,21 @@ below that, and child 1 on the bottom.
  ║For (20, 10) client, no system bar, window size is: 22,12                       ║
  ║Check client window has (20, 10) surface                                        ║
  ║Sizing bars off                                                                 ║
- ║For (20, 10) client, no size bars, window size is: 20,12                        ║
- ║Check client window has (20, ╔ window_tes - ▯ X X                               ║
- ║                             ╠══════════════════╣                               ║
- ║                             12345678901234567890                               ║
- ║                             2                                                  ║
- ║                             3                                                  ║
- ║                             4                                                  ║
- ║                             5                                                  ║
- ║                             6                                                  ║
- ║                             7                                                  ║
- ║                             8                                                  ║
- ║                             9                                                  ║
- ║                             0                                                  ║
- ║                                                                                ║
- ║                                                                                ║
+ ║For (20, 10) client, no size bars, window size is: 22,14                        ║
+ ║Check client window has (20, ╔════════════════════╗                             ║
+ ║                             ║ window_testc - ▯ X ║                             ║
+ ║                             ╠════════════════════╣                             ║
+ ║                             ║12345678901234567890║                             ║
+ ║                             ║2                   ║                             ║
+ ║                             ║3                   ║                             ║
+ ║                             ║4                   ║                             ║
+ ║                             ║5                   ║                             ║
+ ║                             ║6                   ║                             ║
+ ║                             ║7                   ║                             ║
+ ║                             ║8                   ║                             ║
+ ║                             ║9                   ║                             ║
+ ║                             ║0                   ║                             ║
+ ║                             ╚════════════════════╝                             ║
  ║                                                                                ║
  ║                                                                                ║
  ║                                                                                ║
@@ -6958,7 +6958,7 @@ below that, and child 1 on the bottom.
  ║For (20, 10) client, no system bar, window size is: 22,12                       ║
  ║Check client window has (20, 10) surface                                        ║
  ║Sizing bars off                                                                 ║
- ║For (20, 10) client, no size bars, window size is: 20,12                        ║
+ ║For (20, 10) client, no size bars, window size is: 22,14                        ║
  ║Check client window has (20, 12345678901234567890                               ║
  ║frame off                    2                                                  ║
  ║For (20, 10) client, no frame3                   ,10                            ║
