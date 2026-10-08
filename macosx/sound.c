@@ -140,11 +140,21 @@ typedef struct {
     char name[256];
 } synthoutdev;
 
+#define MIDIRING 4096 /* bytes of MIDI input held for the reader */
+
 /* synth input port descriptor */
 typedef struct {
     int          open;
     MIDIEndpointRef endpoint;
     MIDIPortRef     midiPort;
+    byte            ring[MIDIRING]; /* bytes received and not yet read */
+    int             ringhd;  /* where the next goes */
+    int             ringn;   /* bytes held */
+    pthread_mutex_t rlock;   /* guards the ring */
+    pthread_cond_t  rdata;   /* a byte arrived */
+    int             pback;   /* byte put back, or -1 */
+    int             last;    /* last status byte, for running status */
+    int             sync;    /* a status byte has been seen */
     void (*opn)(ami_long p);
     void (*cls)(ami_long p);
     void (*rdseq)(ami_long p, ami_seqptr sp);
@@ -850,14 +860,63 @@ void ami_closesynthout(ami_long p)
 *                                                                              *
 *******************************************************************************/
 
+/* MIDI arrived from a source: its bytes go to the port's ring. The real
+   time bytes (clock, active sensing) can fall anywhere, a message's middle
+   included, and carry nothing the reader decodes: they are dropped. */
+static void midi_read_cb(const MIDIPacketList* pl, void* user, void* src)
+{
+    synthindev* d = (synthindev*)user;
+    const MIDIPacket* pk = &pl->packet[0];
+
+    (void)src;
+    pthread_mutex_lock(&d->rlock);
+    for (UInt32 i = 0; i < pl->numPackets; i++) {
+        for (UInt16 j = 0; j < pk->length; j++) {
+            if (pk->data[j] >= 0xf8 || d->ringn >= MIDIRING) continue;
+            d->ring[d->ringhd] = pk->data[j];
+            d->ringhd = (d->ringhd + 1) % MIDIRING;
+            d->ringn++;
+        }
+        pk = MIDIPacketNext(pk);
+    }
+    pthread_cond_broadcast(&d->rdata);
+    pthread_mutex_unlock(&d->rlock);
+}
+
+/* the next byte from a synth input, waiting for it; -1 if the port closed */
+static int midi_getb(synthindev* d)
+{
+    int b;
+
+    if (d->pback >= 0) { b = d->pback; d->pback = -1; return b; }
+    pthread_mutex_lock(&d->rlock);
+    while (d->open && !d->ringn) pthread_cond_wait(&d->rdata, &d->rlock);
+    if (!d->ringn) { pthread_mutex_unlock(&d->rlock); return -1; }
+    b = d->ring[(d->ringhd + MIDIRING - d->ringn) % MIDIRING];
+    d->ringn--;
+    pthread_mutex_unlock(&d->rlock);
+    return b;
+}
+
 void ami_opensynthin(ami_long p)
 {
     if (p < 1 || p > synthin_num) error("Invalid synth input port");
     synthindev* d = &synthin_tab[p - 1];
     if (d->open) return;
     if (d->opn) { d->opn(p); d->open = TRUE; return; }
-    /* CoreMIDI input port: create if needed */
-    /* TODO: implement CoreMIDI input with callback */
+    /* a CoreMIDI input port on the source, whose bytes ami_rdsynth()
+       decodes */
+    pthread_mutex_init(&d->rlock, NULL);
+    pthread_cond_init(&d->rdata, NULL);
+    d->ringhd = d->ringn = 0;
+    d->pback = -1;
+    d->last = 0;
+    d->sync = FALSE;
+    if (MIDIInputPortCreate(midiClient, CFSTR("PA Input"), midi_read_cb, d,
+                            &d->midiPort) != noErr)
+        error("Cannot create MIDI input port");
+    if (MIDIPortConnectSource(d->midiPort, d->endpoint, d) != noErr)
+        error("Cannot connect MIDI input port");
     d->open = TRUE;
 }
 
@@ -867,7 +926,15 @@ void ami_closesynthin(ami_long p)
     synthindev* d = &synthin_tab[p - 1];
     if (!d->open) return;
     if (d->cls) { d->cls(p); d->open = FALSE; return; }
+    if (d->midiPort) {
+        MIDIPortDisconnectSource(d->midiPort, d->endpoint);
+        MIDIPortDispose(d->midiPort);
+        d->midiPort = 0;
+    }
+    pthread_mutex_lock(&d->rlock);
     d->open = FALSE;
+    pthread_cond_broadcast(&d->rdata); /* release a reader */
+    pthread_mutex_unlock(&d->rlock);
 }
 
 /*******************************************************************************
@@ -1257,8 +1324,84 @@ void ami_wrsynth(ami_long p, ami_seqptr sp)
 void ami_rdsynth(ami_long p, ami_seqptr sp)
 {
     if (p < 1 || p > synthin_num) error("Invalid synth input port");
-    /* TODO: implement CoreMIDI input reading */
+    synthindev* d = &synthin_tab[p - 1];
+    if (d->rdseq) { d->rdseq(p, sp); return; }
+    if (!d->open) error("Synth input port not open");
+
+    /* The call waits for the next message the sequencer record can carry,
+       and decodes it as the other platforms do: channels, notes and
+       instruments from 1, values to the full scale of a long. It returned
+       an empty record at once before, there being no input, which a
+       caller took for an endless run of note 0. */
+    int b, p1, p2, done = FALSE;
+    ami_long pv;
+
     memset(sp, 0, sizeof(ami_seqmsg));
+    while (!done) {
+        /* skip to a status byte when the stream has just been joined */
+        do { b = midi_getb(d); } while (b >= 0 && !d->sync && b < 0x80);
+        if (b < 0) return; /* closed under the read */
+        d->sync = TRUE;
+        if (b < 0x80) { d->pback = b; b = d->last; } /* running status */
+        else if (b < 0xf0) d->last = b;
+        sp->port = p;
+        sp->time = seqrunin? timediff(&sintim): 0;
+        switch (b >> 4) {
+        case 0x8: case 0x9: case 0xa: /* note off, note on, aftertouch */
+            if ((p1 = midi_getb(d)) < 0 || (p2 = midi_getb(d)) < 0) return;
+            sp->st = (b >> 4) == 0x8? st_noteoff:
+                     (b >> 4) == 0x9? st_noteon: st_aftertouch;
+            sp->ntc = (b & 15) + 1;
+            sp->ntn = p1 + 1;
+            sp->ntv = p2 * (LONG_MAX / 128 + 1);
+            done = TRUE;
+            break;
+        case 0xb: /* controller change, channel mode */
+            if ((p1 = midi_getb(d)) < 0 || (p2 = midi_getb(d)) < 0) return;
+            if (p1 == CTLR_MONO_OPERATION) {
+                sp->st = st_mono; sp->vsc = (b & 15) + 1; sp->vsv = p2;
+                done = TRUE;
+            } else if (p1 == CTLR_POLY_OPERATION) {
+                sp->st = st_poly; sp->pc = (b & 15) + 1;
+                done = TRUE;
+            } /* the other controllers are not carried: read on */
+            break;
+        case 0xc: /* program change */
+            if ((p1 = midi_getb(d)) < 0) return;
+            sp->st = st_instchange;
+            sp->icc = (b & 15) + 1;
+            sp->ici = p1 + 1;
+            done = TRUE;
+            break;
+        case 0xd: /* channel pressure */
+            if ((p1 = midi_getb(d)) < 0) return;
+            sp->st = st_pressure;
+            sp->ntc = (b & 15) + 1;
+            sp->ntv = p1 * (LONG_MAX / 128 + 1);
+            done = TRUE;
+            break;
+        case 0xe: /* pitch bend: 14 bits to full scale, the bottom clamped */
+            if ((p1 = midi_getb(d)) < 0 || (p2 = midi_getb(d)) < 0) return;
+            sp->st = st_pitch;
+            sp->vsc = (b & 15) + 1;
+            pv = ((ami_long)(p2 << 7 | p1) - 0x2000) * (LONG_MAX / 8192 + 1);
+            if (pv < -LONG_MAX) pv = -LONG_MAX;
+            sp->vsv = pv;
+            done = TRUE;
+            break;
+        default: /* system messages carry nothing for the record: skipped */
+            if (b == 0xf0) { /* system exclusive, to its end */
+                do { p1 = midi_getb(d); } while (p1 >= 0 && p1 < 0x80);
+                if (p1 < 0) return;
+                if (p1 != 0xf7) d->pback = p1; /* ended by another status */
+            } else if (b == 0xf2) { midi_getb(d); midi_getb(d); }
+            else if (b == 0xf1 || b == 0xf3) midi_getb(d);
+            d->last = 0;
+            d->sync = FALSE; /* a status byte starts the next */
+            if (d->pback >= 0x80) d->sync = TRUE;
+            break;
+        }
+    }
 }
 
 /*******************************************************************************
