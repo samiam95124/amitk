@@ -113,7 +113,10 @@ static enum { /* debug levels */
 #define OUTFIL 1   /* _output */
 #define MAXLIN 250 /* maximum length of input buffered line */
 #define MAXCON 10  /* number of screen contexts */
-#define MAXSCN 250 /* maximum size of the buffer, in x or in y */
+#define MAXSCN 2000 /* maximum size of the buffer, in x or in y: a guard on
+                       what sizbuf allocates, and past any window a display
+                       gives (a 4K display at 150% gives 349 columns at a 7
+                       pixel font, an 8K one about 1100) */
 #define MAXTAB MAXSCN /* maximum number of tabs (length of buffer in x) */
 #define FRMTIM 11  /* handle number of framing timer */
 
