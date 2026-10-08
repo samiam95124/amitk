@@ -894,7 +894,7 @@ int main(int argc, char *argv[])
 
     printf("\n===== Test 22 =====\n\n");
     printf("Channel pan test. Play note continuously while changing\n");
-    printf("pan from to right\n");
+    printf("pan from left to right\n");
     ami_instchange(dport, 0, 1, AMI_INST_DRAWBAR_ORGAN);
     ami_noteon(dport, 0, 1, AMI_NOTE_C+AMI_OCTAVE_6, LONG_MAX);
     /* advance pan sets on channel while playing */
