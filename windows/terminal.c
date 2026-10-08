@@ -133,6 +133,8 @@ static enum { /* debug levels */
 #define UIV_SIZCHK         0x800b /* display size check due */
 
 #define SIZCHK 250 /* milliseconds between checks of the display's size */
+#define BLKTCK 2   /* size checks per blink phase: blinking text shows and
+                      hides for half a second each */
 #define INPBUF 64  /* input records read from the queue at a time */
 
 #define HOVERTIME 1000 /* hover timeout, milliseconds */
@@ -174,6 +176,13 @@ typedef struct { /* screen context */
 
     HANDLE   han;         /* screen buffer handle */
     CHAR_INFO* img;       /* image of the buffer, maxx*maxy cells */
+    unsigned char* blk;   /* the cells of the image that blink, parallel to
+                             it: the console has no blink attribute, so the
+                             image keeps the mark, and the cells are put over
+                             the console hidden in the blink phase that hides */
+    int      blkany;      /* the mask has cells set, as far as is known: a
+                             blinking cell was placed since a phase change
+                             found none */
     int      dirty;       /* cells of the image are not on the console yet */
     ami_long dx1, dy1;    /* the rectangle of them, screen coordinates */
     ami_long dx2, dy2;
@@ -249,6 +258,8 @@ static int     hovpend;         /* hover event pending delivery */
 static int     hovtim;          /* hover timeout timer handle */
 static int     sizhan;          /* display size check timer handle */
 static volatile int sizpend;    /* a size check record is in the queue */
+static int     blkoff;          /* the blink phase: blinking text is hidden */
+static int     blktck;          /* size checks since the phase last changed */
 static char    inpbuf[MAXLIN];  /* input line buffer */
 static int     inpptr;          /* input line index */
 static scnptr  screens[MAXCON]; /* screen contexts array */
@@ -747,9 +758,37 @@ the scroll moves what is on the console; and at exit.
 
 /* the cell at screen position x, y (0 based) */
 #define IMGCELL(sc, x, y) ((sc)->img[(y)*(sc)->maxx+(x)])
+#define BLKCELL(sc, x, y) ((sc)->blk[(y)*(sc)->maxx+(x)])
 
-/* Set a cell of the image; the console gets it at the next flush */
-static void putcell(scnptr sc, ami_long x, ami_long y, WCHAR c, WORD a)
+/* Mark the cells x1..x2 by y1..y2 of the image as not on the console yet:
+   the dirty rectangle takes them in */
+static void dirtyrect(scnptr sc, ami_long x1, ami_long y1, ami_long x2,
+                      ami_long y2)
+
+{
+
+    if (!sc->dirty) { /* the first cells: the rectangle is them */
+
+        sc->dx1 = x1;
+        sc->dy1 = y1;
+        sc->dx2 = x2;
+        sc->dy2 = y2;
+        sc->dirty = 1;
+
+    } else { /* extend the rectangle to take them in */
+
+        if (x1 < sc->dx1) sc->dx1 = x1;
+        if (x2 > sc->dx2) sc->dx2 = x2;
+        if (y1 < sc->dy1) sc->dy1 = y1;
+        if (y2 > sc->dy2) sc->dy2 = y2;
+
+    }
+
+}
+
+/* Set a cell of the image, blinking or not; the console gets it at the next
+   flush */
+static void putcell(scnptr sc, ami_long x, ami_long y, WCHAR c, WORD a, int b)
 
 {
 
@@ -758,20 +797,9 @@ static void putcell(scnptr sc, ami_long x, ami_long y, WCHAR c, WORD a)
     ci = &IMGCELL(sc, x, y);
     ci->Char.UnicodeChar = c;
     ci->Attributes = a;
-    if (!sc->dirty) { /* the first cell: the rectangle is it */
-
-        sc->dx1 = sc->dx2 = x;
-        sc->dy1 = sc->dy2 = y;
-        sc->dirty = 1;
-
-    } else { /* extend the rectangle to take it in */
-
-        if (x < sc->dx1) sc->dx1 = x;
-        if (x > sc->dx2) sc->dx2 = x;
-        if (y < sc->dy1) sc->dy1 = y;
-        if (y > sc->dy2) sc->dy2 = y;
-
-    }
+    BLKCELL(sc, x, y) = b != 0;
+    if (b) sc->blkany = 1;
+    dirtyrect(sc, x, y, x, y);
 
 }
 
@@ -790,6 +818,7 @@ static void fillimg(scnptr sc, ami_long x1, ami_long y1, ami_long x2, ami_long y
         ci = &IMGCELL(sc, x, y);
         ci->Char.UnicodeChar = L' ';
         ci->Attributes = a;
+        BLKCELL(sc, x, y) = 0; /* a blank does not blink */
 
     }
 
@@ -815,12 +844,16 @@ static void movimg(scnptr sc, ami_long dx, ami_long dy, WORD a)
             sx = tx-dx; /* source */
             sy = ty-dy;
             ci = &IMGCELL(sc, tx, ty);
-            if (sx >= 0 && sx < sc->maxx && sy >= 0 && sy < sc->maxy)
+            if (sx >= 0 && sx < sc->maxx && sy >= 0 && sy < sc->maxy) {
+
                 *ci = IMGCELL(sc, sx, sy);
-            else {
+                BLKCELL(sc, tx, ty) = BLKCELL(sc, sx, sy); /* the mark moves */
+
+            } else {
 
                 ci->Char.UnicodeChar = L' ';
                 ci->Attributes = a;
+                BLKCELL(sc, tx, ty) = 0;
 
             }
 
@@ -832,7 +865,11 @@ static void movimg(scnptr sc, ami_long dx, ami_long dy, WORD a)
 
 /* Put the cells x1..x2 by y1..y2 of the image over the console buffer. A
    write to the console is limited in size, so it goes a group of rows at a
-   time, each straight from the image, whose rows are the buffer's width. */
+   time, each straight from the image, whose rows are the buffer's width.
+   In the blink phase that hides, a screen with blinking cells goes by way of
+   a copy of the rows, in which those cells are hidden: the text takes the
+   color of its background. The image itself keeps the cells as the program
+   wrote them. */
 static void putrect(scnptr sc, ami_long x1, ami_long y1, ami_long x2,
                     ami_long y2)
 
@@ -840,7 +877,10 @@ static void putrect(scnptr sc, ami_long x1, ami_long y1, ami_long x2,
 
     COORD      sz, org;
     SMALL_RECT dr;
-    ami_long   y, rows;
+    ami_long   y, rows, x, r;
+    CHAR_INFO* src;
+    static CHAR_INFO* hid;  /* the copy of the rows with blinking cells hidden */
+    static ami_long   hidn; /* the cells it holds */
 
     if (sc->maxx < 1 || sc->maxy < 1) return; /* no buffer: nothing to put */
     rows = 16000/sc->maxx; /* rows a write can take: 64kb of CHAR_INFO */
@@ -848,7 +888,27 @@ static void putrect(scnptr sc, ami_long x1, ami_long y1, ami_long x2,
     for (y = y1; y <= y2; y += rows) {
 
         if (rows > y2-y+1) rows = y2-y+1;
-        sz.X = sc->maxx; /* the image rows, as they are */
+        src = &IMGCELL(sc, 0, y); /* the image rows, as they are */
+        if (blkoff && sc->blkany) { /* hide the blinking cells of the rows */
+
+            if (hidn < rows*sc->maxx) { /* the copy must hold the rows */
+
+                if (hid) free(hid);
+                hidn = rows*sc->maxx;
+                hid = malloc(hidn*sizeof(CHAR_INFO));
+                if (!hid) error(enomem);
+
+            }
+            memcpy(hid, src, rows*sc->maxx*sizeof(CHAR_INFO));
+            for (r = 0; r < rows; r++) for (x = x1; x <= x2; x++)
+                if (BLKCELL(sc, x, y+r)) /* the text in its background color */
+                    hid[r*sc->maxx+x].Attributes =
+                        (src[r*sc->maxx+x].Attributes & ~0x0f) |
+                        (src[r*sc->maxx+x].Attributes >> 4 & 0x0f);
+            src = hid;
+
+        }
+        sz.X = sc->maxx;
         sz.Y = rows;
         org.X = x1; /* the part of them */
         org.Y = 0;
@@ -856,7 +916,7 @@ static void putrect(scnptr sc, ami_long x1, ami_long y1, ami_long x2,
         dr.Right = x2;
         dr.Top = y+sc->offy;
         dr.Bottom = y+sc->offy+rows-1;
-        WriteConsoleOutputW(sc->han, &IMGCELL(sc, 0, y), sz, org, &dr);
+        WriteConsoleOutputW(sc->han, src, sz, org, &dr);
 
     }
 
@@ -931,6 +991,9 @@ static void getimg(scnptr sc)
         ReadConsoleOutputW(sc->han, &IMGCELL(sc, 0, y), sz, org, &dr);
 
     }
+    /* what was on the console does not blink: the console has no such mark */
+    memset(sc->blk, 0, sc->maxx*sc->maxy);
+    sc->blkany = 0;
 
 }
 
@@ -942,8 +1005,9 @@ static void rszimg(scnptr sc, ami_long nx, ami_long ny)
 
 {
 
-    CHAR_INFO* ni;
-    ami_long   x, y, ox;
+    CHAR_INFO*     ni;
+    unsigned char* nb;
+    ami_long       x, y, ox;
 
     /* The buffer can be empty: when the output is not a console (redirected
        to a file, as the print tests run), the console gives no size and the
@@ -951,22 +1015,29 @@ static void rszimg(scnptr sc, ami_long nx, ami_long ny)
        as one cell, so that it can be freed and resized like any other. */
     ni = malloc((nx*ny > 0 ? nx*ny : 1)*sizeof(CHAR_INFO));
     if (!ni) error(enomem);
+    nb = malloc(nx*ny > 0 ? nx*ny : 1); /* and its blink mask with it */
+    if (!nb) error(enomem);
     for (y = 0; y < ny; y++) for (x = 0; x < nx; x++) {
 
-        if (sc->img && x < sc->maxx && y < sc->maxy)
+        if (sc->img && x < sc->maxx && y < sc->maxy) {
+
             ni[y*nx+x] = IMGCELL(sc, x, y);
-        else {
+            nb[y*nx+x] = BLKCELL(sc, x, y);
+
+        } else {
 
             ni[y*nx+x].Char.UnicodeChar = L' ';
             ni[y*nx+x].Attributes = sc->sattr;
+            nb[y*nx+x] = 0;
 
         }
 
     }
     ox = sc->img ? sc->maxx : 0; /* the old width, if any */
-    if (sc->img) free(sc->img);
+    if (sc->img) { free(sc->img); free(sc->blk); }
     for (x = ox; x < nx && x < MAXTAB; x++) sc->tab[x] = x%8 == 0;
     sc->img = ni;
+    sc->blk = nb;
     sc->maxx = nx;
     sc->maxy = ny;
 
@@ -1086,6 +1157,7 @@ static void iniscn(scnptr sc)
     sc->fhalf = gfhalf;
     setcolor(sc); /* set current color */
     sc->img = NULL; /* a new screen: no image yet */
+    sc->blkany = 0; /* and nothing in it blinks */
     sc->dirty = 0; /* and nothing to flush */
     sc->curdty = 0;
     sc->conx = sc->cony = -1; /* the console's cursor is not known */
@@ -1487,7 +1559,11 @@ static void itab(void)
 
 Turn on blink attribute
 
-Turns on/off the blink attribute.
+Turns on/off the blink attribute. The console has no blink attribute, so the
+blink is emulated: the cells written while it is on are marked in the screen's
+blink mask, and the display size check timer hides and shows them by turns
+(see blkstep). As the timer's records come out of the input queue, the text
+blinks while the program waits for events, and holds while it does not.
 
 Note that the attributes can only be set singly.
 
@@ -1497,8 +1573,8 @@ void blink_ivf(FILE* f, ami_long e)
 
 {
 
-    /* no capability */
-    screens[curupd-1]->attr = sanone; /* set attribute inactive */
+    if (e) screens[curupd-1]->attr = sablink; /* set blink status */
+    else screens[curupd-1]->attr = sanone; /* set attribute inactive */
     setcolor(screens[curupd-1]); /* set those colors active */
 
 }
@@ -1928,6 +2004,7 @@ static int           utfcnt;    /* bytes of it received */
 static COORD         utfxy;     /* the cell it goes in, screen coordinates;
                                    X < 0 for none */
 static WORD          utfattr;   /* the attributes at its start */
+static int           utfblk;    /* and whether it blinks */
 
 static void plcvis(scnptr sc, unsigned char c)
 
@@ -1948,7 +2025,7 @@ static void plcvis(scnptr sc, unsigned char c)
         utflen = 0;
         if (utfxy.X < 0) return; /* the start was out of bounds */
         wc = cp > 0xffff ? 0xfffd : (WCHAR)cp;
-        putcell(sc, utfxy.X, utfxy.Y, wc, utfattr);
+        putcell(sc, utfxy.X, utfxy.Y, wc, utfattr, utfblk);
         return;
 
     }
@@ -1965,11 +2042,13 @@ static void plcvis(scnptr sc, unsigned char c)
             utfxy.X = sc->curx-1;
             utfxy.Y = sc->cury-1;
             utfattr = sc->sattr;
+            utfblk = sc->attr == sablink;
 
         }
 
     } else if (icurbnd(sc)) /* cursor in bounds */
-        putcell(sc, sc->curx-1, sc->cury-1, c, sc->sattr); /* write character */
+        /* write character */
+        putcell(sc, sc->curx-1, sc->cury-1, c, sc->sattr, sc->attr == sablink);
     iright(); /* move cursor right */
 
 }
@@ -2568,6 +2647,7 @@ static void joymes(ami_evtptr er, INPUT_RECORD* inpevt, int* keep)
 /* process custom events */
 
 static int sizevt(ami_evtptr er); /* forward */
+static void blkstep(void); /* forward */
 
 static void custevent(ami_evtptr er, INPUT_RECORD* inpevt, int* keep)
 
@@ -2691,6 +2771,7 @@ static void custevent(ami_evtptr er, INPUT_RECORD* inpevt, int* keep)
 
         sizpend = 0; /* the record is out of the queue */
         *keep = sizevt(er); /* check the display's size, and keep any change */
+        blkstep(); /* and count the check towards the blink phase */
 
     }
 
@@ -2774,6 +2855,56 @@ static int sizevt(ami_evtptr er)
     er->rszy = y;
 
     return (TRUE);
+
+}
+
+/*******************************************************************************
+
+Step the blink phase
+
+Counts a display size check towards the blink phase, and at BLKTCK of them
+changes the phase: blinking text is hidden, or shown again. The console has no
+blink attribute, so the screens mark their blinking cells in a mask beside the
+image, and putrect writes them hidden in the phase that hides. Here each screen
+marked as having blinking cells has them found, and the rectangle of them
+marked as not on the console, so that its next flush rewrites them in the new
+phase; a screen found to have none is unmarked, and costs nothing until a
+blinking cell is placed on it again. The screen on display is flushed at once,
+as that is the one seen; any other is flushed when it comes on display, or at
+the next wait for an event, and is then in the phase of the time.
+
+*******************************************************************************/
+
+static void blkstep(void)
+
+{
+
+    scnptr   sc;
+    int      si;
+    ami_long x, y, x1, y1, x2, y2;
+
+    if (++blktck < BLKTCK) return; /* the phase holds */
+    blktck = 0;
+    blkoff = !blkoff; /* change the phase */
+    for (si = 0; si < MAXCON; si++) if (screens[si] && screens[si]->blkany) {
+
+        sc = screens[si];
+        x1 = y1 = -1; /* find the rectangle of the blinking cells */
+        x2 = y2 = -1;
+        for (y = 0; y < sc->maxy; y++) for (x = 0; x < sc->maxx; x++)
+            if (BLKCELL(sc, x, y)) {
+
+                if (x1 < 0 || x < x1) x1 = x;
+                if (x > x2) x2 = x;
+                if (y1 < 0) y1 = y;
+                y2 = y;
+
+            }
+        if (x1 < 0) sc->blkany = 0; /* none: nothing to do until one is placed */
+        else dirtyrect(sc, x1, y1, x2, y2); /* they go over in the new phase */
+
+    }
+    flush(screens[curdsp-1]); /* the screen on display shows the phase */
 
 }
 
@@ -4148,6 +4279,7 @@ dbg_printf(dlinfo, "Display area: left: %d top: %d bottom: %d right: %d cursor: 
     screens[curupd-1]->cury = bi.dwCursorPosition.Y-bi.srWindow.Top+1;
     screens[curupd-1]->sattr = bi.wAttributes; /* place default attributes */
     screens[curupd-1]->img = NULL; /* make the image, from what is displayed */
+    screens[curupd-1]->blkany = 0; /* nothing in it blinks */
     screens[curupd-1]->dirty = 0; /* nothing to flush */
     screens[curupd-1]->curdty = 0;
     screens[curupd-1]->conx = screens[curupd-1]->cony = -1; /* not known */
