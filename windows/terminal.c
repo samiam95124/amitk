@@ -261,6 +261,9 @@ static int     hovpend;         /* hover event pending delivery */
 static int     hovtim;          /* hover timeout timer handle */
 static int     sizhan;          /* display size check timer handle */
 static volatile int sizpend;    /* a size check record is in the queue */
+static ami_long seenx = -1;     /* the window size last seen by the size
+                                   check, taken once it has stood */
+static ami_long seeny = -1;
 static int     blkoff;          /* the blink phase: blinking text is hidden */
 static int     blktck;          /* size checks since the phase last changed */
 static char    inpbuf[MAXLIN];  /* input line buffer */
@@ -2846,6 +2849,19 @@ static int sizevt(ami_evtptr er)
        and no size a program could follow, so it is not a change */
     if (x < 1 || y < 1) return (FALSE);
     changed = x != dspx || y != dspy; /* the display changed */
+    /* A size the window has only just taken is a drag in motion: the console
+       rewraps its buffer at every step, and a refit and a resize event for
+       each step is repainted over by the next, which is seen as tearing. The
+       window is taken at a size it has stood at since the last look, an event
+       or a check, so a drag is one refit and one event when it ends, a check
+       interval after at most. */
+    if (x != seenx || y != seeny) {
+
+        seenx = x; /* the size seen, to stand before it is taken */
+        seeny = y;
+        if (changed) return (FALSE);
+
+    }
     /* filter out any change with no net effect: this was seen commonly, and
        our own sizing of the console buffer sends one */
     if (!changed && bi.dwSize.X >= sc->maxx &&
@@ -3479,9 +3495,13 @@ void wrtstr_ivf(FILE* f, char *s)
 
 Size buffer
 
-Sets or resets the size of the buffer surface. The buffer's contents are
-discarded, as on the other platforms. The display keeps its size: the console
-buffer is fitted to hold both, and shows the buffer from its top left corner.
+Sets or resets the size of the buffer surface. The buffer keeps what fits of
+its contents from the top left corner, and new cells are blank in the current
+colors: a program that sizes the buffer to follow the window, as windowc does,
+repaints the whole surface after, and a cleared buffer put over the display
+first was a blank flash at every resize (the other platforms discard the
+contents). The display keeps its size: the console buffer is fitted to hold
+both, and shows the buffer from its top left corner.
 
 *******************************************************************************/
 
@@ -3502,13 +3522,8 @@ void sizbuf_ivf(FILE* f, ami_long x, ami_long y)
     if (x == gmaxx && y == gmaxy) return; /* no change */
     gmaxx = x; /* new screens take the size */
     gmaxy = y;
-    for (si = 0; si < MAXCON; si++) if (screens[si]) {
-
-        rszimg(screens[si], x, y); /* size the image */
-        /* and clear it */
-        fillimg(screens[si], 0, 0, x-1, y-1, screens[si]->sattr);
-
-    }
+    for (si = 0; si < MAXCON; si++) if (screens[si])
+        rszimg(screens[si], x, y); /* size the image, keeping what fits */
     fitcon(screens[curdsp-1]); /* fit the console buffer, and show the buffer */
     setcur(screens[curdsp-1]);
     flush(screens[curdsp-1]);
