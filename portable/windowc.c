@@ -424,9 +424,12 @@ typedef struct winrec {
     metptr   metlst;            /* menu tracking list */
     metptr   menu;              /* "faux menu" bar */
     int      frame;             /* frame on/off */
-    int      size;              /* size bars on/off */
+    int      size;              /* sizing on/off: the border draws with the
+                                   frame either way, as the graphical form
+                                   keeps its frame whole */
     int      sysbar;            /* system bar on/off */
-    int      fixed;             /* size bars draw but sizing is ignored */
+    int      fixed;             /* a dialog: sizing and maximize are ignored
+                                   whatever size says */
     char     inpbuf[MAXLIN];    /* input line buffer */
     int      inpptr;            /* input line index */
     int      visible;           /* window is visible */
@@ -2217,7 +2220,10 @@ static void drwfrm(winptr win, rectangle* cr)
         setfcolor(win->frmcolor);
         setbcolor(ami_white);
         setattrs(frmhrev? BIT(sarev): 0);
-        if (win->size) { /* draw size bars */
+        /* draw the border: it needs two columns and rows, and is the frame's
+           edge whether or not sizing is on, as the graphical form keeps its
+           frame whole with sizing off */
+        if (win->pmaxx >= 2 && win->pmaxy >= 2) {
 
             /* draw top and bottom */
             setcursor(absx(win), absy(win));
@@ -2243,7 +2249,7 @@ static void drwfrm(winptr win, rectangle* cr)
         }
         if (win->sysbar && win->pmaxy >= 3) { /* draw system bar */
 
-            y = win->size; /* offset to system bar */
+            y = 1; /* offset to system bar: below the top border */
             /* draw blanks in title section */
             if (win->pmaxx-6 > 2) {
 
@@ -2947,10 +2953,10 @@ void remfocus(void)
 Find character overhead of the window decorations
 
 Gives the number of character cells the decorations occupy beyond the client
-area, in x and y. All decorations live inside the frame: the border needs
-frame and size, and the system bar with its menu row needs frame and sysbar.
-drwfrm() draws by these same rules, so client geometry computed here stays in
-step with what is actually drawn.
+area, in x and y. All decorations live inside the frame: the border is the
+frame itself, drawn whether or not sizing is on, and the system bar with its
+menu row needs frame and sysbar. drwfrm() draws by these same rules, so client
+geometry computed here stays in step with what is actually drawn.
 
 *******************************************************************************/
 
@@ -2958,7 +2964,7 @@ static ami_long decorx(winptr win)
 
 {
 
-    return ((win->frame && win->size)*2);
+    return (win->frame*2);
 
 }
 
@@ -2977,8 +2983,7 @@ static ami_long decory(winptr win)
        client the full height of the window and the bar was laid over
        the client's first row: a program drawing from row one drew over
        its own menu and never saw it. */
-    return ((win->frame && win->size)*2+(win->frame && win->sysbar)*2+
-            (win->mbar != 0));
+    return (win->frame*2+(win->frame && win->sysbar)*2+(win->mbar != 0));
 
 }
 
@@ -3092,6 +3097,16 @@ exactly what a click would do.
 
 *******************************************************************************/
 
+/* Find whether a window's border sizes it: the frame is on, sizing is on,
+   and the window is not fixed (a dialog). The border draws either way. */
+static int sizlive(winptr win)
+
+{
+
+    return (win->frame && win->size && !win->fixed);
+
+}
+
 static frmpart frmhit(winptr win, ami_long x, ami_long y)
 
 {
@@ -3100,19 +3115,19 @@ static frmpart frmhit(winptr win, ami_long x, ami_long y)
     ami_long ly = y-absy(win);
 
     if (!win->frame) return (fp_none);
-    if (win->sysbar && ly == win->size) { /* the system bar row */
+    if (win->sysbar && ly == 1) { /* the system bar row, below the top border */
 
         /* the sizing side borders pass through the bar row, and a click
            there sizes, so the highlight follows */
-        if (win->size && lx == 0) return (fp_left);
-        if (win->size && lx == win->pmaxx-1) return (fp_right);
+        if (sizlive(win) && lx == 0) return (fp_left);
+        if (sizlive(win) && lx == win->pmaxx-1) return (fp_right);
         if (lx == win->pmaxx-3) return (fp_close);
         if (lx == win->pmaxx-5) return (fp_max);
         if (lx == win->pmaxx-7) return (fp_min);
         return (fp_none);
 
     }
-    if (win->size) { /* the sizing border */
+    if (sizlive(win)) { /* the border sizes */
 
         int t = ly == 0, b = ly == win->pmaxy-1;
         int l = lx == 0, r = lx == win->pmaxx-1;
@@ -3154,12 +3169,12 @@ static void drwfrmpart(winptr win, frmpart p, int rev)
     if (p == fp_none) return;
     switch (p) {
 
-        case fp_close:  setrect(&r, x1+win->pmaxx-3, y1+win->size,
-                                    x1+win->pmaxx-3, y1+win->size); break;
-        case fp_max:    setrect(&r, x1+win->pmaxx-5, y1+win->size,
-                                    x1+win->pmaxx-5, y1+win->size); break;
-        case fp_min:    setrect(&r, x1+win->pmaxx-7, y1+win->size,
-                                    x1+win->pmaxx-7, y1+win->size); break;
+        case fp_close:  setrect(&r, x1+win->pmaxx-3, y1+1,
+                                    x1+win->pmaxx-3, y1+1); break;
+        case fp_max:    setrect(&r, x1+win->pmaxx-5, y1+1,
+                                    x1+win->pmaxx-5, y1+1); break;
+        case fp_min:    setrect(&r, x1+win->pmaxx-7, y1+1,
+                                    x1+win->pmaxx-7, y1+1); break;
         case fp_top:    setrect(&r, x1+1, y1, x1+win->pmaxx-2, y1); break;
         case fp_bottom: setrect(&r, x1+1, y1+win->pmaxy-1,
                                     x1+win->pmaxx-2, y1+win->pmaxy-1); break;
@@ -3610,13 +3625,13 @@ static void opnwin(int fn, int pfn, ami_long wid, int subclient, int root)
     if (root) { /* set up root without frame */
 
         win->frame = FALSE; /* set frame off */
-        win->size = FALSE; /* set size bars off */
+        win->size = FALSE; /* set sizing off */
         win->sysbar = FALSE; /* set system bar off */
 
     } else {
 
         win->frame = TRUE; /* set frame on */
-        win->size = TRUE; /* set size bars on */
+        win->size = TRUE; /* set sizing on */
         win->sysbar = TRUE; /* set system bar on */
 
     }
@@ -3643,14 +3658,13 @@ static void opnwin(int fn, int pfn, ami_long wid, int subclient, int root)
     win->fcolor = ami_black; /*foreground black */
     win->bcolor = ami_white; /* background white */
     win->frmcolor = ami_blue; /* frame color blue */
-    win->fixed = FALSE; /* sizing works where the bars show */
+    win->fixed = FALSE; /* sizing works where it is on */
     win->curv = TRUE; /* cursor visible */
     win->orgx = 1;  /* set origin to root */
     win->orgy = 1;
     /* set client offset considering framing characteristics */
-    win->coffx = 0+(win->frame && win->size);
-    win->coffy = 0+(win->frame && win->size)+(win->frame && win->sysbar)*2+
-                 (win->mbar != 0);
+    win->coffx = 0+win->frame;
+    win->coffy = 0+win->frame+(win->frame && win->sysbar)*2+(win->mbar != 0);
     win->curx = 1; /* set cursor at home */
     win->cury = 1;
     /* clear tabs and set to 8ths */
@@ -4157,10 +4171,10 @@ static void intsetsiz(winptr win, ami_long x, ami_long y)
     ami_long ox, oy; /* previous size of window */
     rectangle r1, r2, r3, rt, rl, rr, rb;
 
-    if (win->frame && win->size) {
+    if (win->frame) {
 
-        /* if size bars are on */
-        if (x < 2) x = 2; /* set minimum size to preseve size bars */
+        /* the border needs two columns and rows */
+        if (x < 2) x = 2;
         if (y < 2) y = 2;
 
     }
@@ -4296,7 +4310,7 @@ static void intmin(winptr win)
        title, or eight characters, plus the borders and the bar buttons.
        The frame draws its underbar row as the bottom border on a window
        three high. */
-    h = (win->frame && win->size)*2+(win->frame && win->sysbar);
+    h = win->frame*2+(win->frame && win->sysbar);
     if (h < 2) h = 2; /* observe the minimum */
     w = win->title? (ami_long)strlen(win->title): 0;
     if (w < 8) w = 8; /* the title, or eight characters */
@@ -5213,7 +5227,7 @@ static void frmclick(winptr win)
     ami_evtrec er;
 
 
-    if (win->sysbar && mousey-absy(win) == win->size &&
+    if (win->frame && win->sysbar && mousey-absy(win) == 1 &&
         mousex-absx(win) >= 1 &&
         mousex-absx(win) < win->pmaxx-1) {
 
@@ -5273,9 +5287,9 @@ static void frmclick(winptr win)
 
         }
 
-    } else if (win->frame && win->size && !win->fixed) {
+    } else if (sizlive(win)) {
 
-        /* frame and sizebars are enabled */
+        /* the border sizes the window */
         if (mousey-absy(win) == 0 &&
               mousex-absx(win) == 0) {
 
@@ -5752,10 +5766,10 @@ static void intevent(FILE* f)
                 } else if (hw && !hw->root && hw->frame) {
 
                     hp = frmhit(hw, mousex, mousey);
-                    /* a fixed window ignores sizing: its size bars and
-                       maximize button are not live, so no highlight */
-                    if (hw->fixed && (hp >= fp_top || hp == fp_max))
-                        hp = fp_none;
+                    /* frmhit gives the border only where it sizes; a fixed
+                       window's maximize button is not live either, so no
+                       highlight */
+                    if (hw->fixed && hp == fp_max) hp = fp_none;
 
                 }
                 if (hp == fp_none) hw = NULL;
@@ -6740,8 +6754,8 @@ static void ititlen(FILE* f, char* ts, ami_long n)
            right edge was given as that width, an absolute column, so a
            window moved right of the desktop's edge had its new title cut at
            that column, with the old title's tail left standing. */
-        setrect(&r, absx(win)+2, absy(win)+win->size,
-                   absx(win)+2+win->pmaxx-6-4-1, absy(win)+win->size);
+        setrect(&r, absx(win)+2, absy(win)+1,
+                   absx(win)+2+win->pmaxx-6-4-1, absy(win)+1);
         /* redraw the title as a frame part is drawn: only where this window
            is topmost, so that it does not paint over a window lying across
            its title bar, with the cursor off and handed back after */
@@ -7039,8 +7053,9 @@ static void iwinclient(FILE* f, ami_long cx, ami_long cy, ami_long* wx, ami_long
     frame = !!(BIT(ami_wmframe) & ms);
     size = !!(BIT(ami_wmsize) & ms);
     sysbar = !!(BIT(ami_wmsysbar) & ms);
-    *wx = cx+(frame && size)*2;
-    *wy = cy+(frame && size)*2+(frame && sysbar)*2
+    /* the border is the frame's, with or without sizing */
+    *wx = cx+frame*2;
+    *wy = cy+frame*2+(frame && sysbar)*2
             +!!(BIT(ami_wmmenu) & ms); /* the menu row, frameless or not */
 
 }
@@ -7213,9 +7228,8 @@ static void recompcli(winptr win)
 
 {
 
-    win->coffx = 0+(win->frame && win->size);
-    win->coffy = 0+(win->frame && win->size)+(win->frame && win->sysbar)*2+
-                 (win->mbar != 0);
+    win->coffx = 0+win->frame;
+    win->coffy = 0+win->frame+(win->frame && win->sysbar)*2+(win->mbar != 0);
     win->cmaxx = win->pmaxx; /* client dimensions from decorations */
     win->cmaxy = win->pmaxy;
     win->cmaxx -= decorx(win);
@@ -7254,11 +7268,10 @@ static void iframe(FILE* f, ami_long e)
 
 Enable or disable window sizing
 
-Turns the window sizing on and off.
-
-On GNOME/Ubuntu 20.04 with GDM3 window manager, we are not capable of turning
-off the size bars alone, so this is a no-op. It may work on other window
-managers.
+Turns the window sizing on and off. The frame stays whole: its border draws
+with sizing off as with it on, as the graphical form keeps its frame, and so
+the client keeps its size and place. Only the border's sizing goes, with its
+hover highlight; the system bar's buttons stay live.
 
 *******************************************************************************/
 
@@ -7269,16 +7282,7 @@ static void isizable(FILE* f, ami_long e)
     winptr win; /* windows record pointer */
 
     win = txt2win(f); /* get window from file */
-    e = !!e; /* clean boolean */
-    if (win->size != e) {
-
-        win->size = e; /* set frame state */
-        recompcli(win); /* the client geometry follows the decorations */
-        restore(win); /* redraw */
-        annresize(win); /* the client changed size within the window */
-        annredraw(win); /* a follow mode window needs its program */
-
-    }
+    win->size = !!e; /* set sizing state: nothing drawn changes */
 
 }
 
@@ -8054,9 +8058,10 @@ static wigptr opnpop(winptr par, ami_long rx, ami_long ry, char** strs, ami_long
     wg->win->curv = FALSE; /* a widget face never shows the cursor */
     wg->next = par->wiglst; /* on the owner's list for cleanup */
     par->wiglst = wg;
-    /* no size bars, no system bar: nothing of the frame draws, and the
-       popup is a plain block of its rows, a column of margin each side */
-    wg->win->frame = TRUE;
+    /* no frame: nothing of one draws (a frame's border now draws with
+       sizing off), and the popup is a plain block of its rows, a column of
+       margin each side */
+    wg->win->frame = FALSE;
     wg->win->size = FALSE;
     wg->win->sysbar = FALSE;
     /* A face is drawn by position, to its last column and row, and must
