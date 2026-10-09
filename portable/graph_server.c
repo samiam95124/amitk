@@ -22,8 +22,10 @@
 * the client connects and streams the file in, close delimited.               *
 *                                                                              *
 * The server serves one client at a time, and when the client says bye it    *
-* resets and cycles back to wait for the next connection, until the console   *
-* interrupt cancels it. It must be started before its client.                 *
+* resets and cycles back to wait for the next connection. Closing the window  *
+* on a client ends that client's session the same way; closing it idle, or   *
+* the console interrupt, cancels the server. It must be started before its   *
+* client.                                                                     *
 *                                                                              *
 *******************************************************************************/
 
@@ -35,6 +37,7 @@
 #include <signal.h>
 #include <time.h>
 #include <setjmp.h>
+#include <stdarg.h>
 #ifndef _WIN32
 #include <execinfo.h>
 #endif
@@ -92,8 +95,9 @@ static int  hellopend;   /* a mid-session hello opened the next session */
 /* The pump lives across sessions: it forwards events while a client is
    up, discards them while the server is idle, and treats a terminate
    from the display, the close button or a control-c typed in the
-   window, on an idle server as cancellation. It stops only for the
-   process exit, which must not tear the library down around it. */
+   window, as the client's while one is up and as cancellation on an
+   idle server. It stops only for the process exit, which must not tear
+   the library down around it. */
 static ami_long  pump;     /* the pump, by services thread id */
 static int       pumpstop; /* exiting: leave the library and return */
 
@@ -166,6 +170,26 @@ static void error(const char* es)
 
 }
 
+/* A status line, to the standard error the server was started from:
+   the server's life as seen from the shell, listening, a client's coming
+   and going, and the shutdown. The window shows the same while idle, but
+   the shell is where an operator watches a server. */
+
+static void status(const char* fmt, ...)
+
+{
+
+    va_list ap;
+
+    fprintf(stderr, "graph_server: ");
+    va_start(ap, fmt);
+    vfprintf(stderr, fmt, ap);
+    va_end(ap);
+    fprintf(stderr, "\n");
+    fflush(stderr);
+
+}
+
 /* A session error: the client's fault or the wire's, not the server's.
    The error prints, the session drops, and the server recycles to wait
    for a new connection; only faults of the server itself exit. The
@@ -219,7 +243,7 @@ static void sesserr(const char* es)
         exit(1);
 
     }
-    write(2, " -- session dropped, awaiting new connection\n", 45);
+    write(2, " -- session dropped\n", 20);
     longjmp(sesjmp, 1);
 
 }
@@ -1009,15 +1033,23 @@ static void evpump(void)
 
             /* A terminate: the close button, control-c in this window,
                or control-c in the shell that started the server, which
-               the display library delivers as this same event. One
-               stroke shuts the whole server down. With a client up it
-               winds down politely, the terminate forwarding so the
-               program exits and its bye takes the server; idle, or asked
-               twice, it goes down here and now. Exiting on this thread
-               is right: it is the one that owns the display, so the
-               library's own winddown runs where it belongs. */
-            if (!clientup || sigasked) exit(1);
-            sigasked = 1; /* the bye that follows ends the server */
+               the display library delivers as this same event. With a
+               client up it is the client's: the terminate forwards, the
+               program exits as it would on its own display, and its bye
+               winds the session down, the server idling for the next
+               client. Idle, or asked again while the client is still
+               here, it shuts the server down here and now. Exiting on
+               this thread is right: it is the one that owns the display,
+               so the library's own winddown runs where it belongs. */
+            if (!clientup || sigasked) {
+
+                status(clientup? "shutting down, the client abandoned":
+                                 "shutting down");
+                exit(1);
+
+            }
+            sigasked = 1; /* the client was told; a second asks the server */
+            status("the window was closed on the client, ending its session");
 
         }
         if (!clientup) continue; /* idle: nobody to forward to */
@@ -2170,7 +2202,9 @@ int main(int argc, char* argv[])
     {
 
         const char* bn = strrchr(argv[0], '/');
+        const char* bb = strrchr(argv[0], '\\'); /* Windows spells it so */
 
+        if (bb > bn) bn = bb;
         snprintf(srvname, sizeof(srvname), "%s", bn? bn+1: argv[0]);
         ami_getsizg(stdout, &origw, &origh);
         origfs = ami_chrsizy(stdout); /* the font size it started with */
@@ -2189,9 +2223,10 @@ int main(int argc, char* argv[])
 
 
     /* the session loop: serve a client, reset, wait for the next; a
-       session error jumps back here, winds down, and recycles. The
-       console interrupt, or a terminate from the display of an idle
-       server, is the way out. */
+       session error jumps back here, winds down, and recycles, as does
+       a client sent off by the window's close. The console interrupt,
+       or a terminate from the display of an idle server, is the way
+       out. */
     for (;;) {
 
         ami_long h;
@@ -2211,6 +2246,8 @@ int main(int argc, char* argv[])
            and its client is waiting on the event channel exchange */
         if (!hellopend) {
 
+            status("awaiting %sconnection on port %lld",
+                   gsecure? "secure ": "", AMI_LONG_CAST(srvport));
             rlen = ami_rdmsg(cmdfn, rbase, msgmax);
             if (rlen < (ami_long)sizeof(gr_msghdr))
                 sesserr("Short message from client");
@@ -2244,6 +2281,7 @@ int main(int argc, char* argv[])
         /* the clear, and no pending events from a prior session */
         ondisplay(job_clear, NULL);
         clientup = 1; /* the pump forwards from here on */
+        status("client connected");
 
         /* The command loop. A burst of commands executes under one hold
            of the display lock: after the blocking read, the socket
@@ -2266,9 +2304,12 @@ int main(int argc, char* argv[])
             }
 
         }
-        /* an interrupt asked this session to end: the server was being
-           cancelled, so it goes down with the session */
-        if (sigasked) { stoppump(); exit(0); }
+        /* a terminate that asked this session to end ended just the
+           session: the server winds down and waits for the next client,
+           as it does after any other bye */
+        status(hellopend? "a new client is connecting, the old session ends":
+               sigasked?  "the client has gone, its session ends":
+                          "client disconnected");
 
 winddown:
         clientup = 0;
