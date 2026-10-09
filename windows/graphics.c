@@ -8636,7 +8636,14 @@ static void winevt(winptr win, ami_evtrec* er, MSG* msg, int ofn, int* keep)
                 case wtscrollhoriz: break; /* scrollbar, gives no messages */
                 case wteditbox: break; /* edit box, requires no messages */
                 case wtlistbox: /* list box */
-                    if (nm == LBN_DBLCLK) {
+                    /* A selection is a click, as it is on the other ports
+                       and in windowc: this took a double click, which is not
+                       Windows' own convention either, whose list boxes select
+                       on the click and report it as a selection change. A
+                       double click changes the selection once, so it is one
+                       selection; the keyboard moving the selection is one
+                       as well. */
+                    if (nm == LBN_SELCHANGE) {
 
                         unlockwin(win); unlockmain(); /* end exclusive access */
                         r = SendMessage(wp->han, LB_GETCURSEL, 0, 0);
