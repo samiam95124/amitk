@@ -409,6 +409,13 @@ typedef struct winrec {
     ami_long bufy;              /* buffer size y characters */
     ami_long cmaxx;             /* onscreen client size x */
     ami_long cmaxy;             /* onscreen client size x */
+    ami_long vwx;               /* the view: buffer columns and rows scrolled
+                                   off the left and top of the client, 0
+                                   based, by the scroll bars */
+    ami_long vwy;
+    wigptr   vbar;              /* the scroll bars, widgets of the manager's
+                                   own, while the buffer calls for them */
+    wigptr   hbar;
     ami_long pmaxx;             /* parent maximum x */
     ami_long pmaxy;             /* parent maximum y */
     ami_long mpx, mpy;          /* mouse current position */
@@ -489,6 +496,8 @@ typedef struct wigrec {
     ami_tabori tor; /* tab bar orientation */
     wigptr owner;   /* for popups, the widget or bar that opened it */
     ami_menuptr mitems; /* for menu popups, the item list shown */
+    int    sys;     /* the manager's own: a window's scroll bar, whose
+                       actions scroll the owner's view and reach no program */
 
 } wigrec;
 
@@ -521,7 +530,20 @@ typedef enum {
     intrgt,    /* right intersection */
     minbtn,    /* minimize button */
     maxbtn,    /* maximize button */
-    canbtn    /* cancel button */
+    canbtn,    /* cancel button */
+    /* The widget glyphs, one table with the frame's so that the look is set
+       in one place. They are the same in both builds for now: a widget face
+       is a window, and a window's cells hold one byte each, so a face
+       cannot carry a multibyte glyph until the cells can. */
+    arwup,     /* scroll bar up arrow */
+    arwdn,     /* scroll bar down arrow */
+    arwlft,    /* scroll bar left arrow */
+    arwrgt,    /* scroll bar right arrow */
+    scltrk,    /* scroll bar track */
+    sclthm,    /* scroll bar and slider thumb */
+    sldhrz,    /* horizontal slider rail */
+    sldvrt,    /* vertical slider rail */
+    sldtck     /* slider tick mark */
 
 } framecomp;
 
@@ -546,6 +568,15 @@ char* frmchrs[] = {
     "-", /* minimize button */
     "▯", /* maximize button */
     "X", /* cancel button */
+    "^", /* scroll bar up arrow */
+    "v", /* scroll bar down arrow */
+    "<", /* scroll bar left arrow */
+    ">", /* scroll bar right arrow */
+    ".", /* scroll bar track */
+    "#", /* scroll bar and slider thumb */
+    "-", /* horizontal slider rail */
+    "|", /* vertical slider rail */
+    "+", /* slider tick mark */
 
 };
 #else
@@ -563,6 +594,15 @@ char* frmchrs[] = {
     "_", /* minimize button */
     "^", /* maximize button */
     "X", /* cancel button */
+    "^", /* scroll bar up arrow */
+    "v", /* scroll bar down arrow */
+    "<", /* scroll bar left arrow */
+    ">", /* scroll bar right arrow */
+    ".", /* scroll bar track */
+    "#", /* scroll bar and slider thumb */
+    "-", /* horizontal slider rail */
+    "|", /* vertical slider rail */
+    "+", /* slider tick mark */
 
 };
 #endif
@@ -666,6 +706,11 @@ static wigptr   popstk[MAXPOP]; /* open popup stack, bottom first */
 static int      popcnt;       /* number of open popups */
 static ami_long drgx;         /* drag pin x */
 static ami_long drgy;         /* drag pin y */
+static int      scrollbuffer = TRUE; /* child windows show scroll bars for a
+                                      buffer larger than the client: the
+                                      option scrollbuffer under windowc in the
+                                      configuration, on by default */
+static ami_valptr cfgroot;    /* the configuration tree */
 static ami_pevthan evthan[ami_etmenus+1]; /* array of event handler routines */
 static ami_pevthan evtshan;        /* single master event handler routine */
 static paevtque*  paqfre;         /* free PA event queue entries list */
@@ -1978,8 +2023,8 @@ static void calcfmask(winptr win)
         for (x = r1.x1; x <= r1.x2; x++)
             if (!inrect(x, y, &ra)) {
 
-            cx = x-(absx(win)+win->coffx);
-            cy = y-(absy(win)+win->coffy);
+            cx = x-(absx(win)+win->coffx)+win->vwx; /* the buffer cell shown */
+            cy = y-(absy(win)+win->coffy)+win->vwy;
             if (cx < win->bufx && cy < win->bufy) {
 
                 l = cy*win->bufx+cx;
@@ -2008,9 +2053,9 @@ static void calcfmask(winptr win)
             for (y = r3.y1; y <= r3.y2; y++)
                 for (x = r3.x1; x <= r3.x2; x++) {
 
-                /* find net client offset */
-                cx = x-(absx(win)+win->coffx);
-                cy = y-(absy(win)+win->coffy);
+                /* find net client offset: the buffer cell shown there */
+                cx = x-(absx(win)+win->coffx)+win->vwx;
+                cy = y-(absy(win)+win->coffy)+win->vwy;
                 /* The mask is shaped by the buffer, and the client area
                    can be larger than the buffer, which is what a program
                    asks for when it sizes the buffer smaller than the
@@ -2148,6 +2193,8 @@ static void resizewinbuf(winptr win, ami_long nx, ami_long ny)
     win->maxy = ny;
     win->bufx = nx;
     win->bufy = ny;
+    win->vwx = 0; /* the buffer is the client: no scroll */
+    win->vwy = 0;
     if (win->fmask) free(win->fmask); /* mask must match the buffer */
     alcfmask(win);
     if (win->curx > nx) win->curx = nx; /* keep the cursor on the surface */
@@ -2356,6 +2403,97 @@ static int intcurbnd(winptr win)
 
 /*******************************************************************************
 
+Scroll bars
+
+A buffered child window whose buffer is larger than its client shows a scroll
+bar on the client's right for a taller buffer and along its bottom for a wider
+one, as the graphical form does. Each bar is the client's length less the cell
+the other bar takes, and where both would meet, the bottom right cell, is left
+empty. The bars are scroll bar widgets of the manager's own (sclsync makes and
+sizes them, and takes them down when the buffer no longer calls for them), so
+they look and act as the widget does: arrows at the ends that step a line, a
+track that pages, a thumb that drags, the part under the mouse highlighted.
+Their signals go to sclact, which scrolls the owner's view, and no program
+hears them. The thumb is the part of the buffer in view, in proportion and in
+place. The bars are the client's last column and row, so the view, the client
+cells that show the buffer, is the client less them; a bar taking a cell from
+the other direction's view can call for the other bar. The view is scrolled by
+vwx and vwy, the buffer columns and rows off its left and top. The option
+scrollbuffer under windowc in the configuration turns the bars off.
+
+*******************************************************************************/
+
+/* Find which bars a window shows */
+static void sclbars(winptr win, int* vb, int* hb)
+
+{
+
+    *vb = *hb = FALSE;
+    if (!scrollbuffer || win->root || win->widget || !win->bufmod) return;
+    if (win->cmaxx < 2 || win->cmaxy < 2) return; /* no room for bar and view */
+    *vb = win->bufy > win->cmaxy;
+    *hb = win->bufx > win->cmaxx;
+    /* a bar takes a cell from the other direction's view */
+    if (*vb && !*hb) *hb = win->bufx > win->cmaxx-1;
+    if (*hb && !*vb) *vb = win->bufy > win->cmaxy-1;
+
+}
+
+/* The view: the client columns and rows that show the buffer */
+static ami_long vieww(winptr win)
+
+{
+
+    int vb, hb;
+
+    sclbars(win, &vb, &hb);
+
+    return (win->cmaxx-vb);
+
+}
+
+static ami_long viewh(winptr win)
+
+{
+
+    int vb, hb;
+
+    sclbars(win, &vb, &hb);
+
+    return (win->cmaxy-hb);
+
+}
+
+/* Keep the view within the buffer: it scrolls only to the buffer's last cell */
+static void clampview(winptr win)
+
+{
+
+    ami_long mx, my;
+
+    mx = win->bufx-vieww(win); /* the farthest the view goes */
+    my = win->bufy-viewh(win);
+    if (mx < 0) mx = 0;
+    if (my < 0) my = 0;
+    if (win->vwx > mx) win->vwx = mx;
+    if (win->vwy > my) win->vwy = my;
+    if (win->vwx < 0) win->vwx = 0;
+    if (win->vwy < 0) win->vwy = 0;
+
+}
+
+/* Find whether the cursor is in the view, so shows */
+static int curinview(winptr win)
+
+{
+
+    return (win->curx-win->vwx >= 1 && win->curx-win->vwx <= vieww(win) &&
+            win->cury-win->vwy >= 1 && win->cury-win->vwy <= viewh(win));
+
+}
+
+/*******************************************************************************
+
 Position cursor in window
 
 Positions the cursor (caret) image to the right location on screen, and handles
@@ -2383,10 +2521,10 @@ static void setcur(winptr win)
            no window over that cell. Checked for the window alone, the
            cursor of a focus window lying under another was put on the
            cell regardless, and stood in the window on top as a stray. */
-        if (intcurbnd(win)) {
+        if (curinview(win)) { /* in the buffer, and scrolled into view */
 
-            ami_long x = win->curx+absx(win)-1+win->coffx;
-            ami_long y = win->cury+absy(win)-1+win->coffy;
+            ami_long x = win->curx-win->vwx+absx(win)-1+win->coffx;
+            ami_long y = win->cury-win->vwy+absy(win)-1+win->coffy;
             if (fndtop(x, y) == win) {
 
                 setcurvis(win->curv); /* set cursor on or off */
@@ -2447,6 +2585,7 @@ static void restoreclp(winptr win,   /* window to restore */
     ami_long runx;           /* screen x the run starts at */
     ami_color runfc, runbc; /* the run's colors */
     int  runat;          /* the run's attributes */
+    ami_long vw, vh;     /* the view's width and height */
 
     if (!win->visible) return; /* nothing onscreen to restore */
     /* the window shows only within its ancestors: frame, client and
@@ -2504,11 +2643,14 @@ static void restoreclp(winptr win,   /* window to restore */
            the client dimensions and the buffer dimensions: the client can
            be larger than the buffer, and the buffer must not be read
            outside itself. */
+        clampview(win); /* the view within the buffer, as it stands now */
+        vw = vieww(win); /* the client cells that show the buffer */
+        vh = viewh(win);
         setrect(&r1, absx(win)+win->coffx, absy(win)+win->coffy,
                    absx(win)+win->coffx+
-                       (win->cmaxx < win->maxx? win->cmaxx: win->maxx)-1,
+                       (vw < win->bufx-win->vwx? vw: win->bufx-win->vwx)-1,
                    absy(win)+win->coffy+
-                       (win->cmaxy < win->maxy? win->cmaxy: win->maxy)-1);
+                       (vh < win->bufy-win->vwy? vh: win->bufy-win->vwy)-1);
         if (intersect(cr, &r1)) { /* there is an intersection with client area */
 
             intersection(&r2, cr, &r1); /* find client-clip intersection */
@@ -2536,8 +2678,9 @@ static void restoreclp(winptr win,   /* window to restore */
                     scp = NULL;
                     if (x <= r2.x2) { /* a real cell, not the end sentinel */
 
-                        bx = x-(absx(win)+win->coffx)+1; /* buffer location */
-                        by = y-(absy(win)+win->coffy)+1;
+                        /* buffer location, as the view is scrolled */
+                        bx = x-(absx(win)+win->coffx)+1+win->vwx;
+                        by = y-(absy(win)+win->coffy)+1+win->vwy;
                         l = (by-1)*win->bufx+(bx-1); /* mask index */
                         vis = !!(win->fmask[l/8] & 1<<(l%8));
                         if (vis) scp = &SCNBUF(sc, bx, by);
@@ -2598,18 +2741,18 @@ static void restoreclp(winptr win,   /* window to restore */
            current drawing background: a program that paints and then
            changes its background for later drawing must see the same
            margins on a redraw that the paint gave it. */
-        if (win->maxx < win->cmaxx || win->maxy < win->cmaxy) {
+        if (win->bufx < vw || win->bufy < vh) {
 
             ami_long mx, my;
 
             setfcolor(win->fcolor);
             setbcolor(win->sbcolor[win->curdsp-1]);
             setattrs(0);
-            for (my = 1; my <= win->cmaxy; my++) {
+            for (my = 1; my <= vh; my++) {
 
                 /* the strip right of the buffer, and whole lines below it */
-                mx = my <= win->maxy? win->maxx+1: 1;
-                for (; mx <= win->cmaxx; mx++) {
+                mx = my <= win->bufy? win->bufx+1: 1;
+                for (; mx <= vw; mx++) {
 
                     ami_long sx = absx(win)+win->coffx+mx-1;
                     ami_long sy = absy(win)+win->coffy+my-1;
@@ -2623,6 +2766,24 @@ static void restoreclp(winptr win,   /* window to restore */
                     wrtchr(' ');
 
                 }
+
+            }
+
+        }
+        /* the corner where two scroll bars would meet is the owner's,
+           and empty: it shows the background */
+        if (vw < win->cmaxx && vh < win->cmaxy) {
+
+            ami_long sx = absx(win)+win->coffx+win->cmaxx-1;
+            ami_long sy = absy(win)+win->coffy+win->cmaxy-1;
+
+            if (inrect(sx, sy, cr) && fndtop(sx, sy) == win) {
+
+                setfcolor(win->fcolor);
+                setbcolor(win->sbcolor[win->curdsp-1]);
+                setattrs(0);
+                setcursor(sx, sy);
+                wrtchr(' ');
 
             }
 
@@ -2652,6 +2813,42 @@ static void restore(winptr win) /* window to restore */
     setrect(&cr, absx(win), absy(win),
                absx(win)+win->pmaxx-1, absy(win)+win->pmaxy-1);
     restoreclp(win, &cr);
+
+}
+
+/*******************************************************************************
+
+Set the view
+
+Scrolls the view to the buffer column and row given, within the buffer, and
+repaints the client: the cells in view and the bars. The forward masks are
+redone first, as they mark the buffer cells that lie under other windows, and
+which those are moves with the view.
+
+*******************************************************************************/
+
+static void sclsync(winptr win); /* forward */
+
+static void setview(winptr win, ami_long x, ami_long y)
+
+{
+
+    rectangle cr;
+
+    win->vwx = x;
+    win->vwy = y;
+    clampview(win);
+    sclsync(win); /* the bars show the new place */
+    recalcfmask(); /* the cells under other windows are others now */
+    if (indisp(win)) { /* repaint the client */
+
+        setrect(&cr, absx(win)+win->coffx, absy(win)+win->coffy,
+                     absx(win)+win->coffx+win->cmaxx-1,
+                     absy(win)+win->coffy+win->cmaxy-1);
+        restoreclp(win, &cr);
+
+    }
+    setcur(win); /* the cursor is where the view puts it, or hidden */
 
 }
 
@@ -3000,15 +3197,12 @@ static int inclient(winptr win, ami_long x, ami_long y)
 
 {
 
-    ami_long ox, oy;
-
-    ox = decorx(win);
-    oy = decory(win);
-    /* check in client area */
+    /* check in client area: the view, which is the client less any scroll
+       bars, so that a click on a bar is the bar's */
     return (absx(win)+win->coffx <= x &&
-            x <= absx(win)+win->coffx+win->pmaxx-ox-1 &&
+            x <= absx(win)+win->coffx+vieww(win)-1 &&
             absy(win)+win->coffy <= y &&
-            y <= absy(win)+win->coffy+win->pmaxy-oy-1);
+            y <= absy(win)+win->coffy+viewh(win)-1);
 
 }
 
@@ -3646,6 +3840,10 @@ static void opnwin(int fn, int pfn, ami_long wid, int subclient, int root)
     win->maxy -= decory(win);
     win->cmaxx = win->maxx; /* set client size to track buffer */
     win->cmaxy = win->maxy;
+    win->vwx = 0; /* the view at the buffer's top left */
+    win->vwy = 0;
+    win->vbar = NULL; /* no scroll bars yet */
+    win->hbar = NULL;
     win->mpx = 0; /* set mouse relative position invalid */
     win->mpy = 0;
     /* No attribute. This copied the root emission cache, which is
@@ -4194,6 +4392,7 @@ static void intsetsiz(winptr win, ami_long x, ami_long y)
     if (win->cmaxy < 0) win->cmaxy = 0;
     /* in follow mode the buffer tracks the client */
     if (!win->bufmod) resizewinbuf(win, win->cmaxx, win->cmaxy);
+    sclsync(win); /* the scroll bars follow the client */
     /* As in intsetpos, the repaints below consult the masks, so they must
        reflect the new size first. The buffer is left as it is: a buffer
        smaller than the window is what a program gets when it sizes one,
@@ -5583,7 +5782,10 @@ static void intevent(FILE* f)
                 } else if (ev.mmoun == 1 &&
                            !(win->widget &&
                              (win->wig->typ == wtmenubar ||
-                              win->wig->typ == wtpopup))) { /* button 1 click */
+                              win->wig->typ == wtpopup ||
+                              win->wig->sys))) { /* button 1 click: a menu,
+                                a popup or a window's own scroll bar takes no
+                                focus from the window it serves */
 
                     /* Menu controls are excluded above: a click on the
                        menu bar or an open menu acts on the menu, and the
@@ -5632,8 +5834,9 @@ static void intevent(FILE* f)
 
                             er.etype = ami_etmoumov;
                             er.mmoun = ev.mmoun;
-                            er.moupx = mousex-(absx(win)+win->coffx)+1;
-                            er.moupy = mousey-(absy(win)+win->coffy)+1;
+                            /* in buffer terms: the view may be scrolled */
+                            er.moupx = mousex-(absx(win)+win->coffx)+1+win->vwx;
+                            er.moupy = mousey-(absy(win)+win->coffy)+1+win->vwy;
                             intsendevent(win, &er);
                             er.etype = ami_etmouba;
                             er.amoun = ev.amoun;
@@ -5727,8 +5930,9 @@ static void intevent(FILE* f)
                     er.etype = ami_etmoumov; /* set mouse move event */
                     er.mmoun = ev.mmoun; /* set mouse number */
                     /* calculate relative location in client area */
-                    er.moupx = mousex-(absx(win)+win->coffx)+1;
-                    er.moupy = mousey-(absy(win)+win->coffy)+1;
+                    /* in buffer terms: the view may be scrolled */
+                    er.moupx = mousex-(absx(win)+win->coffx)+1+win->vwx;
+                    er.moupy = mousey-(absy(win)+win->coffy)+1+win->vwy;
                     win->mpx = er.moupx; /* copy to window data */
                     win->mpy = er.moupy;
                     er.winid = win->wid; /* set window logical id */
@@ -6670,14 +6874,14 @@ static void iwrtstrn(FILE* f, char* s, ami_long n)
 
             }
             l = (win->cury-1)*win->bufx+(win->curx-1);
-            if (indisp(win) && intcurbnd(win) &&
+            if (indisp(win) && curinview(win) &&
                 win->fmask[l/8] & 1<<(l%8)) { /* visible on screen */
 
                 setattrs(win->attr); /* set attributes */
                 setfcolora(win->fcolor, win->bcolor, win->attr);
                 setbcolor(win->bcolor);
-                setcursor(win->curx+absx(win)-1+win->coffx,
-                          win->cury+absy(win)-1+win->coffy);
+                setcursor(win->curx-win->vwx+absx(win)-1+win->coffx,
+                          win->cury-win->vwy+absy(win)-1+win->coffy);
                 wrtchr(*s); /* output */
 
             }
@@ -6826,6 +7030,7 @@ static void ibuffer(FILE* f, ami_long e)
     if (e != win->bufmod) { /* buffered status has changed */
 
         win->bufmod = e; /* set new buffer status */
+        sclsync(win); /* the scroll bars are a buffered window's */
         /* The screens hold the window content in both modes: they are what
            repaints the surface when the window arrangement changes. The
            difference is only what governs their size: entering follow mode
@@ -6878,6 +7083,8 @@ static void isizbuf(FILE* f, ami_long x, ami_long y)
         win->bufy = y;
         win->maxx = x;
         win->maxy = y;
+        win->vwx = 0; /* a new buffer: the view at its top left */
+        win->vwy = 0;
         /* Allocate the screens that are selected, not just the first one.
            A program that has selected any other screen, which the select
            call makes routine, was left with a null screen pointer and
@@ -6894,6 +7101,7 @@ static void isizbuf(FILE* f, ami_long x, ami_long y)
         }
         free(win->fmask); /* release previous mask */
         alcfmask(win); /* allocate and clear forward mask */
+        sclsync(win); /* the scroll bars follow the buffer */
         if (indisp(win)) restore(win); /* repaint from the new buffer */
 
     }
@@ -7239,6 +7447,7 @@ static void recompcli(winptr win)
     /* in follow mode the buffer tracks the client; in buffered mode the
        buffer keeps the size it was given */
     if (!win->bufmod) resizewinbuf(win, win->cmaxx, win->cmaxy);
+    sclsync(win); /* the scroll bars follow the client */
     recalcfmask();
     mbarsiz(win); /* the menu bar follows the client */
 
@@ -7505,15 +7714,15 @@ static void plcchr(FILE* f, char c)
                 scp->attr = win->attr;
 
             }
-            if (indisp(win) && intcurbnd(win) &&
+            if (indisp(win) && curinview(win) &&
                 win->fmask[l/8] & 1<<(l%8)) { /* visible on screen */
 
                 setattrs(win->attr); /* set attributes */
                 setfcolora(win->fcolor, win->bcolor, win->attr);
                 setbcolor(win->bcolor);
                 /* draw character to active screen */
-                setcursor(win->curx+absx(win)-1+win->coffx,
-                          win->cury+absy(win)-1+win->coffy);
+                setcursor(win->curx-win->vwx+absx(win)-1+win->coffx,
+                          win->cury-win->vwy+absy(win)-1+win->coffy);
                 wrtchr(c); /* output */
 
             }
@@ -8050,6 +8259,7 @@ static wigptr opnpop(winptr par, ami_long rx, ami_long ry, char** strs, ami_long
     }
     wg->fatt = 0;
     wg->curs = 0;
+    wg->sys = FALSE;
     wg->tor = ami_totop;
     wg->owner = owner;
     wg->mitems = mitems;
@@ -8318,11 +8528,13 @@ static void wigdrw(wigptr wg)
                 tp = wigmul(n-ts, wg->val); /* offset */
 
             }
-            wigtxt(wg, 1, 1, "^", wighl(FALSE, hp == 1, FALSE));
+            wigtxt(wg, 1, 1, frmchrs[arwup], wighl(FALSE, hp == 1, FALSE));
             for (y = 2; y < h; y++)
-                wigtxt(wg, 1, y, ".", wighl(FALSE, y-2 < tp? hp == 4: hp == 5, FALSE));
-            wigtxt(wg, 1, h, "v", wighl(FALSE, hp == 2, FALSE));
-            for (y = 0; y < ts; y++) wigtxt(wg, 1, 2+tp+y, "#", wighl(FALSE, hp == 3, FALSE));
+                wigtxt(wg, 1, y, frmchrs[scltrk],
+                       wighl(FALSE, y-2 < tp? hp == 4: hp == 5, FALSE));
+            wigtxt(wg, 1, h, frmchrs[arwdn], wighl(FALSE, hp == 2, FALSE));
+            for (y = 0; y < ts; y++)
+                wigtxt(wg, 1, 2+tp+y, frmchrs[sclthm], wighl(FALSE, hp == 3, FALSE));
             break;
 
         case wtscrollhoriz:
@@ -8336,11 +8548,13 @@ static void wigdrw(wigptr wg)
                 tp = wigmul(n-ts, wg->val);
 
             }
-            wigtxt(wg, 1, 1, "<", wighl(FALSE, hp == 1, FALSE));
+            wigtxt(wg, 1, 1, frmchrs[arwlft], wighl(FALSE, hp == 1, FALSE));
             for (x = 2; x < w; x++)
-                wigtxt(wg, x, 1, ".", wighl(FALSE, x-2 < tp? hp == 4: hp == 5, FALSE));
-            wigtxt(wg, w, 1, ">", wighl(FALSE, hp == 2, FALSE));
-            for (x = 0; x < ts; x++) wigtxt(wg, 2+tp+x, 1, "#", wighl(FALSE, hp == 3, FALSE));
+                wigtxt(wg, x, 1, frmchrs[scltrk],
+                       wighl(FALSE, x-2 < tp? hp == 4: hp == 5, FALSE));
+            wigtxt(wg, w, 1, frmchrs[arwrgt], wighl(FALSE, hp == 2, FALSE));
+            for (x = 0; x < ts; x++)
+                wigtxt(wg, 2+tp+x, 1, frmchrs[sclthm], wighl(FALSE, hp == 3, FALSE));
             break;
 
         case wtnumselbox:
@@ -8386,24 +8600,24 @@ static void wigdrw(wigptr wg)
             break;
 
         case wtslidehoriz:
-            for (x = 1; x <= w; x++) wigtxt(wg, x, 1, "-", HLNONE);
+            for (x = 1; x <= w; x++) wigtxt(wg, x, 1, frmchrs[sldhrz], HLNONE);
             /* tick marks spaced evenly along the rail, ends included */
             if (wg->marks > 1)
                 for (i = 0; i < wg->marks; i++)
                     wigtxt(wg, 1+((w-1)*i+(wg->marks-1)/2)/(wg->marks-1), 1,
-                           "+", HLNONE);
+                           frmchrs[sldtck], HLNONE);
             n = 1+wigmul(w-1, wg->val);
-            wigtxt(wg, n, 1, "#", wighl(FALSE, hp != 0, FALSE));
+            wigtxt(wg, n, 1, frmchrs[sclthm], wighl(FALSE, hp != 0, FALSE));
             break;
 
         case wtslidevert:
-            for (y = 1; y <= h; y++) wigtxt(wg, 1, y, "|", HLNONE);
+            for (y = 1; y <= h; y++) wigtxt(wg, 1, y, frmchrs[sldvrt], HLNONE);
             if (wg->marks > 1)
                 for (i = 0; i < wg->marks; i++)
                     wigtxt(wg, 1, 1+((h-1)*i+(wg->marks-1)/2)/(wg->marks-1),
-                           "+", HLNONE);
+                           frmchrs[sldtck], HLNONE);
             n = 1+wigmul(h-1, wg->val);
-            wigtxt(wg, 1, n, "#", wighl(FALSE, hp != 0, FALSE));
+            wigtxt(wg, 1, n, frmchrs[sclthm], wighl(FALSE, hp != 0, FALSE));
             break;
 
         case wtdropbox:
@@ -8647,12 +8861,62 @@ static ami_long wighit(wigptr wg, ami_long lx, ami_long ly)
 }
 
 /* send a widget event to the owner */
+/* A window's own scroll bar acted: scroll the owner's view as the bar says,
+   a line for an arrow, the view's length for the track, the thumb's place
+   for a drag. The view sets the bar's values back, so the bar agrees with
+   where the view could go. */
+static void sclact(wigptr wg, ami_evtcod e, ami_long v)
+
+{
+
+    winptr   win = wg->parent;
+    ami_long n, b, nx, ny;
+
+    if (!win) return; /* the owner is going down */
+    nx = win->vwx;
+    ny = win->vwy;
+    if (wg->typ == wtscrollvert) {
+
+        n = viewh(win); /* the view, and the buffer, in rows */
+        b = win->bufy;
+        switch (e) {
+
+            case ami_etsclull: ny--; break;
+            case ami_etscldrl: ny++; break;
+            case ami_etsclulp: ny -= n; break;
+            case ami_etscldrp: ny += n; break;
+            case ami_etsclpos: ny = wigmul(b-n, v); break;
+            default: return;
+
+        }
+
+    } else {
+
+        n = vieww(win); /* in columns */
+        b = win->bufx;
+        switch (e) {
+
+            case ami_etsclull: nx--; break;
+            case ami_etscldrl: nx++; break;
+            case ami_etsclulp: nx -= n; break;
+            case ami_etscldrp: nx += n; break;
+            case ami_etsclpos: nx = wigmul(b-n, v); break;
+            default: return;
+
+        }
+
+    }
+    setview(win, nx, ny);
+
+}
+
 static void wigsig(wigptr wg, ami_evtcod e, ami_long v)
 
 {
 
     ami_evtrec er;
 
+    if (wg->sys) { sclact(wg, e, v); return; } /* the manager's: no program */
     er.etype = e;
     switch (e) { /* fill the union by type */
 
@@ -9260,6 +9524,7 @@ static wigptr wigcre(FILE* f, ami_long x1, ami_long y1, ami_long x2, ami_long y2
     wg->lcol = NULL;
     wg->fatt = 0;
     wg->curs = 0;
+    wg->sys = FALSE; /* a program's, unless the maker says otherwise */
     wg->win->widget = TRUE; /* mark as widget window */
     wg->win->wig = wg;
     /* A widget face never shows the physical cursor. It takes the focus
@@ -9345,17 +9610,17 @@ ami_long ami_getwigid(FILE* f)
 
 }
 
-void ami_killwidget(FILE* f, ami_long id)
+/* Take a widget down: off the owner's list, its face closed, its storage
+   freed, and the mouse state that referred to it cleared */
+static void wigkill(winptr win, wigptr wg)
 
 {
 
-    winptr win = txt2win(f);
-    wigptr wg = fndwig(win, id);
     wigptr* lp;
 
-    if (!wg) error("No widget by given id");
     if (hovwig == wg) hovwig = NULL; /* the highlight dies with it */
     if (prswig == wg) prswig = NULL; /* so does the press */
+    if (drgwig == wg) drgwig = NULL; /* and a drag of it */
     /* unlink from the owner */
     lp = &win->wiglst;
     while (*lp != wg) lp = &(*lp)->next;
@@ -9371,6 +9636,117 @@ void ami_killwidget(FILE* f, ami_long id)
 
     }
     free(wg);
+
+}
+
+void ami_killwidget(FILE* f, ami_long id)
+
+{
+
+    winptr win = txt2win(f);
+    wigptr wg = fndwig(win, id);
+
+    if (!wg) error("No widget by given id");
+    wigkill(win, wg);
+
+}
+
+/* Find a window's output file, as the widget maker takes one: the open files
+   table entry that is output on it */
+static FILE* win2txt(winptr win)
+
+{
+
+    int fn;
+
+    for (fn = 0; fn < MAXFIL; fn++)
+        if (opnfil[fn] && opnfil[fn]->win == win && !opnfil[fn]->inw &&
+            opnfil[fn]->sfp) return (opnfil[fn]->sfp);
+
+    return (NULL);
+
+}
+
+/*******************************************************************************
+
+Keep a window's scroll bars as its buffer and client call for
+
+Makes the bars the window needs and has not got, takes down the ones it no
+longer needs, and sizes, places and sets the ones it has: the vertical bar in
+the client's last column, the client's height less the horizontal bar's row;
+the horizontal in the last row, the client's width less the vertical bar's
+column. The thumb is the view's share of the buffer, at the view's place in
+it. Called wherever the client, the buffer or the view changes.
+
+*******************************************************************************/
+
+static void sclsync(winptr win)
+
+{
+
+    int    vb, hb;
+    FILE*  f;
+    wigptr wg;
+
+    if (win->widget || win->root) return; /* never bars of their own */
+    sclbars(win, &vb, &hb);
+    clampview(win);
+    if (vb && !win->vbar) { /* a vertical bar is called for: make it */
+
+        f = win2txt(win);
+        if (f) {
+
+            wg = wigcre(f, win->cmaxx, 1, win->cmaxx, viewh(win),
+                        ami_getwigid(f), wtscrollvert);
+            wg->sys = TRUE; /* the manager's: its actions scroll the view */
+            win->vbar = wg;
+
+        }
+
+    } else if (!vb && win->vbar) { /* no longer: take it down */
+
+        wigkill(win, win->vbar);
+        win->vbar = NULL;
+
+    }
+    if (hb && !win->hbar) { /* and the horizontal bar the same */
+
+        f = win2txt(win);
+        if (f) {
+
+            wg = wigcre(f, 1, win->cmaxy, vieww(win), win->cmaxy,
+                        ami_getwigid(f), wtscrollhoriz);
+            wg->sys = TRUE;
+            win->hbar = wg;
+
+        }
+
+    } else if (!hb && win->hbar) {
+
+        wigkill(win, win->hbar);
+        win->hbar = NULL;
+
+    }
+    if (win->vbar) { /* size, place and set the vertical bar */
+
+        wg = win->vbar;
+        intsetsiz(wg->win, 1, viewh(win));
+        intsetpos(wg->win, win->cmaxx, 1);
+        wg->sclsiz = wigscl(viewh(win), win->bufy); /* the view's share */
+        wg->val = wigscl(win->vwy, win->bufy-viewh(win)); /* at its place */
+        wigdrw(wg);
+
+    }
+    if (win->hbar) { /* and the horizontal */
+
+        wg = win->hbar;
+        intsetsiz(wg->win, vieww(win), 1);
+        intsetpos(wg->win, 1, win->cmaxy);
+        wg->sclsiz = wigscl(vieww(win), win->bufx);
+        wg->val = wigscl(win->vwx, win->bufx-vieww(win));
+        wigdrw(wg);
+
+    }
 
 }
 
@@ -11804,7 +12180,20 @@ static void init_windowc()
     int       ifn; /* standard input file number */
     int       ti;  /* timer index */
     ami_evtcod e;
+    ami_valptr vp; /* configuration value */
+    char*     errstr;
 
+    /* the scroll bar option: scrollbuffer under windowc in the configuration,
+       1 on (the default) or 0 off */
+    cfgroot = NULL;
+    ami_config(&cfgroot);
+    vp = ami_schlst("windowc", cfgroot);
+    if (vp && vp->sublist) {
+
+        vp = ami_schlst("scrollbuffer", vp->sublist);
+        if (vp && vp->value) scrollbuffer = strtol(vp->value, &errstr, 10) != 0;
+
+    }
     winfre = NULL; /* clear free windows structure list */
     winlst = NULL; /* clear master window list */
     rootlst = NULL; /* clear root window list */
