@@ -425,6 +425,10 @@ typedef struct winrec {
     ami_long scly;
     int      vbar;            /* the vertical scroll bar shows */
     int      hbar;            /* the horizontal scroll bar shows */
+    int      sbvset;          /* the vertical bar is set, as below */
+    ami_long sbvmax, sbvpage, sbvpos; /* what it was set to */
+    int      sbhset;          /* the horizontal bar the same */
+    ami_long sbhmax, sbhpage, sbhpos;
     int      visible;         /* window is visible */
     int      resizing;        /* a geometry change is in train, the main lock
                                  dropped for it: a paint the display thread
@@ -3290,64 +3294,98 @@ configuration turns the bars off.
 *******************************************************************************/
 
 /* Keep the bars as the buffer and the client call for: shown or hidden, and
-   set to the client's share of the buffer at the view's place. A bar shown
-   takes from the client, which can call for the other bar and changes the
-   page, so the client is looked at again after the first setting. The calls
-   go to the display thread's window, so they run its window procedure, which
-   takes the gate and the window's lock: both are given up around them, the
-   gate when the caller holds it. */
+   set to the client's share of the buffer at the view's place. The need is
+   reckoned from the client as it would be with no bars, the client as it is
+   plus the bars shown, so that a bar does not justify itself by the room it
+   takes; a bar needed takes a cell from the other direction, which can call
+   for the other bar. The bars are touched only when something changes: a
+   change of what shows runs the display thread's window procedure, which
+   takes the gate and the window's lock and sends a size message of its own,
+   so both locks are given up around it, the gate when the caller holds it,
+   and a call for every size message would feed itself. */
 static void sclsync(winptr win, int mainheld)
 
 {
 
     RECT       cr;
-    int        vb, hb, pass;
-    SCROLLINFO vi, hi;
-    BOOL       b;
+    int        vb, hb, cxv, cyh;
+    ami_long   bw, bh, pw, ph;
+    SCROLLINFO si;
 
     if (!win->winhan) return; /* no window yet */
-    for (pass = 0; pass < 2; pass++) {
+    if (!GetClientRect(win->winhan, &cr)) return;
+    /* a minimized window has no client: its view would be clamped to the
+       buffer's far corner, and come back there; nothing changes */
+    if (cr.right < 1 || cr.bottom < 1) return;
+    cxv = GetSystemMetrics(SM_CXVSCROLL); /* the bars' thickness */
+    cyh = GetSystemMetrics(SM_CYHSCROLL);
+    bw = cr.right+(win->vbar? cxv: 0); /* the client with no bars */
+    bh = cr.bottom+(win->hbar? cyh: 0);
+    vb = hb = FALSE;
+    if (scrollbuffer && win->bufmod) {
 
-        b = GetClientRect(win->winhan, &cr); /* the client as the bars leave it */
-        if (!b) return;
-        /* a minimized window has no client: its view would be clamped to
-           the buffer's far corner, and come back there; nothing changes */
-        if (cr.right < 1 || cr.bottom < 1) return;
-        vb = hb = FALSE;
-        if (scrollbuffer && win->bufmod) {
+        vb = win->gmaxyg > bh; /* the buffer is taller than the client */
+        hb = win->gmaxxg > bw; /* wider */
+        if (vb && !hb) hb = win->gmaxxg > bw-cxv; /* less the other bar */
+        if (hb && !vb) vb = win->gmaxyg > bh-cyh;
 
-            vb = win->gmaxyg > cr.bottom; /* the buffer is taller */
-            hb = win->gmaxxg > cr.right; /* wider */
+    }
+    pw = bw-(vb? cxv: 0); /* the client as the bars leave it: the page */
+    ph = bh-(hb? cyh: 0);
+    /* the view within the buffer: as far as the last pixel */
+    if (win->sclx > win->gmaxxg-pw) win->sclx = win->gmaxxg-pw;
+    if (win->scly > win->gmaxyg-ph) win->scly = win->gmaxyg-ph;
+    if (win->sclx < 0 || !hb) win->sclx = 0;
+    if (win->scly < 0 || !vb) win->scly = 0;
+    if (vb != win->vbar || hb != win->hbar) { /* what shows changes */
 
-        }
-        /* the view within the buffer: as far as the last pixel */
-        if (win->sclx > win->gmaxxg-cr.right) win->sclx = win->gmaxxg-cr.right;
-        if (win->scly > win->gmaxyg-cr.bottom) win->scly = win->gmaxyg-cr.bottom;
-        if (win->sclx < 0 || !hb) win->sclx = 0;
-        if (win->scly < 0 || !vb) win->scly = 0;
-        if (!vb && !hb && !win->vbar && !win->hbar) return; /* none, and none */
-        vi.cbSize = sizeof(SCROLLINFO);
-        vi.fMask = SIF_RANGE | SIF_PAGE | SIF_POS;
-        vi.nMin = 0;
-        vi.nMax = win->gmaxyg-1; /* the buffer */
-        vi.nPage = cr.bottom; /* the client's share of it */
-        vi.nPos = win->scly; /* at the view's place */
-        hi.cbSize = sizeof(SCROLLINFO);
-        hi.fMask = SIF_RANGE | SIF_PAGE | SIF_POS;
-        hi.nMin = 0;
-        hi.nMax = win->gmaxxg-1;
-        hi.nPage = cr.right;
-        hi.nPos = win->sclx;
-        win->vbar = vb;
-        win->hbar = hb;
         unlockwin(win); /* the window procedure runs within these */
         if (mainheld) unlockmain();
-        ShowScrollBar(win->winhan, SB_VERT, vb);
-        ShowScrollBar(win->winhan, SB_HORZ, hb);
-        if (vb) SetScrollInfo(win->winhan, SB_VERT, &vi, TRUE);
-        if (hb) SetScrollInfo(win->winhan, SB_HORZ, &hi, TRUE);
+        if (vb != win->vbar) ShowScrollBar(win->winhan, SB_VERT, vb);
+        if (hb != win->hbar) ShowScrollBar(win->winhan, SB_HORZ, hb);
         if (mainheld) lockmain();
         lockwin(win);
+        win->vbar = vb;
+        win->hbar = hb;
+        win->sbvset = FALSE; /* a bar shown afresh is to be set */
+        win->sbhset = FALSE;
+
+    }
+    si.cbSize = sizeof(SCROLLINFO);
+    si.fMask = SIF_RANGE | SIF_PAGE | SIF_POS;
+    si.nMin = 0;
+    if (vb && (!win->sbvset || win->sbvmax != win->gmaxyg-1 ||
+               win->sbvpage != ph || win->sbvpos != win->scly)) {
+
+        si.nMax = win->gmaxyg-1; /* the buffer */
+        si.nPage = ph; /* the client's share of it */
+        si.nPos = win->scly; /* at the view's place */
+        unlockwin(win);
+        if (mainheld) unlockmain();
+        SetScrollInfo(win->winhan, SB_VERT, &si, TRUE);
+        if (mainheld) lockmain();
+        lockwin(win);
+        win->sbvset = TRUE; /* as set, so the same again is no call */
+        win->sbvmax = si.nMax;
+        win->sbvpage = ph;
+        win->sbvpos = win->scly;
+
+    }
+    if (hb && (!win->sbhset || win->sbhmax != win->gmaxxg-1 ||
+               win->sbhpage != pw || win->sbhpos != win->sclx)) {
+
+        si.nMax = win->gmaxxg-1;
+        si.nPage = pw;
+        si.nPos = win->sclx;
+        unlockwin(win);
+        if (mainheld) unlockmain();
+        SetScrollInfo(win->winhan, SB_HORZ, &si, TRUE);
+        if (mainheld) lockmain();
+        lockwin(win);
+        win->sbhset = TRUE;
+        win->sbhmax = si.nMax;
+        win->sbhpage = pw;
+        win->sbhpos = win->sclx;
 
     }
 
@@ -10480,6 +10518,8 @@ static void opnwin(int fn, int pfn)
     win->scly = 0;
     win->vbar = FALSE;
     win->hbar = FALSE;
+    win->sbvset = FALSE; /* no bar set yet */
+    win->sbhset = FALSE;
     /* now perform windows setup */
     /* set flags for window create */
     f = WS_OVERLAPPEDWINDOW | WS_CLIPCHILDREN;
