@@ -427,6 +427,9 @@ typedef struct winrec {
     int      curv;              /* cursor visible */
     int      autof;             /* current status of scroll and wrap */
     int      bufmod;            /* buffered screen mode */
+    int      bufset;            /* the program set the buffer's size: until
+                                   it does, the buffer follows the client
+                                   through setsiz and decoration changes */
     int      tab[MAXTAB];       /* tabbing array */
     metptr   metlst;            /* menu tracking list */
     metptr   menu;              /* "faux menu" bar */
@@ -3814,6 +3817,7 @@ static void opnwin(int fn, int pfn, ami_long wid, int subclient, int root)
     win->inpptr = -1; /* set buffer empty */
     win->inpbuf[0] = 0;
     win->bufmod = TRUE; /* set buffering on */
+    win->bufset = FALSE; /* the buffer follows the client until set */
     win->metlst = NULL; /* clear menu tracking list */
     win->menu = NULL; /* set menu bar not active */
     if (root) { /* set up root without frame */
@@ -4390,8 +4394,12 @@ static void intsetsiz(winptr win, ami_long x, ami_long y)
     win->cmaxy -= decory(win);
     if (win->cmaxx < 0) win->cmaxx = 0; /* a bar only window has no client */
     if (win->cmaxy < 0) win->cmaxy = 0;
-    /* in follow mode the buffer tracks the client */
-    if (!win->bufmod) resizewinbuf(win, win->cmaxx, win->cmaxy);
+    /* in follow mode the buffer tracks the client, and so does a buffer
+       the program has not set: a window sized and never given a buffer
+       keeps the two matched, as the graphical form does, rather than
+       keeping the buffer it was opened with and scrolling it */
+    if (!win->bufmod || !win->bufset)
+        resizewinbuf(win, win->cmaxx, win->cmaxy);
     sclsync(win); /* the scroll bars follow the client */
     /* As in intsetpos, the repaints below consult the masks, so they must
        reflect the new size first. The buffer is left as it is: a buffer
@@ -7071,6 +7079,7 @@ static void isizbuf(FILE* f, ami_long x, ami_long y)
     win = txt2win(f); /* get window from file */
     if (!win->bufmod) error("Buffer mode is not enabled");
     if (x < 1 || y < 1) error("Invalid buffer size");
+    win->bufset = TRUE; /* the program sets the buffer: it holds from here */
     if (win->bufx != x || win->bufy != y) {
 
         /* buffer size has changed */
@@ -7446,7 +7455,8 @@ static void recompcli(winptr win)
     if (win->cmaxy < 0) win->cmaxy = 0;
     /* in follow mode the buffer tracks the client; in buffered mode the
        buffer keeps the size it was given */
-    if (!win->bufmod) resizewinbuf(win, win->cmaxx, win->cmaxy);
+    if (!win->bufmod || !win->bufset) /* and so does one the program never set */
+        resizewinbuf(win, win->cmaxx, win->cmaxy);
     sclsync(win); /* the scroll bars follow the client */
     recalcfmask();
     mbarsiz(win); /* the menu bar follows the client */

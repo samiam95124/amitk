@@ -412,6 +412,9 @@ typedef struct winrec {
     int      focus;           /* screen in focus */
     pict     pictbl[MAXPIC];  /* loadable pictures table */
     int      bufmod;          /* buffered screen mode */
+    int      bufset;          /* the program set the buffer's size: until
+                                 it does, the buffer follows the window's
+                                 client through setsiz */
     HMENU    menhan;          /* handle to (main) menu */
     metptr   metlst;          /* menu tracking list */
     wigptr   wiglst;          /* widget tracking list */
@@ -10520,6 +10523,7 @@ static void opnwin(int fn, int pfn)
     win->hbar = FALSE;
     win->sbvset = FALSE; /* no bar set yet */
     win->sbhset = FALSE;
+    win->bufset = FALSE; /* the buffer follows the client until set */
     /* now perform windows setup */
     /* set flags for window create */
     f = WS_OVERLAPPEDWINDOW | WS_CLIPCHILDREN;
@@ -11056,6 +11060,7 @@ static void sizbufg_ivf(FILE* f, ami_long x, ami_long y)
 
     win = txt2win(f); /* get window pointer from text file */
     lockwin(win); /* the window's own lock */
+    win->bufset = TRUE; /* the program sets the buffer: it holds from here */
     isizbufg(win, x, y); /* execute */
     unlockwin(win); /* the window's data is done with */
 
@@ -11078,6 +11083,7 @@ static void sizbuf_ivf(FILE* f, ami_long x, ami_long y)
     win = txt2win(f); /* get window context */
     lockwin(win); /* the window's own lock */
     /* just translate from characters to pixels and do the resize in pixels. */
+    win->bufset = TRUE; /* the program sets the buffer: it holds from here */
     isizbufg(win, x*win->charspace, y*win->linespace);
     unlockwin(win); /* the window's data is done with */
 
@@ -11727,11 +11733,28 @@ static void isetsizg(winptr win, ami_long x, ami_long y)
     win->resizing++; /* a geometry change begins: paints are tolerant */
 
     BOOL b; /* result holder */
+    RECT cr; /* client rectangle */
+    ami_long bw, bh; /* the client with no scroll bars */
 
     unlockwin(win); /* end exclusive access */
     b = SetWindowPos(win->winhan, 0, 0, 0, x, y, SWP_NOMOVE | SWP_NOZORDER);
     lockwin(win); /* start exclusive access */
     if (!b) winerr(); /* process windows error */
+    /* A buffer the program has not set follows the window: it was the
+       client's size at the open, and is the client's size after. A program
+       that sizes a window and never its buffer expects the two to match, as
+       window_test's window size frames do; the buffer as opened was left
+       larger than the window sized smaller, and showed scroll bars for it.
+       A buffer set with sizbuf holds. The client is taken as it would be
+       with no bars, which the buffer's new size then calls for none of. */
+    if (win->bufmod && !win->bufset && GetClientRect(win->winhan, &cr)) {
+
+        bw = cr.right+(win->vbar? GetSystemMetrics(SM_CXVSCROLL): 0);
+        bh = cr.bottom+(win->hbar? GetSystemMetrics(SM_CYHSCROLL): 0);
+        if (bw >= 1 && bh >= 1 && (bw != win->gmaxxg || bh != win->gmaxyg))
+            isizbufg(win, bw, bh);
+
+    }
 
     win->resizing--; /* the geometry change is done */
 }
