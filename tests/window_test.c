@@ -1173,9 +1173,13 @@ int main(int argc, char* argv[])
 
     fputc('\f', tw);
     sqrrat(&xs, &ys, 2.5); /* find square ratio */
-    /* five characters wider than square: the label "I am child window N"
-       then sits on one line in a window whose cells run wide */
-    xw = xs+5*ami_chrsizx(tw);
+    /* two characters wider than square: the label "I am child window N"
+       then sits on one line in a window whose cells run wide. Five was
+       too wide: three side by side overran the window's width on a 4K
+       display at 150%, whose cells are wide. Three of them fit the client
+       in any case. */
+    xw = xs+2*ami_chrsizx(tw);
+    if (xw*3 > ami_maxxg(tw)) xw = ami_maxxg(tw)/3;
     prtcen(ami_maxy(tw), "Child windows test pixel");
     ami_openwin(&stdin, &win2, tw, wid2);
     ami_curvis(win2, OFF);
