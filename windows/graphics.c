@@ -419,6 +419,12 @@ typedef struct winrec {
     int      size;            /* size bars on/off */
     int      sysbar;          /* system bar on/off */
     int      sizests;         /* last resize status save */
+    ami_long sclx;            /* the view: buffer pixels scrolled off the
+                                 left and top of the client by the window's
+                                 scroll bars */
+    ami_long scly;
+    int      vbar;            /* the vertical scroll bar shows */
+    int      hbar;            /* the horizontal scroll bar shows */
     int      visible;         /* window is visible */
     int      resizing;        /* a geometry change is in train, the main lock
                                  dropped for it: a paint the display thread
@@ -744,6 +750,10 @@ static int       aborting;     /* the module is aborting: waits on the display t
 static int maxxd;     /* default window dimensions */
 static int maxyd;
 static int dialogerr; /* send runtime errors to dialog */
+static int scrollbuffer = TRUE; /* a buffered window shows scroll bars for a
+                                   buffer larger than its client: the option
+                                   scrollbuffer under graphics in the
+                                   configuration, on by default */
 static int mouseenb;  /* enable mouse */
 static int joyenb;    /* enable joysticks */
 static int dmpmsg;    /* enable dump Windows API messages */
@@ -2647,6 +2657,7 @@ static int indisp(winptr win)
 
 /* apply viewport offset and scale to a device context (defined below) */
 static void settrans(HDC dc, scnptr sc);
+static void settransw(winptr win, scnptr sc); /* forward */
 
 /*******************************************************************************
 
@@ -2709,7 +2720,7 @@ static void clrwin(winptr win)
     GDICALL(b = FillRect(win->devcon, &r, hb), !b); /* process error */
     GDICALL(b = DeleteObject(hb), !b); /* free the brush */ /* process error */
     /* reapply the drawing transform */
-    settrans(win->devcon, win->screens[win->curdsp-1]);
+    settransw(win, win->screens[win->curdsp-1]);
 
 }
 
@@ -2863,9 +2874,10 @@ static void setcur(winptr win)
     /* check cursor in bounds and visible, and window has focus */
     if (icurbnd(win->screens[win->curupd-1]) && win->focus) {
 
-        /* set to bottom of character bounding box */
-        b = SetCaretPos(win->screens[win->curdsp-1]->curxg-1,
-                        win->screens[win->curdsp-1]->curyg-1+win->linespace-3);
+        /* set to bottom of character bounding box, where the view puts it */
+        b = SetCaretPos(win->screens[win->curdsp-1]->curxg-1-win->sclx,
+                        win->screens[win->curdsp-1]->curyg-1+win->linespace-3-
+                            win->scly);
         /* setcaret position is always returning an error, even when correct */
         /* if (!b) winerr(); */ /* process error */
 
@@ -3096,6 +3108,27 @@ static void settrans(HDC dc, scnptr sc)
 
 }
 
+/* The same for the window's own device context: the client shows the buffer
+   from the view's scroll offset, so drawing on the window lands that much
+   back from where it lands in the buffer */
+static void settransw(winptr win, scnptr sc)
+
+{
+
+    int b; /* return value */
+
+    b = SetMapMode(win->devcon, MM_ANISOTROPIC);
+    if (!b) { if (gditransient()) return; winerr(); }
+    b = SetWindowExtEx(win->devcon, sc->wextx, sc->wexty, NULL);
+    if (!b) { if (gditransient()) return; winerr(); }
+    b = SetViewportExtEx(win->devcon, sc->vextx, sc->vexty, NULL);
+    if (!b) { if (gditransient()) return; winerr(); }
+    b = SetViewportOrgEx(win->devcon, sc->offx-win->sclx, sc->offy-win->scly,
+                         NULL);
+    if (!b) { if (gditransient()) return; winerr(); }
+
+}
+
 /*******************************************************************************
 
 Restore screen
@@ -3134,6 +3167,7 @@ static void restore(winptr win,   /* window to restore */
     HBRUSH hb;    /* handle to brush */
     SIZE s;       /* size holder */
     int x, y;     /* x and y coordinates */
+    int bx, by;   /* the buffer's extent in client terms */
     scnptr sc;
 
     sc = win->screens[win->curdsp-1];
@@ -3189,19 +3223,23 @@ static void restore(winptr win,   /* window to restore */
         if (cr.left != 0 || cr.top != 0 || cr.right != 0 || cr.bottom != 0) {
             /* area is not NULL */
 
-            /* the buffer is presented 1:1, so client and buffer coordinates
-               are the same */
+            /* the buffer is presented 1:1, from the view's scroll offset:
+               client (x, y) shows buffer (x+sclx, y+scly), so the buffer
+               ends this far into the client */
+            bx = win->gmaxxg-win->sclx;
+            by = win->gmaxyg-win->scly;
             /* clip update rectangle to buffer */
-            if (cr.left <= win->gmaxxg || cr.bottom <= win->gmaxyg)  {
+            if (cr.left <= bx || cr.bottom <= by)  {
 
                 /* It's within the buffer. Now clip the right and bottom. */
                 x = cr.right; /* copy right and bottom sides */
                 y = cr.bottom;
-                if (x > win->gmaxxg) x = win->gmaxxg;
-                if (y > win->gmaxyg) y = win->gmaxyg;
+                if (x > bx) x = bx;
+                if (y > by) y = by;
                 /* copy backing bitmap to screen */
                 b = BitBlt(win->devcon, cr.left, cr.top, x-cr.left+1,
-                           y-cr.top+1, sc->bdc, cr.left, cr.top, SRCCOPY);
+                           y-cr.top+1, sc->bdc, cr.left+win->sclx,
+                           cr.top+win->scly, SRCCOPY);
 
             }
             /* Now fill the right and bottom sides of the client beyond the
@@ -3211,13 +3249,13 @@ static void restore(winptr win,   /* window to restore */
            /* check right side fill */
            memcpy(&cr2, &cr, sizeof(RECT)); /* copy update rectangle */
            /* subtract overlapping space */
-           if (cr2.left <= win->gmaxxg) cr2.left = win->gmaxxg;
+           if (cr2.left <= bx) cr2.left = bx;
            if (cr2.left <= cr2.right) /* still has width */
                 b = FillRect(win->devcon, &cr2, hb);
            /* check bottom side fill */
            memcpy(&cr2, &cr, sizeof(RECT)); /* copy update rectangle */
            /* subtract overlapping space */
-           if (cr2.top <= win->gmaxyg) cr2.top = win->gmaxyg;
+           if (cr2.top <= by) cr2.top = by;
            if (cr2.top <= cr2.bottom) /* still has height */
                 b = FillRect(win->devcon, &cr2, hb);
             b = DeleteObject(hb); /* free the brush */
@@ -3225,11 +3263,166 @@ static void restore(winptr win,   /* window to restore */
 
         }
         /* reapply the drawing transforms removed for the copy */
-        settrans(win->devcon, sc);
+        settransw(win, sc);
         settrans(sc->bdc, sc);
         setcur(win); /* show the cursor */
 
     }
+
+}
+
+/*******************************************************************************
+
+Scroll bars
+
+A buffered window whose buffer is larger than its client shows the window's
+own scroll bars, on the right for a taller buffer and along the bottom for a
+wider one, as windowc's character windows do. The bars are Windows' own:
+shown, hidden and set from this thread with the gate and the window's lock
+given up, since the calls run the display thread's window procedure, which
+takes both. The thumb is the client's share of the buffer, at the view's
+place in it. The view is scrolled by sclx and scly, the buffer pixels off the
+left and top of the client: the restore blits the buffer from there, drawing
+on the window is set back by that much (settransw), and the mouse and the
+caret are put in buffer terms. The option scrollbuffer under graphics in the
+configuration turns the bars off.
+
+*******************************************************************************/
+
+/* Keep the bars as the buffer and the client call for: shown or hidden, and
+   set to the client's share of the buffer at the view's place. A bar shown
+   takes from the client, which can call for the other bar and changes the
+   page, so the client is looked at again after the first setting. The calls
+   go to the display thread's window, so they run its window procedure, which
+   takes the gate and the window's lock: both are given up around them, the
+   gate when the caller holds it. */
+static void sclsync(winptr win, int mainheld)
+
+{
+
+    RECT       cr;
+    int        vb, hb, pass;
+    SCROLLINFO vi, hi;
+    BOOL       b;
+
+    if (!win->winhan) return; /* no window yet */
+    for (pass = 0; pass < 2; pass++) {
+
+        b = GetClientRect(win->winhan, &cr); /* the client as the bars leave it */
+        if (!b) return;
+        /* a minimized window has no client: its view would be clamped to
+           the buffer's far corner, and come back there; nothing changes */
+        if (cr.right < 1 || cr.bottom < 1) return;
+        vb = hb = FALSE;
+        if (scrollbuffer && win->bufmod) {
+
+            vb = win->gmaxyg > cr.bottom; /* the buffer is taller */
+            hb = win->gmaxxg > cr.right; /* wider */
+
+        }
+        /* the view within the buffer: as far as the last pixel */
+        if (win->sclx > win->gmaxxg-cr.right) win->sclx = win->gmaxxg-cr.right;
+        if (win->scly > win->gmaxyg-cr.bottom) win->scly = win->gmaxyg-cr.bottom;
+        if (win->sclx < 0 || !hb) win->sclx = 0;
+        if (win->scly < 0 || !vb) win->scly = 0;
+        if (!vb && !hb && !win->vbar && !win->hbar) return; /* none, and none */
+        vi.cbSize = sizeof(SCROLLINFO);
+        vi.fMask = SIF_RANGE | SIF_PAGE | SIF_POS;
+        vi.nMin = 0;
+        vi.nMax = win->gmaxyg-1; /* the buffer */
+        vi.nPage = cr.bottom; /* the client's share of it */
+        vi.nPos = win->scly; /* at the view's place */
+        hi.cbSize = sizeof(SCROLLINFO);
+        hi.fMask = SIF_RANGE | SIF_PAGE | SIF_POS;
+        hi.nMin = 0;
+        hi.nMax = win->gmaxxg-1;
+        hi.nPage = cr.right;
+        hi.nPos = win->sclx;
+        win->vbar = vb;
+        win->hbar = hb;
+        unlockwin(win); /* the window procedure runs within these */
+        if (mainheld) unlockmain();
+        ShowScrollBar(win->winhan, SB_VERT, vb);
+        ShowScrollBar(win->winhan, SB_HORZ, hb);
+        if (vb) SetScrollInfo(win->winhan, SB_VERT, &vi, TRUE);
+        if (hb) SetScrollInfo(win->winhan, SB_HORZ, &hi, TRUE);
+        if (mainheld) lockmain();
+        lockwin(win);
+
+    }
+
+}
+
+/* Scroll the view to the buffer offset given, within the buffer, and show
+   it: the bars follow, the client is repainted from the new place, and the
+   caret goes where the view puts it */
+static void sclset(winptr win, ami_long x, ami_long y)
+
+{
+
+    if (x == win->sclx && y == win->scly) return; /* no change */
+    win->sclx = x;
+    win->scly = y;
+    sclsync(win, TRUE); /* clamps, and sets the bars: a message, under the gate */
+    restore(win, TRUE); /* the client from the new place */
+
+}
+
+/* A message from one of the window's own bars: a line, a page, the thumb's
+   place, or an end. The line is a character cell, the page the client. The
+   codes for the two bars are the same numbers, up for left and down for
+   right. */
+static void sclmsg(winptr win, int vert, int v)
+
+{
+
+    RECT       cr;
+    SCROLLINFO si;
+    ami_long   p, line, page, lim;
+    BOOL       b;
+
+    b = GetClientRect(win->winhan, &cr);
+    if (!b) return;
+    if (vert) { /* the vertical bar: rows */
+
+        p = win->scly;
+        line = win->linespace;
+        page = cr.bottom;
+        lim = win->gmaxyg;
+
+    } else { /* the horizontal: columns */
+
+        p = win->sclx;
+        line = win->charspace;
+        page = cr.right;
+        lim = win->gmaxxg;
+
+    }
+    switch (v) {
+
+        case SB_LINEUP:   p -= line; break; /* and SB_LINELEFT */
+        case SB_LINEDOWN: p += line; break; /* and SB_LINERIGHT */
+        case SB_PAGEUP:   p -= page; break; /* and SB_PAGELEFT */
+        case SB_PAGEDOWN: p += page; break; /* and SB_PAGERIGHT */
+        case SB_TOP:      p = 0; break; /* and SB_LEFT */
+        case SB_BOTTOM:   p = lim; break; /* and SB_RIGHT: clamped below */
+        case SB_THUMBTRACK:
+        case SB_THUMBPOSITION:
+            /* the message carries sixteen bits of the place: the full place
+               is asked of the bar */
+            si.cbSize = sizeof(SCROLLINFO);
+            si.fMask = SIF_TRACKPOS;
+            b = GetScrollInfo(win->winhan, vert? SB_VERT: SB_HORZ, &si);
+            if (!b) return;
+            p = si.nTrackPos;
+            break;
+        default: return; /* SB_ENDSCROLL and the rest: nothing to do */
+
+    }
+    if (p > lim-page) p = lim-page; /* within the buffer */
+    if (p < 0) p = 0;
+    if (vert) sclset(win, win->sclx, p);
+    else sclset(win, p, win->scly);
 
 }
 
@@ -7617,7 +7810,7 @@ static void iviewoffg(winptr win, ami_long x, ami_long y)
     /* apply to the drawing surfaces; subsequent drawing is offset, existing
        content is unchanged */
     settrans(sc->bdc, sc);
-    if (indisp(win)) settrans(win->devcon, sc);
+    if (indisp(win)) settransw(win, sc);
 
 }
 
@@ -7674,7 +7867,7 @@ static void iviewscale(winptr win, float x, float y)
     /* apply to the drawing surfaces; subsequent drawing is scaled, existing
        content is unchanged */
     settrans(sc->bdc, sc);
-    if (indisp(win)) settrans(win->devcon, sc);
+    if (indisp(win)) settransw(win, sc);
 
 }
 
@@ -8022,10 +8215,12 @@ static void mouseevent(winptr win, MSG* msg)
 
 {
 
-    win->nmpx = msg->lParam%65536/win->charspace+1; /* get mouse x */
-    win->nmpy = msg->lParam/65536/win->linespace+1; /* get mouse y */
-    win->nmpxg = msg->lParam%65536+1; /* get mouse graphical x */
-    win->nmpyg = msg->lParam/65536+1; /* get mouse graphical y */
+    /* the position is the client's: in buffer terms it is the view's scroll
+       offset further on */
+    win->nmpxg = msg->lParam%65536+1+win->sclx; /* get mouse graphical x */
+    win->nmpyg = msg->lParam/65536+1+win->scly; /* get mouse graphical y */
+    win->nmpx = (win->nmpxg-1)/win->charspace+1; /* get mouse x */
+    win->nmpy = (win->nmpyg-1)/win->linespace+1; /* get mouse y */
     /* set new button statuses */
     if (msg->message == WM_LBUTTONDOWN) win->nmb1 = TRUE;
     if (msg->message == WM_LBUTTONUP) win->nmb1 = FALSE;
@@ -8182,7 +8377,7 @@ static void winevt(winptr win, ami_evtrec* er, MSG* msg, int ofn, int* keep)
             er->etype = ami_etresize; /* set resize message */
             *keep = TRUE; /* set keep event */
 
-        }
+        } else sclsync(win, TRUE); /* buffered: the bars follow the client */
 
     } else if (msg->message == WM_EXITSIZEMOVE) { /* end of interactive move/size */
 
@@ -8416,7 +8611,8 @@ static void winevt(winptr win, ami_evtrec* er, MSG* msg, int ofn, int* keep)
     } else if (msg->message == WM_VSCROLL)  {
 
         v = msg->wParam & 0xffff; /* find subcommand */
-        if (v == SB_THUMBTRACK ||
+        if (!msg->lParam) sclmsg(win, TRUE, v); /* the window's own bar */
+        else if (v == SB_THUMBTRACK ||
             v == SB_LINEUP || v == SB_LINEDOWN ||
             v == SB_PAGEUP || v == SB_PAGEDOWN) {
 
@@ -8482,7 +8678,8 @@ static void winevt(winptr win, ami_evtrec* er, MSG* msg, int ofn, int* keep)
     } else if (msg->message == WM_HSCROLL) {
 
         v = msg->wParam & 0xffff; /* find subcommand */
-        if (v == SB_THUMBTRACK || v == SB_LINELEFT || v == SB_LINERIGHT ||
+        if (!msg->lParam) sclmsg(win, FALSE, v); /* the window's own bar */
+        else if (v == SB_THUMBTRACK || v == SB_LINELEFT || v == SB_LINERIGHT ||
             v == SB_PAGELEFT || v == SB_PAGERIGHT) {
 
             /* position request */
@@ -10279,6 +10476,10 @@ static void opnwin(int fn, int pfn)
     win->curupd = 1; /* set current update screen */
     win->visible = FALSE; /* set not visible */
     win->resizing = 0; /* no geometry change in train */
+    win->sclx = 0; /* the view at the buffer's top left, no scroll bars */
+    win->scly = 0;
+    win->vbar = FALSE;
+    win->hbar = FALSE;
     /* now perform windows setup */
     /* set flags for window create */
     f = WS_OVERLAPPEDWINDOW | WS_CLIPCHILDREN;
@@ -10776,10 +10977,13 @@ static void isizbufg(winptr win, ami_long x, ami_long y)
     win->gmaxyg = y; /* set size in pixels y */
     /* The window keeps its size, as on the other platforms: the buffer is
        the program's surface and the window shows what of it fits, with the
-       margins beyond a smaller buffer painted by restore. The window was
-       sized to fit the new buffer here, which the X11 and macOS ports do
-       not do, and the user resizing the window to see a larger buffer is
-       what window_test's buffer frame asks for. */
+       margins beyond a smaller buffer painted by restore, and scroll bars
+       for a larger one. The window was sized to fit the new buffer here,
+       which the X11 and macOS ports do not do, and the user resizing the
+       window to see a larger buffer is what window_test's buffer frame asks
+       for. */
+    win->sclx = 0; /* a new buffer: the view at its top left */
+    win->scly = 0;
     /* all the screen buffers are wrong, so tear them out */
     for (si = 0; si < MAXCON; si++) {
 
@@ -10796,6 +11000,7 @@ static void isizbufg(winptr win, ami_long x, ami_long y)
         iniscn(win, win->screens[win->curupd-1]); /* initalize screen buffer */
 
     }
+    sclsync(win, FALSE); /* the scroll bars as the new buffer calls for */
     /* update to screen: after both buffers are there, since the restore
        places the cursor by the update buffer */
     restore(win, TRUE);
@@ -10882,6 +11087,7 @@ static void ibuffer(winptr win, ami_long e)
                          SWP_NOMOVE | SWP_NOZORDER);
         lockwin(win); /* start exclusive access */
         if (!b) winerr(); /* process windows error */
+        sclsync(win, FALSE); /* the scroll bars as the buffer calls for */
         restore(win, TRUE); /* restore buffer to screen */
 
     } else if (win->bufmod) { /* perform buffer off actions */
@@ -10891,6 +11097,7 @@ static void ibuffer(winptr win, ami_long e)
            update to point to it as well. This single buffer  serves as
            a "template" for the real pixels on screen. */
         win->bufmod = FALSE; /* turn buffer mode off */
+        sclsync(win, FALSE); /* no scroll bars in follow mode */
         /* dispose of screen data structures */
         for (si = 0; si < MAXCON; si++) if (si != win->curdsp-1)
             if (win->screens[si]) {
@@ -15931,9 +16138,11 @@ static LRESULT CALLBACK wndproc(HWND hwnd, UINT imsg, WPARAM wparam,
 
             /* activate caret */
             b = CreateCaret(win->winhan, 0, win->curspace, 3);
-            /* set caret (text cursor) position at bottom of bounding box */
-            b = SetCaretPos(win->screens[win->curdsp-1]->curxg-1,
-                            win->screens[win->curdsp-1]->curyg-1+win->linespace-3);
+            /* set caret (text cursor) position at bottom of bounding box,
+               where the view puts it */
+            b = SetCaretPos(win->screens[win->curdsp-1]->curxg-1-win->sclx,
+                            win->screens[win->curdsp-1]->curyg-1+
+                                win->linespace-3-win->scly);
             win->focus = TRUE; /* set screen in focus */
             curon(win); /* show the cursor */
 
@@ -17021,6 +17230,9 @@ static void ami_init_graph()
 
         vp = ami_schlst("console_points", graph_root->sublist);
         if (vp) { conpnt = strtol(vp->value, &errstr, 10); if (*errstr) error(ecfgval); }
+
+        vp = ami_schlst("scrollbuffer", graph_root->sublist);
+        if (vp) { scrollbuffer = strtol(vp->value, &errstr, 10) != 0; if (*errstr) error(ecfgval); }
 
         /* find windows subsection */
         win_root = ami_schlst("windows", graph_root->sublist);
