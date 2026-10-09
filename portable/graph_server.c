@@ -190,6 +190,18 @@ static void status(const char* fmt, ...)
 
 }
 
+/* the waiting line, before whatever blocks for the client: the secure
+   wait is the handshake itself, the plain wait is the hello read */
+static void waiting(void)
+
+{
+
+    status("waiting for %sconnection on port %lld, events on port %lld",
+           gsecure? "secure ": "", AMI_LONG_CAST(srvport),
+           AMI_LONG_CAST(srvport+1));
+
+}
+
 /* A session error: the client's fault or the wire's, not the server's.
    The error prints, the session drops, and the server recycles to wait
    for a new connection; only faults of the server itself exit. The
@@ -2186,6 +2198,9 @@ int main(int argc, char* argv[])
        control-c in the shell, which the library gives as an event. */
     pump = ami_newthread(evpump);
     if (pump < 1) error("Cannot start event pump");
+    /* the secure wait is the client's handshake, and returns only when
+       one has come: the waiting is announced before it */
+    if (gsecure) waiting();
     cmdfn = ami_waitmsg(srvport, gsecure);
     evtfn = ami_waitmsg(srvport+1, gsecure);
     /* deep receive buffers: a full flow window must fit with room,
@@ -2248,9 +2263,9 @@ int main(int argc, char* argv[])
            and its client is waiting on the event channel exchange */
         if (!hellopend) {
 
-            status("waiting for %sconnection on port %lld, events on "
-                   "port %lld", gsecure? "secure ": "",
-                   AMI_LONG_CAST(srvport), AMI_LONG_CAST(srvport+1));
+            /* a plain channel waits here, on the hello; a secure one
+               waited on the handshake, and announced itself there */
+            if (!gsecure) waiting();
             rlen = ami_rdmsg(cmdfn, rbase, msgmax);
             if (rlen < (ami_long)sizeof(gr_msghdr))
                 sesserr("Short message from client");
@@ -2333,6 +2348,7 @@ winddown:
             if (!setjmp(closejmp)) ami_clsmsg(cmdfn);
             if (!setjmp(closejmp)) ami_clsmsg(evtfn);
             inclose = 0;
+            waiting();
             cmdfn = ami_waitmsg(srvport, gsecure);
             evtfn = ami_waitmsg(srvport+1, gsecure);
             ami_tmomsg(cmdfn, 0);
