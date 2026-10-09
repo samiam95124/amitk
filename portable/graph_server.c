@@ -1043,13 +1043,15 @@ static void evpump(void)
                so the library's own winddown runs where it belongs. */
             if (!clientup || sigasked) {
 
-                status(clientup? "shutting down, the client abandoned":
-                                 "shutting down");
+                status("shutting down, port %lld released%s",
+                       AMI_LONG_CAST(srvport),
+                       clientup? ", the client on it abandoned": "");
                 exit(1);
 
             }
             sigasked = 1; /* the client was told; a second asks the server */
-            status("the window was closed on the client, ending its session");
+            status("the window was closed on the connection on port %lld, "
+                   "ending its session", AMI_LONG_CAST(srvport));
 
         }
         if (!clientup) continue; /* idle: nobody to forward to */
@@ -2246,8 +2248,9 @@ int main(int argc, char* argv[])
            and its client is waiting on the event channel exchange */
         if (!hellopend) {
 
-            status("awaiting %sconnection on port %lld",
-                   gsecure? "secure ": "", AMI_LONG_CAST(srvport));
+            status("waiting for %sconnection on port %lld, events on "
+                   "port %lld", gsecure? "secure ": "",
+                   AMI_LONG_CAST(srvport), AMI_LONG_CAST(srvport+1));
             rlen = ami_rdmsg(cmdfn, rbase, msgmax);
             if (rlen < (ami_long)sizeof(gr_msghdr))
                 sesserr("Short message from client");
@@ -2281,7 +2284,8 @@ int main(int argc, char* argv[])
         /* the clear, and no pending events from a prior session */
         ondisplay(job_clear, NULL);
         clientup = 1; /* the pump forwards from here on */
-        status("client connected");
+        status("connection arrived on port %lld, its event channel on port "
+               "%lld", AMI_LONG_CAST(srvport), AMI_LONG_CAST(srvport+1));
 
         /* The command loop. A burst of commands executes under one hold
            of the display lock: after the blocking read, the socket
@@ -2307,11 +2311,13 @@ int main(int argc, char* argv[])
         /* a terminate that asked this session to end ended just the
            session: the server winds down and waits for the next client,
            as it does after any other bye */
-        status(hellopend? "a new client is connecting, the old session ends":
-               sigasked?  "the client has gone, its session ends":
-                          "client disconnected");
 
 winddown:
+        status("connection on port %lld closed: %s", AMI_LONG_CAST(srvport),
+               faulted?   "session error":
+               hellopend? "a new client's hello replaced it":
+               sigasked?  "the window was closed on it":
+                          "the client said bye");
         clientup = 0;
         cleaning = 1; /* a fault in the winddown itself is fatal */
 
