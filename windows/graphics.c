@@ -8344,6 +8344,37 @@ static void joymes(ami_evtrec* er, MSG* msg, int ofn, int* keep)
 
 }
 
+/* A scroll bar's thumb place as a full scale value, and the reverse. The
+   control's range is 0 to 255, and Windows lets the thumb travel that less
+   the page but one, so the end of the travel, not 255, is LONG_MAX, and
+   LONG_MAX set by the program puts the thumb at the end. */
+
+static ami_long sclscale(wigptr wp, ami_long p)
+
+{
+
+    ami_long t = wp->siz > 0? 256-wp->siz: 255; /* the thumb's travel */
+
+    if (p >= t) return (LONG_MAX);
+    if (p <= 0) return (0);
+
+    return ((ami_long)((double)p*LONG_MAX/t+0.5));
+
+}
+
+static int sclplace(wigptr wp, ami_long r)
+
+{
+
+    ami_long t = wp->siz > 0? 256-wp->siz: 255; /* the thumb's travel */
+
+    if (r >= LONG_MAX) return (t);
+    if (r <= 0) return (0);
+
+    return ((int)((double)r*t/LONG_MAX+0.5));
+
+}
+
 /* process windows messages to event */
 
 static void winevt(winptr win, ami_evtrec* er, MSG* msg, int ofn, int* keep)
@@ -8686,11 +8717,8 @@ static void winevt(winptr win, ami_evtrec* er, MSG* msg, int ofn, int* keep)
 
                     er->etype = ami_etsclpos; /* set scroll position event */
                     er->sclpid = wp->id; /* set widget id */
-                    f = msg->wParam/0x10000; /* get current position to float */
-                    /* clamp to LONG_MAX */
-                    if (f*LONG_MAX/(255-wp->siz) >= LONG_MAX) er->sclpos = LONG_MAX;
-                    else er->sclpos = f*LONG_MAX/(255-wp->siz);
-                    /*er->sclpos = msg->wParam / 65536*0x800000*/ /* get position */
+                    /* the thumb's place, full scale */
+                    er->sclpos = sclscale(wp, msg->wParam/0x10000);
 
                 }
                 *keep = TRUE; /* set keep event */
@@ -8752,7 +8780,11 @@ static void winevt(winptr win, ami_evtrec* er, MSG* msg, int ofn, int* keep)
 
                     er->etype = ami_etsclpos; /* set scroll position event */
                     er->sclpid = wp->id; /* set widget id */
-                    er->sclpos = msg->wParam / 65536*0x800000; /* get position */
+                    /* the thumb's place, full scale: this took the place
+                       times 2^23, whose top, 255 of them, is short of
+                       LONG_MAX by one such step, so the bar never reached
+                       the end the vertical one did */
+                    er->sclpos = sclscale(wp, msg->wParam/0x10000);
 
                 }
                 *keep = TRUE; /* set keep event */
@@ -13837,17 +13869,16 @@ static void iscrollpos(winptr win, ami_long id, ami_long r)
 
     wigptr wp; /* widget pointer */
     int    rv; /* return value */
-    float  f;  /* floating temp */
     int    p;  /* calculated position to set */
 
     if (r < 0) error(einvspos); /* invalid position */
     if (!win->visible) winvis(win); /* make sure we are displayed */
     wp = fndwig(win, id); /* find widget */
     if (!wp) error(ewignf); /* not found */
-    f = r; /* place position in float */
-    /* clamp to max */
-    if (f*(255-wp->siz)/LONG_MAX > 255) p = 255;
-    else p = f*(255-wp->siz)/LONG_MAX;
+    /* the thumb's place for the value: full scale is the end of its travel,
+       which the range less the page but one allows, where it used to fall
+       one place short of the end */
+    p = sclplace(wp, r);
     unlockwin(win); /* end exclusive access */
     rv = SetScrollPos(wp->han, SB_CTL, p, TRUE);
     lockwin(win);/* start exclusive access */
