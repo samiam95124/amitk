@@ -412,6 +412,9 @@ typedef struct winrec {
     int      focus;           /* screen in focus */
     pict     pictbl[MAXPIC];  /* loadable pictures table */
     int      bufmod;          /* buffered screen mode */
+    int      bufset;          /* the program set the buffer's size: until
+                                 it does, the buffer follows the window's
+                                 client through setsiz */
     HMENU    menhan;          /* handle to (main) menu */
     metptr   metlst;          /* menu tracking list */
     wigptr   wiglst;          /* widget tracking list */
@@ -425,6 +428,10 @@ typedef struct winrec {
     ami_long scly;
     int      vbar;            /* the vertical scroll bar shows */
     int      hbar;            /* the horizontal scroll bar shows */
+    int      sbvset;          /* the vertical bar is set, as below */
+    ami_long sbvmax, sbvpage, sbvpos; /* what it was set to */
+    int      sbhset;          /* the horizontal bar the same */
+    ami_long sbhmax, sbhpage, sbhpos;
     int      visible;         /* window is visible */
     int      resizing;        /* a geometry change is in train, the main lock
                                  dropped for it: a paint the display thread
@@ -3290,64 +3297,98 @@ configuration turns the bars off.
 *******************************************************************************/
 
 /* Keep the bars as the buffer and the client call for: shown or hidden, and
-   set to the client's share of the buffer at the view's place. A bar shown
-   takes from the client, which can call for the other bar and changes the
-   page, so the client is looked at again after the first setting. The calls
-   go to the display thread's window, so they run its window procedure, which
-   takes the gate and the window's lock: both are given up around them, the
-   gate when the caller holds it. */
+   set to the client's share of the buffer at the view's place. The need is
+   reckoned from the client as it would be with no bars, the client as it is
+   plus the bars shown, so that a bar does not justify itself by the room it
+   takes; a bar needed takes a cell from the other direction, which can call
+   for the other bar. The bars are touched only when something changes: a
+   change of what shows runs the display thread's window procedure, which
+   takes the gate and the window's lock and sends a size message of its own,
+   so both locks are given up around it, the gate when the caller holds it,
+   and a call for every size message would feed itself. */
 static void sclsync(winptr win, int mainheld)
 
 {
 
     RECT       cr;
-    int        vb, hb, pass;
-    SCROLLINFO vi, hi;
-    BOOL       b;
+    int        vb, hb, cxv, cyh;
+    ami_long   bw, bh, pw, ph;
+    SCROLLINFO si;
 
     if (!win->winhan) return; /* no window yet */
-    for (pass = 0; pass < 2; pass++) {
+    if (!GetClientRect(win->winhan, &cr)) return;
+    /* a minimized window has no client: its view would be clamped to the
+       buffer's far corner, and come back there; nothing changes */
+    if (cr.right < 1 || cr.bottom < 1) return;
+    cxv = GetSystemMetrics(SM_CXVSCROLL); /* the bars' thickness */
+    cyh = GetSystemMetrics(SM_CYHSCROLL);
+    bw = cr.right+(win->vbar? cxv: 0); /* the client with no bars */
+    bh = cr.bottom+(win->hbar? cyh: 0);
+    vb = hb = FALSE;
+    if (scrollbuffer && win->bufmod) {
 
-        b = GetClientRect(win->winhan, &cr); /* the client as the bars leave it */
-        if (!b) return;
-        /* a minimized window has no client: its view would be clamped to
-           the buffer's far corner, and come back there; nothing changes */
-        if (cr.right < 1 || cr.bottom < 1) return;
-        vb = hb = FALSE;
-        if (scrollbuffer && win->bufmod) {
+        vb = win->gmaxyg > bh; /* the buffer is taller than the client */
+        hb = win->gmaxxg > bw; /* wider */
+        if (vb && !hb) hb = win->gmaxxg > bw-cxv; /* less the other bar */
+        if (hb && !vb) vb = win->gmaxyg > bh-cyh;
 
-            vb = win->gmaxyg > cr.bottom; /* the buffer is taller */
-            hb = win->gmaxxg > cr.right; /* wider */
+    }
+    pw = bw-(vb? cxv: 0); /* the client as the bars leave it: the page */
+    ph = bh-(hb? cyh: 0);
+    /* the view within the buffer: as far as the last pixel */
+    if (win->sclx > win->gmaxxg-pw) win->sclx = win->gmaxxg-pw;
+    if (win->scly > win->gmaxyg-ph) win->scly = win->gmaxyg-ph;
+    if (win->sclx < 0 || !hb) win->sclx = 0;
+    if (win->scly < 0 || !vb) win->scly = 0;
+    if (vb != win->vbar || hb != win->hbar) { /* what shows changes */
 
-        }
-        /* the view within the buffer: as far as the last pixel */
-        if (win->sclx > win->gmaxxg-cr.right) win->sclx = win->gmaxxg-cr.right;
-        if (win->scly > win->gmaxyg-cr.bottom) win->scly = win->gmaxyg-cr.bottom;
-        if (win->sclx < 0 || !hb) win->sclx = 0;
-        if (win->scly < 0 || !vb) win->scly = 0;
-        if (!vb && !hb && !win->vbar && !win->hbar) return; /* none, and none */
-        vi.cbSize = sizeof(SCROLLINFO);
-        vi.fMask = SIF_RANGE | SIF_PAGE | SIF_POS;
-        vi.nMin = 0;
-        vi.nMax = win->gmaxyg-1; /* the buffer */
-        vi.nPage = cr.bottom; /* the client's share of it */
-        vi.nPos = win->scly; /* at the view's place */
-        hi.cbSize = sizeof(SCROLLINFO);
-        hi.fMask = SIF_RANGE | SIF_PAGE | SIF_POS;
-        hi.nMin = 0;
-        hi.nMax = win->gmaxxg-1;
-        hi.nPage = cr.right;
-        hi.nPos = win->sclx;
-        win->vbar = vb;
-        win->hbar = hb;
         unlockwin(win); /* the window procedure runs within these */
         if (mainheld) unlockmain();
-        ShowScrollBar(win->winhan, SB_VERT, vb);
-        ShowScrollBar(win->winhan, SB_HORZ, hb);
-        if (vb) SetScrollInfo(win->winhan, SB_VERT, &vi, TRUE);
-        if (hb) SetScrollInfo(win->winhan, SB_HORZ, &hi, TRUE);
+        if (vb != win->vbar) ShowScrollBar(win->winhan, SB_VERT, vb);
+        if (hb != win->hbar) ShowScrollBar(win->winhan, SB_HORZ, hb);
         if (mainheld) lockmain();
         lockwin(win);
+        win->vbar = vb;
+        win->hbar = hb;
+        win->sbvset = FALSE; /* a bar shown afresh is to be set */
+        win->sbhset = FALSE;
+
+    }
+    si.cbSize = sizeof(SCROLLINFO);
+    si.fMask = SIF_RANGE | SIF_PAGE | SIF_POS;
+    si.nMin = 0;
+    if (vb && (!win->sbvset || win->sbvmax != win->gmaxyg-1 ||
+               win->sbvpage != ph || win->sbvpos != win->scly)) {
+
+        si.nMax = win->gmaxyg-1; /* the buffer */
+        si.nPage = ph; /* the client's share of it */
+        si.nPos = win->scly; /* at the view's place */
+        unlockwin(win);
+        if (mainheld) unlockmain();
+        SetScrollInfo(win->winhan, SB_VERT, &si, TRUE);
+        if (mainheld) lockmain();
+        lockwin(win);
+        win->sbvset = TRUE; /* as set, so the same again is no call */
+        win->sbvmax = si.nMax;
+        win->sbvpage = ph;
+        win->sbvpos = win->scly;
+
+    }
+    if (hb && (!win->sbhset || win->sbhmax != win->gmaxxg-1 ||
+               win->sbhpage != pw || win->sbhpos != win->sclx)) {
+
+        si.nMax = win->gmaxxg-1;
+        si.nPage = pw;
+        si.nPos = win->sclx;
+        unlockwin(win);
+        if (mainheld) unlockmain();
+        SetScrollInfo(win->winhan, SB_HORZ, &si, TRUE);
+        if (mainheld) lockmain();
+        lockwin(win);
+        win->sbhset = TRUE;
+        win->sbhmax = si.nMax;
+        win->sbhpage = pw;
+        win->sbhpos = win->sclx;
 
     }
 
@@ -8303,6 +8344,37 @@ static void joymes(ami_evtrec* er, MSG* msg, int ofn, int* keep)
 
 }
 
+/* A scroll bar's thumb place as a full scale value, and the reverse. The
+   control's range is 0 to 255, and Windows lets the thumb travel that less
+   the page but one, so the end of the travel, not 255, is LONG_MAX, and
+   LONG_MAX set by the program puts the thumb at the end. */
+
+static ami_long sclscale(wigptr wp, ami_long p)
+
+{
+
+    ami_long t = wp->siz > 0? 256-wp->siz: 255; /* the thumb's travel */
+
+    if (p >= t) return (LONG_MAX);
+    if (p <= 0) return (0);
+
+    return ((ami_long)((double)p*LONG_MAX/t+0.5));
+
+}
+
+static int sclplace(wigptr wp, ami_long r)
+
+{
+
+    ami_long t = wp->siz > 0? 256-wp->siz: 255; /* the thumb's travel */
+
+    if (r >= LONG_MAX) return (t);
+    if (r <= 0) return (0);
+
+    return ((int)((double)r*t/LONG_MAX+0.5));
+
+}
+
 /* process windows messages to event */
 
 static void winevt(winptr win, ami_evtrec* er, MSG* msg, int ofn, int* keep)
@@ -8564,7 +8636,14 @@ static void winevt(winptr win, ami_evtrec* er, MSG* msg, int ofn, int* keep)
                 case wtscrollhoriz: break; /* scrollbar, gives no messages */
                 case wteditbox: break; /* edit box, requires no messages */
                 case wtlistbox: /* list box */
-                    if (nm == LBN_DBLCLK) {
+                    /* A selection is a click, as it is on the other ports
+                       and in windowc: this took a double click, which is not
+                       Windows' own convention either, whose list boxes select
+                       on the click and report it as a selection change. A
+                       double click changes the selection once, so it is one
+                       selection; the keyboard moving the selection is one
+                       as well. */
+                    if (nm == LBN_SELCHANGE) {
 
                         unlockwin(win); unlockmain(); /* end exclusive access */
                         r = SendMessage(wp->han, LB_GETCURSEL, 0, 0);
@@ -8645,11 +8724,8 @@ static void winevt(winptr win, ami_evtrec* er, MSG* msg, int ofn, int* keep)
 
                     er->etype = ami_etsclpos; /* set scroll position event */
                     er->sclpid = wp->id; /* set widget id */
-                    f = msg->wParam/0x10000; /* get current position to float */
-                    /* clamp to LONG_MAX */
-                    if (f*LONG_MAX/(255-wp->siz) >= LONG_MAX) er->sclpos = LONG_MAX;
-                    else er->sclpos = f*LONG_MAX/(255-wp->siz);
-                    /*er->sclpos = msg->wParam / 65536*0x800000*/ /* get position */
+                    /* the thumb's place, full scale */
+                    er->sclpos = sclscale(wp, msg->wParam/0x10000);
 
                 }
                 *keep = TRUE; /* set keep event */
@@ -8711,7 +8787,11 @@ static void winevt(winptr win, ami_evtrec* er, MSG* msg, int ofn, int* keep)
 
                     er->etype = ami_etsclpos; /* set scroll position event */
                     er->sclpid = wp->id; /* set widget id */
-                    er->sclpos = msg->wParam / 65536*0x800000; /* get position */
+                    /* the thumb's place, full scale: this took the place
+                       times 2^23, whose top, 255 of them, is short of
+                       LONG_MAX by one such step, so the bar never reached
+                       the end the vertical one did */
+                    er->sclpos = sclscale(wp, msg->wParam/0x10000);
 
                 }
                 *keep = TRUE; /* set keep event */
@@ -10480,6 +10560,9 @@ static void opnwin(int fn, int pfn)
     win->scly = 0;
     win->vbar = FALSE;
     win->hbar = FALSE;
+    win->sbvset = FALSE; /* no bar set yet */
+    win->sbhset = FALSE;
+    win->bufset = FALSE; /* the buffer follows the client until set */
     /* now perform windows setup */
     /* set flags for window create */
     f = WS_OVERLAPPEDWINDOW | WS_CLIPCHILDREN;
@@ -11016,6 +11099,7 @@ static void sizbufg_ivf(FILE* f, ami_long x, ami_long y)
 
     win = txt2win(f); /* get window pointer from text file */
     lockwin(win); /* the window's own lock */
+    win->bufset = TRUE; /* the program sets the buffer: it holds from here */
     isizbufg(win, x, y); /* execute */
     unlockwin(win); /* the window's data is done with */
 
@@ -11038,6 +11122,7 @@ static void sizbuf_ivf(FILE* f, ami_long x, ami_long y)
     win = txt2win(f); /* get window context */
     lockwin(win); /* the window's own lock */
     /* just translate from characters to pixels and do the resize in pixels. */
+    win->bufset = TRUE; /* the program sets the buffer: it holds from here */
     isizbufg(win, x*win->charspace, y*win->linespace);
     unlockwin(win); /* the window's data is done with */
 
@@ -11687,11 +11772,28 @@ static void isetsizg(winptr win, ami_long x, ami_long y)
     win->resizing++; /* a geometry change begins: paints are tolerant */
 
     BOOL b; /* result holder */
+    RECT cr; /* client rectangle */
+    ami_long bw, bh; /* the client with no scroll bars */
 
     unlockwin(win); /* end exclusive access */
     b = SetWindowPos(win->winhan, 0, 0, 0, x, y, SWP_NOMOVE | SWP_NOZORDER);
     lockwin(win); /* start exclusive access */
     if (!b) winerr(); /* process windows error */
+    /* A buffer the program has not set follows the window: it was the
+       client's size at the open, and is the client's size after. A program
+       that sizes a window and never its buffer expects the two to match, as
+       window_test's window size frames do; the buffer as opened was left
+       larger than the window sized smaller, and showed scroll bars for it.
+       A buffer set with sizbuf holds. The client is taken as it would be
+       with no bars, which the buffer's new size then calls for none of. */
+    if (win->bufmod && !win->bufset && GetClientRect(win->winhan, &cr)) {
+
+        bw = cr.right+(win->vbar? GetSystemMetrics(SM_CXVSCROLL): 0);
+        bh = cr.bottom+(win->hbar? GetSystemMetrics(SM_CYHSCROLL): 0);
+        if (bw >= 1 && bh >= 1 && (bw != win->gmaxxg || bh != win->gmaxyg))
+            isizbufg(win, bw, bh);
+
+    }
 
     win->resizing--; /* the geometry change is done */
 }
@@ -13774,17 +13876,16 @@ static void iscrollpos(winptr win, ami_long id, ami_long r)
 
     wigptr wp; /* widget pointer */
     int    rv; /* return value */
-    float  f;  /* floating temp */
     int    p;  /* calculated position to set */
 
     if (r < 0) error(einvspos); /* invalid position */
     if (!win->visible) winvis(win); /* make sure we are displayed */
     wp = fndwig(win, id); /* find widget */
     if (!wp) error(ewignf); /* not found */
-    f = r; /* place position in float */
-    /* clamp to max */
-    if (f*(255-wp->siz)/LONG_MAX > 255) p = 255;
-    else p = f*(255-wp->siz)/LONG_MAX;
+    /* the thumb's place for the value: full scale is the end of its travel,
+       which the range less the page but one allows, where it used to fall
+       one place short of the end */
+    p = sclplace(wp, r);
     unlockwin(win); /* end exclusive access */
     rv = SetScrollPos(wp->han, SB_CTL, p, TRUE);
     lockwin(win);/* start exclusive access */
