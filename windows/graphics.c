@@ -10766,8 +10766,6 @@ static void isizbufg(winptr win, ami_long x, ami_long y)
 
     win->resizing++; /* a geometry change begins: paints are tolerant */
 
-    int b; /* int result holder */
-    RECT cr; /* client rectangle holder */
     int si;  /* index for current display screen */
 
     if (x < 1 || y < 1)  error(einvsiz); /* invalid buffer size */
@@ -10776,19 +10774,12 @@ static void isizbufg(winptr win, ami_long x, ami_long y)
     win->gmaxy = y/win->linespace; /* find character size y */
     win->gmaxxg = x; /* set size in pixels x */
     win->gmaxyg = y; /* set size in pixels y */
-    cr.left = 0; /* set up desired client rectangle */
-    cr.top = 0;
-    cr.right = win->gmaxxg;
-    cr.bottom = win->gmaxyg;
-    /* find window size from client size */
-    b = adjwinrect(win, &cr, WS_OVERLAPPEDWINDOW, FALSE);
-    if (!b) winerr(); /* process windows error */
-    /* now, resize the window to just fit our new buffer size */
-    unlockwin(win); /* end exclusive access */
-    b = SetWindowPos(win->winhan, 0, 0, 0, cr.right-cr.left, cr.bottom-cr.top,
-                     SWP_NOMOVE | SWP_NOZORDER);
-    lockwin(win); /* start exclusive access */
-    if (!b) winerr(); /* process windows error */
+    /* The window keeps its size, as on the other platforms: the buffer is
+       the program's surface and the window shows what of it fits, with the
+       margins beyond a smaller buffer painted by restore. The window was
+       sized to fit the new buffer here, which the X11 and macOS ports do
+       not do, and the user resizing the window to see a larger buffer is
+       what window_test's buffer frame asks for. */
     /* all the screen buffers are wrong, so tear them out */
     for (si = 0; si < MAXCON; si++) {
 
