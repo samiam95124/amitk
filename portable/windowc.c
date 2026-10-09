@@ -706,9 +706,9 @@ static wigptr   popstk[MAXPOP]; /* open popup stack, bottom first */
 static int      popcnt;       /* number of open popups */
 static ami_long drgx;         /* drag pin x */
 static ami_long drgy;         /* drag pin y */
-static int      scrollbars = TRUE; /* child windows show scroll bars for a
+static int      scrollbuffer = TRUE; /* child windows show scroll bars for a
                                       buffer larger than the client: the
-                                      option scrollbars under windowc in the
+                                      option scrollbuffer under windowc in the
                                       configuration, on by default */
 static ami_valptr cfgroot;    /* the configuration tree */
 static ami_pevthan evthan[ami_etmenus+1]; /* array of event handler routines */
@@ -2419,7 +2419,7 @@ place. The bars are the client's last column and row, so the view, the client
 cells that show the buffer, is the client less them; a bar taking a cell from
 the other direction's view can call for the other bar. The view is scrolled by
 vwx and vwy, the buffer columns and rows off its left and top. The option
-scrollbars under windowc in the configuration turns the bars off.
+scrollbuffer under windowc in the configuration turns the bars off.
 
 *******************************************************************************/
 
@@ -2429,7 +2429,7 @@ static void sclbars(winptr win, int* vb, int* hb)
 {
 
     *vb = *hb = FALSE;
-    if (!scrollbars || win->root || win->widget || !win->bufmod) return;
+    if (!scrollbuffer || win->root || win->widget || !win->bufmod) return;
     if (win->cmaxx < 2 || win->cmaxy < 2) return; /* no room for bar and view */
     *vb = win->bufy > win->cmaxy;
     *hb = win->bufx > win->cmaxx;
@@ -12183,15 +12183,15 @@ static void init_windowc()
     ami_valptr vp; /* configuration value */
     char*     errstr;
 
-    /* the scroll bar option: scrollbars under windowc in the configuration,
+    /* the scroll bar option: scrollbuffer under windowc in the configuration,
        1 on (the default) or 0 off */
     cfgroot = NULL;
     ami_config(&cfgroot);
     vp = ami_schlst("windowc", cfgroot);
     if (vp && vp->sublist) {
 
-        vp = ami_schlst("scrollbars", vp->sublist);
-        if (vp && vp->value) scrollbars = strtol(vp->value, &errstr, 10) != 0;
+        vp = ami_schlst("scrollbuffer", vp->sublist);
+        if (vp && vp->value) scrollbuffer = strtol(vp->value, &errstr, 10) != 0;
 
     }
     winfre = NULL; /* clear free windows structure list */
