@@ -3790,7 +3790,18 @@ void ami_closesynthin(ami_long p)
 
 {
 
-    error("ami_closesynthin: Is not implemented");
+    midinpptr dp;
+
+    if (p < 1 || p > MAXMIDP) error("Invalid MIDI input port number");
+    dp = midinptab[p-1]; /* get device pointer */
+    if (!dp || !dp->open) error("MIDI input device is not open");
+    /* stop input, hand the buffers back, and release them with the device */
+    midiInStop(dp->hmi);
+    midiInReset(dp->hmi);
+    midiInUnprepareHeader(dp->hmi, &dp->mh1, sizeof(MIDIHDR));
+    midiInUnprepareHeader(dp->hmi, &dp->mh2, sizeof(MIDIHDR));
+    midiInClose(dp->hmi);
+    dp->open = FALSE; /* set device closed */
 
 }
 
@@ -4091,7 +4102,10 @@ void ami_getparamsynthout(ami_long p, string name, string value, ami_long len)
 
 {
 
-    error("ami_getparamsynthout: Is not implemented");
+    /* the Windows devices carry no parameters: an empty value, as the
+       Linux port answers for an ALSA device */
+    if (p < 1 || p > MAXMIDP) error("Invalid synthesizer port");
+    cpycrit(value, len, "");
 
 }
 
@@ -4114,7 +4128,8 @@ void ami_getparamsynthin(ami_long p, string name, string value, ami_long len)
 
 {
 
-    error("ami_getparamsynthin: Is not implemented");
+    if (p < 1 || p > MAXMIDP) error("Invalid MIDI input port number");
+    cpycrit(value, len, ""); /* no parameters on a Windows device */
 
 }
 
@@ -4137,7 +4152,8 @@ void ami_getparamwaveout(ami_long p, string name, string value, ami_long len)
 
 {
 
-    error("ami_getparamwaveout: Is not implemented");
+    if (p < 1 || p > MAXWAVP) error("Invalid wave output port number");
+    cpycrit(value, len, ""); /* no parameters on a Windows device */
 
 }
 
@@ -4160,7 +4176,8 @@ void ami_getparamwavein(ami_long p, string name, string value, ami_long len)
 
 {
 
-    error("ami_getparamwavein: Is not implemented");
+    if (p < 1 || p > MAXWAVP) error("Invalid wave input port number");
+    cpycrit(value, len, ""); /* no parameters on a Windows device */
 
 }
 
@@ -4181,7 +4198,11 @@ ami_long ami_setparamsynthout(ami_long p, string name, string value)
 
 {
 
-    error("ami_setparamsynthout: Is not implemented");
+    /* the Windows devices carry no parameters: the set is declined, as
+       the Linux port answers for an ALSA device */
+    if (p < 1 || p > MAXMIDP) error("Invalid synthesizer port");
+
+    return (1);
 
     return (1); /* this just shuts up compiler */
 
@@ -4204,7 +4225,9 @@ ami_long ami_setparamsynthin(ami_long p, string name, string value)
 
 {
 
-    error("ami_setparamsynthin: Is not implemented");
+    if (p < 1 || p > MAXMIDP) error("Invalid MIDI input port number");
+
+    return (1); /* declined: no parameters on a Windows device */
 
     return (1); /* this just shuts up compiler */
 
@@ -4227,7 +4250,9 @@ ami_long ami_setparamwaveout(ami_long p, string name, string value)
 
 {
 
-    error("ami_setparamwaveout: Is not implemented");
+    if (p < 1 || p > MAXWAVP) error("Invalid wave output port number");
+
+    return (1); /* declined: no parameters on a Windows device */
 
     return (1); /* this just shuts up compiler */
 
@@ -4250,7 +4275,9 @@ ami_long ami_setparamwavein(ami_long p, string name, string value)
 
 {
 
-    error("ami_setparamwavein: Is not implemented");
+    if (p < 1 || p > MAXWAVP) error("Invalid wave input port number");
+
+    return (1); /* declined: no parameters on a Windows device */
 
     return (1); /* this just shuts up compiler */
 
@@ -4286,5 +4313,52 @@ static void ami_init_sound()
     InitializeCriticalSection(&seqlock); /* initialize the sequencer lock */
     /* initialize wave play complete signal */
     playwavecomplete = CreateEvent(NULL, TRUE, FALSE, NULL);
+
+}
+
+/*******************************************************************************
+
+Deinitialize sound module
+
+Closes whatever devices the program left open, on any exit: a MIDI or wave
+device still open when the process shuts down faults inside the Windows audio
+driver as it is unloaded (wdmaud.drv, from LdrShutdownProcess), so an error
+exit with the synthesizer open took an access violation on the way out. The
+sequencer timer goes first, so no callback runs into a closed device.
+
+*******************************************************************************/
+
+static void ami_deinit_sound (void) __attribute__((destructor (103)));
+static void ami_deinit_sound()
+
+{
+
+    int i;
+
+    if (timhan) { timeKillEvent(timhan); timhan = 0; }
+    for (i = 0; i < MAXMIDP; i++)
+        if (midouttab[i] != (HMIDIOUT)-1 && midouttab[i]) {
+
+        midiOutReset(midouttab[i]);
+        midiOutClose(midouttab[i]);
+        midouttab[i] = (HMIDIOUT)-1;
+
+    }
+    for (i = 0; i < MAXMIDP; i++)
+        if (midinptab[i] && midinptab[i]->open) ami_closesynthin(i+1);
+    for (i = 0; i < MAXWAVP; i++) if (pcmout[i] && pcmout[i]->open) {
+
+        waveOutReset(pcmout[i]->hwo);
+        waveOutClose(pcmout[i]->hwo);
+        pcmout[i]->open = FALSE;
+
+    }
+    for (i = 0; i < MAXWAVP; i++) if (pcmin[i] && pcmin[i]->open) {
+
+        waveInReset(pcmin[i]->hwi);
+        waveInClose(pcmin[i]->hwi);
+        pcmin[i]->open = FALSE;
+
+    }
 
 }
