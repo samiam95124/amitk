@@ -118,9 +118,6 @@ typedef struct wltop {
     int64_t applyms;        /* when the application began, for the bailout */
     int    titx, tity, titw, tith; /* interactive move rectangle */
     int    borderw;         /* resize border width, 0 if none */
-    int    ringr, ringb;    /* the ring's width on the right and bottom edges
-                               while furniture such as a scroll bar sits
-                               there, 0 for the border width */
 
 } wltop;
 
@@ -1935,21 +1932,6 @@ void pd_winframe(pd_win* win, int titx, int tity, int titw, int tith,
     }
 }
 
-void pd_winring(pd_win* win, int rightw, int bottomw)
-{
-    wltop* tp = wintopof(win);
-
-    if (tp) {
-
-        toplk(tp);
-        tp->ringr = rightw;
-        tp->ringb = bottomw;
-        topulk(tp);
-
-    }
-}
-
-
 void pd_minimize(pd_win* win)
 {
     pd_display* d = &thedpy;
@@ -2799,34 +2781,26 @@ static unsigned btnmask(int b)
 static unsigned frmedges(pd_win* win, int px, int py)
 {
     wltop*   t = win->top;
-    int      w, h, bw, rw, bb, topw, sidew, rsidew, cz, czr, czb, titrow;
+    int      w, h, bw, topw, sidew, cz, titrow;
     unsigned edges = 0;
 
     if (!t || t->borderw <= 0 || t->maximized) return (0);
     w = win->w; h = win->h;
     if (px < 0 || py < 0 || px >= w || py >= h) return (0);
     bw = t->borderw;
-    /* the right and bottom edges' ring: the border's width, or the width
-       declared for furniture sitting there, which the ring does not ride
-       over, nor widen into at the corners */
-    rw = t->ringr > 0? t->ringr: bw;
-    bb = t->ringb > 0? t->ringb: bw;
     titrow = t->tith > 0 && py < t->tity+t->tith;
     topw = t->tith > 0 && t->tity < bw? t->tity: bw;
     sidew = titrow && t->titx < bw? t->titx: bw;
-    rsidew = titrow && t->titx < rw? t->titx: rw;
-    if (!(px < sidew || py < topw || px >= w-rsidew || py >= h-bb))
+    if (!(px < sidew || py < topw || px >= w-sidew || py >= h-bw))
         return (0);
     cz = bw*4 > 16? bw*4: 16;
-    czr = t->ringr > 0? rsidew: cz;
-    czb = t->ringb > 0? bb: cz;
-    if (py < topw || (py < cz && (px < cz || px >= w-czr)))
+    if (py < topw || (py < cz && (px < cz || px >= w-cz)))
         edges |= XDG_TOPLEVEL_RESIZE_EDGE_TOP;
-    if (py >= h-bb || (py >= h-czb && (px < cz || px >= w-czr)))
+    if (py >= h-bw || (py >= h-cz && (px < cz || px >= w-cz)))
         edges |= XDG_TOPLEVEL_RESIZE_EDGE_BOTTOM;
-    if (px < sidew || (px < cz && (py < cz || py >= h-czb)))
+    if (px < sidew || (px < cz && (py < cz || py >= h-cz)))
         edges |= XDG_TOPLEVEL_RESIZE_EDGE_LEFT;
-    if (px >= w-rsidew || (px >= w-czr && (py < cz || py >= h-czb)))
+    if (px >= w-sidew || (px >= w-cz && (py < cz || py >= h-cz)))
         edges |= XDG_TOPLEVEL_RESIZE_EDGE_RIGHT;
     return (edges);
 }

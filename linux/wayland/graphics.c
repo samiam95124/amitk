@@ -5564,16 +5564,25 @@ static void frmdraw(winptr win, int mw, int mh)
 
 }
 
-/* the bars' thickness: from the font, so it scales with the display, and a
-   whole number of logical pixels */
+/* The bars' thickness: from the font, so it scales with the display, and a
+   whole number of logical pixels. A framed window's resize ring rides inward
+   over whatever sits at its edge, the client or a bar, by the grab width
+   less the drawn border; a bar there is thicker by that much, so the part
+   of it the ring leaves is a whole bar. */
 static int sclthick(winptr win)
 
 {
 
-    int t;
+    int t, r;
 
     t = win->linespace*2/3;
     if (t < SCLBAR_MIN) t = SCLBAR_MIN;
+    if (win->childfrm && win->pfw > 0) {
+
+        r = win->frmgrab-(win->pfw-win->cwox);
+        if (r > 0) t += r;
+
+    }
 
     return (alignpx(win, t));
 
@@ -5788,17 +5797,6 @@ static void sclsync(winptr win)
     sclbars(win, &vb, &hb);
     win->vbar = vb;
     win->hbar = hb;
-    /* a toplevel's frame ring rides over the client's edge; not over a
-       bar, where it is the frame's border alone */
-    if (!win->parwin) {
-
-        int rb, bb; /* the right and bottom borders of the frame */
-
-        rb = win->pfw-win->cwox; if (rb < 1) rb = 1;
-        bb = win->pfh-win->cwoy; if (bb < 1) bb = 1;
-        pd_winring(win->xmwhan, vb? rb: 0, hb? bb: 0);
-
-    }
     clisize(win, &w, &h);
 
     if (w != win->xwr.w || h != win->xwr.h) { /* the subclient changes */
@@ -5827,14 +5825,26 @@ static void sclset(winptr win, ami_long x, ami_long y)
 
 }
 
-/* whether a point on the master is in one of the bars */
+/* Whether a point on the master is in one of the bars. The frame's resize
+   ring rides over a bar's outer edge as it does over the client's: a point
+   the ring claims is not in the bar. A toplevel's ring is the display's, and
+   its presses never arrive here; a child's is tested here, as the frame
+   code does after us. */
 static int sclin(winptr win, int mx, int my)
 
 {
 
     int sx, sy, sw, sh, trk, tl, tp, bar;
+    int l, r, t, b;
 
+    if (win->parwin && win->childfrm && win->pfw > 0 && !win->minimized) {
+
+        dec->frmedges(win, mx, my, win->xmwr.w, win->xmwr.h, &l, &r, &t, &b);
+        if (l || r || t || b) return (FALSE);
+
+    }
     for (bar = 0; bar < 2; bar++) {
+
 
         if (bar? !win->hbar: !win->vbar) continue;
         sclgeom(win, !bar, &sx, &sy, &sw, &sh, &trk, &tl, &tp);
@@ -5895,13 +5905,15 @@ static int sclmouse1(winptr win, pd_evt* e)
         return (TRUE);
 
     }
-    if (e->btn != 1) return (sclin(win, mx, my));
+    if (!sclin(win, mx, my)) return (FALSE); /* off the bars, or the frame's */
+    if (e->btn != 1) return (TRUE);
     for (bar = 0; bar < 2; bar++) {
 
         vert = !bar;
         if (vert? !win->vbar: !win->hbar) continue;
         sclgeom(win, vert, &sx, &sy, &sw, &sh, &trk, &tl, &tp);
         if (mx < sx || mx >= sx+sw || my < sy || my >= sy+sh) continue;
+
         along = vert? my-sy: mx-sx; /* along the strip */
         p = vert? win->scly: win->sclx;
         line = vert? win->linespace: win->charspace;
