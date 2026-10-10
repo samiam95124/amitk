@@ -2878,8 +2878,11 @@ void ami_volwave(ami_long p, ami_long t, ami_long v)
 
 {
 
-    error("ami_wolwave: Is not implemented");
-
+    /* a stub, as on Linux: the port is checked and the volume is left
+       alone. The wave device opens on the first play here, so an open
+       port is not required of the call. */
+    if (p < 1 || p > MAXWAVP) error("Invalid wave output port number");
+    if (p > waveOutGetNumDevs()) error("No system wave output device exists");
 
 }
 
