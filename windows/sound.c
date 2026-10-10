@@ -2733,21 +2733,61 @@ Closes a wave output device by number. This is presently a no-op for windows.
 
 ********************************************************************************/
 
-void ami_closewaveout(ami_long p)
+/* Release a wave output device. The write path opens the system device on
+   the first write and prepares the two buffers then, so a port that only
+   played files, or wrote nothing, has no device to close. With drain set, a
+   buffer part filled is padded with silence and sent, and both buffers
+   finish playing before the device goes, so a close right after the last
+   write loses nothing; the exit path drops what is playing. */
+
+static void relpcmout(devptr dp, int drain)
 
 {
 
-    MMRESULT r;
+    if (dp->init) {
+
+        if (drain) {
+
+            LPWAVEHDR wp;
+            unsigned* rem;
+            int       sil;
+
+            if (dp->oddevn) { wp = &dp->hdro; rem = &dp->remo; }
+            else { wp = &dp->hdre; rem = &dp->reme; }
+            if (*rem) { /* a buffer part filled: pad and send it */
+
+                sil = dp->bits == 8 && !dp->sgn? 0x80: 0; /* silence */
+                memset(wp->lpData+*rem, sil, wp->dwBufferLength-*rem);
+                waveOutWrite(dp->hwo, wp, sizeof(WAVEHDR));
+                *rem = 0;
+
+            }
+            while (!(dp->hdre.dwFlags & WHDR_DONE) ||
+                   !(dp->hdro.dwFlags & WHDR_DONE)) Sleep(1);
+
+        } else waveOutReset(dp->hwo); /* exiting: drop what is playing */
+        waveOutUnprepareHeader(dp->hwo, &dp->hdre, sizeof(WAVEHDR));
+        waveOutUnprepareHeader(dp->hwo, &dp->hdro, sizeof(WAVEHDR));
+        free(dp->hdre.lpData); dp->hdre.lpData = NULL;
+        free(dp->hdro.lpData); dp->hdro.lpData = NULL;
+        waveOutClose(dp->hwo);
+        dp->hwo = 0;
+        dp->init = FALSE;
+
+    }
+    dp->open = FALSE; /* set not open */
+
+}
+
+void ami_closewaveout(ami_long p)
+
+{
 
     if (p < 1 || p > MAXWAVP) error("Invalid wave output port number");
     if (p > waveOutGetNumDevs()) error("No system wave output device exists");
     if (!pcmout[p-1] || !pcmout[p-1]->open)
         error("Wave output device is not open");
-    /* close the device */
-    r = waveOutClose(pcmout[p-1]->hwo);
-    if (r != MMSYSERR_NOERROR) error("Couldn't close wave output device");
-    pcmout[p-1]->open = FALSE; /* set not open */
-
+    relpcmout(pcmout[p-1], TRUE); /* what is written plays out, then it goes */
 
 }
 
@@ -3162,39 +3202,32 @@ dbg_printf(dlinfo, "wBitsPerSample: %d\n", wf.wBitsPerSample);
 
     }
     len *= dp->ssiz; /* scale length by sample size to find bytes */
-    while (len) { /* until read is satisfied */
+    while (len) { /* until the write is placed */
+
+        ami_long n; /* bytes this buffer takes */
 
         if (dp->oddevn) { wp = &dp->hdro; rem = &dp->remo; } /* index odd header */
         else { wp = &dp->hdre; rem = &dp->reme; } /* index even header */
         /* if buffer is busy, wait until finished. This should be a signaled wait */
         while (!(wp->dwFlags & WHDR_DONE));
-        /* divide into partial buffer writes vs. whole buffer writes */
-        if (wp->dwBufferLength-*rem >= len) {
-
-           /* copy outgoing data from buffer */
-            memcpy(wp->lpData+*rem, buff, len);
-            *rem += len;
-            len = 0;
-            if (wp->dwBufferLength == *rem)
-                /* buffer filled, move on to next buffer */
-                dp->oddevn = !dp->oddevn; /* flip the buffers */
-
-        } else {
-
-            /* move whole buffer from caller */
-            memcpy(wp->lpData+*rem, buff, wp->dwBufferLength-*rem);
-            len -= wp->dwBufferLength-*rem;
-            /* move on to next buffer */
-            dp->oddevn = !dp->oddevn; /* flip the buffers */
-
-        }
-        /* if the buffer is full up, write out */
-        if (*rem >= wp->dwBufferLength) {
+        /* The buffer takes what it has room for, and goes to the device
+           when full; a write longer than a buffer walks on through the
+           next. (The old loop neither advanced the caller's data nor
+           counted a buffer filled from a longer write, so a write past
+           one buffer repeated its start and was never played.) */
+        n = wp->dwBufferLength-*rem;
+        if (n > len) n = len;
+        memcpy(wp->lpData+*rem, buff, n);
+        *rem += n;
+        buff += n;
+        len -= n;
+        if (*rem >= wp->dwBufferLength) { /* full up: write out */
 
             r = waveOutWrite(dp->hwo, wp, sizeof(WAVEHDR));
             if (r != MMSYSERR_NOERROR)
                 error("Couldn't write wave output device");
             *rem = 0; /* reset remainder */
+            dp->oddevn = !dp->oddevn; /* flip the buffers */
 
         }
 
@@ -4354,13 +4387,8 @@ static void ami_deinit_sound()
     }
     for (i = 0; i < MAXMIDP; i++)
         if (midinptab[i] && midinptab[i]->open) ami_closesynthin(i+1);
-    for (i = 0; i < MAXWAVP; i++) if (pcmout[i] && pcmout[i]->open) {
-
-        waveOutReset(pcmout[i]->hwo);
-        waveOutClose(pcmout[i]->hwo);
-        pcmout[i]->open = FALSE;
-
-    }
+    for (i = 0; i < MAXWAVP; i++)
+        if (pcmout[i] && pcmout[i]->open) relpcmout(pcmout[i], FALSE);
     for (i = 0; i < MAXWAVP; i++) if (pcmin[i] && pcmin[i]->open) {
 
         waveInReset(pcmin[i]->hwi);

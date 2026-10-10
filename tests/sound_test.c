@@ -1541,6 +1541,7 @@ newtests:
         }
 
     }
+    ami_closewaveout(wport); /* each test opens and closes its own port */
     printf("Complete\n");
     waitret();
 
@@ -1554,6 +1555,7 @@ newtests:
     printf("half. volwave is exercised on the way; it is a stub in this\n");
     printf("implementation, so it changes nothing audible yet.\n");
     makewav("sound_test.wav", 523.25, 1.5);
+    ami_openwaveout(wport); /* so the test runs on its own, "sound_test 39" */
     ami_loadwave(1, "sound_test.wav");
     ami_volwave(wport, 0, LONG_MAX/2);
     ami_playwave(wport, 0, 1);
