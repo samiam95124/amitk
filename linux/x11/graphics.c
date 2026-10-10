@@ -624,6 +624,24 @@ typedef struct winrec {
     int          focus;             /* screen in focus */
     picptr       pictbl[MAXPIC];    /* loadable pictures table */
     int          bufmod;            /* buffered screen mode */
+    int          bufset;            /* the program set the buffer's size: until
+                                       it does, the buffer follows the window's
+                                       client through setsiz */
+    Window       xchan;             /* the canvas: a child of the subclient the
+                                       size of the buffer, that the screen is
+                                       drawn on and the mouse arrives on, both
+                                       at buffer coordinates; scrolled by moving
+                                       it within the subclient, which clips it */
+    xrect        xcr;               /* the canvas rectangle, in the subclient */
+    ami_long     sclx;              /* the view: buffer pixels scrolled off the
+                                       left and top of the client by the
+                                       window's scroll bars */
+    ami_long     scly;
+    int          vbar;              /* the vertical scroll bar shows */
+    int          hbar;              /* the horizontal scroll bar shows */
+    int          scldrag;           /* a thumb drag is in train: 1 vertical,
+                                       2 horizontal, 0 none */
+    int          scldrgoff;         /* where in the thumb the drag took it */
     metptr       metlst;            /* menu tracking list */
     metptr       menu;              /* "faux menu" bar */
     int          frame;             /* frame on/off */
@@ -1312,6 +1330,10 @@ static ami_ulong mettot;    /* menu entries total */
 static int maxxd;     /* default window dimensions */
 static int maxyd;
 static int dialogerr; /* send runtime errors to dialog */
+static int scrollbuffer = TRUE; /* a buffered window shows scroll bars for a
+                                   buffer larger than its client: the option
+                                   scrollbuffer under graphics in the
+                                   configuration, on by default */
 static int mouseenb;  /* enable mouse */
 static int joyenb;    /* enable joysticks */
 static int dmpmsg;    /* enable dump messages (diagnostic, windows only) */
@@ -4640,7 +4662,8 @@ static int fndevt(Window w)
     while (fi < MAXFIL) {
 
         if (opnfil[fi] && opnfil[fi]->win &&
-            (opnfil[fi]->win->xmwhan == w || opnfil[fi]->win->xwhan == w)) {
+            (opnfil[fi]->win->xmwhan == w || opnfil[fi]->win->xwhan == w ||
+             opnfil[fi]->win->xchan == w)) {
 
             ff = fi; /* set found */
             fi = MAXFIL; /* terminate */
@@ -5182,15 +5205,15 @@ static void curdrw(winptr win)
     XSetForeground(padisplay, sc->xcxt, colnum(ami_white));
     XSetFunction(padisplay, sc->xcxt, GXxor); /* set reverse */
     if (win->focus)
-        XFillRectangle(padisplay, win->xwhan, sc->xcxt,
+        XFillRectangle(padisplay, win->xchan, sc->xcxt,
                        L2PX(win, sc->curxg-1), L2PY(win, sc->curyg-1),
                        L2PW(win, win->charspace), L2PH(win, win->linespace));
     else {
 
-        XDrawRectangle(padisplay, win->xwhan, sc->xcxt,
+        XDrawRectangle(padisplay, win->xchan, sc->xcxt,
                        L2PX(win, sc->curxg-1), L2PY(win, sc->curyg-1),
                        L2PW(win, win->charspace), L2PH(win, win->linespace));
-        XDrawRectangle(padisplay, win->xwhan, sc->xcxt,
+        XDrawRectangle(padisplay, win->xchan, sc->xcxt,
                        L2PX(win, sc->curxg-1+1), L2PY(win, sc->curyg-1+1),
                        L2PW(win, win->charspace-2), L2PH(win, win->linespace-2));
 
@@ -5374,6 +5397,10 @@ static void childfrm_set_cursor(winptr win, int mx, int my)
 /* forward declarations */
 static void childfrm_draw(winptr win, int mw, int mh);
 static void restore(winptr win);
+static void scldraw(winptr win);
+static void sclsync(winptr win);
+static void cansync(winptr win);
+static void clisize(winptr win, int* w, int* h);
 
 /* Find the lowest unused minimize slot among siblings of win. The slot is the
    x position index for arranging minimized child windows along the bottom of
@@ -5625,6 +5652,7 @@ static void childfrm_draw(winptr win, int mw, int mh)
 
     XFlush(padisplay);
     XWUNLOCK();
+    scldraw(win); /* the scroll bars over the frame's fill */
 
 }
 
@@ -5668,13 +5696,14 @@ static void restore(winptr win) /* window to restore */
         /* copy buffer to screen - ensure no clip mask interferes */
         XWLOCK();
         XSetClipMask(padisplay, sc->xcxt, None);
-        XCopyArea(padisplay, sc->xbuf, win->xwhan, sc->xcxt, 0, 0,
+        XCopyArea(padisplay, sc->xbuf, win->xchan, sc->xcxt, 0, 0,
                   sc->maxxg, sc->maxyg, 0, 0);
 
-        /* if the buffer is smaller than the client area, clear the margins
-           to the background color */
-        winw = win->xwr.w;
-        winh = win->xwr.h;
+        /* if the buffer is smaller than the canvas, which is the client's
+           size where the buffer is smaller, clear the margins to the
+           background color */
+        winw = win->xcr.w;
+        winh = win->xcr.h;
         if (sc->maxxg < winw || sc->maxyg < winh) {
 
             /* set background color as foreground for fill */
@@ -5685,12 +5714,12 @@ static void restore(winptr win) /* window to restore */
             /* right margin: from buffer right edge to window right edge,
                full height */
             if (sc->maxxg < winw)
-                XFillRectangle(padisplay, win->xwhan, sc->xcxt,
+                XFillRectangle(padisplay, win->xchan, sc->xcxt,
                                sc->maxxg, 0, winw - sc->maxxg, winh);
             /* bottom margin: from buffer bottom to window bottom,
                buffer width only (right strip already covered above) */
             if (sc->maxyg < winh)
-                XFillRectangle(padisplay, win->xwhan, sc->xcxt,
+                XFillRectangle(padisplay, win->xchan, sc->xcxt,
                                0, sc->maxyg, sc->maxxg, winh - sc->maxyg);
             /* restore foreground color */
             if (BIT(sarev) & sc->attr)
@@ -5735,7 +5764,7 @@ static void restore_rect(winptr win, int x, int y, int w, int h)
        the buffered part is immediately overwritten by the copy below) */
     XSetForeground(padisplay, sc->xcxt,
                    (BIT(sarev) & sc->attr) ? sc->fcrgb : sc->bcrgb);
-    XFillRectangle(padisplay, win->xwhan, sc->xcxt, x, y, w, h);
+    XFillRectangle(padisplay, win->xchan, sc->xcxt, x, y, w, h);
     /* copy the part of the rect the buffer covers, from the buffer */
     cx = x; cy = y; cw = w; ch = h;
     if (cx < 0) { cw += cx; cx = 0; }
@@ -5743,7 +5772,7 @@ static void restore_rect(winptr win, int x, int y, int w, int h)
     if (cx + cw > sc->maxxg) cw = sc->maxxg - cx;
     if (cy + ch > sc->maxyg) ch = sc->maxyg - cy;
     if (cw > 0 && ch > 0)
-        XCopyArea(padisplay, sc->xbuf, win->xwhan, sc->xcxt,
+        XCopyArea(padisplay, sc->xbuf, win->xchan, sc->xcxt,
                   cx, cy, cw, ch, cx, cy);
     /* leave the GC foreground as the normal drawing color */
     XSetForeground(padisplay, sc->xcxt,
@@ -5809,7 +5838,7 @@ static void drag_repaint_full(winptr win)
     else {
 
         XWLOCK();
-        XClearArea(padisplay, win->xwhan, 0, 0, 0, 0, True);
+        XClearArea(padisplay, win->xchan, 0, 0, 0, 0, True);
         XWUNLOCK();
 
     }
@@ -5895,6 +5924,398 @@ static Window createwindow(Window parent, int x, int y, int w, int h)
 
 /*******************************************************************************
 
+Scroll bars
+
+A buffered window whose buffer is larger than its client shows scroll bars for
+it, as the Windows port and windowc's character windows do: on the right for a
+taller buffer and along the bottom for a wider one. X has no bars of its own,
+so the module draws them on the master window, in strips beside and below the
+subclient, as it draws a child's frame. The buffer shows through the canvas, a
+child of the subclient the size of the buffer, or of the subclient where that
+is larger: everything drawn on the screen is drawn on the canvas at buffer
+coordinates, the mouse arrives on it in buffer coordinates, and scrolling the
+view is moving the canvas within the subclient, which clips it; sclx and scly
+are the buffer pixels off the left and top of the view. Child windows are
+children of the canvas: placed in the buffer, they scroll with it, and the
+canvas is under them all, not among them in the stacking order. The bars are decided
+
+from the client as it would be with no bars, so a bar does not justify itself
+by the room it takes; a bar needed takes its strip from the other direction's
+client, which can call for the other bar. The thumb is the client's share of
+the buffer at the view's place; an arrow steps a character cell, the track
+pages by the client, and the thumb drags. The option scrollbuffer under
+graphics in the configuration turns the bars off.
+
+*******************************************************************************/
+
+#define SCLBAR_MIN   12       /* the bars' least thickness */
+#define SCL_TRACK    0xe0e0e0 /* the track's color */
+#define SCL_THUMB    0x9a9a9a /* the thumb's */
+#define SCL_ARROW    0x606060 /* the arrows' */
+
+/* the bars' thickness: from the font, so it scales with the display */
+static int sclthick(winptr win)
+
+{
+
+    int t;
+
+    t = win->linespace*2/3;
+    if (t < SCLBAR_MIN) t = SCLBAR_MIN;
+
+    return (t);
+
+}
+
+/* the client as it would be with no bars: the master less the frame and the
+   menu bar */
+static void sclavail(winptr win, int* w, int* h)
+
+{
+
+    *w = win->xmwr.w-(win->childfrm? win->pfw: 0);
+    *h = win->xmwr.h-(win->childfrm? win->pfh: 0)-
+         (win->menu? win->menuspcy: 0);
+    if (*w < 1) *w = 1;
+    if (*h < 1) *h = 1;
+
+}
+
+/* which bars the window calls for */
+static void sclbars(winptr win, int* vb, int* hb)
+
+{
+
+    int aw, ah, t;
+
+    *vb = *hb = FALSE;
+    if (!scrollbuffer || !win->bufmod || !win->xmwhan) return;
+    sclavail(win, &aw, &ah);
+    t = sclthick(win);
+    if (aw <= t || ah <= t) return; /* no room for a bar and a view */
+    *vb = win->gmaxyg > ah; /* the buffer is taller than the client */
+    *hb = win->gmaxxg > aw; /* wider */
+    /* a bar takes its strip from the other direction's client */
+    if (*vb && !*hb) *hb = win->gmaxxg > aw-t;
+    if (*hb && !*vb) *vb = win->gmaxyg > ah-t;
+
+}
+
+/* the client as the bars leave it */
+static void clisize(winptr win, int* w, int* h)
+
+{
+
+    int vb, hb, t;
+
+    sclavail(win, w, h);
+    sclbars(win, &vb, &hb);
+    t = sclthick(win);
+    if (vb) *w -= t;
+    if (hb) *h -= t;
+
+}
+
+/* A bar's strip on the master, and its thumb: the track runs between the
+   arrows, each the bar's thickness square; the thumb is the client's share of
+   the track, at the view's place along it. The place and length are along the
+   track, from its start. */
+static void sclgeom(winptr win, int vert, int* sx, int* sy, int* sw, int* sh,
+                    int* trk, int* tlen, int* tpos)
+
+{
+
+    int      t;
+    ami_long lim, view, scl;
+
+    t = sclthick(win);
+    if (vert) {
+
+        *sx = win->xwr.x+win->xwr.w;
+        *sy = win->xwr.y;
+        *sw = t;
+        *sh = win->xwr.h;
+        lim = win->gmaxyg;
+        view = win->xwr.h;
+        scl = win->scly;
+
+    } else {
+
+        *sx = win->xwr.x;
+        *sy = win->xwr.y+win->xwr.h;
+        *sw = win->xwr.w;
+        *sh = t;
+        lim = win->gmaxxg;
+        view = win->xwr.w;
+        scl = win->sclx;
+
+    }
+    *trk = (vert? *sh: *sw)-2*t; /* the track between the arrows */
+    if (*trk < 0) *trk = 0;
+    *tlen = lim > 0? (int)((ami_long)*trk*view/lim): *trk;
+    if (*tlen < t/2) *tlen = t/2; /* a thumb to take hold of */
+    if (*tlen > *trk) *tlen = *trk;
+    *tpos = 0;
+    if (lim > view && *trk > *tlen)
+        *tpos = (int)((ami_long)(*trk-*tlen)*scl/(lim-view));
+
+}
+
+/* paint the bars the window shows on the master */
+static void scldraw(winptr win)
+
+{
+
+    int    t, sx, sy, sw, sh, trk, tl, tp;
+    XPoint pa[3];
+
+    if (!win->xmwhan || !win->frmgc || !win->visible) return;
+    if (!win->vbar && !win->hbar) return;
+    t = sclthick(win);
+    XWLOCK();
+    if (win->vbar) {
+
+        sclgeom(win, TRUE, &sx, &sy, &sw, &sh, &trk, &tl, &tp);
+        XSetForeground(padisplay, win->frmgc, SCL_TRACK);
+        XFillRectangle(padisplay, win->xmwhan, win->frmgc, sx, sy, sw, sh);
+        XSetForeground(padisplay, win->frmgc, SCL_ARROW);
+        pa[0].x = sx+t/2;   pa[0].y = sy+t/3; /* up */
+        pa[1].x = sx+t/4;   pa[1].y = sy+t*2/3;
+        pa[2].x = sx+t*3/4; pa[2].y = sy+t*2/3;
+        XFillPolygon(padisplay, win->xmwhan, win->frmgc, pa, 3, Convex,
+                     CoordModeOrigin);
+        pa[0].x = sx+t/2;   pa[0].y = sy+sh-t/3-1; /* down */
+        pa[1].x = sx+t/4;   pa[1].y = sy+sh-t*2/3-1;
+        pa[2].x = sx+t*3/4; pa[2].y = sy+sh-t*2/3-1;
+        XFillPolygon(padisplay, win->xmwhan, win->frmgc, pa, 3, Convex,
+                     CoordModeOrigin);
+        XSetForeground(padisplay, win->frmgc, SCL_THUMB);
+        XFillRectangle(padisplay, win->xmwhan, win->frmgc, sx+2, sy+t+tp,
+                       sw-4, tl);
+
+    }
+    if (win->hbar) {
+
+        sclgeom(win, FALSE, &sx, &sy, &sw, &sh, &trk, &tl, &tp);
+        XSetForeground(padisplay, win->frmgc, SCL_TRACK);
+        XFillRectangle(padisplay, win->xmwhan, win->frmgc, sx, sy, sw, sh);
+        XSetForeground(padisplay, win->frmgc, SCL_ARROW);
+        pa[0].x = sx+t/3;   pa[0].y = sy+t/2; /* left */
+        pa[1].x = sx+t*2/3; pa[1].y = sy+t/4;
+        pa[2].x = sx+t*2/3; pa[2].y = sy+t*3/4;
+        XFillPolygon(padisplay, win->xmwhan, win->frmgc, pa, 3, Convex,
+                     CoordModeOrigin);
+        pa[0].x = sx+sw-t/3-1;   pa[0].y = sy+t/2; /* right */
+        pa[1].x = sx+sw-t*2/3-1; pa[1].y = sy+t/4;
+        pa[2].x = sx+sw-t*2/3-1; pa[2].y = sy+t*3/4;
+        XFillPolygon(padisplay, win->xmwhan, win->frmgc, pa, 3, Convex,
+                     CoordModeOrigin);
+        XSetForeground(padisplay, win->frmgc, SCL_THUMB);
+        XFillRectangle(padisplay, win->xmwhan, win->frmgc, sx+t+tp, sy+2,
+                       tl, sh-4);
+
+    }
+    if (win->vbar && win->hbar) { /* the corner between them */
+
+        XSetForeground(padisplay, win->frmgc, SCL_TRACK);
+        XFillRectangle(padisplay, win->xmwhan, win->frmgc,
+                       win->xwr.x+win->xwr.w, win->xwr.y+win->xwr.h, t, t);
+
+    }
+    XFlush(padisplay);
+    XWUNLOCK();
+
+}
+
+/* Keep the canvas as the buffer, the client and the view call for: the size
+   of the buffer, or of the client where that is larger, and placed so that
+   the view's scroll offset is off the client's top left. The view is kept
+   within the buffer, as far as its last pixel, and at the start where there
+   is no bar to scroll it. */
+static void cansync(winptr win)
+
+{
+
+    int cw, ch, cx, cy;
+
+    if (!win->xchan) return;
+    cw = win->xwr.w;
+    ch = win->xwr.h;
+    if (win->bufmod) {
+
+        if (win->gmaxxg > cw) cw = win->gmaxxg;
+        if (win->gmaxyg > ch) ch = win->gmaxyg;
+
+    }
+    if (win->sclx > win->gmaxxg-win->xwr.w) win->sclx = win->gmaxxg-win->xwr.w;
+    if (win->scly > win->gmaxyg-win->xwr.h) win->scly = win->gmaxyg-win->xwr.h;
+    if (win->sclx < 0 || !win->hbar) win->sclx = 0;
+    if (win->scly < 0 || !win->vbar) win->scly = 0;
+    cx = -win->sclx;
+    cy = -win->scly;
+    if (cw != win->xcr.w || ch != win->xcr.h || cx != win->xcr.x ||
+        cy != win->xcr.y) {
+
+        XWLOCK();
+        XMoveResizeWindow(padisplay, win->xchan, cx, cy, cw, ch);
+        XWUNLOCK();
+        win->xcr.x = cx;
+        win->xcr.y = cy;
+        win->xcr.w = cw;
+        win->xcr.h = ch;
+
+    }
+
+}
+
+/* Keep the bars as the buffer and the client call for, the subclient as the
+   bars leave it, and the canvas and the bars with them. Called wherever the
+   client or the buffer changes. */
+static void sclsync(winptr win)
+
+{
+
+    int vb, hb, w, h;
+
+    if (!win->xmwhan) return;
+    sclbars(win, &vb, &hb);
+    win->vbar = vb;
+    win->hbar = hb;
+    clisize(win, &w, &h);
+    if (w != win->xwr.w || h != win->xwr.h) { /* the subclient changes */
+
+        XWLOCK();
+        XResizeWindow(padisplay, win->xwhan, w, h);
+        XWUNLOCK();
+        win->xwr.w = w;
+        win->xwr.h = h;
+
+    }
+    cansync(win);
+    scldraw(win);
+
+}
+
+/* Scroll the view to the buffer offset given, within the buffer, and show it:
+   the canvas moves, the client is repainted from it, and the bars follow */
+static void sclset(winptr win, ami_long x, ami_long y)
+
+{
+
+    win->sclx = x;
+    win->scly = y;
+    cansync(win); /* clamps, and moves the canvas */
+    restore(win); /* the client from the new place */
+    scldraw(win);
+
+}
+
+/* whether a point on the master is in one of the bars */
+static int sclin(winptr win, int mx, int my)
+
+{
+
+    int sx, sy, sw, sh, trk, tl, tp, bar;
+
+    for (bar = 0; bar < 2; bar++) {
+
+        if (bar? !win->hbar: !win->vbar) continue;
+        sclgeom(win, !bar, &sx, &sy, &sw, &sh, &trk, &tl, &tp);
+        if (mx >= sx && mx < sx+sw && my >= sy && my < sy+sh) return (TRUE);
+
+    }
+    /* the corner between the bars */
+    return (win->vbar && win->hbar && mx >= win->xwr.x+win->xwr.w &&
+            my >= win->xwr.y+win->xwr.h);
+
+}
+
+/* A mouse event on the master: taken when it falls in a bar, or a thumb drag
+   is in train, and answered with whether it was; the program hears nothing
+   of the mouse over the bars. An arrow steps a character cell, the track
+   pages by the client, and the thumb drags, the pointer keeping its hold on
+   the thumb where it took it. */
+static int sclmouse(winptr win, XEvent* e)
+
+{
+
+    int      mx, my, t, sx, sy, sw, sh, trk, tl, tp, vert, along, bar;
+    ami_long p, line, view, lim;
+
+    t = sclthick(win);
+    if (e->type == MotionNotify) {
+
+        mx = e->xmotion.x;
+        my = e->xmotion.y;
+        if (!win->scldrag) { /* no drag: over a bar it is taken */
+
+            if (!sclin(win, mx, my)) return (FALSE);
+            /* the frame's hover shape follows, as it does off the frame */
+            if (win->childfrm) childfrm_set_cursor(win, mx, my);
+
+            return (TRUE);
+
+        }
+        vert = win->scldrag == 1;
+
+        sclgeom(win, vert, &sx, &sy, &sw, &sh, &trk, &tl, &tp);
+        if (trk <= tl) return (TRUE); /* no travel */
+        lim = vert? win->gmaxyg: win->gmaxxg;
+        view = vert? win->xwr.h: win->xwr.w;
+        /* the thumb's new place along the track, less the hold on it, in
+           buffer terms */
+        p = (vert? my-sy: mx-sx)-t-win->scldrgoff;
+        p = p*(lim-view)/(trk-tl);
+        if (vert) sclset(win, win->sclx, p); else sclset(win, p, win->scly);
+
+        return (TRUE);
+
+    } else if (e->type == ButtonRelease) {
+
+        if (!win->scldrag) return (sclin(win, e->xbutton.x, e->xbutton.y));
+        if (e->xbutton.button == Button1) win->scldrag = 0; /* let go */
+
+        return (TRUE);
+
+    }
+    mx = e->xbutton.x;
+    my = e->xbutton.y;
+    if (e->xbutton.button != Button1) return (sclin(win, mx, my));
+
+    for (bar = 0; bar < 2; bar++) {
+
+        vert = !bar;
+        if (vert? !win->vbar: !win->hbar) continue;
+        sclgeom(win, vert, &sx, &sy, &sw, &sh, &trk, &tl, &tp);
+        if (mx < sx || mx >= sx+sw || my < sy || my >= sy+sh) continue;
+        along = vert? my-sy: mx-sx; /* along the strip */
+        p = vert? win->scly: win->sclx;
+        line = vert? win->linespace: win->charspace;
+        view = vert? win->xwr.h: win->xwr.w;
+        if (along < t) p -= line; /* the first arrow */
+        else if (along >= (vert? sh: sw)-t) p += line; /* the last */
+        else if (along-t < tp) p -= view; /* the track before the thumb */
+        else if (along-t >= tp+tl) p += view; /* after it */
+        else { /* the thumb: take hold */
+
+            win->scldrag = vert? 1: 2;
+            win->scldrgoff = along-t-tp;
+
+            return (TRUE);
+
+        }
+        if (vert) sclset(win, win->sclx, p); else sclset(win, p, win->scly);
+
+        return (TRUE);
+
+    }
+
+    return (FALSE);
+
+}
+
+/*******************************************************************************
+
 Display window
 
 Presents a window, and sends it a first paint message. Used to process the
@@ -5903,6 +6324,7 @@ delayed window display function.
 *******************************************************************************/
 
 static void winvis(winptr win)
+
 
 {
 
@@ -5939,6 +6361,8 @@ static void winvis(winptr win)
 
         win->visible = TRUE; /* set now visible */
         restore(win); /* restore window */
+        scldraw(win); /* and the scroll bars a buffer set before now calls for */
+
 
     }
 #endif
@@ -6204,6 +6628,18 @@ static void opnwin(int fn, int pfn, ami_long wid, int subclient)
 
     win->xmwhan = 0; /* clear the XWindow handles */
     win->xwhan = 0;
+    win->xchan = 0;
+    win->xcr.x = 0; /* no canvas yet */
+    win->xcr.y = 0;
+    win->xcr.w = 0;
+    win->xcr.h = 0;
+    win->sclx = 0; /* the view at the buffer's top left, no scroll bars */
+    win->scly = 0;
+    win->vbar = FALSE;
+    win->hbar = FALSE;
+    win->scldrag = 0;
+    win->scldrgoff = 0;
+    win->bufset = FALSE; /* the buffer follows the client until set */
 
     /* get screen parameters */
     XWLOCK();
@@ -6280,7 +6716,10 @@ static void opnwin(int fn, int pfn, ami_long wid, int subclient)
     /* set parent window, either the given or the root window */
     if (pwin) { /* there is a parent window */
 
-        if (subclient) pw = pwin->xwhan; /* make child of subclient */
+        /* a child window is a child of the parent's canvas: it is placed in
+           the parent's buffer, scrolls with it, and stacks among the other
+           children, with the canvas under them all */
+        if (subclient) pw = pwin->xchan;
         else pw = pwin->xmwhan; /* make child of master (menu components) */
 
     } else pw = RootWindow(padisplay, pascreen); /* root */
@@ -6338,14 +6777,23 @@ static void opnwin(int fn, int pfn, ami_long wid, int subclient)
     win->xwhan = createwindow(win->xmwhan, win->xwr.x, win->xwr.y,
                                            win->xwr.w, win->xwr.h);
 
-    /* create GC for drawing on xmwhan (used for child frame rendering) */
-    if (win->childfrm) {
+    /* create the canvas within the subclient, the subclient's size for now:
+       the screen is drawn on it, and it is mapped here, to show with the
+       subclient when that is presented */
+    win->xcr.x = 0;
+    win->xcr.y = 0;
+    win->xcr.w = win->xwr.w;
+    win->xcr.h = win->xwr.h;
+    win->xchan = createwindow(win->xwhan, 0, 0, win->xcr.w, win->xcr.h);
+    XWLOCK();
+    XMapWindow(padisplay, win->xchan);
+    XWUNLOCK();
 
-        XWLOCK();
-        win->frmgc = XCreateGC(padisplay, win->xmwhan, 0, NULL);
-        XWUNLOCK();
-
-    }
+    /* create GC for drawing on xmwhan: the child frame, and the scroll bars
+       of any window */
+    XWLOCK();
+    win->frmgc = XCreateGC(padisplay, win->xmwhan, 0, NULL);
+    XWUNLOCK();
 
     /* set window title */
     XWLOCK();
@@ -6393,10 +6841,13 @@ static void clswin(int fn)
 
     win = lfn2win(fn); /* get a pointer to the window */
     XWLOCK();
-    /* destroy the window */
+    /* destroy the window: the canvas goes with the subclient */
     XDestroyWindow(padisplay, win->xwhan);
     XDestroyWindow(padisplay, win->xmwhan);
+    if (win->frmgc) XFreeGC(padisplay, win->frmgc); /* the master's GC */
     XWUNLOCK();
+    win->xchan = 0;
+    win->frmgc = 0;
 
 }
 
@@ -7326,7 +7777,7 @@ static void iclear(winptr win)
         curoff(win); /* hide the cursor */
         XWLOCK();
         XSetForeground(padisplay, sc->xcxt, sc->bcrgb);
-        XFillRectangle(padisplay, win->xwhan, sc->xcxt, 0, 0,
+        XFillRectangle(padisplay, win->xchan, sc->xcxt, 0, 0,
                                   sc->maxxg, sc->maxyg);
         XSetForeground(padisplay, sc->xcxt, sc->fcrgb);
         XWUNLOCK();
@@ -7444,14 +7895,14 @@ static void iscrollg(winptr win, ami_long x, ami_long y)
 
             curoff(win); /* hide the cursor for drawing */
             XWLOCK();
-            XCopyArea(padisplay, win->xwhan, win->xwhan, sc->xcxt,
+            XCopyArea(padisplay, win->xchan, win->xchan, sc->xcxt,
                       sx, sy, sw, sh, dx, dy);
             XSetForeground(padisplay, sc->xcxt, sc->bcrgb);
             /* fill vacated x */
-            if (x) XFillRectangle(padisplay, win->xwhan, sc->xcxt, frx.x, frx.y,
+            if (x) XFillRectangle(padisplay, win->xchan, sc->xcxt, frx.x, frx.y,
                                   frx.w, frx.h);
             /* fill vacated y */
-            if (y) XFillRectangle(padisplay, win->xwhan, sc->xcxt, fry.x, fry.y,
+            if (y) XFillRectangle(padisplay, win->xchan, sc->xcxt, fry.x, fry.y,
                                   fry.w, fry.h);
             XSetForeground(padisplay, sc->xcxt, sc->fcrgb);
             XWUNLOCK();
@@ -8263,8 +8714,8 @@ static void plcchr(winptr win, char c)
 
             curoff(win); /* hide the cursor */
             /* draw character to active screen */
-            if (sc->angle == LONG_MAX/4) drwchr90(win, sc, cs, ce, win->xwhan, c);
-            else drwchr(win, sc, cs, ce, win->xwhan, c);
+            if (sc->angle == LONG_MAX/4) drwchr90(win, sc, cs, ce, win->xchan, c);
+            else drwchr(win, sc, cs, ce, win->xchan, c);
             curon(win); /* show the cursor */
 
         }
@@ -10067,7 +10518,7 @@ static void wrtstrn_ivf(FILE* f, char* s, ami_long l)
 
             curoff(win); /* hide the cursor */
             /* draw string */
-            drwstr90(win, sc, tw, win->xwhan, s, l);
+            drwstr90(win, sc, tw, win->xchan, s, l);
             curon(win); /* show the cursor */
 
         }
@@ -10200,7 +10651,7 @@ static void line_ivf(FILE* f, ami_long x1, ami_long y1, ami_long x2, ami_long y2
         curoff(win); /* hide the cursor */
         XWLOCK();
         /* draw the line */
-        XDrawLine(padisplay, win->xwhan, sc->xcxt,
+        XDrawLine(padisplay, win->xchan, sc->xcxt,
                   L2PX(win, x1-1), L2PY(win, y1-1),
                   L2PX(win, x2-1), L2PY(win, y2-1));
         XWUNLOCK();
@@ -10268,7 +10719,7 @@ static void rect_ivf(FILE* f, ami_long x1, ami_long y1, ami_long x2, ami_long y2
         curoff(win); /* hide the cursor */
         /* draw the rectangle */
         XWLOCK();
-        XDrawRectangle(padisplay, win->xwhan, sc->xcxt,
+        XDrawRectangle(padisplay, win->xchan, sc->xcxt,
                        L2PX(win, x1-1), L2PY(win, y1-1),
                        L2PW(win, x2-x1), L2PH(win, y2-y1));
         XWUNLOCK();
@@ -10336,7 +10787,7 @@ static void frect_ivf(FILE* f, ami_long x1, ami_long y1, ami_long x2, ami_long y
         curoff(win); /* hide the cursor */
         /* draw the rectangle */
         XWLOCK();
-        XFillRectangle(padisplay, win->xwhan, sc->xcxt,
+        XFillRectangle(padisplay, win->xchan, sc->xcxt,
                        L2PX(win, x1-1), L2PY(win, y1-1),
                        L2PW(win, x2-x1+1), L2PH(win, y2-y1+1));
         XWUNLOCK();
@@ -10428,19 +10879,19 @@ static void rrect_ivf(FILE* f, ami_long x1, ami_long y1, ami_long x2, ami_long y
         curoff(win); /* hide the cursor */
         XWLOCK();
         /* stroke the sides */
-        XDrawLine(padisplay, win->xwhan, sc->xcxt, x1, y1+ys/2, x1, y2-ys/2);
-        XDrawLine(padisplay, win->xwhan, sc->xcxt, x2, y1+ys/2, x2, y2-ys/2);
-        XDrawLine(padisplay, win->xwhan, sc->xcxt, x1+xs/2, y1, x2-xs/2, y1);
-        XDrawLine(padisplay, win->xwhan, sc->xcxt, x1+xs/2, y2, x2-xs/2, y2);
+        XDrawLine(padisplay, win->xchan, sc->xcxt, x1, y1+ys/2, x1, y2-ys/2);
+        XDrawLine(padisplay, win->xchan, sc->xcxt, x2, y1+ys/2, x2, y2-ys/2);
+        XDrawLine(padisplay, win->xchan, sc->xcxt, x1+xs/2, y1, x2-xs/2, y1);
+        XDrawLine(padisplay, win->xchan, sc->xcxt, x1+xs/2, y2, x2-xs/2, y2);
         /* draw corner arcs */
-        XDrawArc(padisplay, win->xwhan, sc->xcxt, x1, y1, xs, ys,
+        XDrawArc(padisplay, win->xchan, sc->xcxt, x1, y1, xs, ys,
                  90*64, 90*64);
-        XDrawArc(padisplay, win->xwhan, sc->xcxt, x2-xs, y1, xs, ys,
+        XDrawArc(padisplay, win->xchan, sc->xcxt, x2-xs, y1, xs, ys,
                  0, 90*64);
-        XDrawArc(padisplay, win->xwhan, sc->xcxt, x1, y2-ys, xs, ys, 180*64,
+        XDrawArc(padisplay, win->xchan, sc->xcxt, x1, y2-ys, xs, ys, 180*64,
                  90*64);
 
-        XDrawArc(padisplay, win->xwhan, sc->xcxt, x2-xs, y2-ys, xs, ys, 270*64,
+        XDrawArc(padisplay, win->xchan, sc->xcxt, x2-xs, y2-ys, xs, ys, 270*64,
                  90*64);
         XWUNLOCK();
         curon(win); /* show the cursor */
@@ -10554,22 +11005,22 @@ static void frrect_ivf(FILE* f, ami_long x1, ami_long y1, ami_long x2, ami_long 
             curoff(win); /* hide the cursor */
             XWLOCK();
             /* middle rectangle */
-            XFillRectangle(padisplay, win->xwhan, sc->xcxt, x1, y1+ys/2, wm, hm);
+            XFillRectangle(padisplay, win->xchan, sc->xcxt, x1, y1+ys/2, wm, hm);
 
             /* top */
-            XFillRectangle(padisplay, win->xwhan, sc->xcxt, x1+xs/2, y1, wtb, htb);
+            XFillRectangle(padisplay, win->xchan, sc->xcxt, x1+xs/2, y1, wtb, htb);
 
             /* bottom */
-            XFillRectangle(padisplay, win->xwhan, sc->xcxt, x1+xs/2, y2-ys/2+1, wtb, htb);
+            XFillRectangle(padisplay, win->xchan, sc->xcxt, x1+xs/2, y2-ys/2+1, wtb, htb);
 
             /* draw corner arcs */
-            XFillArc(padisplay, win->xwhan, sc->xcxt, x1, y1, xs, ys,
+            XFillArc(padisplay, win->xchan, sc->xcxt, x1, y1, xs, ys,
                      90*64, 90*64);
-            XFillArc(padisplay, win->xwhan, sc->xcxt, x2-xs+1, y1, xs, ys,
+            XFillArc(padisplay, win->xchan, sc->xcxt, x2-xs+1, y1, xs, ys,
                      0, 90*64);
-            XFillArc(padisplay, win->xwhan, sc->xcxt, x1, y2-ys+1, xs, ys, 180*64,
+            XFillArc(padisplay, win->xchan, sc->xcxt, x1, y2-ys+1, xs, ys, 180*64,
                      90*64);
-            XFillArc(padisplay, win->xwhan, sc->xcxt, x2-xs+1, y2-ys+1, xs, ys, 270*64,
+            XFillArc(padisplay, win->xchan, sc->xcxt, x2-xs+1, y2-ys+1, xs, ys, 270*64,
                      90*64);
             XWUNLOCK();
             curon(win); /* show the cursor */
@@ -10620,20 +11071,20 @@ static void frrect_ivf(FILE* f, ami_long x1, ami_long y1, ami_long x2, ami_long 
             curoff(win); /* hide the cursor */
             XWLOCK();
             /* middle rectangle */
-            XFillRectangle(padisplay, win->xwhan, sc->xcxt, x1+xs/2, y1, wm, hm);
+            XFillRectangle(padisplay, win->xchan, sc->xcxt, x1+xs/2, y1, wm, hm);
 
             /* left */
-            XFillRectangle(padisplay, win->xwhan, sc->xcxt, x1, y1+ys/2, wlr, hlr);
+            XFillRectangle(padisplay, win->xchan, sc->xcxt, x1, y1+ys/2, wlr, hlr);
 
             /* right */
-            XFillRectangle(padisplay, win->xwhan, sc->xcxt, x2-xs/2+1, y1+ys/2, wlr, hlr);
+            XFillRectangle(padisplay, win->xchan, sc->xcxt, x2-xs/2+1, y1+ys/2, wlr, hlr);
 
             /* draw corner arcs */
-            XFillArc(padisplay, win->xwhan, sc->xcxt, x1, y1, xs, ys, 90*64, 90*64);
-            XFillArc(padisplay, win->xwhan, sc->xcxt, x2-xs+1, y1, xs, ys, 0, 90*64);
-            XFillArc(padisplay, win->xwhan, sc->xcxt, x1, y2-ys+1, xs, ys, 180*64,
+            XFillArc(padisplay, win->xchan, sc->xcxt, x1, y1, xs, ys, 90*64, 90*64);
+            XFillArc(padisplay, win->xchan, sc->xcxt, x2-xs+1, y1, xs, ys, 0, 90*64);
+            XFillArc(padisplay, win->xchan, sc->xcxt, x1, y2-ys+1, xs, ys, 180*64,
                      90*64);
-            XFillArc(padisplay, win->xwhan, sc->xcxt, x2-xs+1, y2-ys+1, xs, ys, 270*64,
+            XFillArc(padisplay, win->xchan, sc->xcxt, x2-xs+1, y2-ys+1, xs, ys, 270*64,
                      90*64);
             XWUNLOCK();
             curon(win); /* show the cursor */
@@ -10703,7 +11154,7 @@ static void ellipse_ivf(FILE* f, ami_long x1, ami_long y1, ami_long x2, ami_long
         curoff(win); /* hide the cursor */
         /* draw the ellipse */
         XWLOCK();
-        XDrawArc(padisplay, win->xwhan, sc->xcxt,
+        XDrawArc(padisplay, win->xchan, sc->xcxt,
                  L2PX(win, x1-1), L2PY(win, y1-1),
                  L2PW(win, x2-x1), L2PH(win, y2-y1),
                  0, 360*64);
@@ -10773,7 +11224,7 @@ static void fellipse_ivf(FILE* f, ami_long x1, ami_long y1, ami_long x2, ami_lon
         curoff(win); /* hide the cursor */
         /* draw the ellipse */
         XWLOCK();
-        XFillArc(padisplay, win->xwhan, sc->xcxt,
+        XFillArc(padisplay, win->xchan, sc->xcxt,
                  L2PX(win, x1-1), L2PY(win, y1-1),
                  L2PW(win, x2-x1+1), L2PH(win, y2-y1+1),
                  0, 360*64);
@@ -10872,7 +11323,7 @@ static void arc_ivf(FILE* f, ami_long x1, ami_long y1, ami_long x2, ami_long y2,
             curoff(win); /* hide the cursor */
             /* draw the arc */
             XWLOCK();
-            XDrawArc(padisplay, win->xwhan, sc->xcxt,
+            XDrawArc(padisplay, win->xchan, sc->xcxt,
                      L2PX(win, x1-1), L2PY(win, y1-1),
                      L2PW(win, x2-x1), L2PH(win, y2-y1),
             		 a1, a2);
@@ -10957,7 +11408,7 @@ static void farc_ivf(FILE* f, ami_long x1, ami_long y1, ami_long x2, ami_long y2
             curoff(win); /* hide the cursor */
             /* draw the ellipse */
             XWLOCK();
-            XFillArc(padisplay, win->xwhan, sc->xcxt,
+            XFillArc(padisplay, win->xchan, sc->xcxt,
                      L2PX(win, x1-1), L2PY(win, y1-1),
                      L2PW(win, x2-x1+1), L2PH(win, y2-y1+1),
                      a1, a2);
@@ -11038,7 +11489,7 @@ static void fchord_ivf(FILE* f, ami_long x1, ami_long y1, ami_long x2, ami_long 
             curoff(win); /* hide the cursor */
             /* draw the ellipse */
             XWLOCK();
-            XFillArc(padisplay, win->xwhan, sc->xcxt, L2PX(win, x1-1), L2PY(win, y1-1), L2PW(win, x2-x1+1), L2PH(win, y2-y1+1),
+            XFillArc(padisplay, win->xchan, sc->xcxt, L2PX(win, x1-1), L2PY(win, y1-1), L2PW(win, x2-x1+1), L2PH(win, y2-y1+1),
                      a1, a2);
             XWUNLOCK();
             curon(win); /* show the cursor */
@@ -11101,7 +11552,7 @@ static void ftriangle_ivf(FILE* f, ami_long x1, ami_long y1, ami_long x2, ami_lo
         curoff(win); /* hide the cursor */
         /* draw the ellipse */
         XWLOCK();
-        XFillPolygon(padisplay, win->xwhan, sc->xcxt, pa, 3, Convex,
+        XFillPolygon(padisplay, win->xchan, sc->xcxt, pa, 3, Convex,
                      CoordModeOrigin);
         XWUNLOCK();
         curon(win); /* show the cursor */
@@ -11156,7 +11607,7 @@ static void setpixel_ivf(FILE* f, ami_long x, ami_long y)
         curoff(win); /* hide the cursor */
         /* draw the pixel */
         XWLOCK();
-        XDrawPoint(padisplay, win->xwhan, sc->xcxt,
+        XDrawPoint(padisplay, win->xchan, sc->xcxt,
                    L2PX(win, x-1), L2PY(win, y-1));
         XWUNLOCK();
         curon(win); /* show the cursor */
@@ -12038,7 +12489,7 @@ static void writejust_ivf(FILE* f, const char* s, ami_long n)
                     if (BIT(sarev) & sc->attr)
                         XSetForeground(padisplay, sc->xcxt, sc->fcrgb);
                     else XSetForeground(padisplay, sc->xcxt, sc->bcrgb);
-                    XFillRectangle(padisplay, win->xwhan, sc->xcxt,
+                    XFillRectangle(padisplay, win->xchan, sc->xcxt,
                                    sc->curxg-1, sc->curyg-1,
                                    cbs, win->linespace);
                     /* restore colors */
@@ -12606,7 +13057,7 @@ static void blockcopyg_ivf(FILE* f, ami_long s, ami_long d, ami_long sx1, ami_lo
         /* the buffer holds the composed result: present the destination
            box as it now stands */
         XWLOCK();
-        XCopyArea(padisplay, ds->xbuf, win->xwhan, ds->xcxt,
+        XCopyArea(padisplay, ds->xbuf, win->xchan, ds->xcxt,
                   pdx, pdy, pdw, pdh, pdx, pdy);
         XWUNLOCK();
         curon(win); /* show the cursor */
@@ -12960,7 +13411,7 @@ static void picture_ivf(FILE* f, ami_long p, ami_long x1, ami_long y1, ami_long 
         curoff(win); /* hide the cursor */
         /* draw the rectangle */
         XWLOCK();
-        XPutImage(padisplay, win->xwhan, sc->xcxt, fp->xi, 0, 0,
+        XPutImage(padisplay, win->xchan, sc->xcxt, fp->xi, 0, 0,
                   L2PX(win, x1-1), L2PY(win, y1-1),
                   L2PW(win, x2-x1+1), L2PH(win, y2-y1+1));
         XWUNLOCK();
@@ -13604,11 +14055,12 @@ static void xwinevt(winptr win, ami_evtrec* er, XEvent* e, int* keep)
 
     sc = win->screens[win->curdsp-1]; /* index screen */
 
-    /* handle Expose on xmwhan for child-framed windows: repaint the frame */
-    if (e->type == Expose && win->childfrm &&
-        win->xmwhan == e->xany.window) {
+    /* handle Expose on xmwhan: repaint the child frame, and the scroll bars
+       of any window, which are drawn on the master */
+    if (e->type == Expose && win->xmwhan == e->xany.window) {
 
-        childfrm_draw(win, win->xmwr.w, win->xmwr.h);
+        if (win->childfrm) childfrm_draw(win, win->xmwr.w, win->xmwr.h);
+        else scldraw(win);
 
     } else if (e->type == Expose && win->xmwhan != e->xany.window) {
 
@@ -13625,7 +14077,7 @@ static void xwinevt(winptr win, ami_evtrec* er, XEvent* e, int* keep)
 
                 intersection(&ri, &r1, &r2); /* find intersection of those */
                 XWLOCK();
-                XCopyArea(padisplay, sc->xbuf, win->xwhan, sc->xcxt, ri.x1, ri.y1,
+                XCopyArea(padisplay, sc->xbuf, win->xchan, sc->xcxt, ri.x1, ri.y1,
                       ri.x2-ri.x1+1, ri.y2-ri.y1+1, ri.x1, ri.y1);
                 subrect(&r2, &r1, &rr, &rb); /* find subtraction r1-r2 */
                 /* check any result */
@@ -13637,12 +14089,12 @@ static void xwinevt(winptr win, ami_evtrec* er, XEvent* e, int* keep)
                     else XSetForeground(padisplay, sc->xcxt, sc->bcrgb);
                     /* paint right */
                     if (!zerorect(&rr))
-                        XFillRectangle(padisplay, win->xwhan, sc->xcxt,
+                        XFillRectangle(padisplay, win->xchan, sc->xcxt,
                                        rr.x1, rr.y1,
                                        rr.x2-rr.x1+1, rr.y2-rr.y1+1);
                     /* paint bottom */
                     if (!zerorect(&rb))
-                        XFillRectangle(padisplay, win->xwhan, sc->xcxt,
+                        XFillRectangle(padisplay, win->xchan, sc->xcxt,
                                        rb.x1, rb.y1,
                                        rb.x2-rb.x1+1, rb.y2-rb.y1+1);
                     /* restore foreground color */
@@ -13664,7 +14116,7 @@ static void xwinevt(winptr win, ami_evtrec* er, XEvent* e, int* keep)
                 if (BIT(sarev) & sc->attr)
                     XSetForeground(padisplay, sc->xcxt, sc->fcrgb);
                 else XSetForeground(padisplay, sc->xcxt, sc->bcrgb);
-                XFillRectangle(padisplay, win->xwhan, sc->xcxt,
+                XFillRectangle(padisplay, win->xchan, sc->xcxt,
                                e->xexpose.x, e->xexpose.y,
                                e->xexpose.width, e->xexpose.height);
                 /* restore foreground color */
@@ -13695,20 +14147,10 @@ static void xwinevt(winptr win, ami_evtrec* er, XEvent* e, int* keep)
             /* update master window tracking dimensions */
             win->xmwr.w = e->xconfigure.width;
             win->xmwr.h = e->xconfigure.height;
-            /* find size of subclient */
-            xwc.width = e->xconfigure.width; /* set frameless offset to client */
-            xwc.height = e->xconfigure.height;
-            /* for child-framed windows, subtract frame thickness */
-            if (win->childfrm) {
-
-                xwc.width -= win->pfw;
-                xwc.height -= win->pfh;
-
-            }
-            if (win->menu) /* if menu is active, remove that space from subclient */
-                xwc.height -= win->menuspcy;
-            if (xwc.width <= 0) xwc.width = 1; /* set minimum width */
-            if (xwc.height <= 0) xwc.height = 1; /* set minimum height */
+            /* find size of subclient: the master less the frame and the
+               menu bar, and less the scroll bars a buffer larger than that
+               calls for */
+            clisize(win, &xwc.width, &xwc.height);
             /* check subclient window has changed size */
             if (xwc.width != win->xwr.w || xwc.height != win->xwr.h) {
 
@@ -13781,10 +14223,12 @@ static void xwinevt(winptr win, ami_evtrec* er, XEvent* e, int* keep)
 
             }
 
-            /* redraw child frame after master resize */
+            /* redraw child frame after master resize, and keep the scroll
+               bars and the canvas as the new client calls for */
             if (win->childfrm) childfrm_draw(win, win->xmwr.w, win->xmwr.h);
+            sclsync(win);
 
-        } else { /* its the subclient window */
+        } else if (win->xwhan == e->xany.window) { /* its the subclient window */
 
             /* size of window has changed, send event */
             er->etype = ami_etresize; /* set resize event */
@@ -13807,10 +14251,14 @@ static void xwinevt(winptr win, ami_evtrec* er, XEvent* e, int* keep)
                 win->screens[win->curdsp-1]->maxyg = win->gmaxyg;
                 win->screens[win->curdsp-1]->maxx = win->gmaxx; /* character size */
                 win->screens[win->curdsp-1]->maxy = win->gmaxy;
+                /* the canvas follows the client, which it is the size of */
+                win->xwr.w = er->rszxg;
+                win->xwr.h = er->rszyg;
+                cansync(win);
 
             }
 
-        }
+        } /* the canvas's own configure: nothing, the window's is the client */
 
     } else if (e->type == KeyPress) {
 
@@ -14005,6 +14453,12 @@ static void xwinevt(winptr win, ami_evtrec* er, XEvent* e, int* keep)
             *keep = TRUE;
 
         }
+
+    } else if (win->xmwhan == e->xany.window &&
+               (e->type == ButtonPress || e->type == ButtonRelease ||
+                e->type == MotionNotify) && sclmouse(win, e)) {
+
+        /* the mouse on the window's scroll bars: taken there */
 
     } else if (win->childfrm && win->xmwhan == e->xany.window &&
                (e->type == ButtonPress || e->type == ButtonRelease ||
@@ -14239,8 +14693,7 @@ static void xwinevt(winptr win, ami_evtrec* er, XEvent* e, int* keep)
                         win->xmwr.y = ny;
                         win->xmwr.w = nw;
                         win->xmwr.h = nh;
-                        win->xwr.w = nw - win->pfw;
-                        win->xwr.h = nh - win->pfh;
+                        clisize(win, &win->xwr.w, &win->xwr.h); /* less bars */
                         XWLOCK();
                         if (nx != origx || ny != origy) {
                             XMoveResizeWindow(padisplay, win->xmwhan,
@@ -14253,7 +14706,10 @@ static void xwinevt(winptr win, ami_evtrec* er, XEvent* e, int* keep)
                         XWUNLOCK();
                         /* the client area may now be larger than the buffer;
                            restore() copies the buffer to the screen and fills
-                           any uncovered margin with the background color */
+                           any uncovered margin with the background color;
+                           or smaller, and the scroll bars and the canvas
+                           follow */
+                        sclsync(win);
                         restore(win);
                         childfrm_draw(win, nw, nh);
                         /* if the child shrank, repaint the parent and
@@ -15449,12 +15905,11 @@ void _pa_sizbufg_ovr(ami_sizbufg_t nfp, ami_sizbufg_t* ofp)
     { *ofp = sizbufg_vect; sizbufg_vect = nfp; }
 void ami_sizbufg(FILE* f, ami_long x, ami_long y) { (*sizbufg_vect)(f, x, y); }
 
-static void sizbufg_ivf(FILE* f, ami_long x, ami_long y)
+static void isizbufg(winptr win, ami_long x, ami_long y)
 
 {
 
     int            si;     /* index for current display screen */
-    winptr         win;    /* pointer to windows context */
     Pixmap         oldbuf; /* saved old buffer pixmap */
     ami_long       oldw, oldh; /* old buffer dimensions */
     ami_long       copyw, copyh; /* intersection to copy */
@@ -15463,7 +15918,6 @@ static void sizbufg_ivf(FILE* f, ami_long x, ami_long y)
     int            depth;
 
     if (x < 1 || y < 1)  error(einvsiz); /* invalid buffer size */
-    win = txt2win(f); /* get window context */
     if (!win->bufmod) error(ebufoff); /* error */
 
     /* save old buffer info from the current display screen */
@@ -15521,7 +15975,12 @@ static void sizbufg_ivf(FILE* f, ami_long x, ami_long y)
     XFreePixmap(padisplay, oldbuf);
     XWUNLOCK();
 
-    /* restore buffer to screen (handles margins if buffer < window) */
+    /* the scroll bars and the canvas as the new buffer calls for, with the
+       view at its top left; then the buffer to the screen (handles margins
+       if buffer < window) */
+    win->sclx = 0;
+    win->scly = 0;
+    sclsync(win);
     restore(win);
 
     /* generate redraw events for newly exposed areas of the buffer
@@ -15549,6 +16008,18 @@ static void sizbufg_ivf(FILE* f, ami_long x, ami_long y)
         isendevent(win, &er);
 
     }
+
+}
+
+static void sizbufg_ivf(FILE* f, ami_long x, ami_long y)
+
+{
+
+    winptr win; /* pointer to windows context */
+
+    win = txt2win(f); /* get window context */
+    win->bufset = TRUE; /* the program sets the buffer: it holds from here */
+    isizbufg(win, x, y);
 
 }
 
@@ -15646,6 +16117,7 @@ static void buffer_ivf(FILE* f, ami_long e)
 #endif
 
         }
+        sclsync(win); /* the scroll bars and the canvas as the buffer calls for */
         restore(win); /* restore buffer to screen */
 
     } else if (win->bufmod) { /* perform buffer off actions */
@@ -15655,7 +16127,9 @@ static void buffer_ivf(FILE* f, ami_long e)
            update to point to it as well. This single buffer  serves as
            a "template" for the real pixels on screen. */
         win->bufmod = FALSE; /* turn buffer mode off */
+        sclsync(win); /* no scroll bars in follow mode: the client grows back */
         /* dispose of screen data structures */
+
         for (si = 0; si < MAXCON; si++) if (si != win->curdsp-1)
             if (win->screens[si]) {
 
@@ -15846,6 +16320,7 @@ static void menu_resize(FILE* f, winptr win, int menuon)
     snc = XNextRequest(padisplay);
     XMoveWindow(padisplay, win->xwhan, 0, yes);
     XWUNLOCK();
+    win->xwr.y = yes; /* the scroll bars are placed by it */
 
     /* the subclient is a child of the master: its move applies
        synchronously, and a no-change move sends no notify, so there is
@@ -16344,11 +16819,12 @@ static void setsizg_ivf(FILE* f, ami_long x, ami_long y)
             /* For child-framed windows: x/y are total master dimensions.
                Master = x,y. Subclient = (x-pfw, y-pfh) at offset (cwox,cwoy). */
             XResizeWindow(padisplay, win->xmwhan, x, y);
+            win->xmwr.w = x;
+            win->xmwr.h = y;
+            clisize(win, &xwc.width, &xwc.height); /* less the scroll bars */
             XMoveResizeWindow(padisplay, win->xwhan,
                               win->cwox, win->cwoy,
                               xwc.width, xwc.height);
-            win->xmwr.w = x;
-            win->xmwr.h = y;
             win->xwr.x = win->cwox;
             win->xwr.y = win->cwoy;
             win->xwr.w = xwc.width;
@@ -16441,6 +16917,22 @@ static void setsizg_ivf(FILE* f, ami_long x, ami_long y)
         }
 
     }
+    /* A buffer the program has not set follows the window: it was the
+       client's size at the open, and is the client's size after. A program
+       that sizes a window and never its buffer expects the two to match, as
+       window_test's window size frames do; the buffer as opened was left
+       larger than the window sized smaller, and showed scroll bars for it.
+       A buffer set with sizbuf holds. The client is taken as it would be
+       with no bars, which the buffer's new size then calls for none of. */
+    if (win->bufmod && !win->bufset) {
+
+        int aw, ah; /* the client with no bars */
+
+        sclavail(win, &aw, &ah);
+        if (aw != win->gmaxxg || ah != win->gmaxyg) isizbufg(win, aw, ah);
+
+    }
+    sclsync(win); /* the scroll bars and the canvas as the client calls for */
 
 }
 
@@ -16965,8 +17457,14 @@ static void frame_ivf(FILE* f, ami_long e)
                               win->cwox, win->cwoy,
                               win->gmaxxg, win->gmaxyg);
             XWUNLOCK();
+            win->xwr.x = win->cwox;
+            win->xwr.y = win->cwoy;
+            win->xwr.w = win->gmaxxg;
+            win->xwr.h = win->gmaxyg;
+            sclsync(win); /* the bars and the canvas as the client calls for */
 
             restore(win);
+
             /* redraw the frame when it is turned back on */
             if (e) childfrm_draw(win, win->xmwr.w, win->xmwr.h);
 
@@ -18385,6 +18883,14 @@ static void ami_init_graphics(int argc, char *argv[])
         if (vp) {
 
             dialogerr = strtol(vp->value, &errstr, 10);
+            if (*errstr) error(ecfgval);
+
+        }
+
+        vp = ami_schlst("scrollbuffer", graph_root->sublist);
+        if (vp) {
+
+            scrollbuffer = strtol(vp->value, &errstr, 10) != 0;
             if (*errstr) error(ecfgval);
 
         }
