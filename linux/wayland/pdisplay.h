@@ -220,6 +220,13 @@ void    pd_wintitle(pd_win* w, const char* title);
 void    pd_winframe(pd_win* w, int titx, int tity, int titw, int tith,
                     int borderw);
 
+/* furniture at the toplevel's right and bottom edges, such as scroll bars:
+   the ring there is the width given, the frame's own border, and neither
+   rides over the furniture nor widens into it at the corners; zero
+   restores the declared border width on that edge */
+void    pd_winring(pd_win* w, int rightw, int bottomw);
+
+
 /* shell state requests, honored as toplevels */
 void    pd_minimize(pd_win* w);
 void    pd_maximize(pd_win* w, int on);

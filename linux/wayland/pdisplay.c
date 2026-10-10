@@ -118,6 +118,9 @@ typedef struct wltop {
     int64_t applyms;        /* when the application began, for the bailout */
     int    titx, tity, titw, tith; /* interactive move rectangle */
     int    borderw;         /* resize border width, 0 if none */
+    int    ringr, ringb;    /* the ring's width on the right and bottom edges
+                               while furniture such as a scroll bar sits
+                               there, 0 for the border width */
 
 } wltop;
 
@@ -1932,6 +1935,21 @@ void pd_winframe(pd_win* win, int titx, int tity, int titw, int tith,
     }
 }
 
+void pd_winring(pd_win* win, int rightw, int bottomw)
+{
+    wltop* tp = wintopof(win);
+
+    if (tp) {
+
+        toplk(tp);
+        tp->ringr = rightw;
+        tp->ringb = bottomw;
+        topulk(tp);
+
+    }
+}
+
+
 void pd_minimize(pd_win* win)
 {
     pd_display* d = &thedpy;
@@ -2111,6 +2129,12 @@ static void blittree(pd_win* w, uint32_t* dst, int dw, int dh, int ox, int oy,
         }
 
     }
+    /* a child shows within its parent: the children are clipped to this
+       window's bounds, within the bounds it was given */
+    if (ox > cx1) cx1 = ox;
+    if (oy > cy1) cy1 = oy;
+    if (ox+w->w < cx2) cx2 = ox+w->w;
+    if (oy+w->h < cy2) cy2 = oy+w->h;
     for (c = w->childs; c; c = c->sibnext)
         blittree(c, dst, dw, dh, ox+c->x, oy+c->y, cx1, cy1, cx2, cy2);
 }
@@ -2226,10 +2250,13 @@ uint32_t* pd_winsnap(pd_display* d, pd_win* win, int* width, int* height)
 typedef struct {
     pd_canvas* cv;
     int        ox, oy, w, h;
+    int        cx1, cy1, cx2, cy2; /* its ancestors' bounds: a child shows
+                                      within its parent */
 } blitent;
 #define MAXBLIT 512 /* windows a compose can carry; more are left out */
 
-static int flatten(pd_win* w, int ox, int oy, blitent* out, int n)
+static int flatten(pd_win* w, int ox, int oy, int cx1, int cy1, int cx2,
+                   int cy2, blitent* out, int n)
 {
     pd_win* c;
 
@@ -2238,11 +2265,18 @@ static int flatten(pd_win* w, int ox, int oy, blitent* out, int n)
 
         out[n].cv = w->can; out[n].ox = ox; out[n].oy = oy;
         out[n].w = w->w; out[n].h = w->h;
+        out[n].cx1 = cx1; out[n].cy1 = cy1;
+        out[n].cx2 = cx2; out[n].cy2 = cy2;
         n++;
 
     }
+    /* the children show within this window, within the bounds it was given */
+    if (ox > cx1) cx1 = ox;
+    if (oy > cy1) cy1 = oy;
+    if (ox+w->w < cx2) cx2 = ox+w->w;
+    if (oy+w->h < cy2) cy2 = oy+w->h;
     for (c = w->childs; c; c = c->sibnext)
-        n = flatten(c, ox+c->x, oy+c->y, out, n);
+        n = flatten(c, ox+c->x, oy+c->y, cx1, cy1, cx2, cy2, out, n);
     return (n);
 }
 
@@ -2268,6 +2302,10 @@ static void blitlist(blitent* l, int n, uint32_t* dst, int dw,
         if (y1 < cy1) y1 = cy1;
         if (x2 > cx2) x2 = cx2;
         if (y2 > cy2) y2 = cy2;
+        if (x1 < l[i].cx1) x1 = l[i].cx1; /* within its ancestors */
+        if (y1 < l[i].cy1) y1 = l[i].cy1;
+        if (x2 > l[i].cx2) x2 = l[i].cx2;
+        if (y2 > l[i].cy2) y2 = l[i].cy2;
         if (x2 > x1 && y2 > y1)
             for (y = y1; y < y2; y++)
                 memcpy(&dst[(size_t)y*dw+x1],
@@ -2341,7 +2379,8 @@ static void compose(pd_display* d, wltop* t)
     dmgulk(t);
     if (x2 <= x1 || y2 <= y1) { topulk(t); return; }
     TREERD(); /* the tree below, flattened, and its canvases taken */
-    n = flatten(win, 0, 0, list, 0);
+    n = flatten(win, 0, 0, 0, 0, ww, wh, list, 0);
+
     /* the locks in address order, the order every taker of several uses;
        the list itself stays in tree order, parents before children, which
        is the order the blit needs: sorted, a parent's canvas landed over
@@ -2760,26 +2799,34 @@ static unsigned btnmask(int b)
 static unsigned frmedges(pd_win* win, int px, int py)
 {
     wltop*   t = win->top;
-    int      w, h, bw, topw, sidew, cz, titrow;
+    int      w, h, bw, rw, bb, topw, sidew, rsidew, cz, czr, czb, titrow;
     unsigned edges = 0;
 
     if (!t || t->borderw <= 0 || t->maximized) return (0);
     w = win->w; h = win->h;
     if (px < 0 || py < 0 || px >= w || py >= h) return (0);
     bw = t->borderw;
+    /* the right and bottom edges' ring: the border's width, or the width
+       declared for furniture sitting there, which the ring does not ride
+       over, nor widen into at the corners */
+    rw = t->ringr > 0? t->ringr: bw;
+    bb = t->ringb > 0? t->ringb: bw;
     titrow = t->tith > 0 && py < t->tity+t->tith;
     topw = t->tith > 0 && t->tity < bw? t->tity: bw;
     sidew = titrow && t->titx < bw? t->titx: bw;
-    if (!(px < sidew || py < topw || px >= w-sidew || py >= h-bw))
+    rsidew = titrow && t->titx < rw? t->titx: rw;
+    if (!(px < sidew || py < topw || px >= w-rsidew || py >= h-bb))
         return (0);
     cz = bw*4 > 16? bw*4: 16;
-    if (py < topw || (py < cz && (px < cz || px >= w-cz)))
+    czr = t->ringr > 0? rsidew: cz;
+    czb = t->ringb > 0? bb: cz;
+    if (py < topw || (py < cz && (px < cz || px >= w-czr)))
         edges |= XDG_TOPLEVEL_RESIZE_EDGE_TOP;
-    if (py >= h-bw || (py >= h-cz && (px < cz || px >= w-cz)))
+    if (py >= h-bb || (py >= h-czb && (px < cz || px >= w-czr)))
         edges |= XDG_TOPLEVEL_RESIZE_EDGE_BOTTOM;
-    if (px < sidew || (px < cz && (py < cz || py >= h-cz)))
+    if (px < sidew || (px < cz && (py < cz || py >= h-czb)))
         edges |= XDG_TOPLEVEL_RESIZE_EDGE_LEFT;
-    if (px >= w-sidew || (px >= w-cz && (py < cz || py >= h-cz)))
+    if (px >= w-rsidew || (px >= w-czr && (py < cz || py >= h-czb)))
         edges |= XDG_TOPLEVEL_RESIZE_EDGE_RIGHT;
     return (edges);
 }

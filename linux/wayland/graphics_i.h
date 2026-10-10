@@ -280,6 +280,25 @@ typedef struct winrec {
     int          focus;             /* screen in focus */
     picptr       pictbl[MAXPIC];    /* loadable pictures table */
     int          bufmod;            /* buffered screen mode */
+    int          bufset;            /* the program set the buffer's size: until
+                                       it does, the buffer follows the window's
+                                       client through setsiz */
+    pd_win*      xchan;             /* the canvas: a child of the subclient the
+                                       size of the buffer, that the screen is
+                                       drawn on and the mouse arrives on, both
+                                       at buffer coordinates; scrolled by moving
+                                       it within the subclient, which clips it */
+    xrect        xcr;               /* the canvas rectangle, in the subclient */
+    ami_long     sclx;              /* the view: buffer pixels scrolled off the
+                                       left and top of the client by the
+                                       window's scroll bars */
+    ami_long     scly;
+    int          vbar;              /* the vertical scroll bar shows */
+    int          hbar;              /* the horizontal scroll bar shows */
+    int          scldrag;           /* a thumb drag is in train: 1 vertical,
+                                       2 horizontal, 0 none */
+    int          scldrgoff;         /* where in the thumb the drag took it */
+
     metptr       metlst;            /* menu tracking list */
     metptr       menu;              /* "faux menu" bar */
     int          frame;             /* frame on/off */
