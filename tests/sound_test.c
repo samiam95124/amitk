@@ -22,7 +22,8 @@ ALSA's "virtual" port are opened and subscribed together with aconnect,
 which puts the library's encoder on one end of a wire and its decoder
 on the other. One message of each kind is sent and read back, checked
 against what was sent to within a wire step. Where the port or aconnect
-is missing the section says so and stands down.
+is missing the section says so and stands down. On Windows the virtual
+port is a loop inside the library, so there is nothing to wire.
 
 *******************************************************************************/
 
@@ -321,6 +322,16 @@ static void loopunwire(void)
     wirecli = 0;
 
 }
+
+#elif defined(_WIN32)
+
+/* On Windows the virtual port is a loop inside the library: what goes to
+   the virtual output comes back on the virtual input, so there is nothing
+   to wire. */
+
+static void loopbefore(void) { }
+static const char* loopwire(void) { return (NULL); }
+static void loopunwire(void) { }
 
 #else
 

@@ -1099,7 +1099,65 @@ ami_long ami_synthout(void)
 
 {
 
-    return (midiOutGetNumDevs());
+    return (midiOutGetNumDevs()+1); /* the system's, and "virtual" */
+
+}
+
+/*******************************************************************************
+
+The virtual port
+
+The last synthesizer port each way is "virtual", as on Linux and macOS: a
+port of the library's own rather than a system device. There it is an
+endpoint other programs can connect to; Windows has no such thing without
+a driver, so here it is a loop within the program: what is written to the
+virtual output comes back, as MIDI messages, on the virtual input, through
+the same queue a device's messages arrive on. The library's encoder is on
+one end and its decoder on the other, which is what the loop is for.
+
+*******************************************************************************/
+
+static int virtout(ami_long p) { return (p == midiOutGetNumDevs()+1); }
+static int virtin(ami_long p) { return (p == midiInGetNumDevs()+1); }
+
+/* queue a message on an input port, as the device callback does */
+
+static void inpput(midinpptr dp, DWORD_PTR msg, DWORD_PTR time)
+
+{
+
+    int nxtinp;
+
+    nxtinp = dp->inpptr+1; /* get next input pointer */
+    if (nxtinp >= MIDMAX) nxtinp = 0; /* wrap input pointer */
+    if (nxtinp != dp->outptr) {
+
+        /* no overflow */
+        dp->inpque[dp->inpptr].time = time; /* place time */
+        dp->inpque[dp->inpptr].mmsg = msg; /* place message */
+        dp->inpptr = nxtinp; /* advance input pointer */
+
+    } else dp->qovf = TRUE; /* flag queue overflow */
+
+}
+
+/* send a short message on an output port: to the device, or round the
+   loop to the virtual input, if that is open */
+
+static void outmsg(ami_long p, DWORD msg)
+
+{
+
+    ami_long  vi;
+    midinpptr dp;
+
+    if (virtout(p)) {
+
+        vi = midiInGetNumDevs()+1; /* the virtual input */
+        dp = midinptab[vi-1];
+        if (dp && dp->open) inpput(dp, msg, timeGetTime());
+
+    } else midiOutShortMsg(midouttab[p], msg);
 
 }
 
@@ -1115,7 +1173,7 @@ ami_long ami_synthin(void)
 
 {
 
-    return (midiInGetNumDevs());
+    return (midiInGetNumDevs()+1); /* the system's, and "virtual" */
 
 }
 
@@ -1134,6 +1192,7 @@ void ami_opensynthout(ami_long p)
 
 {
 
+    if (virtout(p)) return; /* the loop: nothing to open */
     /* open midi output device */
     midiOutOpen(&midouttab[p], p-1, 0, 0, CALLBACK_NULL);
 
@@ -1151,6 +1210,7 @@ void ami_closesynthout(ami_long p)
 
 {
 
+    if (virtout(p)) return; /* the loop: nothing to close */
     midiOutClose(midouttab[p]); /* close port */
     midouttab[p] = (HMIDIOUT)-1; /* set closed */
 
@@ -1327,7 +1387,7 @@ void ami_noteon(ami_long p, ami_long t, ami_channel c, ami_note n, ami_long v)
 
         /* construct midi message */
         msg = (v/MIDISCL(7))*65536+(n-1)*256+MESS_NOTE_ON+(c-1);
-        midiOutShortMsg(midouttab[p], msg);
+        outmsg(p, msg);
 
     } else { /* sequence */
 
@@ -1381,7 +1441,7 @@ void ami_noteoff(ami_long p, ami_long t, ami_channel c, ami_note n, ami_long v)
 
         /* construct midi message */
         msg = (v/MIDISCL(7))*65536+(n-1)*256+MESS_NOTE_OFF+(c-1);
-        midiOutShortMsg(midouttab[p], msg);
+        outmsg(p, msg);
 
     } else { /* sequence */
 
@@ -1431,7 +1491,7 @@ void ami_instchange(ami_long p, ami_long t, ami_channel c, ami_instrument i)
     if (t == 0 || (t <= elap && seqrun)) {
 
         msg = (i-1)*256+MESS_PGM_CHG+(c-1); /* construct midi message */
-        midiOutShortMsg(midouttab[p], msg);
+        outmsg(p, msg);
 
     } else { /* sequence */
 
@@ -1471,7 +1531,7 @@ static void ctlchg(ami_long p, ami_long t, ami_channel c, int cn, int v)
 
     /* construct midi message */
     msg = v*65536+cn*256+MESS_CTRL_CHG+(c-1);
-    midiOutShortMsg(midouttab[p], msg);
+    outmsg(p, msg);
 
 }
 
@@ -2382,7 +2442,7 @@ void ami_aftertouch(ami_long p, ami_long t, ami_channel c, ami_note n, ami_long 
 
         /* construct midi message */
         msg = (at/MIDISCL(7))*65536+(n-1)*256+MESS_AFTTCH+(c-1);
-        midiOutShortMsg(midouttab[p], msg);
+        outmsg(p, msg);
 
     } else { /* sequence */
 
@@ -2431,7 +2491,7 @@ void ami_pressure(ami_long p, ami_long t, ami_channel c, ami_long pr)
 
         /* construct midi message */
         msg = (pr/MIDISCL(7))*256+MESS_CHN_PRES+(c-1);
-        midiOutShortMsg(midouttab[p], msg);
+        outmsg(p, msg);
 
     } else { /* sequence */
 
@@ -2482,7 +2542,7 @@ void ami_pitch(ami_long p, ami_long t, ami_channel c, ami_long pt)
         pt = pt/MIDISCL(13)+0x2000; /* reduce to 14 bits, positive only */
         /* construct midi message */
         msg = (pt/0x80)*65536+(pt & 0x7f)*256+MESS_PTCH_WHL+(c-1);
-        midiOutShortMsg(midouttab[p], msg);
+        outmsg(p, msg);
 
     } else { /* sequence */
 
@@ -3652,6 +3712,7 @@ void ami_synthoutname(ami_long p, string name, ami_long len)
     MMRESULT r;
     MIDIOUTCAPS pmoc;
 
+    if (virtout(p)) { cpycrit(name, len, "virtual"); return; }
     r = midiOutGetDevCaps(p-1, &pmoc, sizeof(MIDIOUTCAPS));
     if (r != MMSYSERR_NOERROR) error("Unable to get Midi device capabilities");
     cpycrit(name, len, pmoc.szPname); /* return name */
@@ -3676,6 +3737,7 @@ void ami_synthinname(ami_long p, string name, ami_long len)
     MMRESULT r;
     MIDIINCAPS pmic;
 
+    if (virtin(p)) { cpycrit(name, len, "virtual"); return; }
     r = midiInGetDevCaps(p-1, &pmic, sizeof(MIDIINCAPS));
     if (r != MMSYSERR_NOERROR) error("Unable to get Midi device capabilities");
     cpycrit(name, len, pmic.szPname); /* return name */
@@ -3761,16 +3823,7 @@ void CALLBACK MidiInProc(
 //                   dwParam2, dwParam1 & 0xff, dwParam1 >> 8 & 0xff,
 //                   dwParam1 >> 16 & 0xff);
         dp = midinptab[dwInstance-1]; /* get device pointer */
-        nxtinp = dp->inpptr+1; /* get next input pointer */
-        if (nxtinp >= MIDMAX) nxtinp = 0; /* wrap input pointer */
-        if (nxtinp != dp->outptr) {
-
-            /* no overflow */
-            dp->inpque[dp->inpptr].time = dwParam2; /* place time */
-            dp->inpque[dp->inpptr].mmsg = dwParam1; /* place message */
-            dp->inpptr = nxtinp; /* advance input pointer */
-
-        } else dp->qovf = TRUE; /* flag queue overflow */
+        inpput(dp, dwParam1, dwParam2); /* queue the message */
 
     }
 
@@ -3792,11 +3845,19 @@ void ami_opensynthin(ami_long p)
     MMRESULT  r;
 
     if (p < 1 || p > MAXMIDP) error("Invalid MIDI input port number");
-    if (p > midiInGetNumDevs()) error("No system wave input device exists");
+    if (p > midiInGetNumDevs()+1) error("No system MIDI input device exists");
     makmidinp(p); /* ensure device exists */
     dp = midinptab[p-1]; /* get device pointer */
-    if (dp->open) error("Wave input device is already open");
+    if (dp->open) error("MIDI input device is already open");
     dp->open = TRUE; /* set device open */
+    if (virtin(p)) { /* the loop: its queue, and no device */
+
+        dp->hmi = 0;
+        dp->inpptr = dp->outptr = 0; /* the queue starts empty */
+        dp->qovf = FALSE;
+        return;
+
+    }
 
     /* the port's own device: the ids count from 0, the ports from 1 */
     r = midiInOpen(&dp->hmi, p-1, (DWORD_PTR)MidiInProc, p, CALLBACK_FUNCTION);
@@ -3852,6 +3913,7 @@ void ami_closesynthin(ami_long p)
     if (p < 1 || p > MAXMIDP) error("Invalid MIDI input port number");
     dp = midinptab[p-1]; /* get device pointer */
     if (!dp || !dp->open) error("MIDI input device is not open");
+    if (virtin(p)) { dp->open = FALSE; return; } /* the loop: no device */
     /* stop input, hand the buffers back, and release them with the device */
     midiInStop(dp->hmi);
     midiInReset(dp->hmi);
@@ -4121,10 +4183,10 @@ void ami_rdsynth(ami_long p, ami_seqptr sp)
     byte      b1, b2, b3;
 
     if (p < 1 || p > MAXMIDP) error("Invalid MIDI input port number");
-    if (p > midiInGetNumDevs()) error("No system wave input device exists");
+    if (p > midiInGetNumDevs()+1) error("No system MIDI input device exists");
     makmidinp(p); /* ensure device exists */
     dp = midinptab[p-1]; /* get device pointer */
-    if (!dp->open) error("Wave input device is not open");
+    if (!dp->open) error("MIDI input device is not open");
     /* wait for data in queue */
     while (dp->outptr == dp->inpptr);
     midins = dp->inpque[dp->outptr].mmsg; /* get next MIDI message */
