@@ -22,7 +22,8 @@ ALSA's "virtual" port are opened and subscribed together with aconnect,
 which puts the library's encoder on one end of a wire and its decoder
 on the other. One message of each kind is sent and read back, checked
 against what was sent to within a wire step. Where the port or aconnect
-is missing the section says so and stands down.
+is missing the section says so and stands down. On Windows the virtual
+port is a loop inside the library, so there is nothing to wire.
 
 *******************************************************************************/
 
@@ -33,6 +34,7 @@ is missing the section says so and stands down.
 #include <math.h>
 
 #include <terminal.h> /* terminal level functions */
+#include <services.h> /* the option character */
 #include <sound.h>    /* sound library */
 #include <option.h>   /* option parsing */
 
@@ -321,6 +323,16 @@ static void loopunwire(void)
 
 }
 
+#elif defined(_WIN32)
+
+/* On Windows the virtual port is a loop inside the library: what goes to
+   the virtual output comes back on the virtual input, so there is nothing
+   to wire. */
+
+static void loopbefore(void) { }
+static const char* loopwire(void) { return (NULL); }
+static void loopunwire(void) { }
+
 #else
 
 /* the library's own stdio header does not carry these */
@@ -542,6 +554,26 @@ int main(int argc, char *argv[])
        alone */
     if (argcl == 2 || argcl == 3) {
 
+        char* ep;
+        int   i;
+
+        /* a positional that is not a number is an option in the wrong
+           form, "--sin=1" on Windows, where options start with '/': say
+           so, rather than "Bad test range" */
+        for (i = 0; i < argcl-1; i++) {
+
+            strtol(argv[argi+i], &ep, 10);
+            if (ep == argv[argi+i] || *ep) {
+
+                fprintf(stderr, "Not a test number: %s\n", argv[argi+i]);
+                fprintf(stderr, "(options on this system are given as "
+                                "%cname or %cname=value)\n",
+                        ami_optchr(), ami_optchr());
+                exit(1);
+
+            }
+
+        }
         tstlo = strtol(argv[argi], NULL, 10);
         if (argcl == 3) tsthi = strtol(argv[argi+1], NULL, 10);
         if (tstlo < 1 || tsthi < tstlo) {
@@ -1520,6 +1552,7 @@ newtests:
         }
 
     }
+    ami_closewaveout(wport); /* each test opens and closes its own port */
     printf("Complete\n");
     waitret();
 
@@ -1533,6 +1566,7 @@ newtests:
     printf("half. volwave is exercised on the way; it is a stub in this\n");
     printf("implementation, so it changes nothing audible yet.\n");
     makewav("sound_test.wav", 523.25, 1.5);
+    ami_openwaveout(wport); /* so the test runs on its own, "sound_test 39" */
     ami_loadwave(1, "sound_test.wav");
     ami_volwave(wport, 0, LONG_MAX/2);
     ami_playwave(wport, 0, 1);

@@ -1099,7 +1099,65 @@ ami_long ami_synthout(void)
 
 {
 
-    return (midiOutGetNumDevs());
+    return (midiOutGetNumDevs()+1); /* the system's, and "virtual" */
+
+}
+
+/*******************************************************************************
+
+The virtual port
+
+The last synthesizer port each way is "virtual", as on Linux and macOS: a
+port of the library's own rather than a system device. There it is an
+endpoint other programs can connect to; Windows has no such thing without
+a driver, so here it is a loop within the program: what is written to the
+virtual output comes back, as MIDI messages, on the virtual input, through
+the same queue a device's messages arrive on. The library's encoder is on
+one end and its decoder on the other, which is what the loop is for.
+
+*******************************************************************************/
+
+static int virtout(ami_long p) { return (p == midiOutGetNumDevs()+1); }
+static int virtin(ami_long p) { return (p == midiInGetNumDevs()+1); }
+
+/* queue a message on an input port, as the device callback does */
+
+static void inpput(midinpptr dp, DWORD_PTR msg, DWORD_PTR time)
+
+{
+
+    int nxtinp;
+
+    nxtinp = dp->inpptr+1; /* get next input pointer */
+    if (nxtinp >= MIDMAX) nxtinp = 0; /* wrap input pointer */
+    if (nxtinp != dp->outptr) {
+
+        /* no overflow */
+        dp->inpque[dp->inpptr].time = time; /* place time */
+        dp->inpque[dp->inpptr].mmsg = msg; /* place message */
+        dp->inpptr = nxtinp; /* advance input pointer */
+
+    } else dp->qovf = TRUE; /* flag queue overflow */
+
+}
+
+/* send a short message on an output port: to the device, or round the
+   loop to the virtual input, if that is open */
+
+static void outmsg(ami_long p, DWORD msg)
+
+{
+
+    ami_long  vi;
+    midinpptr dp;
+
+    if (virtout(p)) {
+
+        vi = midiInGetNumDevs()+1; /* the virtual input */
+        dp = midinptab[vi-1];
+        if (dp && dp->open) inpput(dp, msg, timeGetTime());
+
+    } else midiOutShortMsg(midouttab[p], msg);
 
 }
 
@@ -1115,7 +1173,7 @@ ami_long ami_synthin(void)
 
 {
 
-    return (midiInGetNumDevs());
+    return (midiInGetNumDevs()+1); /* the system's, and "virtual" */
 
 }
 
@@ -1134,6 +1192,7 @@ void ami_opensynthout(ami_long p)
 
 {
 
+    if (virtout(p)) return; /* the loop: nothing to open */
     /* open midi output device */
     midiOutOpen(&midouttab[p], p-1, 0, 0, CALLBACK_NULL);
 
@@ -1151,6 +1210,7 @@ void ami_closesynthout(ami_long p)
 
 {
 
+    if (virtout(p)) return; /* the loop: nothing to close */
     midiOutClose(midouttab[p]); /* close port */
     midouttab[p] = (HMIDIOUT)-1; /* set closed */
 
@@ -1327,7 +1387,7 @@ void ami_noteon(ami_long p, ami_long t, ami_channel c, ami_note n, ami_long v)
 
         /* construct midi message */
         msg = (v/MIDISCL(7))*65536+(n-1)*256+MESS_NOTE_ON+(c-1);
-        midiOutShortMsg(midouttab[p], msg);
+        outmsg(p, msg);
 
     } else { /* sequence */
 
@@ -1381,7 +1441,7 @@ void ami_noteoff(ami_long p, ami_long t, ami_channel c, ami_note n, ami_long v)
 
         /* construct midi message */
         msg = (v/MIDISCL(7))*65536+(n-1)*256+MESS_NOTE_OFF+(c-1);
-        midiOutShortMsg(midouttab[p], msg);
+        outmsg(p, msg);
 
     } else { /* sequence */
 
@@ -1431,7 +1491,7 @@ void ami_instchange(ami_long p, ami_long t, ami_channel c, ami_instrument i)
     if (t == 0 || (t <= elap && seqrun)) {
 
         msg = (i-1)*256+MESS_PGM_CHG+(c-1); /* construct midi message */
-        midiOutShortMsg(midouttab[p], msg);
+        outmsg(p, msg);
 
     } else { /* sequence */
 
@@ -1471,7 +1531,7 @@ static void ctlchg(ami_long p, ami_long t, ami_channel c, int cn, int v)
 
     /* construct midi message */
     msg = v*65536+cn*256+MESS_CTRL_CHG+(c-1);
-    midiOutShortMsg(midouttab[p], msg);
+    outmsg(p, msg);
 
 }
 
@@ -2382,7 +2442,7 @@ void ami_aftertouch(ami_long p, ami_long t, ami_channel c, ami_note n, ami_long 
 
         /* construct midi message */
         msg = (at/MIDISCL(7))*65536+(n-1)*256+MESS_AFTTCH+(c-1);
-        midiOutShortMsg(midouttab[p], msg);
+        outmsg(p, msg);
 
     } else { /* sequence */
 
@@ -2431,7 +2491,7 @@ void ami_pressure(ami_long p, ami_long t, ami_channel c, ami_long pr)
 
         /* construct midi message */
         msg = (pr/MIDISCL(7))*256+MESS_CHN_PRES+(c-1);
-        midiOutShortMsg(midouttab[p], msg);
+        outmsg(p, msg);
 
     } else { /* sequence */
 
@@ -2482,7 +2542,7 @@ void ami_pitch(ami_long p, ami_long t, ami_channel c, ami_long pt)
         pt = pt/MIDISCL(13)+0x2000; /* reduce to 14 bits, positive only */
         /* construct midi message */
         msg = (pt/0x80)*65536+(pt & 0x7f)*256+MESS_PTCH_WHL+(c-1);
-        midiOutShortMsg(midouttab[p], msg);
+        outmsg(p, msg);
 
     } else { /* sequence */
 
@@ -2557,6 +2617,7 @@ void ami_delsynth(ami_long s)
     if (!synthnam[s-1])
         error("No synthesizer file loaded for logical number");
     free(synthnam[s-1]);
+    synthnam[s-1] = NULL; /* the slot is free again */
 
 }
 
@@ -2732,21 +2793,61 @@ Closes a wave output device by number. This is presently a no-op for windows.
 
 ********************************************************************************/
 
-void ami_closewaveout(ami_long p)
+/* Release a wave output device. The write path opens the system device on
+   the first write and prepares the two buffers then, so a port that only
+   played files, or wrote nothing, has no device to close. With drain set, a
+   buffer part filled is padded with silence and sent, and both buffers
+   finish playing before the device goes, so a close right after the last
+   write loses nothing; the exit path drops what is playing. */
+
+static void relpcmout(devptr dp, int drain)
 
 {
 
-    MMRESULT r;
+    if (dp->init) {
+
+        if (drain) {
+
+            LPWAVEHDR wp;
+            unsigned* rem;
+            int       sil;
+
+            if (dp->oddevn) { wp = &dp->hdro; rem = &dp->remo; }
+            else { wp = &dp->hdre; rem = &dp->reme; }
+            if (*rem) { /* a buffer part filled: pad and send it */
+
+                sil = dp->bits == 8 && !dp->sgn? 0x80: 0; /* silence */
+                memset(wp->lpData+*rem, sil, wp->dwBufferLength-*rem);
+                waveOutWrite(dp->hwo, wp, sizeof(WAVEHDR));
+                *rem = 0;
+
+            }
+            while (!(dp->hdre.dwFlags & WHDR_DONE) ||
+                   !(dp->hdro.dwFlags & WHDR_DONE)) Sleep(1);
+
+        } else waveOutReset(dp->hwo); /* exiting: drop what is playing */
+        waveOutUnprepareHeader(dp->hwo, &dp->hdre, sizeof(WAVEHDR));
+        waveOutUnprepareHeader(dp->hwo, &dp->hdro, sizeof(WAVEHDR));
+        free(dp->hdre.lpData); dp->hdre.lpData = NULL;
+        free(dp->hdro.lpData); dp->hdro.lpData = NULL;
+        waveOutClose(dp->hwo);
+        dp->hwo = 0;
+        dp->init = FALSE;
+
+    }
+    dp->open = FALSE; /* set not open */
+
+}
+
+void ami_closewaveout(ami_long p)
+
+{
 
     if (p < 1 || p > MAXWAVP) error("Invalid wave output port number");
     if (p > waveOutGetNumDevs()) error("No system wave output device exists");
     if (!pcmout[p-1] || !pcmout[p-1]->open)
         error("Wave output device is not open");
-    /* close the device */
-    r = waveOutClose(pcmout[p-1]->hwo);
-    if (r != MMSYSERR_NOERROR) error("Couldn't close wave output device");
-    pcmout[p-1]->open = FALSE; /* set not open */
-
+    relpcmout(pcmout[p-1], TRUE); /* what is written plays out, then it goes */
 
 }
 
@@ -2796,7 +2897,8 @@ void ami_delwave(ami_long w)
     if (w < 1 || w > MAXWAVT) error("Invalid logical wave file number");
     if (!wavenam[w-1])
         error("No wave file loaded for logical number");
-    free(synthnam[w-1]);
+    free(wavenam[w-1]); /* the wave's own entry, and the slot is free again */
+    wavenam[w-1] = NULL;
 
 }
 
@@ -2878,8 +2980,11 @@ void ami_volwave(ami_long p, ami_long t, ami_long v)
 
 {
 
-    error("ami_wolwave: Is not implemented");
-
+    /* a stub, as on Linux: the port is checked and the volume is left
+       alone. The wave device opens on the first play here, so an open
+       port is not required of the call. */
+    if (p < 1 || p > MAXWAVP) error("Invalid wave output port number");
+    if (p > waveOutGetNumDevs()) error("No system wave output device exists");
 
 }
 
@@ -3157,39 +3262,32 @@ dbg_printf(dlinfo, "wBitsPerSample: %d\n", wf.wBitsPerSample);
 
     }
     len *= dp->ssiz; /* scale length by sample size to find bytes */
-    while (len) { /* until read is satisfied */
+    while (len) { /* until the write is placed */
+
+        ami_long n; /* bytes this buffer takes */
 
         if (dp->oddevn) { wp = &dp->hdro; rem = &dp->remo; } /* index odd header */
         else { wp = &dp->hdre; rem = &dp->reme; } /* index even header */
         /* if buffer is busy, wait until finished. This should be a signaled wait */
         while (!(wp->dwFlags & WHDR_DONE));
-        /* divide into partial buffer writes vs. whole buffer writes */
-        if (wp->dwBufferLength-*rem >= len) {
-
-           /* copy outgoing data from buffer */
-            memcpy(wp->lpData+*rem, buff, len);
-            *rem += len;
-            len = 0;
-            if (wp->dwBufferLength == *rem)
-                /* buffer filled, move on to next buffer */
-                dp->oddevn = !dp->oddevn; /* flip the buffers */
-
-        } else {
-
-            /* move whole buffer from caller */
-            memcpy(wp->lpData+*rem, buff, wp->dwBufferLength-*rem);
-            len -= wp->dwBufferLength-*rem;
-            /* move on to next buffer */
-            dp->oddevn = !dp->oddevn; /* flip the buffers */
-
-        }
-        /* if the buffer is full up, write out */
-        if (*rem >= wp->dwBufferLength) {
+        /* The buffer takes what it has room for, and goes to the device
+           when full; a write longer than a buffer walks on through the
+           next. (The old loop neither advanced the caller's data nor
+           counted a buffer filled from a longer write, so a write past
+           one buffer repeated its start and was never played.) */
+        n = wp->dwBufferLength-*rem;
+        if (n > len) n = len;
+        memcpy(wp->lpData+*rem, buff, n);
+        *rem += n;
+        buff += n;
+        len -= n;
+        if (*rem >= wp->dwBufferLength) { /* full up: write out */
 
             r = waveOutWrite(dp->hwo, wp, sizeof(WAVEHDR));
             if (r != MMSYSERR_NOERROR)
                 error("Couldn't write wave output device");
             *rem = 0; /* reset remainder */
+            dp->oddevn = !dp->oddevn; /* flip the buffers */
 
         }
 
@@ -3232,24 +3330,41 @@ Closes a wave input device by number. This is presently a no-op for linux.
 
 *******************************************************************************/
 
-void ami_closewavein(ami_long p)
+/* Release a wave input device. The read path opens the system device on the
+   first read and prepares the two buffers then, so a port never read from
+   has no device to close. Recording stops, the buffers come back from the
+   device, and they go with the handle. */
+
+static void relpcmin(devptr dp)
 
 {
 
-    MMRESULT r;
+    if (dp->init) {
+
+        waveInStop(dp->hwi);
+        waveInReset(dp->hwi); /* the queued buffers return, marked done */
+        waveInUnprepareHeader(dp->hwi, &dp->hdre, sizeof(WAVEHDR));
+        waveInUnprepareHeader(dp->hwi, &dp->hdro, sizeof(WAVEHDR));
+        free(dp->hdre.lpData); dp->hdre.lpData = NULL;
+        free(dp->hdro.lpData); dp->hdro.lpData = NULL;
+        waveInClose(dp->hwi);
+        dp->hwi = 0;
+        dp->init = FALSE;
+
+    }
+    dp->open = FALSE; /* set not open */
+
+}
+
+void ami_closewavein(ami_long p)
+
+{
 
     if (p < 1 || p > MAXWAVP) error("Invalid wave input port number");
     if (p > waveInGetNumDevs()) error("No system wave input device exists");
     if (!pcmin[p-1] || !pcmin[p-1]->open)
         error("Wave input device is not open");
-    /* close the device */
-    if (pcmin[p-1]->hwi) {
-
-        r = waveInClose(pcmin[p-1]->hwi);
-        if (r != MMSYSERR_NOERROR) error("Couldn't close wave input device");
-
-    }
-    pcmin[p-1]->open = FALSE; /* set not open */
+    relpcmin(pcmin[p-1]); /* recording stops and the device goes */
 
 }
 
@@ -3541,42 +3656,41 @@ dbg_printf(dlinfo, "wBitsPerSample: %d\n", wf.wBitsPerSample);
     total = len; /* save total bytes for return */
     while (len) { /* until read is satisfied */
 
+        ami_long n; /* bytes this buffer gives */
+
         if (dp->oddevn) { wp = &dp->hdro; rem = &dp->remo; } /* index odd header */
         else { wp = &dp->hdre; rem = &dp->reme; } /* index even header */
         /* if buffer is empty, wait until full. This should be a signaled wait */
         while (!(wp->dwFlags & WHDR_DONE));
-        /* divide into partial buffer reads vs. whole buffer reads */
-        if (wp->dwBufferLength-*rem >= len) {
+        /* The buffer gives what it holds, and goes back to the device when
+           used up; a read longer than a buffer walks on through the next.
+           (The old loop neither advanced the caller's buffer nor counted
+           a buffer it emptied, so a read past one buffer took the two
+           first buffers over and over, without waiting, and returned at
+           once with the first tenth of a second repeated.) */
+        n = wp->dwBytesRecorded-*rem;
+        if (n > len) n = len;
+        if (n > 0) {
 
-            memcpy(buff, wp->lpData+*rem, len); /* copy incoming data to buffer */
-            *rem += len;
-            len = 0;
-            if (wp->dwBufferLength == *rem)
-                /* data used, move on to next buffer */
-                dp->oddevn = !dp->oddevn; /* flip the buffers */
-
-        } else {
-
-            /* move whole buffer to caller */
-            memcpy(buff, wp->lpData+*rem, wp->dwBufferLength-*rem);
-            len -= wp->dwBufferLength-*rem;
-            /* move on to next buffer */
-            dp->oddevn = !dp->oddevn; /* flip the buffers */
+            memcpy(buff, wp->lpData+*rem, n); /* copy incoming data to buffer */
+            *rem += n;
+            buff += n;
+            len -= n;
 
         }
-        /* if the buffer is used up, rearm */
-        if (*rem >= wp->dwBufferLength) {
+        if (*rem >= wp->dwBytesRecorded) { /* used up: rearm */
 
             r = waveInAddBuffer(dp->hwi, wp, sizeof(WAVEHDR));
             if (r != MMSYSERR_NOERROR)
                 error("Couldn't add buffer to wave input device");
             *rem = 0; /* reset remainder */
+            dp->oddevn = !dp->oddevn; /* flip the buffers */
 
         }
 
     }
 
-    return (total); /* return bytes read */
+    return (total/dp->ssiz); /* the samples read, as the length was given */
 
 }
 
@@ -3598,6 +3712,7 @@ void ami_synthoutname(ami_long p, string name, ami_long len)
     MMRESULT r;
     MIDIOUTCAPS pmoc;
 
+    if (virtout(p)) { cpycrit(name, len, "virtual"); return; }
     r = midiOutGetDevCaps(p-1, &pmoc, sizeof(MIDIOUTCAPS));
     if (r != MMSYSERR_NOERROR) error("Unable to get Midi device capabilities");
     cpycrit(name, len, pmoc.szPname); /* return name */
@@ -3622,6 +3737,7 @@ void ami_synthinname(ami_long p, string name, ami_long len)
     MMRESULT r;
     MIDIINCAPS pmic;
 
+    if (virtin(p)) { cpycrit(name, len, "virtual"); return; }
     r = midiInGetDevCaps(p-1, &pmic, sizeof(MIDIINCAPS));
     if (r != MMSYSERR_NOERROR) error("Unable to get Midi device capabilities");
     cpycrit(name, len, pmic.szPname); /* return name */
@@ -3707,16 +3823,7 @@ void CALLBACK MidiInProc(
 //                   dwParam2, dwParam1 & 0xff, dwParam1 >> 8 & 0xff,
 //                   dwParam1 >> 16 & 0xff);
         dp = midinptab[dwInstance-1]; /* get device pointer */
-        nxtinp = dp->inpptr+1; /* get next input pointer */
-        if (nxtinp >= MIDMAX) nxtinp = 0; /* wrap input pointer */
-        if (nxtinp != dp->outptr) {
-
-            /* no overflow */
-            dp->inpque[dp->inpptr].time = dwParam2; /* place time */
-            dp->inpque[dp->inpptr].mmsg = dwParam1; /* place message */
-            dp->inpptr = nxtinp; /* advance input pointer */
-
-        } else dp->qovf = TRUE; /* flag queue overflow */
+        inpput(dp, dwParam1, dwParam2); /* queue the message */
 
     }
 
@@ -3738,13 +3845,22 @@ void ami_opensynthin(ami_long p)
     MMRESULT  r;
 
     if (p < 1 || p > MAXMIDP) error("Invalid MIDI input port number");
-    if (p > midiInGetNumDevs()) error("No system wave input device exists");
+    if (p > midiInGetNumDevs()+1) error("No system MIDI input device exists");
     makmidinp(p); /* ensure device exists */
     dp = midinptab[p-1]; /* get device pointer */
-    if (dp->open) error("Wave input device is already open");
+    if (dp->open) error("MIDI input device is already open");
     dp->open = TRUE; /* set device open */
+    if (virtin(p)) { /* the loop: its queue, and no device */
 
-    r = midiInOpen(&dp->hmi, 0, (DWORD_PTR)MidiInProc, p, CALLBACK_FUNCTION);
+        dp->hmi = 0;
+        dp->inpptr = dp->outptr = 0; /* the queue starts empty */
+        dp->qovf = FALSE;
+        return;
+
+    }
+
+    /* the port's own device: the ids count from 0, the ports from 1 */
+    r = midiInOpen(&dp->hmi, p-1, (DWORD_PTR)MidiInProc, p, CALLBACK_FUNCTION);
     if (r != MMSYSERR_NOERROR) error("Cannot open midi device");
 
     dp->mh1.lpData = dp->mb1;
@@ -3760,17 +3876,19 @@ void ami_opensynthin(ami_long p)
     r = midiInAddBuffer(dp->hmi, &dp->mh1, sizeof(MIDIHDR));
     if (r != MMSYSERR_NOERROR) error("Cannot add buffer");
 
+    /* the second buffer, its own header: the first is prepared and queued
+       by now, and is not touched again */
     dp->mh2.lpData = dp->mb2;
-    dp->mh1.dwBufferLength = MIDBUFSIZ;
-    dp->mh1.dwBytesRecorded = 0;
-    dp->mh1.dwUser = 0;
-    dp->mh1.dwFlags = 0;
-    dp->mh1.dwOffset = 0;
+    dp->mh2.dwBufferLength = MIDBUFSIZ;
+    dp->mh2.dwBytesRecorded = 0;
+    dp->mh2.dwUser = 0;
+    dp->mh2.dwFlags = 0;
+    dp->mh2.dwOffset = 0;
 
-    r = midiInPrepareHeader(dp->hmi, &dp->mh1, sizeof(MIDIHDR));
+    r = midiInPrepareHeader(dp->hmi, &dp->mh2, sizeof(MIDIHDR));
     if (r != MMSYSERR_NOERROR) error("Cannot prepare header");
 
-    r = midiInAddBuffer(dp->hmi, &dp->mh1, sizeof(MIDIHDR));
+    r = midiInAddBuffer(dp->hmi, &dp->mh2, sizeof(MIDIHDR));
     if (r != MMSYSERR_NOERROR) error("Cannot add buffer");
 
     r = midiInStart(dp->hmi);
@@ -3790,7 +3908,19 @@ void ami_closesynthin(ami_long p)
 
 {
 
-    error("ami_closesynthin: Is not implemented");
+    midinpptr dp;
+
+    if (p < 1 || p > MAXMIDP) error("Invalid MIDI input port number");
+    dp = midinptab[p-1]; /* get device pointer */
+    if (!dp || !dp->open) error("MIDI input device is not open");
+    if (virtin(p)) { dp->open = FALSE; return; } /* the loop: no device */
+    /* stop input, hand the buffers back, and release them with the device */
+    midiInStop(dp->hmi);
+    midiInReset(dp->hmi);
+    midiInUnprepareHeader(dp->hmi, &dp->mh1, sizeof(MIDIHDR));
+    midiInUnprepareHeader(dp->hmi, &dp->mh2, sizeof(MIDIHDR));
+    midiInClose(dp->hmi);
+    dp->open = FALSE; /* set device closed */
 
 }
 
@@ -4053,10 +4183,10 @@ void ami_rdsynth(ami_long p, ami_seqptr sp)
     byte      b1, b2, b3;
 
     if (p < 1 || p > MAXMIDP) error("Invalid MIDI input port number");
-    if (p > midiInGetNumDevs()) error("No system wave input device exists");
+    if (p > midiInGetNumDevs()+1) error("No system MIDI input device exists");
     makmidinp(p); /* ensure device exists */
     dp = midinptab[p-1]; /* get device pointer */
-    if (!dp->open) error("Wave input device is not open");
+    if (!dp->open) error("MIDI input device is not open");
     /* wait for data in queue */
     while (dp->outptr == dp->inpptr);
     midins = dp->inpque[dp->outptr].mmsg; /* get next MIDI message */
@@ -4091,7 +4221,10 @@ void ami_getparamsynthout(ami_long p, string name, string value, ami_long len)
 
 {
 
-    error("ami_getparamsynthout: Is not implemented");
+    /* the Windows devices carry no parameters: an empty value, as the
+       Linux port answers for an ALSA device */
+    if (p < 1 || p > MAXMIDP) error("Invalid synthesizer port");
+    cpycrit(value, len, "");
 
 }
 
@@ -4114,7 +4247,8 @@ void ami_getparamsynthin(ami_long p, string name, string value, ami_long len)
 
 {
 
-    error("ami_getparamsynthin: Is not implemented");
+    if (p < 1 || p > MAXMIDP) error("Invalid MIDI input port number");
+    cpycrit(value, len, ""); /* no parameters on a Windows device */
 
 }
 
@@ -4137,7 +4271,8 @@ void ami_getparamwaveout(ami_long p, string name, string value, ami_long len)
 
 {
 
-    error("ami_getparamwaveout: Is not implemented");
+    if (p < 1 || p > MAXWAVP) error("Invalid wave output port number");
+    cpycrit(value, len, ""); /* no parameters on a Windows device */
 
 }
 
@@ -4160,7 +4295,8 @@ void ami_getparamwavein(ami_long p, string name, string value, ami_long len)
 
 {
 
-    error("ami_getparamwavein: Is not implemented");
+    if (p < 1 || p > MAXWAVP) error("Invalid wave input port number");
+    cpycrit(value, len, ""); /* no parameters on a Windows device */
 
 }
 
@@ -4181,7 +4317,11 @@ ami_long ami_setparamsynthout(ami_long p, string name, string value)
 
 {
 
-    error("ami_setparamsynthout: Is not implemented");
+    /* the Windows devices carry no parameters: the set is declined, as
+       the Linux port answers for an ALSA device */
+    if (p < 1 || p > MAXMIDP) error("Invalid synthesizer port");
+
+    return (1);
 
     return (1); /* this just shuts up compiler */
 
@@ -4204,7 +4344,9 @@ ami_long ami_setparamsynthin(ami_long p, string name, string value)
 
 {
 
-    error("ami_setparamsynthin: Is not implemented");
+    if (p < 1 || p > MAXMIDP) error("Invalid MIDI input port number");
+
+    return (1); /* declined: no parameters on a Windows device */
 
     return (1); /* this just shuts up compiler */
 
@@ -4227,7 +4369,9 @@ ami_long ami_setparamwaveout(ami_long p, string name, string value)
 
 {
 
-    error("ami_setparamwaveout: Is not implemented");
+    if (p < 1 || p > MAXWAVP) error("Invalid wave output port number");
+
+    return (1); /* declined: no parameters on a Windows device */
 
     return (1); /* this just shuts up compiler */
 
@@ -4250,7 +4394,9 @@ ami_long ami_setparamwavein(ami_long p, string name, string value)
 
 {
 
-    error("ami_setparamwavein: Is not implemented");
+    if (p < 1 || p > MAXWAVP) error("Invalid wave input port number");
+
+    return (1); /* declined: no parameters on a Windows device */
 
     return (1); /* this just shuts up compiler */
 
@@ -4286,5 +4432,42 @@ static void ami_init_sound()
     InitializeCriticalSection(&seqlock); /* initialize the sequencer lock */
     /* initialize wave play complete signal */
     playwavecomplete = CreateEvent(NULL, TRUE, FALSE, NULL);
+
+}
+
+/*******************************************************************************
+
+Deinitialize sound module
+
+Closes whatever devices the program left open, on any exit: a MIDI or wave
+device still open when the process shuts down faults inside the Windows audio
+driver as it is unloaded (wdmaud.drv, from LdrShutdownProcess), so an error
+exit with the synthesizer open took an access violation on the way out. The
+sequencer timer goes first, so no callback runs into a closed device.
+
+*******************************************************************************/
+
+static void ami_deinit_sound (void) __attribute__((destructor (103)));
+static void ami_deinit_sound()
+
+{
+
+    int i;
+
+    if (timhan) { timeKillEvent(timhan); timhan = 0; }
+    for (i = 0; i < MAXMIDP; i++)
+        if (midouttab[i] != (HMIDIOUT)-1 && midouttab[i]) {
+
+        midiOutReset(midouttab[i]);
+        midiOutClose(midouttab[i]);
+        midouttab[i] = (HMIDIOUT)-1;
+
+    }
+    for (i = 0; i < MAXMIDP; i++)
+        if (midinptab[i] && midinptab[i]->open) ami_closesynthin(i+1);
+    for (i = 0; i < MAXWAVP; i++)
+        if (pcmout[i] && pcmout[i]->open) relpcmout(pcmout[i], FALSE);
+    for (i = 0; i < MAXWAVP; i++)
+        if (pcmin[i] && pcmin[i]->open) relpcmin(pcmin[i]);
 
 }
