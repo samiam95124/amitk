@@ -1455,6 +1455,10 @@ static void dispatch(void)
             if (a > MAXLW) sesserr("Too many windows open");
             lwused[a] = 1;
             ami_openwin(&inf, &outf, par? wf(par): NULL, a);
+            /* the library titles a new window with this program's name,
+               the server's: the window is the client program's, and takes
+               its name, as the session window did */
+            if (sespgm[0]) ami_title(outf, sespgm);
             h2f[h] = outf;
             h2lw[h] = a;
             break;
