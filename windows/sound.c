@@ -3270,24 +3270,41 @@ Closes a wave input device by number. This is presently a no-op for linux.
 
 *******************************************************************************/
 
-void ami_closewavein(ami_long p)
+/* Release a wave input device. The read path opens the system device on the
+   first read and prepares the two buffers then, so a port never read from
+   has no device to close. Recording stops, the buffers come back from the
+   device, and they go with the handle. */
+
+static void relpcmin(devptr dp)
 
 {
 
-    MMRESULT r;
+    if (dp->init) {
+
+        waveInStop(dp->hwi);
+        waveInReset(dp->hwi); /* the queued buffers return, marked done */
+        waveInUnprepareHeader(dp->hwi, &dp->hdre, sizeof(WAVEHDR));
+        waveInUnprepareHeader(dp->hwi, &dp->hdro, sizeof(WAVEHDR));
+        free(dp->hdre.lpData); dp->hdre.lpData = NULL;
+        free(dp->hdro.lpData); dp->hdro.lpData = NULL;
+        waveInClose(dp->hwi);
+        dp->hwi = 0;
+        dp->init = FALSE;
+
+    }
+    dp->open = FALSE; /* set not open */
+
+}
+
+void ami_closewavein(ami_long p)
+
+{
 
     if (p < 1 || p > MAXWAVP) error("Invalid wave input port number");
     if (p > waveInGetNumDevs()) error("No system wave input device exists");
     if (!pcmin[p-1] || !pcmin[p-1]->open)
         error("Wave input device is not open");
-    /* close the device */
-    if (pcmin[p-1]->hwi) {
-
-        r = waveInClose(pcmin[p-1]->hwi);
-        if (r != MMSYSERR_NOERROR) error("Couldn't close wave input device");
-
-    }
-    pcmin[p-1]->open = FALSE; /* set not open */
+    relpcmin(pcmin[p-1]); /* recording stops and the device goes */
 
 }
 
@@ -3579,42 +3596,41 @@ dbg_printf(dlinfo, "wBitsPerSample: %d\n", wf.wBitsPerSample);
     total = len; /* save total bytes for return */
     while (len) { /* until read is satisfied */
 
+        ami_long n; /* bytes this buffer gives */
+
         if (dp->oddevn) { wp = &dp->hdro; rem = &dp->remo; } /* index odd header */
         else { wp = &dp->hdre; rem = &dp->reme; } /* index even header */
         /* if buffer is empty, wait until full. This should be a signaled wait */
         while (!(wp->dwFlags & WHDR_DONE));
-        /* divide into partial buffer reads vs. whole buffer reads */
-        if (wp->dwBufferLength-*rem >= len) {
+        /* The buffer gives what it holds, and goes back to the device when
+           used up; a read longer than a buffer walks on through the next.
+           (The old loop neither advanced the caller's buffer nor counted
+           a buffer it emptied, so a read past one buffer took the two
+           first buffers over and over, without waiting, and returned at
+           once with the first tenth of a second repeated.) */
+        n = wp->dwBytesRecorded-*rem;
+        if (n > len) n = len;
+        if (n > 0) {
 
-            memcpy(buff, wp->lpData+*rem, len); /* copy incoming data to buffer */
-            *rem += len;
-            len = 0;
-            if (wp->dwBufferLength == *rem)
-                /* data used, move on to next buffer */
-                dp->oddevn = !dp->oddevn; /* flip the buffers */
-
-        } else {
-
-            /* move whole buffer to caller */
-            memcpy(buff, wp->lpData+*rem, wp->dwBufferLength-*rem);
-            len -= wp->dwBufferLength-*rem;
-            /* move on to next buffer */
-            dp->oddevn = !dp->oddevn; /* flip the buffers */
+            memcpy(buff, wp->lpData+*rem, n); /* copy incoming data to buffer */
+            *rem += n;
+            buff += n;
+            len -= n;
 
         }
-        /* if the buffer is used up, rearm */
-        if (*rem >= wp->dwBufferLength) {
+        if (*rem >= wp->dwBytesRecorded) { /* used up: rearm */
 
             r = waveInAddBuffer(dp->hwi, wp, sizeof(WAVEHDR));
             if (r != MMSYSERR_NOERROR)
                 error("Couldn't add buffer to wave input device");
             *rem = 0; /* reset remainder */
+            dp->oddevn = !dp->oddevn; /* flip the buffers */
 
         }
 
     }
 
-    return (total); /* return bytes read */
+    return (total/dp->ssiz); /* the samples read, as the length was given */
 
 }
 
@@ -4389,12 +4405,7 @@ static void ami_deinit_sound()
         if (midinptab[i] && midinptab[i]->open) ami_closesynthin(i+1);
     for (i = 0; i < MAXWAVP; i++)
         if (pcmout[i] && pcmout[i]->open) relpcmout(pcmout[i], FALSE);
-    for (i = 0; i < MAXWAVP; i++) if (pcmin[i] && pcmin[i]->open) {
-
-        waveInReset(pcmin[i]->hwi);
-        waveInClose(pcmin[i]->hwi);
-        pcmin[i]->open = FALSE;
-
-    }
+    for (i = 0; i < MAXWAVP; i++)
+        if (pcmin[i] && pcmin[i]->open) relpcmin(pcmin[i]);
 
 }
