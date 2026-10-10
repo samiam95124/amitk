@@ -680,11 +680,15 @@ int main(int argc, char* argv[])
     fprintf(tw, "\n");
     fprintf(tw, "Now enter characters to each window, then end with return\n");
     waitnextprint();
+    /* The cursor goes off before the second window closes: whether the
+       focus, and with it the drawn cursor, comes back to this window when
+       the other goes is the desktop's choice, and the frame after must not
+       depend on it. */
+    ami_curvis(tw, OFF);
     fclose(win2);
     fputc('\f', tw);
     fprintf(tw, "Second window now closed\n");
     waitnext();
-    ami_curvis(tw, OFF);
     ami_auto(tw, OFF);
 
     /* ********************* Resize buffer window character ******************** */
