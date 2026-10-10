@@ -22,10 +22,12 @@
 * the client connects and streams the file in, close delimited.               *
 *                                                                              *
 * The server serves one client at a time, and when the client says bye it    *
-* resets and cycles back to wait for the next connection. Closing the window  *
-* on a client ends that client's session the same way; closing it idle, or   *
-* the console interrupt, cancels the server. It must be started before its   *
-* client.                                                                     *
+* resets and cycles back to wait for the next connection. The server has no  *
+* window of its own on the display: a program's window appears when it       *
+* connects and goes when it ends, holding at the end if its autohold is on,  *
+* as it would on its own display. Closing the window on a running program    *
+* ends it. The console interrupt shuts the server down. It must be started   *
+* before its client.                                                          *
 *                                                                              *
 *******************************************************************************/
 
@@ -94,12 +96,12 @@ static int  hellopend;   /* a mid-session hello opened the next session */
 
 /* The pump lives across sessions: it forwards events while a client is
    up, discards them while the server is idle, and treats a terminate
-   from the display, the close button or a control-c typed in the
-   window, as the client's while one is up and as cancellation on an
-   idle server. It stops only for the process exit, which must not tear
-   the library down around it. */
+   from the display, a window's close button or the console interrupt,
+   as the client's while one is up, as the end of the hold while a
+   program's window is held, and as cancellation on an idle server. It
+   never returns: the server's own exit is taken on this thread, see
+   srvexit. */
 static ami_long  pump;     /* the pump, by services thread id */
-static int       pumpstop; /* exiting: leave the library and return */
 
 /* The pump stands down while a modal dialog runs. A dialog pumps its
    own events on the dispatch thread, and two threads inside event()
@@ -146,12 +148,23 @@ static int       sigasked; /* a terminate asked this session to end */
 static FILE* h2f[MAXHND];  /* handle to window file */
 static ami_long  h2lw[MAXHND]; /* handle to logical window id */
 
-/* the main window as the server presented it, restored between
-   sessions: a session's title and size are the session's */
-static char srvname[64];
-static ami_long origw, origh;
-static ami_long origfs;         /* the font size it started with */
-static ami_long origbw, origbh; /* and its buffer size */
+/* The session's window. The library's main window is the server's own
+   and is never written to, so it never shows: on every desktop port a
+   window appears on its first output. A client's handle 1 is a window of
+   its own, opened when its session opens and closed when the session
+   ends, so a program's window comes and goes on the server's display as
+   it would on its own. The hold at the end is the program's autohold,
+   kept for the session instead of the library's: the window stays, its
+   title marked, until it is closed or the next client comes. */
+#define SESWID 2 /* the session window's logical id; a client's other
+                    windows get their handle plus one, so none is 1, the
+                    main window's */
+#define MAXLW 100 /* logical ids the display library accepts, 1 to this */
+static unsigned char lwused[MAXLW+1]; /* the ids the session's windows hold */
+static int  sesautohold;   /* the session's autohold, on by default */
+static char sestitle[256]; /* the title the session set, for the hold */
+static char sespgm[128];   /* the program's name, from its hello */
+static int  holding;       /* the program ended and its window is held */
 
 /*******************************************************************************
 
@@ -219,7 +232,6 @@ static int     cleaning;  /* winding down; a second fault is fatal */
    services runs on: waitsig releases the lock, waits, and takes it back. */
 static ami_long        joblock;    /* services concurrency lock */
 static ami_long        jobdone;    /* services signal: the job is finished */
-static ami_long        pumpgone;   /* and this one: the pump has stopped */
 static void          (*jobfn)(void*); /* the call to make, NULL for none */
 static void*           jobarg;
 static int             jobsts;     /* the job took a session error */
@@ -910,14 +922,44 @@ static void runjob(void)
 
 /* the jobs the wire thread posts */
 static void job_dgram(void* a) { (void)a; dgram(rlen); }
-static void job_clear(void* a)
-    { (void)a; putchar('\f'); fflush(stdout); thinclear(); }
+static void job_openses(void* a)
+
+{
+
+    FILE* inf = stdin; /* its input joins the queue the pump reads */
+    FILE* outf = NULL;
+
+    (void)a;
+    ami_openwin(&inf, &outf, NULL, SESWID);
+    h2f[1] = outf;
+    h2lw[1] = SESWID;
+    /* titled with the program's name, as the native library titles the
+       window of a program that sets no title */
+    if (sespgm[0]) ami_title(outf, sespgm);
+    thinclear(); /* and no pending events from a prior session */
+
+}
+
+/* the hold: the program is gone and its window stays, its title marked
+   the way the native library marks a held window */
+static void job_hold(void* a)
+
+{
+
+    char t[sizeof(sestitle)+16];
+
+    (void)a;
+    /* the native library marks a held window with the program's name;
+       the title the program set stands in for a client that sent none */
+    snprintf(t, sizeof(t), "Finished - %s", sespgm[0]? sespgm: sestitle);
+    ami_title(h2f[1], t);
+
+}
 
 /* Reset for the next client, on the thread that owns the display: the
-   session's windows close, its widgets and its sound go with them, and the
-   main window comes back to a reasonable state. A timer the session left
-   running is not recovered, the library having no way to ask, and would tick
-   into the next session. */
+   session's windows close, its widgets and its sound go with them. A
+   timer the session left running is not recovered, the library having no
+   way to ask, and would tick into the next session. */
 
 static void job_winddown(void* a)
 
@@ -926,23 +968,19 @@ static void job_winddown(void* a)
     ami_long h;
 
     (void)a;
-    /* Reset for the next client: the session's windows close, and
-       the main window comes back to a reasonable state. A timer the
-       session left running is not recovered, the library having no
-       way to ask, and would tick into the next session. */
-    for (h = 2; h < MAXHND; h++) if (h2f[h]) {
+#ifndef _WIN32
+    if (h2f[1]) wb_purge(h2f[1]); /* the session's widgets go with it */
+#endif
+    /* the session's windows close, its own last: it is the parent of
+       whatever the session hung on it */
+    for (h = MAXHND-1; h >= 1; h--) if (h2f[h]) {
 
         fclose(h2f[h]);
         h2f[h] = 0;
+        h2lw[h] = 0;
 
     }
-#ifndef _WIN32
-    wb_purge(stdout); /* the session's widgets go with it */
-#else
-    /* the Windows display has its widgets in the library, not in
-       widget_base, and no purge: a session's widgets on the main window
-       stay until the next session draws over them */
-#endif
+    memset(lwused, 0, sizeof(lwused)); /* the ids are all free again */
     {
 
         /* and its sound footprint: ports, timers and stores */
@@ -962,53 +1000,52 @@ static void job_winddown(void* a)
         if (sesti) { ami_stoptimein(); sesti = 0; }
 
     }
-    ami_title(stdout, srvname); /* the session's title went with it */
-    ami_setsizg(stdout, origw, origh); /* and its size */
-    ami_auto(stdout, 0); /* off first: the resets below are illegal
-                            with it on, and it cannot come back on
-                            until the geometry is standard again */
-    /* the session's font, buffer, line width and decorations go too, the
-       geometry while auto is off, as above. The font goes back before the
-       buffer is sized: the buffer's character grid is its pixel size
-       divided by the font's, and sized under the session's font it would
-       be the session's grid, a few columns wide under a large one, with
-       the message below wrapping in them */
-    ami_frame(stdout, 1);
-    ami_sysbar(stdout, 1);
-    ami_sizable(stdout, 1);
-    ami_font(stdout, AMI_FONT_TERM);
-    ami_fontsiz(stdout, origfs);
-    ami_buffer(stdout, 1);
-    ami_sizbufg(stdout, origbw, origbh);
-    ami_linewidth(stdout, 1);
-    ami_fover(stdout);
-    ami_bover(stdout);
-    ami_fcolor(stdout, ami_black);
-    ami_bcolor(stdout, ami_white);
-    /* and every text attribute the session may have left on */
-    ami_bold(stdout, 0);        ami_italic(stdout, 0);    ami_underline(stdout, 0);
-    ami_strikeout(stdout, 0);   ami_standout(stdout, 0);  ami_reverse(stdout, 0);
-    ami_blink(stdout, 0);       ami_condensed(stdout, 0); ami_extended(stdout, 0);
-    ami_xbold(stdout, 0);       ami_light(stdout, 0);     ami_xlight(stdout, 0);
-    ami_superscript(stdout, 0); ami_subscript(stdout, 0);
-    ami_hollow(stdout, 0);      ami_raised(stdout, 0);
-    ami_viewoffg(stdout, 0, 0);
-    ami_viewscale(stdout, 1.0, 1.0);
-    ami_path(stdout, LONG_MAX/4);
-    putchar('\f'); /* clear, and home the cursor to the grid */
-    fflush(stdout);
-    ami_auto(stdout, 1);
-    ami_curvis(stdout, 1);
-    printf("Session ended. Remote display server awaiting connection "
-           "on port %lld.\n", AMI_LONG_CAST(srvport));
-    printf("Control-c in this window, or its close button, shuts the "
-           "server down.\n");
-    fflush(stdout);
 
 }
 
+/* The server's own exit, from the pump. The wire thread is blocked in the
+   network, in the secure listen or the hello read, and nothing short of a
+   client wakes it. The destructors that exit() would run take the network
+   down under it, and it faults in the freed channel: a segmentation fault
+   in the DTLS listen at every shutdown under the debugger, now and then
+   without it. So the process ends without them: the system reclaims the
+   sockets and the windows, and nothing here is left to flush. */
+static void srvexit(void)
 
-static int pumpstopped; /* the pump has left; stoppump waits on this */
+{
+
+    _exit(1);
+
+}
+
+/* End the hold, if one is on. Either thread may see its end first, the
+   pump on the window's close or the wire thread on the next client's
+   hello: the one that takes it under the lock ends it and the other
+   finds it gone. The winddown runs on the display's thread either way,
+   directly on the pump, posted from the wire. Returns whether there was
+   a hold to end. */
+static int endhold(int onpumpthread)
+
+{
+
+    int h;
+
+    ami_lock(joblock);
+    h = holding;
+    holding = 0;
+    ami_unlock(joblock);
+    if (h) {
+
+        cleaning = 1; /* a fault in the winddown is fatal */
+        if (onpumpthread) job_winddown(NULL);
+        else ondisplay(job_winddown, NULL);
+        cleaning = 0;
+
+    }
+
+    return (h);
+
+}
 
 static void evpump(void)
 
@@ -1036,34 +1073,46 @@ static void evpump(void)
            display is this thread's to give */
         runjob();
         ami_event(stdin, &er);
-        if (pumpstop) break; /* the process is exiting */
-        if ((ami_long)er.etype == GR_EVWAKE) continue; /* ours: a job, or the stop */
+        if ((ami_long)er.etype == GR_EVWAKE) continue; /* ours: a job */
         if (gtrace && !clientup)
             fprintf(stderr, "gs.e %-15s w%lld (idle)\n",
                     gr_evtname((ami_long)er.etype), AMI_LONG_CAST(er.winid));
         if (er.etype == ami_etterm) {
 
-            /* A terminate: the close button, control-c in this window,
-               or control-c in the shell that started the server, which
-               the display library delivers as this same event. With a
-               client up it is the client's: the terminate forwards, the
-               program exits as it would on its own display, and its bye
-               winds the session down, the server idling for the next
-               client. Idle, or asked again while the client is still
-               here, it shuts the server down here and now. Exiting on
-               this thread is right: it is the one that owns the display,
-               so the library's own winddown runs where it belongs. */
-            if (!clientup || sigasked) {
+            /* A terminate: a window's close button, or control-c in the
+               shell that started the server, which the display library
+               delivers as this same event. With a client up it is the
+               client's: the terminate forwards, the program exits as it
+               would on its own display, and its bye ends the session.
+               With a program's window held it ends the hold, and the
+               window goes. Idle, or asked again while the client is
+               still here, it shuts the server down here and now. */
+            if (clientup) {
 
-                status("shutting down, port %lld released%s",
-                       AMI_LONG_CAST(srvport),
-                       clientup? ", the client on it abandoned": "");
-                exit(1);
+                if (sigasked) {
+
+                    status("shutting down, port %lld released, the client "
+                           "on it abandoned", AMI_LONG_CAST(srvport));
+                    srvexit();
+
+                }
+                sigasked = 1; /* the client was told; a second asks the server */
+                status("the window was closed on the connection on port "
+                       "%lld, ending its session", AMI_LONG_CAST(srvport));
+
+            } else if (endhold(1)) {
+
+                status("the held window was closed, the program's window "
+                       "on port %lld is gone", AMI_LONG_CAST(srvport));
+                continue;
+
+            } else {
+
+                status("shutting down, port %lld released",
+                       AMI_LONG_CAST(srvport));
+                srvexit();
 
             }
-            sigasked = 1; /* the client was told; a second asks the server */
-            status("the window was closed on the connection on port %lld, "
-                   "ending its session", AMI_LONG_CAST(srvport));
 
         }
         if (!clientup) continue; /* idle: nobody to forward to */
@@ -1111,35 +1160,6 @@ static void evpump(void)
         inpumpevt = 0;
 
     }
-    /* the stop is taken: whoever waits on it can go */
-    jt("pump leaving");
-    ami_lock(joblock);
-    pumpstopped = 1;
-    ami_sendsig(pumpgone);
-    ami_unlock(joblock);
-
-}
-
-/* stop the pump for a process exit: wake it out of the library and
-   collect it, so the teardown finds the library empty */
-static void stoppump(void)
-
-{
-
-    ami_evtrec wake;
-
-    if (pump < 1) return; /* no pump to stop */
-    jt("stoppump: asking");
-    pumpstop = 1;
-    memset(&wake, 0, sizeof(wake));
-    wake.etype = (ami_evtcod)GR_EVWAKE;
-    ami_sendevent(stdout, &wake);
-    /* services has no join: the pump says when it has gone */
-    jt("stoppump: waiting");
-    ami_lock(joblock);
-    while (!pumpstopped) ami_waitsig(joblock, pumpgone);
-    ami_unlock(joblock);
-    jt("stoppump: the pump has gone");
 
 }
 
@@ -1173,6 +1193,9 @@ static void dispatch(void)
 
         case GR_MHELLO:
             a = gi();
+            /* the program's name follows, from a client that sends one */
+            if (roff < rlen) gstr(sespgm, sizeof(sespgm));
+            else sespgm[0] = 0;
             rbegin(); ri(GR_VERSION); rsend();
             if (a != GR_VERSION) sesserr("Client protocol version mismatch");
             if (clientup) {
@@ -1208,6 +1231,10 @@ static void dispatch(void)
         case GR_MCLOSEWIN:
             fclose(f);
             h2f[rhdr()->wid] = NULL;
+            /* its id goes back to the pool */
+            a = h2lw[rhdr()->wid];
+            if (a > SESWID && a <= MAXLW) lwused[a] = 0;
+            h2lw[rhdr()->wid] = 0;
             break;
 
         /* ----------------------------------------------- terminal level */
@@ -1256,10 +1283,10 @@ static void dispatch(void)
         case GR_MFUNKEY: rbegin(); ri(ami_funkey(f)); rsend(); break;
         case GR_MFRAMETIMER: a = gi(); ami_frametimer(f, a); break;
         case GR_MAUTOHOLD:
-            /* accepted and swallowed: the hold acts at process exit,
-               which a session never is, and the server's own exit must
-               never hold */
+            /* the session's: the hold acts when the program ends, on
+               its window here, never on the server's own exit */
             a = gi();
+            sesautohold = a != 0;
             break;
         case GR_MWRTSTR: gstr(s1, MAXSTR); ami_wrtstr(f, s1); break;
         case GR_MWRTSTRN:
@@ -1270,7 +1297,12 @@ static void dispatch(void)
             ami_wrtstrn(f, s1, a);
             break;
         case GR_MSIZBUF: a = gi(); b = gi(); ami_sizbuf(f, a, b); break;
-        case GR_MTITLE: gstr(s1, MAXSTR); ami_title(f, s1); break;
+        case GR_MTITLE:
+            gstr(s1, MAXSTR);
+            if (f == h2f[1]) /* the program's window: its title names the hold */
+                snprintf(sestitle, sizeof(sestitle), "%s", s1);
+            ami_title(f, s1);
+            break;
         case GR_MFCOLORC:
             a = gi(); b = gi(); c = gi(); ami_fcolorc(f, a, b, c); break;
         case GR_MBCOLORC:
@@ -1412,6 +1444,16 @@ static void dispatch(void)
             par = gi(); h = gi(); a = gi();
             if (h < 1 || h >= MAXHND || h2f[h])
                 sesserr("Invalid window handle");
+            /* The logical id is the server's to choose: the client maps
+               events by handle, never by id, so the program's own (a) is
+               not needed, and could not be used, the session window
+               holding one of the program's possible ids. The library
+               takes ids up to MAXLW only, and the program's handles climb
+               past that as it opens and closes windows, so the ids come
+               from a pool and go back at close. */
+            for (a = SESWID+1; a <= MAXLW && lwused[a]; a++);
+            if (a > MAXLW) sesserr("Too many windows open");
+            lwused[a] = 1;
             ami_openwin(&inf, &outf, par? wf(par): NULL, a);
             h2f[h] = outf;
             h2lw[h] = a;
@@ -2171,7 +2213,6 @@ int main(int argc, char* argv[])
     joblock = ami_initlock();
     evsend = ami_initlock();
     jobdone = ami_initsig();
-    pumpgone = ami_initsig();
     /* The server never holds its final screen: it is infrastructure,
        and its exit must release the display and the ports at once. The
        hold belongs to programs, and a session's program never exits
@@ -2211,39 +2252,14 @@ int main(int argc, char* argv[])
     ami_tmomsg(cmdfn, 0);
     ami_tmomsg(evtfn, 0);
 
-    /* the main window is handle 1 */
-    h2f[1] = stdout;
-    h2lw[1] = 1;
-
-    /* the main window as presented, for the between-session restore */
-    {
-
-        const char* bn = strrchr(argv[0], '/');
-        const char* bb = strrchr(argv[0], '\\'); /* Windows spells it so */
-
-        if (bb > bn) bn = bb;
-        snprintf(srvname, sizeof(srvname), "%s", bn? bn+1: argv[0]);
-        ami_getsizg(stdout, &origw, &origh);
-        origfs = ami_chrsizy(stdout); /* the font size it started with */
-        origbw = ami_maxxg(stdout);   /* and its buffer */
-        origbh = ami_maxyg(stdout);
-
-    }
-
-    /* the idle window says what it is; a blank window reads as a hang */
-    printf("Remote display server awaiting %sconnection on port %lld.\n",
-           gsecure? "secure ": "",
-           AMI_LONG_CAST(srvport));
-    printf("Control-c in this window, or its close button, shuts the "
-           "server down.\n");
-    fflush(stdout);
-
+    /* nothing is ever written to the library's main window, so it never
+       shows: the shell has the server's status, and the display shows
+       the programs' windows only */
 
     /* the session loop: serve a client, reset, wait for the next; a
        session error jumps back here, winds down, and recycles, as does
-       a client sent off by the window's close. The console interrupt,
-       or a terminate from the display of an idle server, is the way
-       out. */
+       a client sent off by its window's close. The console interrupt
+       of an idle server is the way out. */
     for (;;) {
 
         ami_long h;
@@ -2294,10 +2310,14 @@ int main(int argc, char* argv[])
                 sesserr("Protocol failure: no event channel hello");
 
         }
-        /* the idle banner must not greet the session: the window
-           clears before the client's first drawing arrives */
-        /* the clear, and no pending events from a prior session */
-        ondisplay(job_clear, NULL);
+        /* a window held from the last program goes first: the display
+           is the new program's now */
+        endhold(0);
+        /* the program's window, with the library's defaults until the
+           program says otherwise */
+        sesautohold = 1;
+        sestitle[0] = 0;
+        ondisplay(job_openses, NULL);
         clientup = 1; /* the pump forwards from here on */
         status("connection arrived on port %lld, its event channel on port "
                "%lld", AMI_LONG_CAST(srvport), AMI_LONG_CAST(srvport+1));
@@ -2323,20 +2343,39 @@ int main(int argc, char* argv[])
             }
 
         }
-        /* a terminate that asked this session to end ended just the
-           session: the server winds down and waits for the next client,
-           as it does after any other bye */
+        if (sesautohold && !sigasked && !hellopend) {
 
+            /* The program ended on its own with its autohold on: its
+               window holds, title marked, until it is closed or the next
+               client comes, as a native program's would. Its channels
+               are done regardless; the display part of the session ends
+               with the hold. */
+            ami_lock(joblock);
+            holding = 1;
+            ami_unlock(joblock);
+            ondisplay(job_hold, NULL);
+            status("connection on port %lld closed: the program ended, its "
+                   "window held until closed", AMI_LONG_CAST(srvport));
+            clientup = 0;
+            cleaning = 1; /* a fault in the channel work is fatal */
+
+        } else {
+
+            /* no hold: the session's windows go now. A terminate that
+               asked this session to end ended just the session, as any
+               other bye; the server waits for the next client. */
 winddown:
-        status("connection on port %lld closed: %s", AMI_LONG_CAST(srvport),
-               faulted?   "session error":
-               hellopend? "a new client's hello replaced it":
-               sigasked?  "the window was closed on it":
-                          "the client said bye");
-        clientup = 0;
-        cleaning = 1; /* a fault in the winddown itself is fatal */
+            status("connection on port %lld closed: %s",
+                   AMI_LONG_CAST(srvport),
+                   faulted?   "session error":
+                   hellopend? "a new client's hello replaced it":
+                   sigasked?  "the window was closed on it":
+                              "the program ended");
+            clientup = 0;
+            cleaning = 1; /* a fault in the winddown itself is fatal */
+            ondisplay(job_winddown, NULL);
 
-        ondisplay(job_winddown, NULL);
+        }
 
         if (gsecure) {
 

@@ -51,9 +51,11 @@
 #include <graph_remote.h>
 
 #ifdef _WIN32
-/* the receiver thread is ended outright at close (see the deinit); the call
-   is declared here rather than pulling windows.h into the client */
-__declspec(dllimport) int __stdcall TerminateThread(void* thread, unsigned long code);
+/* the program's name comes from the system (see pgmname); the call is
+   declared here rather than pulling windows.h into the client */
+__declspec(dllimport) unsigned long __stdcall GetModuleFileNameA(void* module, char* name, unsigned long size);
+#elif defined(__APPLE__)
+#include <mach-o/dyld.h>
 #endif
 
 #define MAXFDS  512  /* file descriptors tracked for window files */
@@ -155,6 +157,7 @@ static void qcresize(ami_long h)
 /* event machinery. The receiver thread fills the queue; event() and
    sendevent() are the other users. The lock covers the queue only. */
 static pthread_t       evthrd;     /* the receiver thread */
+static volatile int    evstop;     /* the receiver is to stop, at close */
 static pthread_mutex_t evlock = PTHREAD_MUTEX_INITIALIZER;
 static pthread_cond_t  evcond = PTHREAD_COND_INITIALIZER;
 static ami_evtrec*     evq;        /* event queue ring, grows as needed */
@@ -813,6 +816,11 @@ static void* evrun(void* arg)
     if (!ebuf) error("Out of memory");
     for (;;) {
 
+        /* The wait is bounded so the stop at close is seen, and the read
+           is taken only when it will not block: a read that fails is fatal
+           in the library, so the channel must still be whole under it. */
+        while (!evstop && !ami_rdymsg(evtfn, 50000L));
+        if (evstop) break;
         n = ami_rdmsg(evtfn, ebuf, msgmax);
         if (n < (ami_long)sizeof(gr_msghdr)) error("Short message from server");
         h = (gr_msghdr*)ebuf;
@@ -2070,6 +2078,48 @@ channels, exchange the hello. The main window is handle 1 from the start.
 
 *******************************************************************************/
 
+/* The program's name as the native library would title its window: the
+   executable's base name, without the extension on Windows. The system
+   knows which file is running, whatever the command line spelled. */
+static void pgmname(char* dst, ami_long dl)
+
+{
+
+    char  path[1024];
+    char* s;
+    char* b;
+
+    path[0] = 0;
+#ifdef _WIN32
+    if (!GetModuleFileNameA(NULL, path, sizeof(path)-1)) path[0] = 0;
+    path[sizeof(path)-1] = 0;
+#elif defined(__APPLE__)
+    {
+
+        uint32_t l = sizeof(path);
+
+        if (_NSGetExecutablePath(path, &l)) path[0] = 0;
+
+    }
+#else
+    {
+
+        ssize_t l = readlink("/proc/self/exe", path, sizeof(path)-1);
+
+        if (l > 0) path[l] = 0; else path[0] = 0;
+
+    }
+#endif
+    b = path;
+    for (s = path; *s; s++) if (*s == '/' || *s == '\\') b = s+1;
+    snprintf(dst, dl, "%s", b);
+#ifdef _WIN32
+    s = strrchr(dst, '.');
+    if (s && s != dst) *s = 0;
+#endif
+
+}
+
 static void ami_init_graph_client(void) __attribute__((constructor (105)));
 static void ami_init_graph_client(void)
 
@@ -2119,7 +2169,12 @@ static void ami_init_graph_client(void)
 
         ssize_t r = -1;
         int     try;
+        char    pgmnam[128];
 
+        /* The hello carries the program's name: the server titles the
+           program's window with it, as the native library titles its own
+           window, and marks the held window with it at the end. */
+        pgmname(pgmnam, sizeof(pgmnam));
         /* A datagram handshake retries: the hello is idempotent. The
            bound is by the ready test and the read by the message call, which
            under the secure channel is also what decrypts: a raw recv
@@ -2128,6 +2183,7 @@ static void ami_init_graph_client(void)
 
             begin(GR_MHELLO, 0);
             pi(GR_VERSION);
+            ps(pgmnam);
             sseq++;
             shdr()->seq = sseq;
             send0();
@@ -2227,16 +2283,15 @@ static void ami_deinit_graph_client(void)
            each piece takes down only if it exists. */
         if (evq) {
 
-#ifndef _WIN32
-            pthread_cancel(evthrd);
-            pthread_join(evthrd, NULL);
-#else
-            /* winpthreads cancels only at its own wait points, and the
-               receiver sits in a socket read: it is ended outright, which
-               is what the cancel amounts to elsewhere, before its channel
-               goes away beneath it */
-            TerminateThread(pthread_gethandle(evthrd), 0);
-#endif
+            /* The receiver sees the stop at its next wait, within the poll
+               bound, and is joined. Ending it outright, as before, left
+               whatever lock it held, the heap's at times, held forever,
+               and the exit hung on it. */
+            evstop = 1;
+            /* unless this is the receiver itself, exiting on an error of
+               its own: it cannot wait for itself */
+            if (!pthread_equal(pthread_self(), evthrd))
+                pthread_join(evthrd, NULL);
 
         }
         ami_clsmsg(cmdfn);
