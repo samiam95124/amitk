@@ -92,6 +92,9 @@ static int             evsendheld; /* the send holds it; a fault must free it */
    pump winds down at session end by a wake event injected from the main
    thread. */
 static int byeseen;   /* the client said bye; wind down */
+static int abandoned; /* the client was told to end and never answered */
+#define GONEWAIT 5    /* seconds a client told to end has to answer */
+#define GONETICK 250000L /* the wait's step, in microseconds */
 static int  hellopend;   /* a mid-session hello opened the next session */
 
 /* The pump lives across sessions: it forwards events while a client is
@@ -2277,6 +2280,7 @@ int main(int argc, char* argv[])
         /* fresh session */
         byeseen = 0;
         sigasked = 0;
+        abandoned = 0;
         cleaning = 0;
 
         /* the hello; a mid-session hello was already read and answered,
@@ -2332,6 +2336,21 @@ int main(int argc, char* argv[])
            the wire and not by the heartbeat. */
         while (!byeseen) {
 
+            int ticks = 0; /* waits since the client was told to end */
+
+            /* The wait for the next command is in steps, so that a client
+               told to end (its window closed here) that never answers --
+               killed, crashed, or its network gone -- is given up on
+               after GONEWAIT seconds, and the server goes on to the next
+               client, instead of sitting in a dead session for good. A
+               live client answers a terminate with its bye at once. */
+            while (!ami_rdymsg(cmdfn, GONETICK))
+                if (sigasked && ++ticks > GONEWAIT*1000000L/GONETICK) {
+
+                    abandoned = 1;
+                    goto winddown;
+
+                }
             rlen = ami_rdmsg(cmdfn, rbase, msgmax);
             for (;;) {
 
@@ -2373,6 +2392,8 @@ winddown:
                    AMI_LONG_CAST(srvport),
                    faulted?   "session error":
                    hellopend? "a new client's hello replaced it":
+                   abandoned? "the window was closed on it and the program "
+                              "never answered, its session abandoned":
                    sigasked?  "the window was closed on it":
                               "the program ended");
             clientup = 0;
