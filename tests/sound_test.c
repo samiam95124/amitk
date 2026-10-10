@@ -33,6 +33,7 @@ is missing the section says so and stands down.
 #include <math.h>
 
 #include <terminal.h> /* terminal level functions */
+#include <services.h> /* the option character */
 #include <sound.h>    /* sound library */
 #include <option.h>   /* option parsing */
 
@@ -542,6 +543,26 @@ int main(int argc, char *argv[])
        alone */
     if (argcl == 2 || argcl == 3) {
 
+        char* ep;
+        int   i;
+
+        /* a positional that is not a number is an option in the wrong
+           form, "--sin=1" on Windows, where options start with '/': say
+           so, rather than "Bad test range" */
+        for (i = 0; i < argcl-1; i++) {
+
+            strtol(argv[argi+i], &ep, 10);
+            if (ep == argv[argi+i] || *ep) {
+
+                fprintf(stderr, "Not a test number: %s\n", argv[argi+i]);
+                fprintf(stderr, "(options on this system are given as "
+                                "%cname or %cname=value)\n",
+                        ami_optchr(), ami_optchr());
+                exit(1);
+
+            }
+
+        }
         tstlo = strtol(argv[argi], NULL, 10);
         if (argcl == 3) tsthi = strtol(argv[argi+1], NULL, 10);
         if (tstlo < 1 || tsthi < tstlo) {
