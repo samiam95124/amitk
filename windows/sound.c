@@ -2557,6 +2557,7 @@ void ami_delsynth(ami_long s)
     if (!synthnam[s-1])
         error("No synthesizer file loaded for logical number");
     free(synthnam[s-1]);
+    synthnam[s-1] = NULL; /* the slot is free again */
 
 }
 
@@ -2796,7 +2797,8 @@ void ami_delwave(ami_long w)
     if (w < 1 || w > MAXWAVT) error("Invalid logical wave file number");
     if (!wavenam[w-1])
         error("No wave file loaded for logical number");
-    free(synthnam[w-1]);
+    free(wavenam[w-1]); /* the wave's own entry, and the slot is free again */
+    wavenam[w-1] = NULL;
 
 }
 
