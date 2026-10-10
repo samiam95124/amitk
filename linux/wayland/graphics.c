@@ -188,6 +188,15 @@ static const decvec* dec;
 
 void grx_decreg(const decvec* v) { dec = v; }
 
+/* the frame painted, and the scroll bars over it (defined with the bars) */
+static void frmdraw(winptr win, int mw, int mh);
+static void scldraw(winptr win);
+static void sclsync(winptr win);
+static void cansync(winptr win);
+static void clisize(winptr win, int* w, int* h);
+static void sclavail(winptr win, int* w, int* h);
+static void isizbufg(winptr win, ami_long x, ami_long y);
+
 /* forward declarations: the notify waits (defined with the event
    machinery) */
 static void notexevt(pd_evt* e);
@@ -1103,6 +1112,10 @@ static ami_ulong mettot;    /* menu entries total */
 static int maxxd;     /* default window dimensions */
 static int maxyd;
 static int dialogerr; /* send runtime errors to dialog */
+static int scrollbuffer = TRUE; /* a buffered window shows scroll bars for a
+                                   buffer larger than its client: the option
+                                   scrollbuffer under graphics in the
+                                   configuration, on by default */
 static int mouseenb;  /* enable mouse */
 static int joyenb;    /* enable joysticks */
 static int dmpmsg;    /* enable dump messages (diagnostic, windows only) */
@@ -4372,7 +4385,7 @@ static int fndevt(pd_win* w)
            records are pooled and never freed, so the local is always safe
            to read, a stale one at worst. */
         wp = opnfil[fi]? opnfil[fi]->win: NULL;
-        if (wp && (wp->xmwhan == w || wp->xwhan == w)) {
+        if (wp && (wp->xmwhan == w || wp->xwhan == w || wp->xchan == w)) {
 
             ff = fi; /* set found */
             fi = MAXFIL; /* terminate */
@@ -4932,15 +4945,15 @@ static void curdrw(winptr win)
     sc->xcxt->fg = colnum(ami_white);
     sc->xcxt->mix = pd_mixxor; /* set reverse */
     if (win->focus)
-        pd_frect(pd_wincanvas(win->xwhan), sc->xcxt,
+        pd_frect(pd_wincanvas(win->xchan), sc->xcxt,
                        L2PX(win, sc->curxg-1), L2PY(win, sc->curyg-1),
                        L2PW(win, win->charspace), L2PH(win, win->linespace));
     else {
 
-        pd_rect(pd_wincanvas(win->xwhan), sc->xcxt,
+        pd_rect(pd_wincanvas(win->xchan), sc->xcxt,
                        L2PX(win, sc->curxg-1), L2PY(win, sc->curyg-1),
                        L2PW(win, win->charspace), L2PH(win, win->linespace));
-        pd_rect(pd_wincanvas(win->xwhan), sc->xcxt,
+        pd_rect(pd_wincanvas(win->xchan), sc->xcxt,
                        L2PX(win, sc->curxg-1+1), L2PY(win, sc->curyg-1+1),
                        L2PW(win, win->charspace-2), L2PH(win, win->linespace-2));
 
@@ -5196,7 +5209,7 @@ static void childfrm_minimize(winptr win)
     pd_winmove(win->xmwhan, x, y); pd_winsize(win->xmwhan, min_w, min_h);
     /* hide the subclient — we only want to show the title bar */
     pd_winmap(win->xwhan, 0);
-    dec->frmdraw(win, win->xmwr.w, win->xmwr.h);
+    frmdraw(win, win->xmwr.w, win->xmwr.h);
 
 }
 
@@ -5213,7 +5226,7 @@ static void childfrm_restore(winptr win)
     pd_winsize(win->xmwhan, win->xmwr.w, win->xmwr.h);
     pd_winmap(win->xwhan, 1);
     restore(win);
-    dec->frmdraw(win, win->xmwr.w, win->xmwr.h);
+    frmdraw(win, win->xmwr.w, win->xmwr.h);
 
 }
 
@@ -5251,7 +5264,7 @@ static void themechange(void)
 
             scnlock(opnfil[fi]->win); /* its frame, under its lock */
             if (opnfil[fi]->win->xmwhan)
-                dec->frmdraw(opnfil[fi]->win, opnfil[fi]->win->xmwr.w,
+                frmdraw(opnfil[fi]->win, opnfil[fi]->win->xmwr.w,
                              opnfil[fi]->win->xmwr.h);
             scnunlock(opnfil[fi]->win);
 
@@ -5299,14 +5312,16 @@ static void restore(winptr win) /* window to restore */
 
         }
         /* copy buffer to screen - ensure no clip mask interferes */
-        pd_blit(pd_wincanvas(win->xwhan), 0, 0, sc->xbuf, 0, 0,
+        pd_blit(pd_wincanvas(win->xchan), 0, 0, sc->xbuf, 0, 0,
                 sc->maxxg, sc->maxyg);
 
-        /* if the buffer is smaller than the client area, clear the margins
-           to the background color */
-        winw = win->xwr.w;
-        winh = win->xwr.h;
+        /* if the buffer is smaller than the canvas, which is the client's
+           size where the buffer is smaller, clear the margins to the
+           background color */
+        winw = win->xcr.w;
+        winh = win->xcr.h;
         if (sc->maxxg < winw || sc->maxyg < winh) {
+
 
             /* set background color as foreground for fill */
             if (BIT(sarev) & sc->attr)
@@ -5316,12 +5331,12 @@ static void restore(winptr win) /* window to restore */
             /* right margin: from buffer right edge to window right edge,
                full height */
             if (sc->maxxg < winw)
-                pd_frect(pd_wincanvas(win->xwhan), sc->xcxt,
+                pd_frect(pd_wincanvas(win->xchan), sc->xcxt,
                                sc->maxxg, 0, winw - sc->maxxg, winh);
             /* bottom margin: from buffer bottom to window bottom,
                buffer width only (right strip already covered above) */
             if (sc->maxyg < winh)
-                pd_frect(pd_wincanvas(win->xwhan), sc->xcxt,
+                pd_frect(pd_wincanvas(win->xchan), sc->xcxt,
                                0, sc->maxyg, sc->maxxg, winh - sc->maxyg);
             /* restore foreground color */
             if (BIT(sarev) & sc->attr)
@@ -5333,7 +5348,7 @@ static void restore(winptr win) /* window to restore */
         curon(win); /* show the cursor */
 
         /* redraw Ami-drawn child frame if applicable */
-        if (win->childfrm) dec->frmdraw(win, win->xmwr.w, win->xmwr.h);
+        if (win->childfrm) frmdraw(win, win->xmwr.w, win->xmwr.h);
 
     }
 
@@ -5371,7 +5386,7 @@ static void restore_rect(winptr win, int x, int y, int w, int h)
        the buffered part is immediately overwritten by the copy below) */
     sc->xcxt->fg =
                    (BIT(sarev) & sc->attr) ? sc->fcrgb : sc->bcrgb;
-    pd_frect(pd_wincanvas(win->xwhan), sc->xcxt, x, y, w, h);
+    pd_frect(pd_wincanvas(win->xchan), sc->xcxt, x, y, w, h);
     /* copy the part of the rect the buffer covers, from the buffer */
     cx = x; cy = y; cw = w; ch = h;
     if (cx < 0) { cw += cx; cx = 0; }
@@ -5379,7 +5394,7 @@ static void restore_rect(winptr win, int x, int y, int w, int h)
     if (cx + cw > sc->maxxg) cw = sc->maxxg - cx;
     if (cy + ch > sc->maxyg) ch = sc->maxyg - cy;
     if (cw > 0 && ch > 0)
-        pd_blit(pd_wincanvas(win->xwhan), cx, cy, sc->xbuf, cx, cy, cw, ch);
+        pd_blit(pd_wincanvas(win->xchan), cx, cy, sc->xbuf, cx, cy, cw, ch);
     /* leave the pd_draw* foreground as the normal drawing color */
     sc->xcxt->fg =
                    (BIT(sarev) & sc->attr) ? sc->bcrgb : sc->fcrgb;
@@ -5406,7 +5421,7 @@ static void drag_expose(winptr ewin, pd_win* w, int x, int y, int wd, int ht)
 {
 
     if (ewin->childfrm && ewin->xmwhan == w)
-        dec->frmdraw(ewin, ewin->xmwr.w, ewin->xmwr.h);
+        frmdraw(ewin, ewin->xmwr.w, ewin->xmwr.h);
     else if (ewin->bufmod)
         restore_rect(ewin, x, y, wd, ht);
     else {
@@ -5509,6 +5524,427 @@ static pd_win* createwindow(pd_win* parent, int x, int y, int w, int h)
 
 /*******************************************************************************
 
+Scroll bars
+
+A buffered window whose buffer is larger than its client shows scroll bars for
+it, as the Windows port and windowc's character windows do: on the right for a
+taller buffer and along the bottom for a wider one. The layer has no bars of
+its own, so the module draws them on the master window, in strips beside and
+below the subclient, as the decorations draw a frame. The buffer shows through
+the canvas, a child of the subclient the size of the buffer, or of the
+subclient where that is larger: everything drawn on the screen is drawn on the
+canvas at buffer coordinates, the mouse arrives on it in buffer coordinates,
+and scrolling the view is moving the canvas within the subclient, which clips
+it; sclx and scly are the buffer pixels off the left and top of the view. Child
+windows are children of the canvas: placed in the buffer, they scroll with it,
+and the canvas is under them all, not among them in the stacking order. The
+bars are decided from the client as it would be with no bars, so a bar does
+
+not justify itself by the room it takes; a bar needed takes its strip from the
+other direction's client, which can call for the other bar. The thumb is the
+client's share of the buffer at the view's place; an arrow steps a character
+cell, the track pages by the client, and the thumb drags. The option
+scrollbuffer under graphics in the configuration turns the bars off.
+
+*******************************************************************************/
+
+#define SCLBAR_MIN   12         /* the bars' least thickness */
+#define SCL_TRACK    0xffe0e0e0 /* the track's color */
+#define SCL_THUMB    0xff9a9a9a /* the thumb's */
+#define SCL_ARROW    0xff606060 /* the arrows' */
+
+/* the frame painted, and the scroll bars over it: the frame's fill covers
+   the master, the bars' strips with it */
+static void frmdraw(winptr win, int mw, int mh)
+
+{
+
+    dec->frmdraw(win, mw, mh);
+    scldraw(win);
+
+}
+
+/* the bars' thickness: from the font, so it scales with the display, and a
+   whole number of logical pixels */
+static int sclthick(winptr win)
+
+{
+
+    int t;
+
+    t = win->linespace*2/3;
+    if (t < SCLBAR_MIN) t = SCLBAR_MIN;
+
+    return (alignpx(win, t));
+
+}
+
+/* the client as it would be with no bars: the master less the frame and the
+   menu bar */
+static void sclavail(winptr win, int* w, int* h)
+
+{
+
+    *w = win->xmwr.w-(win->childfrm? win->pfw: 0);
+    *h = win->xmwr.h-(win->childfrm? win->pfh: 0)-
+         (win->menu? win->menuspcy: 0);
+    if (*w < 1) *w = 1;
+    if (*h < 1) *h = 1;
+
+}
+
+/* which bars the window calls for */
+static void sclbars(winptr win, int* vb, int* hb)
+
+{
+
+    int aw, ah, t;
+
+    *vb = *hb = FALSE;
+    if (!scrollbuffer || !win->bufmod || !win->xmwhan) return;
+    sclavail(win, &aw, &ah);
+    t = sclthick(win);
+    if (aw <= t || ah <= t) return; /* no room for a bar and a view */
+    *vb = win->gmaxyg > ah; /* the buffer is taller than the client */
+    *hb = win->gmaxxg > aw; /* wider */
+    /* a bar takes its strip from the other direction's client */
+    if (*vb && !*hb) *hb = win->gmaxxg > aw-t;
+    if (*hb && !*vb) *vb = win->gmaxyg > ah-t;
+
+}
+
+/* the client as the bars leave it */
+static void clisize(winptr win, int* w, int* h)
+
+{
+
+    int vb, hb, t;
+
+    sclavail(win, w, h);
+    sclbars(win, &vb, &hb);
+    t = sclthick(win);
+    if (vb) *w -= t;
+    if (hb) *h -= t;
+
+}
+
+/* A bar's strip on the master, and its thumb: the track runs between the
+   arrows, each the bar's thickness square; the thumb is the client's share of
+   the track, at the view's place along it. The place and length are along the
+   track, from its start. */
+static void sclgeom(winptr win, int vert, int* sx, int* sy, int* sw, int* sh,
+                    int* trk, int* tlen, int* tpos)
+
+{
+
+    int      t;
+    ami_long lim, view, scl;
+
+    t = sclthick(win);
+    if (vert) {
+
+        *sx = subclix(win)+win->xwr.w;
+        *sy = subcliy(win);
+        *sw = t;
+        *sh = win->xwr.h;
+        lim = win->gmaxyg;
+        view = win->xwr.h;
+        scl = win->scly;
+
+    } else {
+
+        *sx = subclix(win);
+        *sy = subcliy(win)+win->xwr.h;
+        *sw = win->xwr.w;
+        *sh = t;
+        lim = win->gmaxxg;
+        view = win->xwr.w;
+        scl = win->sclx;
+
+    }
+    *trk = (vert? *sh: *sw)-2*t; /* the track between the arrows */
+    if (*trk < 0) *trk = 0;
+    *tlen = lim > 0? (int)((ami_long)*trk*view/lim): *trk;
+    if (*tlen < t/2) *tlen = t/2; /* a thumb to take hold of */
+    if (*tlen > *trk) *tlen = *trk;
+    *tpos = 0;
+    if (lim > view && *trk > *tlen)
+        *tpos = (int)((ami_long)(*trk-*tlen)*scl/(lim-view));
+
+}
+
+/* paint the bars the window shows on the master */
+static void scldraw(winptr win)
+
+{
+
+    int        t, sx, sy, sw, sh, trk, tl, tp;
+    int        pa[6];
+    pd_canvas* mc;
+
+    if (!win->xmwhan || !win->frmgc || !win->visible) return;
+    if (!win->vbar && !win->hbar) return;
+    t = sclthick(win);
+    mc = pd_wincanvas(win->xmwhan);
+    if (win->vbar) {
+
+        sclgeom(win, TRUE, &sx, &sy, &sw, &sh, &trk, &tl, &tp);
+        win->frmgc->fg = SCL_TRACK;
+        pd_frect(mc, win->frmgc, sx, sy, sw, sh);
+        win->frmgc->fg = SCL_ARROW;
+        pa[0] = sx+t/2;   pa[1] = sy+t/3; /* up */
+        pa[2] = sx+t/4;   pa[3] = sy+t*2/3;
+        pa[4] = sx+t*3/4; pa[5] = sy+t*2/3;
+        pd_fpoly(mc, win->frmgc, pa, 3);
+        pa[0] = sx+t/2;   pa[1] = sy+sh-t/3-1; /* down */
+        pa[2] = sx+t/4;   pa[3] = sy+sh-t*2/3-1;
+        pa[4] = sx+t*3/4; pa[5] = sy+sh-t*2/3-1;
+        pd_fpoly(mc, win->frmgc, pa, 3);
+        win->frmgc->fg = SCL_THUMB;
+        pd_frect(mc, win->frmgc, sx+2, sy+t+tp, sw-4, tl);
+
+    }
+    if (win->hbar) {
+
+        sclgeom(win, FALSE, &sx, &sy, &sw, &sh, &trk, &tl, &tp);
+        win->frmgc->fg = SCL_TRACK;
+        pd_frect(mc, win->frmgc, sx, sy, sw, sh);
+        win->frmgc->fg = SCL_ARROW;
+        pa[0] = sx+t/3;   pa[1] = sy+t/2; /* left */
+        pa[2] = sx+t*2/3; pa[3] = sy+t/4;
+        pa[4] = sx+t*2/3; pa[5] = sy+t*3/4;
+        pd_fpoly(mc, win->frmgc, pa, 3);
+        pa[0] = sx+sw-t/3-1;   pa[1] = sy+t/2; /* right */
+        pa[2] = sx+sw-t*2/3-1; pa[3] = sy+t/4;
+        pa[4] = sx+sw-t*2/3-1; pa[5] = sy+t*3/4;
+        pd_fpoly(mc, win->frmgc, pa, 3);
+        win->frmgc->fg = SCL_THUMB;
+        pd_frect(mc, win->frmgc, sx+t+tp, sy+2, tl, sh-4);
+
+    }
+    if (win->vbar && win->hbar) { /* the corner between them */
+
+        win->frmgc->fg = SCL_TRACK;
+        pd_frect(mc, win->frmgc, subclix(win)+win->xwr.w,
+                 subcliy(win)+win->xwr.h, t, t);
+
+    }
+
+}
+
+/* Keep the canvas as the buffer, the client and the view call for: the size
+   of the buffer, or of the client where that is larger, and placed so that
+   the view's scroll offset is off the client's top left. The view is kept
+   within the buffer, as far as its last pixel, and at the start where there
+   is no bar to scroll it. */
+static void cansync(winptr win)
+
+{
+
+    int cw, ch, cx, cy;
+
+    if (!win->xchan) return;
+    cw = win->xwr.w;
+    ch = win->xwr.h;
+    if (win->bufmod) {
+
+        if (win->gmaxxg > cw) cw = win->gmaxxg;
+        if (win->gmaxyg > ch) ch = win->gmaxyg;
+
+    }
+    if (win->sclx > win->gmaxxg-win->xwr.w) win->sclx = win->gmaxxg-win->xwr.w;
+    if (win->scly > win->gmaxyg-win->xwr.h) win->scly = win->gmaxyg-win->xwr.h;
+    if (win->sclx < 0 || !win->hbar) win->sclx = 0;
+    if (win->scly < 0 || !win->vbar) win->scly = 0;
+    cx = -win->sclx;
+    cy = -win->scly;
+    if (cx != win->xcr.x || cy != win->xcr.y) {
+
+        pd_winmove(win->xchan, cx, cy);
+        win->xcr.x = cx;
+        win->xcr.y = cy;
+
+    }
+    if (cw != win->xcr.w || ch != win->xcr.h) {
+
+        pd_winsize(win->xchan, cw, ch);
+        win->xcr.w = cw;
+        win->xcr.h = ch;
+
+    }
+
+}
+
+/* Keep the bars as the buffer and the client call for, the subclient as the
+   bars leave it, and the canvas and the bars with them. Called wherever the
+   client or the buffer changes. */
+static void sclsync(winptr win)
+
+{
+
+    int vb, hb, w, h;
+
+    if (!win->xmwhan) return;
+    sclbars(win, &vb, &hb);
+    win->vbar = vb;
+    win->hbar = hb;
+    /* a toplevel's frame ring rides over the client's edge; not over a
+       bar, where it is the frame's border alone */
+    if (!win->parwin) {
+
+        int rb, bb; /* the right and bottom borders of the frame */
+
+        rb = win->pfw-win->cwox; if (rb < 1) rb = 1;
+        bb = win->pfh-win->cwoy; if (bb < 1) bb = 1;
+        pd_winring(win->xmwhan, vb? rb: 0, hb? bb: 0);
+
+    }
+    clisize(win, &w, &h);
+
+    if (w != win->xwr.w || h != win->xwr.h) { /* the subclient changes */
+
+        pd_winsize(win->xwhan, w, h);
+        win->xwr.w = w;
+        win->xwr.h = h;
+
+    }
+    cansync(win);
+    scldraw(win);
+
+}
+
+/* Scroll the view to the buffer offset given, within the buffer, and show it:
+   the canvas moves, the client is repainted from it, and the bars follow */
+static void sclset(winptr win, ami_long x, ami_long y)
+
+{
+
+    win->sclx = x;
+    win->scly = y;
+    cansync(win); /* clamps, and moves the canvas */
+    restore(win); /* the client from the new place */
+    scldraw(win);
+
+}
+
+/* whether a point on the master is in one of the bars */
+static int sclin(winptr win, int mx, int my)
+
+{
+
+    int sx, sy, sw, sh, trk, tl, tp, bar;
+
+    for (bar = 0; bar < 2; bar++) {
+
+        if (bar? !win->hbar: !win->vbar) continue;
+        sclgeom(win, !bar, &sx, &sy, &sw, &sh, &trk, &tl, &tp);
+        if (mx >= sx && mx < sx+sw && my >= sy && my < sy+sh) return (TRUE);
+
+    }
+    /* the corner between the bars */
+    return (win->vbar && win->hbar && mx >= subclix(win)+win->xwr.w &&
+            my >= subcliy(win)+win->xwr.h);
+
+}
+
+/* A mouse event on the master: taken when it falls in a bar, or a thumb drag
+   is in train, and answered with whether it was; the program hears nothing
+   of the mouse over the bars. An arrow steps a character cell, the track
+   pages by the client, and the thumb drags, the pointer keeping its hold on
+   the thumb where it took it. */
+static int sclmouse1(winptr win, pd_evt* e)
+
+{
+
+    int      mx, my, t, sx, sy, sw, sh, trk, tl, tp, vert, along, bar;
+    ami_long p, line, view, lim;
+
+    t = sclthick(win);
+    mx = e->x;
+    my = e->y;
+    if (e->etype == pd_etmouse) {
+
+        if (!win->scldrag) { /* no drag: over a bar it is taken */
+
+            if (!sclin(win, mx, my)) return (FALSE);
+            /* the frame's hover shape follows, as it does off the frame */
+            if (win->childfrm) childfrm_set_cursor(win, mx, my);
+
+            return (TRUE);
+
+        }
+        vert = win->scldrag == 1;
+
+        sclgeom(win, vert, &sx, &sy, &sw, &sh, &trk, &tl, &tp);
+        if (trk <= tl) return (TRUE); /* no travel */
+        lim = vert? win->gmaxyg: win->gmaxxg;
+        view = vert? win->xwr.h: win->xwr.w;
+        /* the thumb's new place along the track, less the hold on it, in
+           buffer terms */
+        p = (vert? my-sy: mx-sx)-t-win->scldrgoff;
+        p = p*(lim-view)/(trk-tl);
+        if (vert) sclset(win, win->sclx, p); else sclset(win, p, win->scly);
+
+        return (TRUE);
+
+    } else if (e->etype == pd_etbtnup) {
+
+        if (!win->scldrag) return (sclin(win, mx, my));
+        if (e->btn == 1) win->scldrag = 0; /* let go */
+
+        return (TRUE);
+
+    }
+    if (e->btn != 1) return (sclin(win, mx, my));
+    for (bar = 0; bar < 2; bar++) {
+
+        vert = !bar;
+        if (vert? !win->vbar: !win->hbar) continue;
+        sclgeom(win, vert, &sx, &sy, &sw, &sh, &trk, &tl, &tp);
+        if (mx < sx || mx >= sx+sw || my < sy || my >= sy+sh) continue;
+        along = vert? my-sy: mx-sx; /* along the strip */
+        p = vert? win->scly: win->sclx;
+        line = vert? win->linespace: win->charspace;
+        view = vert? win->xwr.h: win->xwr.w;
+        if (along < t) p -= line; /* the first arrow */
+        else if (along >= (vert? sh: sw)-t) p += line; /* the last */
+        else if (along-t < tp) p -= view; /* the track before the thumb */
+        else if (along-t >= tp+tl) p += view; /* after it */
+        else { /* the thumb: take hold */
+
+            win->scldrag = vert? 1: 2;
+            win->scldrgoff = along-t-tp;
+
+            return (TRUE);
+
+        }
+        if (vert) sclset(win, win->sclx, p); else sclset(win, p, win->scly);
+
+        return (TRUE);
+
+    }
+
+    return (sclin(win, mx, my));
+
+}
+
+/* the same under the window's lock, and nothing of a window closed meanwhile */
+static int sclmouse(winptr win, pd_evt* e)
+
+{
+
+    int taken;
+
+    scnlock(win);
+    taken = win->xwhan? sclmouse1(win, e): FALSE;
+    scnunlock(win);
+
+    return (taken);
+
+}
+
+/*******************************************************************************
+
 Display window
 
 Presents a window, and sends it a first paint message. Used to process the
@@ -5517,6 +5953,7 @@ delayed window display function.
 *******************************************************************************/
 
 static void winvis(winptr win)
+
 
 {
 
@@ -5567,6 +6004,8 @@ static void winvis(winptr win)
         win->visible = TRUE; /* set now visible */
         win->mapping = FALSE;
         restore(win); /* restore window */
+        scldraw(win); /* and the scroll bars a buffer set before now calls for */
+
 
     }
 #endif
@@ -5826,6 +6265,18 @@ static void opnwin(int fn, int pfn, ami_long wid, int subclient)
 
     win->xmwhan = 0; /* clear the XWindow handles */
     win->xwhan = 0;
+    win->xchan = 0;
+    win->xcr.x = 0; /* no canvas yet */
+    win->xcr.y = 0;
+    win->xcr.w = 0;
+    win->xcr.h = 0;
+    win->sclx = 0; /* the view at the buffer's top left, no scroll bars */
+    win->scly = 0;
+    win->vbar = FALSE;
+    win->hbar = FALSE;
+    win->scldrag = 0;
+    win->scldrgoff = 0;
+    win->bufset = FALSE; /* the buffer follows the client until set */
 
     /* get screen parameters */
     pd_screen(grx_padisplay, &win->shres, &win->svres, &win->shsize, &win->svsize);
@@ -5885,7 +6336,10 @@ static void opnwin(int fn, int pfn, ami_long wid, int subclient)
     /* set parent window, either the given or the root window */
     if (pwin) { /* there is a parent window */
 
-        if (subclient) pw = pwin->xwhan; /* make child of subclient */
+        /* a child window is a child of the parent's canvas: it is placed in
+           the parent's buffer, scrolls with it, and stacks among the other
+           children, with the canvas under them all */
+        if (subclient) pw = pwin->xchan;
         else pw = pwin->xmwhan; /* make child of master (menu components) */
 
     } else pw = NULL; /* a toplevel */
@@ -5950,12 +6404,19 @@ static void opnwin(int fn, int pfn, ami_long wid, int subclient)
 
     }
 
-    /* create pd_draw* for drawing on xmwhan (used for child frame rendering) */
-    if (win->childfrm) {
+    /* create the canvas within the subclient, the subclient's size for now:
+       the screen is drawn on it, and it is mapped here, to show with the
+       subclient when that is presented */
+    win->xcr.x = 0;
+    win->xcr.y = 0;
+    win->xcr.w = win->xwr.w;
+    win->xcr.h = win->xwr.h;
+    win->xchan = createwindow(win->xwhan, 0, 0, win->xcr.w, win->xcr.h);
+    pd_winmap(win->xchan, 1);
 
-        win->frmgc = gcnew();
-
-    }
+    /* create pd_draw* for drawing on xmwhan: the child frame, and the scroll
+       bars of any window */
+    win->frmgc = gcnew();
 
     /* Set window title. The Ami frame carries it, and the shell title is
        set as well: task bars and window switchers on the desktop read the
@@ -5998,10 +6459,12 @@ static void clswin(int fn)
     if (refocuswin == win->xwhan || refocuswin == win->xmwhan)
         refocuswin = 0; /* a refocus armed on it is off: the handle goes */
     pthread_mutex_unlock(&refocuslk);
-    pd_windel(win->xwhan);
+    pd_windel(win->xwhan); /* the canvas goes with it */
     pd_windel(win->xmwhan);
     win->xwhan = NULL;
     win->xmwhan = NULL;
+    win->xchan = NULL;
+    if (win->frmgc) { free(win->frmgc); win->frmgc = NULL; } /* the master's */
 
 }
 
@@ -6893,7 +7356,7 @@ static void iclear(winptr win)
 
         curoff(win); /* hide the cursor */
         sc->xcxt->fg = sc->bcrgb;
-        pd_frect(pd_wincanvas(win->xwhan), sc->xcxt, 0, 0,
+        pd_frect(pd_wincanvas(win->xchan), sc->xcxt, 0, 0,
                                   sc->maxxg, sc->maxyg);
         sc->xcxt->fg = sc->fcrgb;
         curon(win); /* show the cursor */
@@ -7009,13 +7472,13 @@ static void iscrollg(winptr win, ami_long x, ami_long y)
         } else { /* scroll on screen */
 
             curoff(win); /* hide the cursor for drawing */
-            pd_scroll(pd_wincanvas(win->xwhan), dx, dy, sx, sy, sw, sh);
+            pd_scroll(pd_wincanvas(win->xchan), dx, dy, sx, sy, sw, sh);
             sc->xcxt->fg = sc->bcrgb;
             /* fill vacated x */
-            if (x) pd_frect(pd_wincanvas(win->xwhan), sc->xcxt, frx.x, frx.y,
+            if (x) pd_frect(pd_wincanvas(win->xchan), sc->xcxt, frx.x, frx.y,
                                   frx.w, frx.h);
             /* fill vacated y */
-            if (y) pd_frect(pd_wincanvas(win->xwhan), sc->xcxt, fry.x, fry.y,
+            if (y) pd_frect(pd_wincanvas(win->xchan), sc->xcxt, fry.x, fry.y,
                                   fry.w, fry.h);
             sc->xcxt->fg = sc->fcrgb;
             curon(win); /* show the cursor */
@@ -7851,8 +8314,8 @@ static void plcchr(winptr win, char c)
 
             curoff(win); /* hide the cursor */
             /* draw character to active screen */
-            if (sc->angle == LONG_MAX/4) drwchr90(win, sc, cs, ce, pd_wincanvas(win->xwhan), c);
-            else drwchr(win, sc, cs, ce, pd_wincanvas(win->xwhan), c);
+            if (sc->angle == LONG_MAX/4) drwchr90(win, sc, cs, ce, pd_wincanvas(win->xchan), c);
+            else drwchr(win, sc, cs, ce, pd_wincanvas(win->xchan), c);
             curon(win); /* show the cursor */
 
         }
@@ -9709,7 +10172,7 @@ static void wrtstrn_ivf(FILE* f, char* s, ami_long l)
 
             curoff(win); /* hide the cursor */
             /* draw string */
-            drwstr90(win, sc, tw, pd_wincanvas(win->xwhan), s, l);
+            drwstr90(win, sc, tw, pd_wincanvas(win->xchan), s, l);
             curon(win); /* show the cursor */
 
         }
@@ -9839,7 +10302,7 @@ static void line_ivf(FILE* f, ami_long x1, ami_long y1, ami_long x2, ami_long y2
         if (!win->visible) winvis(win); /* make sure we are displayed */
         curoff(win); /* hide the cursor */
         /* draw the line */
-        pd_line(pd_wincanvas(win->xwhan), sc->xcxt,
+        pd_line(pd_wincanvas(win->xchan), sc->xcxt,
                   L2PX(win, x1-1), L2PY(win, y1-1),
                   L2PX(win, x2-1), L2PY(win, y2-1));
         curon(win); /* show the cursor */
@@ -9902,7 +10365,7 @@ static void rect_ivf(FILE* f, ami_long x1, ami_long y1, ami_long x2, ami_long y2
         if (!win->visible) winvis(win); /* make sure we are displayed */
         curoff(win); /* hide the cursor */
         /* draw the rectangle */
-        pd_rect(pd_wincanvas(win->xwhan), sc->xcxt,
+        pd_rect(pd_wincanvas(win->xchan), sc->xcxt,
                        L2PX(win, x1-1), L2PY(win, y1-1),
                        L2PW(win, x2-x1), L2PH(win, y2-y1));
         curon(win); /* show the cursor */
@@ -9965,7 +10428,7 @@ static void frect_ivf(FILE* f, ami_long x1, ami_long y1, ami_long x2, ami_long y
         if (!win->visible) winvis(win); /* make sure we are displayed */
         curoff(win); /* hide the cursor */
         /* draw the rectangle */
-        pd_frect(pd_wincanvas(win->xwhan), sc->xcxt,
+        pd_frect(pd_wincanvas(win->xchan), sc->xcxt,
                        L2PX(win, x1-1), L2PY(win, y1-1),
                        L2PW(win, x2-x1+1), L2PH(win, y2-y1+1));
         curon(win); /* show the cursor */
@@ -10052,19 +10515,19 @@ static void rrect_ivf(FILE* f, ami_long x1, ami_long y1, ami_long x2, ami_long y
         if (!win->visible) winvis(win); /* make sure we are displayed */
         curoff(win); /* hide the cursor */
         /* stroke the sides */
-        pd_line(pd_wincanvas(win->xwhan), sc->xcxt, x1, y1+ys/2, x1, y2-ys/2);
-        pd_line(pd_wincanvas(win->xwhan), sc->xcxt, x2, y1+ys/2, x2, y2-ys/2);
-        pd_line(pd_wincanvas(win->xwhan), sc->xcxt, x1+xs/2, y1, x2-xs/2, y1);
-        pd_line(pd_wincanvas(win->xwhan), sc->xcxt, x1+xs/2, y2, x2-xs/2, y2);
+        pd_line(pd_wincanvas(win->xchan), sc->xcxt, x1, y1+ys/2, x1, y2-ys/2);
+        pd_line(pd_wincanvas(win->xchan), sc->xcxt, x2, y1+ys/2, x2, y2-ys/2);
+        pd_line(pd_wincanvas(win->xchan), sc->xcxt, x1+xs/2, y1, x2-xs/2, y1);
+        pd_line(pd_wincanvas(win->xchan), sc->xcxt, x1+xs/2, y2, x2-xs/2, y2);
         /* draw corner arcs */
-        pd_arc(pd_wincanvas(win->xwhan), sc->xcxt, x1, y1, xs, ys,
+        pd_arc(pd_wincanvas(win->xchan), sc->xcxt, x1, y1, xs, ys,
                  90*64, 90*64);
-        pd_arc(pd_wincanvas(win->xwhan), sc->xcxt, x2-xs, y1, xs, ys,
+        pd_arc(pd_wincanvas(win->xchan), sc->xcxt, x2-xs, y1, xs, ys,
                  0, 90*64);
-        pd_arc(pd_wincanvas(win->xwhan), sc->xcxt, x1, y2-ys, xs, ys, 180*64,
+        pd_arc(pd_wincanvas(win->xchan), sc->xcxt, x1, y2-ys, xs, ys, 180*64,
                  90*64);
 
-        pd_arc(pd_wincanvas(win->xwhan), sc->xcxt, x2-xs, y2-ys, xs, ys, 270*64,
+        pd_arc(pd_wincanvas(win->xchan), sc->xcxt, x2-xs, y2-ys, xs, ys, 270*64,
                  90*64);
         curon(win); /* show the cursor */
 
@@ -10181,22 +10644,22 @@ static void frrect_ivf(FILE* f, ami_long x1, ami_long y1, ami_long x2, ami_long 
             if (!win->visible)  winvis(win); /* make sure we are displayed */
             curoff(win); /* hide the cursor */
             /* middle rectangle */
-            pd_frect(pd_wincanvas(win->xwhan), sc->xcxt, x1, y1+ys/2, wm, hm);
+            pd_frect(pd_wincanvas(win->xchan), sc->xcxt, x1, y1+ys/2, wm, hm);
 
             /* top */
-            pd_frect(pd_wincanvas(win->xwhan), sc->xcxt, x1+xs/2, y1, wtb, htb);
+            pd_frect(pd_wincanvas(win->xchan), sc->xcxt, x1+xs/2, y1, wtb, htb);
 
             /* bottom */
-            pd_frect(pd_wincanvas(win->xwhan), sc->xcxt, x1+xs/2, y2-ys/2+1, wtb, htb);
+            pd_frect(pd_wincanvas(win->xchan), sc->xcxt, x1+xs/2, y2-ys/2+1, wtb, htb);
 
             /* draw corner arcs */
-            pd_farcpie(pd_wincanvas(win->xwhan), sc->xcxt, x1, y1, xs, ys,
+            pd_farcpie(pd_wincanvas(win->xchan), sc->xcxt, x1, y1, xs, ys,
                      90*64, 90*64);
-            pd_farcpie(pd_wincanvas(win->xwhan), sc->xcxt, x2-xs+1, y1, xs, ys,
+            pd_farcpie(pd_wincanvas(win->xchan), sc->xcxt, x2-xs+1, y1, xs, ys,
                      0, 90*64);
-            pd_farcpie(pd_wincanvas(win->xwhan), sc->xcxt, x1, y2-ys+1, xs, ys, 180*64,
+            pd_farcpie(pd_wincanvas(win->xchan), sc->xcxt, x1, y2-ys+1, xs, ys, 180*64,
                      90*64);
-            pd_farcpie(pd_wincanvas(win->xwhan), sc->xcxt, x2-xs+1, y2-ys+1, xs, ys, 270*64,
+            pd_farcpie(pd_wincanvas(win->xchan), sc->xcxt, x2-xs+1, y2-ys+1, xs, ys, 270*64,
                      90*64);
             curon(win); /* show the cursor */
 
@@ -10246,20 +10709,20 @@ static void frrect_ivf(FILE* f, ami_long x1, ami_long y1, ami_long x2, ami_long 
             if (!win->visible)  winvis(win); /* make sure we are displayed */
             curoff(win); /* hide the cursor */
             /* middle rectangle */
-            pd_frect(pd_wincanvas(win->xwhan), sc->xcxt, x1+xs/2, y1, wm, hm);
+            pd_frect(pd_wincanvas(win->xchan), sc->xcxt, x1+xs/2, y1, wm, hm);
 
             /* left */
-            pd_frect(pd_wincanvas(win->xwhan), sc->xcxt, x1, y1+ys/2, wlr, hlr);
+            pd_frect(pd_wincanvas(win->xchan), sc->xcxt, x1, y1+ys/2, wlr, hlr);
 
             /* right */
-            pd_frect(pd_wincanvas(win->xwhan), sc->xcxt, x2-xs/2+1, y1+ys/2, wlr, hlr);
+            pd_frect(pd_wincanvas(win->xchan), sc->xcxt, x2-xs/2+1, y1+ys/2, wlr, hlr);
 
             /* draw corner arcs */
-            pd_farcpie(pd_wincanvas(win->xwhan), sc->xcxt, x1, y1, xs, ys, 90*64, 90*64);
-            pd_farcpie(pd_wincanvas(win->xwhan), sc->xcxt, x2-xs+1, y1, xs, ys, 0, 90*64);
-            pd_farcpie(pd_wincanvas(win->xwhan), sc->xcxt, x1, y2-ys+1, xs, ys, 180*64,
+            pd_farcpie(pd_wincanvas(win->xchan), sc->xcxt, x1, y1, xs, ys, 90*64, 90*64);
+            pd_farcpie(pd_wincanvas(win->xchan), sc->xcxt, x2-xs+1, y1, xs, ys, 0, 90*64);
+            pd_farcpie(pd_wincanvas(win->xchan), sc->xcxt, x1, y2-ys+1, xs, ys, 180*64,
                      90*64);
-            pd_farcpie(pd_wincanvas(win->xwhan), sc->xcxt, x2-xs+1, y2-ys+1, xs, ys, 270*64,
+            pd_farcpie(pd_wincanvas(win->xchan), sc->xcxt, x2-xs+1, y2-ys+1, xs, ys, 270*64,
                      90*64);
             curon(win); /* show the cursor */
 
@@ -10324,7 +10787,7 @@ static void ellipse_ivf(FILE* f, ami_long x1, ami_long y1, ami_long x2, ami_long
         if (!win->visible) winvis(win); /* make sure we are displayed */
         curoff(win); /* hide the cursor */
         /* draw the ellipse */
-        pd_arc(pd_wincanvas(win->xwhan), sc->xcxt,
+        pd_arc(pd_wincanvas(win->xchan), sc->xcxt,
                  L2PX(win, x1-1), L2PY(win, y1-1),
                  L2PW(win, x2-x1), L2PH(win, y2-y1),
                  0, 360*64);
@@ -10389,7 +10852,7 @@ static void fellipse_ivf(FILE* f, ami_long x1, ami_long y1, ami_long x2, ami_lon
         if (!win->visible) winvis(win); /* make sure we are displayed */
         curoff(win); /* hide the cursor */
         /* draw the ellipse */
-        pd_farcpie(pd_wincanvas(win->xwhan), sc->xcxt,
+        pd_farcpie(pd_wincanvas(win->xchan), sc->xcxt,
                  L2PX(win, x1-1), L2PY(win, y1-1),
                  L2PW(win, x2-x1+1), L2PH(win, y2-y1+1),
                  0, 360*64);
@@ -10483,7 +10946,7 @@ static void arc_ivf(FILE* f, ami_long x1, ami_long y1, ami_long x2, ami_long y2,
             if (!win->visible) winvis(win); /* make sure we are displayed */
             curoff(win); /* hide the cursor */
             /* draw the arc */
-            pd_arc(pd_wincanvas(win->xwhan), sc->xcxt,
+            pd_arc(pd_wincanvas(win->xchan), sc->xcxt,
                      L2PX(win, x1-1), L2PY(win, y1-1),
                      L2PW(win, x2-x1), L2PH(win, y2-y1),
             		 a1, a2);
@@ -10563,7 +11026,7 @@ static void farc_ivf(FILE* f, ami_long x1, ami_long y1, ami_long x2, ami_long y2
             if (!win->visible) winvis(win); /* make sure we are displayed */
             curoff(win); /* hide the cursor */
             /* draw the ellipse */
-            pd_farcpie(pd_wincanvas(win->xwhan), sc->xcxt,
+            pd_farcpie(pd_wincanvas(win->xchan), sc->xcxt,
                      L2PX(win, x1-1), L2PY(win, y1-1),
                      L2PW(win, x2-x1+1), L2PH(win, y2-y1+1),
                      a1, a2);
@@ -10638,7 +11101,7 @@ static void fchord_ivf(FILE* f, ami_long x1, ami_long y1, ami_long x2, ami_long 
             if (!win->visible) winvis(win); /* make sure we are displayed */
             curoff(win); /* hide the cursor */
             /* draw the ellipse */
-            pd_farcchord(pd_wincanvas(win->xwhan), sc->xcxt, L2PX(win, x1-1), L2PY(win, y1-1), L2PW(win, x2-x1+1), L2PH(win, y2-y1+1),
+            pd_farcchord(pd_wincanvas(win->xchan), sc->xcxt, L2PX(win, x1-1), L2PY(win, y1-1), L2PW(win, x2-x1+1), L2PH(win, y2-y1+1),
                      a1, a2);
             curon(win); /* show the cursor */
 
@@ -10694,7 +11157,7 @@ static void ftriangle_ivf(FILE* f, ami_long x1, ami_long y1, ami_long x2, ami_lo
         if (!win->visible) winvis(win); /* make sure we are displayed */
         curoff(win); /* hide the cursor */
         /* draw the ellipse */
-        pd_fpoly(pd_wincanvas(win->xwhan), sc->xcxt, pa, 3);
+        pd_fpoly(pd_wincanvas(win->xchan), sc->xcxt, pa, 3);
         curon(win); /* show the cursor */
 
     }
@@ -10743,7 +11206,7 @@ static void setpixel_ivf(FILE* f, ami_long x, ami_long y)
         if (!win->visible) winvis(win); /* make sure we are displayed */
         curoff(win); /* hide the cursor */
         /* draw the pixel */
-        pd_point(pd_wincanvas(win->xwhan), sc->xcxt,
+        pd_point(pd_wincanvas(win->xchan), sc->xcxt,
                    L2PX(win, x-1), L2PY(win, y-1));
         curon(win); /* show the cursor */
 
@@ -11641,7 +12104,7 @@ static void writejust_ivf(FILE* f, const char* s, ami_long n)
                     if (BIT(sarev) & sc->attr)
                         sc->xcxt->fg = sc->fcrgb;
                     else sc->xcxt->fg = sc->bcrgb;
-                    pd_frect(pd_wincanvas(win->xwhan), sc->xcxt,
+                    pd_frect(pd_wincanvas(win->xchan), sc->xcxt,
                                    sc->curxg-1, sc->curyg-1,
                                    cbs, win->linespace);
                     /* restore colors */
@@ -12222,7 +12685,7 @@ static void blockcopyg_ivf(FILE* f, ami_long s, ami_long d, ami_long sx1, ami_lo
         curoff(win); /* hide the cursor */
         /* the buffer holds the composed result: present the destination
            box as it now stands */
-        pd_blit(pd_wincanvas(win->xwhan), pdx, pdy, ds->xbuf, pdx, pdy,
+        pd_blit(pd_wincanvas(win->xchan), pdx, pdy, ds->xbuf, pdx, pdy,
                 pdw, pdh);
         curon(win); /* show the cursor */
 
@@ -12557,7 +13020,7 @@ static void picture_ivf(FILE* f, ami_long p, ami_long x1, ami_long y1, ami_long 
         if (!win->visible) winvis(win); /* make sure we are displayed */
         curoff(win); /* hide the cursor */
         /* draw the rectangle */
-        blitmix(pd_wincanvas(win->xwhan), L2PX(win, x1-1), L2PY(win, y1-1),
+        blitmix(pd_wincanvas(win->xchan), L2PX(win, x1-1), L2PY(win, y1-1),
                 fp->xi, 0, 0,
                 L2PW(win, x2-x1+1), L2PH(win, y2-y1+1), sc->xcxt->mix);
         curon(win); /* show the cursor */
@@ -13179,13 +13642,14 @@ static void xwinevt(winptr win, ami_evtrec* er, pd_evt* e, int* keep)
        take none. The record itself is held against disposal by the
        caller's hold. */
 
-    /* handle pd_etredraw on xmwhan for child-framed windows: repaint the frame */
-    if (e->etype == pd_etredraw && win->childfrm &&
-        win->xmwhan == e->win) {
+    /* handle pd_etredraw on xmwhan: repaint the child frame, and the scroll
+       bars of any window, which are drawn on the master */
+    if (e->etype == pd_etredraw && win->xmwhan == e->win) {
         scnlock(win); /* the branch's own span */
         if (win->xwhan) { /* not closed while the event waited */
 
-        dec->frmdraw(win, win->xmwr.w, win->xmwr.h);
+        if (win->childfrm) frmdraw(win, win->xmwr.w, win->xmwr.h);
+        else scldraw(win);
 
         }
         scnunlock(win);
@@ -13206,7 +13670,7 @@ static void xwinevt(winptr win, ami_evtrec* er, pd_evt* e, int* keep)
             if (intersect(&r1, &r2)) {
 
                 intersection(&ri, &r1, &r2); /* find intersection of those */
-                pd_blit(pd_wincanvas(win->xwhan), ri.x1, ri.y1, sc->xbuf,
+                pd_blit(pd_wincanvas(win->xchan), ri.x1, ri.y1, sc->xbuf,
                         ri.x1, ri.y1, ri.x2-ri.x1+1, ri.y2-ri.y1+1);
                 subrect(&r2, &r1, &rr, &rb); /* find subtraction r1-r2 */
                 /* check any result */
@@ -13218,12 +13682,12 @@ static void xwinevt(winptr win, ami_evtrec* er, pd_evt* e, int* keep)
                     else sc->xcxt->fg = sc->bcrgb;
                     /* paint right */
                     if (!zerorect(&rr))
-                        pd_frect(pd_wincanvas(win->xwhan), sc->xcxt,
+                        pd_frect(pd_wincanvas(win->xchan), sc->xcxt,
                                        rr.x1, rr.y1,
                                        rr.x2-rr.x1+1, rr.y2-rr.y1+1);
                     /* paint bottom */
                     if (!zerorect(&rb))
-                        pd_frect(pd_wincanvas(win->xwhan), sc->xcxt,
+                        pd_frect(pd_wincanvas(win->xchan), sc->xcxt,
                                        rb.x1, rb.y1,
                                        rb.x2-rb.x1+1, rb.y2-rb.y1+1);
                     /* restore foreground color */
@@ -13243,7 +13707,7 @@ static void xwinevt(winptr win, ami_evtrec* er, pd_evt* e, int* keep)
                 if (BIT(sarev) & sc->attr)
                     sc->xcxt->fg = sc->fcrgb;
                 else sc->xcxt->fg = sc->bcrgb;
-                pd_frect(pd_wincanvas(win->xwhan), sc->xcxt,
+                pd_frect(pd_wincanvas(win->xchan), sc->xcxt,
                                e->rx, e->ry,
                                e->rw, e->rh);
                 /* restore foreground color */
@@ -13277,20 +13741,10 @@ static void xwinevt(winptr win, ami_evtrec* er, pd_evt* e, int* keep)
             /* update master window tracking dimensions */
             win->xmwr.w = e->w;
             win->xmwr.h = e->h;
-            /* find size of subclient */
-            xwc.width = e->w; /* set frameless offset to client */
-            xwc.height = e->h;
-            /* for child-framed windows, subtract frame thickness */
-            if (win->childfrm) {
-
-                xwc.width -= win->pfw;
-                xwc.height -= win->pfh;
-
-            }
-            if (win->menu) /* if menu is active, remove that space from subclient */
-                xwc.height -= win->menuspcy;
-            if (xwc.width <= 0) xwc.width = 1; /* set minimum width */
-            if (xwc.height <= 0) xwc.height = 1; /* set minimum height */
+            /* find size of subclient: the master less the frame and the
+               menu bar, and less the scroll bars a buffer larger than that
+               calls for */
+            clisize(win, &xwc.width, &xwc.height);
             /* check subclient window has changed size */
             if (xwc.width != win->xwr.w || xwc.height != win->xwr.h) {
 
@@ -13362,10 +13816,12 @@ static void xwinevt(winptr win, ami_evtrec* er, pd_evt* e, int* keep)
 
             }
 
-            /* redraw child frame after master resize */
-            if (win->childfrm) dec->frmdraw(win, win->xmwr.w, win->xmwr.h);
+            /* redraw child frame after master resize, and keep the scroll
+               bars and the canvas as the new client calls for */
+            if (win->childfrm) frmdraw(win, win->xmwr.w, win->xmwr.h);
+            sclsync(win);
 
-        } else { /* its the subclient window */
+        } else if (win->xwhan == e->win) { /* its the subclient window */
 
             /* size of window has changed, send event */
             er->etype = ami_etresize; /* set resize event */
@@ -13390,6 +13846,10 @@ static void xwinevt(winptr win, ami_evtrec* er, pd_evt* e, int* keep)
                 win->screens[win->curdsp-1]->maxyg = win->gmaxyg;
                 win->screens[win->curdsp-1]->maxx = win->gmaxx; /* character size */
                 win->screens[win->curdsp-1]->maxy = win->gmaxy;
+                /* the canvas follows the client, which it is the size of */
+                win->xwr.w = er->rszxg;
+                win->xwr.h = er->rszyg;
+                cansync(win);
                 /* The repaint that must follow the resize, queued behind it
                    so the client reads the new size first. The platform
                    exposes only what a grow reveals and a shrink reveals
@@ -13598,6 +14058,12 @@ static void xwinevt(winptr win, ami_evtrec* er, pd_evt* e, int* keep)
 
         }
 
+    } else if (win->xmwhan == e->win &&
+               (e->etype == pd_etbtndown || e->etype == pd_etbtnup ||
+                e->etype == pd_etmouse) && sclmouse(win, e)) {
+
+        /* the mouse on the window's scroll bars: taken there */
+
     } else if (win->childfrm && win->xmwhan == e->win &&
                (e->etype == pd_etbtndown || e->etype == pd_etbtnup ||
                 e->etype == pd_etmouse)) {
@@ -13638,7 +14104,7 @@ static void xwinevt(winptr win, ami_evtrec* er, pd_evt* e, int* keep)
                 curoff(win);
                 win->focus = TRUE;
                 curon(win);
-                dec->frmdraw(win, win->xmwr.w, win->xmwr.h);
+                frmdraw(win, win->xmwr.w, win->xmwr.h);
 
             }
 #endif
@@ -13773,7 +14239,7 @@ static void xwinevt(winptr win, ami_evtrec* er, pd_evt* e, int* keep)
                         scnlock(sibs[si]); /* its canvases: its lock, not ours */
                         drag_repaint_full(sibs[si]);
                         if (sibs[si]->childfrm && sibs[si]->xmwhan)
-                            dec->frmdraw(sibs[si], sibs[si]->xmwr.w, sibs[si]->xmwr.h);
+                            frmdraw(sibs[si], sibs[si]->xmwr.w, sibs[si]->xmwr.h);
                         scnunlock(sibs[si]);
                     }
                     winrelease();
@@ -13857,8 +14323,7 @@ static void xwinevt(winptr win, ami_evtrec* er, pd_evt* e, int* keep)
                         win->xmwr.y = ny;
                         win->xmwr.w = nw;
                         win->xmwr.h = nh;
-                        win->xwr.w = nw - win->pfw;
-                        win->xwr.h = nh - win->pfh;
+                        clisize(win, &win->xwr.w, &win->xwr.h); /* less bars */
                         if (nx != origx || ny != origy) {
                             pd_winmove(win->xmwhan, nx, ny);
                             pd_winsize(win->xmwhan, nw, nh);
@@ -13869,9 +14334,12 @@ static void xwinevt(winptr win, ami_evtrec* er, pd_evt* e, int* keep)
                                       win->xwr.w, win->xwr.h);
                         /* the client area may now be larger than the buffer;
                            restore() copies the buffer to the screen and fills
-                           any uncovered margin with the background color */
+                           any uncovered margin with the background color;
+                           or smaller, and the scroll bars and the canvas
+                           follow */
+                        sclsync(win);
                         restore(win);
-                        dec->frmdraw(win, nw, nh);
+                        frmdraw(win, nw, nh);
                         /* if the child shrank, repaint the parent and
                            sibling children where this child used to be */
                         if (shrunk && win->parwin) {
@@ -13884,7 +14352,7 @@ static void xwinevt(winptr win, ami_evtrec* er, pd_evt* e, int* keep)
                                 scnlock(sibs[si]); /* its canvases: its lock, not ours */
                                 restore(sibs[si]);
                                 if (sibs[si]->childfrm && sibs[si]->xmwhan)
-                                    dec->frmdraw(sibs[si], sibs[si]->xmwr.w, sibs[si]->xmwr.h);
+                                    frmdraw(sibs[si], sibs[si]->xmwr.w, sibs[si]->xmwr.h);
                                 scnunlock(sibs[si]);
                             }
                             winrelease();
@@ -13925,7 +14393,7 @@ static void xwinevt(winptr win, ami_evtrec* er, pd_evt* e, int* keep)
                         scnlock(sibs[si]); /* its canvases: its lock, not ours */
                         drag_repaint_full(sibs[si]);
                         if (sibs[si]->childfrm && sibs[si]->xmwhan)
-                            dec->frmdraw(sibs[si], sibs[si]->xmwr.w, sibs[si]->xmwr.h);
+                            frmdraw(sibs[si], sibs[si]->xmwr.w, sibs[si]->xmwr.h);
                         scnunlock(sibs[si]);
                     }
                     winrelease();
@@ -13977,7 +14445,7 @@ static void xwinevt(winptr win, ami_evtrec* er, pd_evt* e, int* keep)
             curoff(win); /* remove cursor */
             win->focus = TRUE; /* put focus */
             curon(win); /* replace cursor */
-            if (win->childfrm) dec->frmdraw(win, win->xmwr.w, win->xmwr.h);
+            if (win->childfrm) frmdraw(win, win->xmwr.w, win->xmwr.h);
             /* Deliver focus ahead of the click without dropping the click: the
                click is requeued to follow, and this event becomes the focus
                notification. (The previous code left the click in er and sent
@@ -14000,7 +14468,7 @@ static void xwinevt(winptr win, ami_evtrec* er, pd_evt* e, int* keep)
         curoff(win); /* remove cursor */
         win->focus = FALSE; /* remove focus */
         curon(win); /* replace cursor */
-        if (win->childfrm) dec->frmdraw(win, win->xmwr.w, win->xmwr.h);
+        if (win->childfrm) frmdraw(win, win->xmwr.w, win->xmwr.h);
         er->etype = ami_etnofocus; /* set no focus event */
         *keep = TRUE; /* set found */
 
@@ -14019,7 +14487,7 @@ static void xwinevt(winptr win, ami_evtrec* er, pd_evt* e, int* keep)
         curoff(win); /* remove cursor */
         win->focus = TRUE; /* put focus */
         curon(win); /* replace cursor */
-        if (win->childfrm) dec->frmdraw(win, win->xmwr.w, win->xmwr.h);
+        if (win->childfrm) frmdraw(win, win->xmwr.w, win->xmwr.h);
         er->etype = ami_etfocus; /* set focus event */
         *keep = TRUE; /* set found */
 
@@ -14831,7 +15299,7 @@ static void title_ivf(FILE* f, char* ts)
         scnlock(win);
         if (win->wintitle) free(win->wintitle);
         win->wintitle = strdup(ts);
-        if (win->xmwhan) dec->frmdraw(win, win->xmwr.w, win->xmwr.h);
+        if (win->xmwhan) frmdraw(win, win->xmwr.w, win->xmwr.h);
         scnunlock(win);
 
     } else {
@@ -14984,12 +15452,11 @@ void _pa_sizbufg_ovr(ami_sizbufg_t nfp, ami_sizbufg_t* ofp)
     { *ofp = sizbufg_vect; sizbufg_vect = nfp; }
 void ami_sizbufg(FILE* f, ami_long x, ami_long y) { (*sizbufg_vect)(f, x, y); }
 
-static void sizbufg_ivf(FILE* f, ami_long x, ami_long y)
+static void isizbufg(winptr win, ami_long x, ami_long y)
 
 {
 
     int            si;     /* index for current display screen */
-    winptr         win;    /* pointer to windows context */
     pd_canvas*         oldbuf; /* saved old buffer pixmap */
     ami_long       oldw, oldh; /* old buffer dimensions */
     ami_long       copyw, copyh; /* intersection to copy */
@@ -14997,7 +15464,6 @@ static void sizbufg_ivf(FILE* f, ami_long x, ami_long y)
     ami_evtrec     er;     /* event record for redraws */
 
     if (x < 1 || y < 1)  error(einvsiz); /* invalid buffer size */
-    win = txt2win(f); /* get window context */
     if (!win->bufmod) error(ebufoff); /* error */
 
     /* save old buffer info from the current display screen */
@@ -15051,7 +15517,12 @@ static void sizbufg_ivf(FILE* f, ami_long x, ami_long y)
     /* release the old buffer pixmap */
     pd_candel(oldbuf);
 
-    /* restore buffer to screen (handles margins if buffer < window) */
+    /* the scroll bars and the canvas as the new buffer calls for, with the
+       view at its top left; then the buffer to the screen (handles margins
+       if buffer < window) */
+    win->sclx = 0;
+    win->scly = 0;
+    sclsync(win);
     restore(win);
 
     /* generate redraw events for newly exposed areas of the buffer
@@ -15081,6 +15552,18 @@ static void sizbufg_ivf(FILE* f, ami_long x, ami_long y)
     }
 
     scnunlock(win);
+
+}
+
+static void sizbufg_ivf(FILE* f, ami_long x, ami_long y)
+
+{
+
+    winptr win; /* pointer to windows context */
+
+    win = txt2win(f); /* get window context */
+    win->bufset = TRUE; /* the program sets the buffer: it holds from here */
+    isizbufg(win, x, y);
 
 }
 
@@ -15192,6 +15675,7 @@ static void buffer_ivf(FILE* f, ami_long e)
 #endif
 
         }
+        sclsync(win); /* the scroll bars and the canvas as the buffer calls for */
         restore(win); /* restore buffer to screen */
 
     } else if (win->bufmod) { /* perform buffer off actions */
@@ -15201,6 +15685,7 @@ static void buffer_ivf(FILE* f, ami_long e)
            update to point to it as well. This single buffer  serves as
            a "template" for the real pixels on screen. */
         win->bufmod = FALSE; /* turn buffer mode off */
+        sclsync(win); /* no scroll bars in follow mode: the client grows back */
         /* dispose of screen data structures */
         for (si = 0; si < MAXCON; si++) if (si != win->curdsp-1)
             if (win->screens[si]) {
@@ -15883,10 +16368,11 @@ static void setsizg_ivf(FILE* f, ami_long x, ami_long y)
                Master = x,y. Subclient = the client remainder, seated below
                the frame and any menu bar. */
             pd_winsize(win->xmwhan, x, y);
-            pd_winmove(win->xwhan, subclix(win), subcliy(win));
-            pd_winsize(win->xwhan, xwc.width, xwc.height);
             win->xmwr.w = x;
             win->xmwr.h = y;
+            clisize(win, &xwc.width, &xwc.height); /* less the scroll bars */
+            pd_winmove(win->xwhan, subclix(win), subcliy(win));
+            pd_winsize(win->xwhan, xwc.width, xwc.height);
             win->xwr.x = win->cwox;
             win->xwr.y = win->cwoy;
             win->xwr.w = xwc.width;
@@ -15901,7 +16387,7 @@ static void setsizg_ivf(FILE* f, ami_long x, ami_long y)
 
         }
 
-        if (win->childfrm) dec->frmdraw(win, win->xmwr.w, win->xmwr.h);
+        if (win->childfrm) frmdraw(win, win->xmwr.w, win->xmwr.h);
         scnunlock(win);
 
 #ifdef WAITWMR
@@ -15955,6 +16441,24 @@ static void setsizg_ivf(FILE* f, ami_long x, ami_long y)
         scnunlock(win);
 
     }
+    /* A buffer the program has not set follows the window: it was the
+       client's size at the open, and is the client's size after. A program
+       that sizes a window and never its buffer expects the two to match, as
+       window_test's window size frames do; the buffer as opened was left
+       larger than the window sized smaller, and showed scroll bars for it.
+       A buffer set with sizbuf holds. The client is taken as it would be
+       with no bars, which the buffer's new size then calls for none of. */
+    scnlock(win);
+    if (win->bufmod && !win->bufset) {
+
+        int aw, ah; /* the client with no bars */
+
+        sclavail(win, &aw, &ah);
+        if (aw != win->gmaxxg || ah != win->gmaxyg) isizbufg(win, aw, ah);
+
+    }
+    sclsync(win); /* the scroll bars and the canvas as the client calls for */
+    scnunlock(win);
 
 }
 
@@ -16184,7 +16688,7 @@ void ami_dragwin(FILE* f)
             scnlock(sibs[si]); /* its canvases: its lock, not ours */
             drag_repaint_full(sibs[si]);
             if (sibs[si]->childfrm && sibs[si]->xmwhan)
-                dec->frmdraw(sibs[si], sibs[si]->xmwr.w, sibs[si]->xmwr.h);
+                frmdraw(sibs[si], sibs[si]->xmwr.w, sibs[si]->xmwr.h);
             scnunlock(sibs[si]);
         }
         winrelease();
@@ -16494,12 +16998,17 @@ static void frame_ivf(FILE* f, ami_long e)
             /* reposition and resize subclient within master */
             pd_winmove(win->xwhan, subclix(win), subcliy(win));
             pd_winsize(win->xwhan, win->gmaxxg, win->gmaxyg);
+            win->xwr.x = win->cwox;
+            win->xwr.y = win->cwoy;
+            win->xwr.w = win->gmaxxg;
+            win->xwr.h = win->gmaxyg;
+            sclsync(win); /* the bars and the canvas as the client calls for */
 
             restore(win);
             /* redraw the frame when it is turned back on; off clears the
                declared drag and resize regions with it, or a frameless
                window would still drag by its phantom title */
-            if (e) dec->frmdraw(win, win->xmwr.w, win->xmwr.h);
+            if (e) frmdraw(win, win->xmwr.w, win->xmwr.h);
             else if (!win->parwin)
                 pd_winframe(win->xmwhan, 0, 0, 0, 0, 0);
 
@@ -16683,9 +17192,14 @@ static void sysbar_ivf(FILE* f, ami_long e)
             /* reposition and resize subclient within master */
             pd_winmove(win->xwhan, subclix(win), subcliy(win));
             pd_winsize(win->xwhan, win->gmaxxg, win->gmaxyg);
+            win->xwr.x = win->cwox;
+            win->xwr.y = win->cwoy;
+            win->xwr.w = win->gmaxxg;
+            win->xwr.h = win->gmaxyg;
+            sclsync(win); /* the bars and the canvas as the client calls for */
 
             restore(win);
-            dec->frmdraw(win, win->xmwr.w, win->xmwr.h);
+            frmdraw(win, win->xmwr.w, win->xmwr.h);
 
         }
 
@@ -17981,6 +18495,14 @@ static void ami_init_graphics(int argc, char *argv[])
         if (vp) {
 
             dialogerr = strtol(vp->value, &errstr, 10);
+            if (*errstr) error(ecfgval);
+
+        }
+
+        vp = ami_schlst("scrollbuffer", graph_root->sublist);
+        if (vp) {
+
+            scrollbuffer = strtol(vp->value, &errstr, 10) != 0;
             if (*errstr) error(ecfgval);
 
         }
