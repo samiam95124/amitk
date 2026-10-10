@@ -3744,7 +3744,8 @@ void ami_opensynthin(ami_long p)
     if (dp->open) error("Wave input device is already open");
     dp->open = TRUE; /* set device open */
 
-    r = midiInOpen(&dp->hmi, 0, (DWORD_PTR)MidiInProc, p, CALLBACK_FUNCTION);
+    /* the port's own device: the ids count from 0, the ports from 1 */
+    r = midiInOpen(&dp->hmi, p-1, (DWORD_PTR)MidiInProc, p, CALLBACK_FUNCTION);
     if (r != MMSYSERR_NOERROR) error("Cannot open midi device");
 
     dp->mh1.lpData = dp->mb1;
@@ -3760,17 +3761,19 @@ void ami_opensynthin(ami_long p)
     r = midiInAddBuffer(dp->hmi, &dp->mh1, sizeof(MIDIHDR));
     if (r != MMSYSERR_NOERROR) error("Cannot add buffer");
 
+    /* the second buffer, its own header: the first is prepared and queued
+       by now, and is not touched again */
     dp->mh2.lpData = dp->mb2;
-    dp->mh1.dwBufferLength = MIDBUFSIZ;
-    dp->mh1.dwBytesRecorded = 0;
-    dp->mh1.dwUser = 0;
-    dp->mh1.dwFlags = 0;
-    dp->mh1.dwOffset = 0;
+    dp->mh2.dwBufferLength = MIDBUFSIZ;
+    dp->mh2.dwBytesRecorded = 0;
+    dp->mh2.dwUser = 0;
+    dp->mh2.dwFlags = 0;
+    dp->mh2.dwOffset = 0;
 
-    r = midiInPrepareHeader(dp->hmi, &dp->mh1, sizeof(MIDIHDR));
+    r = midiInPrepareHeader(dp->hmi, &dp->mh2, sizeof(MIDIHDR));
     if (r != MMSYSERR_NOERROR) error("Cannot prepare header");
 
-    r = midiInAddBuffer(dp->hmi, &dp->mh1, sizeof(MIDIHDR));
+    r = midiInAddBuffer(dp->hmi, &dp->mh2, sizeof(MIDIHDR));
     if (r != MMSYSERR_NOERROR) error("Cannot add buffer");
 
     r = midiInStart(dp->hmi);
