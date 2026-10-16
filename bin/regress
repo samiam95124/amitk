@@ -61,6 +61,24 @@
 # does, in the 80 by 24 xterm, its widgets on the root window as widget_test
 # has them on its window; its standard is its own, tests/widget_testc.cmp.
 #
+# The _ssh tests, terminal_testc_ssh, window_testc_ssh and widget_testc_ssh,
+# are those three character tests run over ssh: the xterm runs an ssh
+# client, and the test runs at the far end of it, where there is no display
+# and no device, only the characters the connection carries. The terminal
+# module is to be transparent to that, and this is where it is held to it.
+# The far end is this machine: the script starts an sshd of its own, as the
+# user, on a port of its own (4922, so an sshd of yours is untouched),
+# with a host key and a login key it makes for the run in a directory of
+# its own and removes at the end, so nothing of yours under ~/.ssh is read
+# or written. The listing is made as the local test's is: the capture
+# sequences cross the connection as any characters do, the xterm prints
+# the pages, and the test at the far end watches the file, which is on
+# this machine. An ssh test keeps no standard of its own: the terminal is
+# the same, so the screens are the same, and it compares against the local
+# test's standard. --update of an ssh test is refused; the standard is
+# retaken with the local test. The ssh tests run on Linux only, where
+# OpenSSH's sshd runs unprivileged: Windows and Mac skip them.
+#
 # The picture standards are of a desktop's look -- the frame the screen tests
 # size themselves against, the menus, the theme -- and of a backend's, since
 # the Wayland module draws its own frames at the buffer's scale and the X
@@ -156,10 +174,19 @@ if ! command -v timeout >/dev/null 2>&1; then
     fi
 fi
 
+# the test an _ssh test is the ssh run of: its program, its event file and
+# its standard are that test's
+baseof()
+{
+
+    echo "${1%_ssh}"
+
+}
+
 binof()
 {
 
-    if [ -n "$plat" ]; then echo "bin/$1.exe"; else echo "bin/$1"; fi
+    if [ -n "$plat" ]; then echo "bin/$(baseof "$1").exe"; else echo "bin/$(baseof "$1")"; fi
 
 }
 
@@ -192,6 +219,7 @@ if [ -z "$tests" ]; then
     tests="stdio_test services_test network_test txttest pdftest \
            terminal_test terminal_testc window_testc widget_testc \
            graphics_test window_test widget_test \
+           terminal_testc_ssh window_testc_ssh widget_testc_ssh \
            graphics_testr window_testr widget_testr"
 
 fi
@@ -296,6 +324,95 @@ stoprsrv()
 }
 
 #
+# The private sshd for the ssh tests, started once when the first wants it
+# and stopped by pid on the way out. It runs as the user, from a directory
+# of its own that holds its configuration, its host key and the login key
+# the client uses, all made for the run; nothing under ~/.ssh is touched,
+# and the client keeps the host in a known_hosts file of its own there.
+# PAM and passwords are off: the key is the only way in, and only this
+# user's processes hold it. sshdir is empty when the server could not be
+# started, and the tests that want it fail saying so.
+#
+sport=4922
+sshdpid=""
+sshdir=""
+sshtried=""
+
+startsshd()
+{
+
+    if [ -n "$sshtried" ]; then return; fi
+    sshtried="1"
+    sshdir=$(mktemp -d "${TMPDIR:-/tmp}/pa_regress_ssh.XXXXXX") || { sshdir=""; return; }
+    if ! ssh-keygen -q -t ed25519 -N "" -f "$sshdir/hostkey" > /dev/null 2>&1 || \
+       ! ssh-keygen -q -t ed25519 -N "" -f "$sshdir/key" > /dev/null 2>&1; then
+
+        rm -rf "$sshdir"; sshdir=""
+        return
+
+    fi
+    cp "$sshdir/key.pub" "$sshdir/authorized_keys"
+    cat > "$sshdir/sshd_config" <<EOF
+Port $sport
+ListenAddress 127.0.0.1
+HostKey $sshdir/hostkey
+PidFile none
+UsePAM no
+PasswordAuthentication no
+KbdInteractiveAuthentication no
+PubkeyAuthentication yes
+AuthorizedKeysFile $sshdir/authorized_keys
+StrictModes no
+LogLevel QUIET
+EOF
+    "$sshd" -D -f "$sshdir/sshd_config" -E "$sshdir/sshd.log" > /dev/null 2>&1 &
+    sshdpid=$!
+    # wait for it to answer a login, up to ten seconds
+    for i in 1 2 3 4 5 6 7 8 9 10 11 12 13 14 15 16 17 18 19 20; do
+
+        if sshcmd true > /dev/null 2>&1; then return; fi
+        if ! kill -0 "$sshdpid" 2> /dev/null; then break; fi
+        sleep 0.5
+
+    done
+    stopsshd
+
+}
+
+# the client command for the private server, with the command to run
+# there after it
+sshcmd()
+{
+
+    ssh -o BatchMode=yes -o StrictHostKeyChecking=no \
+        -o UserKnownHostsFile="$sshdir/known_hosts" -o LogLevel=ERROR \
+        -i "$sshdir/key" -p "$sport" localhost "$@"
+
+}
+
+stopsshd()
+{
+
+    if [ -n "$sshdpid" ]; then
+
+        kill "$sshdpid" 2> /dev/null
+        wait "$sshdpid" 2> /dev/null
+        sshdpid=""
+
+    fi
+    if [ -n "$sshdir" ]; then rm -rf "$sshdir"; sshdir=""; fi
+
+}
+
+# the server program, which lives off the path on most systems
+sshd=""
+for f in "$(command -v sshd 2> /dev/null)" /usr/sbin/sshd /usr/local/sbin/sshd; do
+
+    if [ -n "$f" ] && [ -x "$f" ]; then sshd="$f"; break; fi
+
+done
+
+#
 # Run one test, output to the named .lst file
 #
 runtest()
@@ -330,7 +447,8 @@ runtest()
         remoterc=$?
         ;;
 
-    terminal_test|terminal_testc|window_testc|widget_testc)
+    terminal_test|terminal_testc|window_testc|widget_testc|\
+    terminal_testc_ssh|window_testc_ssh|widget_testc_ssh)
         # An xterm of its own, on a private X server, 80 by 24 (132 by 50
         # for the rooted management test, whose desktop the xterm is): the
         # screens are then of no desktop, font or scale. The listing is what the
@@ -343,7 +461,7 @@ runtest()
         # off and where the file its writethrough test makes lands.
         rm -f "tests/$1.lst" "tests/$1.dpy" tests/terminal/testfile
         geom=80x24
-        if [ "$1" = "window_testc" ]; then geom=132x50; fi
+        if [ "$(baseof "$1")" = "window_testc" ]; then geom=132x50; fi
         if [ "$plat" = "windows" ]; then
 
             # Windows: a console of its own, sized alike, that the test
@@ -402,7 +520,9 @@ runtest()
                 sleep 0.5
             done
             dpy=$(cat "tests/$1.dpy")
-            if [ -n "$dpy" ]; then
+            if [ -z "$dpy" ]; then
+                echo "Xvfb did not start" > "tests/$1.out"
+            elif [ "$1" = "$(baseof "$1")" ]; then
                 (cd tests/terminal && \
                  DISPLAY=":$dpy" timeout 300 xterm -geometry "$geom" \
                      -xrm "*printerCommand: cat >> $root/tests/$1.lst" \
@@ -410,8 +530,26 @@ runtest()
                      -xrm '*printerAutoClose: true' \
                      -e "$root/$(binof "$1")" auto "$root/tests/$1.lst") \
                      > "tests/$1.out" 2>&1
+            elif [ -z "$sshdir" ]; then
+                echo "the private sshd did not start (see $sshd)" > "tests/$1.out"
             else
-                echo "Xvfb did not start" > "tests/$1.out"
+                # the same xterm, but what it runs is the ssh client, and
+                # the test runs at the far end, on this machine, in the
+                # sandbox, with the event file named in its environment
+                # there: the client is asked for a terminal (-t), as the
+                # far end is to see one, and sees nothing else of here.
+                (cd tests/terminal && \
+                 DISPLAY=":$dpy" timeout 300 xterm -geometry "$geom" \
+                     -xrm "*printerCommand: cat >> $root/tests/$1.lst" \
+                     -xrm '*printAttributes: 0' \
+                     -xrm '*printerAutoClose: true' \
+                     -e ssh -t -o BatchMode=yes -o StrictHostKeyChecking=no \
+                         -o UserKnownHostsFile="$sshdir/known_hosts" \
+                         -o LogLevel=ERROR -i "$sshdir/key" -p "$sport" localhost \
+                         "cd '$root/tests/terminal' && \
+                          AUTO_EVENT_FILE='$AUTO_EVENT_FILE' \
+                          exec '$root/$(binof "$1")' auto '$root/tests/$1.lst'") \
+                     > "tests/$1.out" 2>&1
             fi
             kill "$xvfbpid" 2> /dev/null
             wait "$xvfbpid" 2> /dev/null
@@ -553,6 +691,8 @@ for t in $tests; do
     *)                                            pict=0; remote=0; whole=0 ;;
 
     esac
+    # an ssh test: its base test run over ssh
+    if [ "$t" != "$(baseof "$t")" ]; then overssh=1; else overssh=0; fi
     if [ "$pict" = "1" ] && [ -z "$plat" ] && \
        [ -z "$WAYLAND_DISPLAY" ] && [ -z "$DISPLAY" ]; then
 
@@ -561,9 +701,18 @@ for t in $tests; do
         continue
 
     fi
+    if [ "$overssh" = "1" ] && \
+       { [ -n "$plat" ] || [ "$(uname -s)" = Darwin ]; }; then
+
+        # the ssh run is the Linux harness's, with an sshd of its own
+        echo "$t: skipped, the ssh tests run on Linux"
+        continue
+
+    fi
     if [ -z "$plat" ] && \
        { [ "$t" = "terminal_test" ] || [ "$t" = "terminal_testc" ] || \
-         [ "$t" = "window_testc" ] || [ "$t" = "widget_testc" ]; } && \
+         [ "$t" = "window_testc" ] || [ "$t" = "widget_testc" ] || \
+         [ "$overssh" = "1" ]; } && \
        { ! command -v xterm > /dev/null 2>&1 || \
          ! command -v Xvfb > /dev/null 2>&1; }; then
 
@@ -572,6 +721,26 @@ for t in $tests; do
         continue
 
     fi
+    if [ "$overssh" = "1" ] && \
+       { [ -z "$sshd" ] || ! command -v ssh > /dev/null 2>&1 || \
+         ! command -v ssh-keygen > /dev/null 2>&1; }; then
+
+        # it runs over ssh to an sshd of its own, and there is none here
+        echo "$t: skipped, no sshd, ssh or ssh-keygen"
+        continue
+
+    fi
+    if [ "$update" = "1" ] && [ "$overssh" = "1" ]; then
+
+        # an ssh test's standard is its base test's, and is retaken with it
+        stdt="$(baseof "$t")"
+        if [ "$stdt" = "terminal_testc" ]; then stdt="terminal_test"; fi
+        echo "$t: *** not regenerated *** its standard is $stdt's: bin/regress --update $stdt"
+        fails=$((fails+1))
+        continue
+
+    fi
+    if [ "$overssh" = "1" ]; then startsshd; fi
     if [ "$remote" = "1" ] && [ ! -x "$(binof graph_server)" ]; then
 
         echo "$t: no $(binof graph_server), run make first"
@@ -586,10 +755,11 @@ for t in $tests; do
     # the server on this machine, and takes the test's file, since the
     # frames the file syncs to are the display's, and the display is this
     # platform's
-    case "$t" in
+    # An ssh test takes its base test's, run on this machine as it is.
+    case "$(baseof "$t")" in
     terminal_testc) evtof="terminal_test" ;;
     graphics_testr|window_testr|widget_testr) evtof="${t%r}" ;;
-    *) evtof="$t" ;;
+    *) evtof="$(baseof "$t")" ;;
     esac
     AUTO_EVENT_FILE="$(findfile "$evtof" "$evtof.evt")"
     [ -n "$AUTO_EVENT_FILE" ] && AUTO_EVENT_FILE="$root/$AUTO_EVENT_FILE"
@@ -689,15 +859,16 @@ for t in $tests; do
 
     fi
     # the standard: this platform's own where the test keeps one per platform;
-    # terminal_testc is terminal_test through windowc, and shares its standard
-    if [ "$t" = "terminal_testc" ]; then std="$(findfile terminal_test terminal_test.cmp)"
-    else std="$(findfile "$t" "$t.cmp")"
-    fi
+    # terminal_testc is terminal_test through windowc, and shares its standard;
+    # an ssh test is its base test over ssh, and shares that test's
+    stdt="$(baseof "$t")"
+    if [ "$stdt" = "terminal_testc" ]; then stdt="terminal_test"; fi
+    std="$(findfile "$stdt" "$stdt.cmp")"
     if [ -z "$std" ]; then # none yet: where --update puts one
 
-        std="tests/$t.cmp"
+        std="tests/$stdt.cmp"
         case "$plattests" in
-        *" $t "*) std="$cmpdir/$t.cmp" ;;
+        *" $stdt "*) std="$cmpdir/$stdt.cmp" ;;
         esac
 
     fi
@@ -755,7 +926,8 @@ for t in $tests; do
         bin/dif -q "tests/$t.lst" "$std" > "tests/$t.dif"
         if [ -s "tests/$t.dif" ] && \
            { [ "$t" = "terminal_test" ] || [ "$t" = "terminal_testc" ] || \
-             [ "$t" = "window_testc" ] || [ "$t" = "widget_testc" ]; }; then
+             [ "$t" = "window_testc" ] || [ "$t" = "widget_testc" ] || \
+             [ "$overssh" = "1" ]; }; then
 
             # the pages: a count that differs says a frame went missing
             {
@@ -782,4 +954,5 @@ for t in $tests; do
 done
 
 stoprsrv
+stopsshd
 exit $fails
