@@ -1303,6 +1303,10 @@ static void widget(
     wp->face = str(s); /* place face */
     setwigfont(wp->wf); /* set sign font */
     wp->typ = typ; /* place type */
+    /* the kinds that show nothing for the keyboard are not tab stops:
+       the tab walk passes over them */
+    wp->tabstop = typ != wtbackground && typ != wtgroup && typ != wtprogbar &&
+                  typ != wtscrollvert && typ != wtscrollhoriz;
     wp->sclsiz = LONG_MAX/10; /* set default size scrollbar */
     /* Implicit Z ordering: a component goes behind the controls of its
        window. It is not sent to the back, which would bury a group made

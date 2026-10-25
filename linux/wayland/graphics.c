@@ -17293,6 +17293,16 @@ Set window focus
 
 Sends the focus, or which window gets input characters, to a given window.
 
+A Wayland client cannot take the keyboard: the compositor decides which
+surface has it. For a toplevel, then, all this can do is raise it and let
+the compositor's own policy run. The focus among the child windows of a
+toplevel is this backend's own, kept in the windows' focus flags and
+consulted when a key arrives (fndfocus), and a child is given it here the
+way a button 1 click gives it: the holder loses it, with its no-focus event
+and cursor repaint, and the given window gains it with its focus event.
+This was a stub, which left ami_focuswidget, and so tab to the next widget,
+without effect on Wayland.
+
 *******************************************************************************/
 
 void _pa_focus_ovr(ami_focus_t nfp, ami_focus_t* ofp)
@@ -17303,9 +17313,30 @@ static void focus_ivf(FILE* f)
 
 {
 
-    winptr win; /* pointer to windows context */
+    winptr     win; /* pointer to windows context */
+    ami_evtrec er;  /* event record */
 
     win = txt2win(f); /* get window context */
+    if (!win->parwin) { /* a toplevel: the compositor's to give */
+
+        if (win->xmwhan) wmactivate(win->xmwhan, 0);
+        return;
+
+    }
+    if (win->mstchild) return; /* a menu component never takes the keyboard */
+    scnlock(win); /* the branch's own span */
+    if (win->xwhan && !win->focus) { /* open, and not holding it already */
+
+        remfocus(root(win), win); /* the holder loses it */
+        curoff(win); /* remove cursor */
+        win->focus = TRUE; /* put focus */
+        curon(win); /* replace cursor */
+        if (win->childfrm) frmdraw(win, win->xmwr.w, win->xmwr.h);
+        er.etype = ami_etfocus; /* and it hears of it */
+        isendevent(win, &er);
+
+    }
+    scnunlock(win);
 
 }
 

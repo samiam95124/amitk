@@ -94,6 +94,9 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
     /** focused */                            ami_long   focus; \
     /** hovered */                            ami_long   hover; \
     /** position of widget in parent */       ami_long   px, py; \
+    /** creation order, for the tab walk */   ami_long   tabseq; \
+    /** Tab stops here: the widget takes the keyboard focus */ \
+                                              ami_long   tabstop; \
     /** construction complete: events dispatch only from here */ \
                                               ami_long   live;
 

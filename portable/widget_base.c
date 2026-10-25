@@ -86,6 +86,7 @@ typedef struct wbdefer {
 static pthread_mutex_t wblock;     /* recursive; made in wb_lockinit */
 static pthread_once_t  wbonce = PTHREAD_ONCE_INIT;
 static int             wbdispatch; /* a dispatch is in flight */
+static ami_long        wbtabseq;   /* creation stamp of the last widget */
 static wbdefer*        wbdeflst;   /* kills awaiting the dispatch end */
 
 static void wb_lockinit(void)
@@ -342,6 +343,10 @@ void wb_widget(
     wp->enb = TRUE; /* set is enabled */
     wp->px = x1; /* set widget position in parent */
     wp->py = y1;
+    wb_lock();
+    wp->tabseq = ++wbtabseq; /* stamp creation order */
+    wb_unlock();
+    wp->tabstop = TRUE; /* takes focus by Tab unless the package says not */
 
     *wprp = wp; /* copy back to caller */
 
@@ -509,6 +514,81 @@ void wb_purge(
 
 /** ****************************************************************************
 
+Tab to the next widget
+
+Finds the widget that follows the given one in the tab order of its window:
+the next in creation order, of any package, that is complete, enabled and a
+tab stop, wrapping to the first past the last. A widget standing inside
+another widget's window (a part of a compound widget) that has no sibling
+to go to hands the walk to the widget whose window it stands in, so the tab
+leaves the compound rather than circling inside it.
+
+Called with the lock held. Returns NULL when there is nowhere to go.
+
+*******************************************************************************/
+
+static wbwigptr tabowner(
+    /** Window file */ FILE* f
+)
+
+{
+
+    wbpkgptr pk;
+    ami_long i;
+
+    for (pk = pkglst; pk; pk = pk->next)
+        for (i = 0; i < MAXFIL*2+1; i++)
+            if (pk->xltwig[i] && pk->xltwig[i]->wf == f) return (pk->xltwig[i]);
+
+    return (NULL);
+
+}
+
+static wbwigptr tabnext(
+    /** Widget the Tab was typed in */ wbwigptr wg
+)
+
+{
+
+    wbpkgptr pk;
+    wbwigptr wp;
+    wbwigptr best;  /* the next in order after wg */
+    wbwigptr first; /* the first in order, for the wrap */
+    ami_long fn;
+    ami_long i;
+
+    while (wg) {
+
+        fn = fileno(wg->parent);
+        best = NULL;
+        first = NULL;
+        if (fn >= 0 && fn < MAXFIL)
+            for (pk = pkglst; pk; pk = pk->next)
+                if (pk->opnfil[fn])
+                    for (i = 0; i < MAXWIG*2+1; i++) {
+
+            wp = pk->opnfil[fn]->widgets[i];
+            if (!wp || wp == wg || !wp->live || !wp->enb || !wp->tabstop)
+                continue;
+            if (wp->tabseq > wg->tabseq &&
+                (!best || wp->tabseq < best->tabseq)) best = wp;
+            if (!first || wp->tabseq < first->tabseq) first = wp;
+
+        }
+        if (best) return (best);
+        if (first) return (first);
+        /* nothing beside it: if it stands in a widget's window, go on from
+           that widget */
+        wg = tabowner(wg->parent);
+
+    }
+
+    return (NULL);
+
+}
+
+/** ****************************************************************************
+
 Widget event intercept
 
 Hooked into the event chain when the first package registers. Events
@@ -516,6 +596,11 @@ whose window id belongs to a package's widget window dispatch to that
 package; all others pass down the chain to whoever hooked before -- and
 finally the program. This is what lets any number of widget packages
 coexist: each recognizes only its own windows.
+
+A tab typed in a widget is the base's: it moves the focus to the next
+widget of the window, as the desktop's own dialogs do. No widget of ours
+consumes a tab. The move raises the focus and no-focus events on the two
+widgets, and the tab itself goes no further.
 
 *******************************************************************************/
 
@@ -528,6 +613,7 @@ static void wb_event(
     wbpkgptr pk;
     wbwigptr wg = NULL;
     wbpkgptr fpk = NULL;
+    wbwigptr np;
     wbdefer* dp;
 
     wb_lock();
@@ -543,6 +629,14 @@ static void wb_event(
        event dispatched into that gap runs a handler on half-set state.
        The completing redraw repaints whatever was missed. */
     if (fpk && !wg->live) { wb_unlock(); return; }
+    if (fpk && ev->etype == ami_ettab) { /* tab: on to the next widget */
+
+        np = tabnext(wg);
+        wb_unlock();
+        if (np) ami_focus(np->wf); /* the keyboard goes there */
+        return;
+
+    }
     if (fpk) wbdispatch++; /* kills defer from here */
     wb_unlock();
     if (fpk) {
