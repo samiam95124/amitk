@@ -2939,6 +2939,63 @@ static void chgcur(winptr win)
 
 /*******************************************************************************
 
+Create the font of a screen at an escapement
+
+Creates the font for the attributes of the given screen at the given GDI
+escapement, in tenths of a degree counterclockwise from horizontal, or returns
+0 when the stock system font serves: the system font at its natural size on
+the normal reading path. The stock system font is a raster font, which GDI
+cannot scale or rotate, so at any other size, or on any other path, a standard
+scalable fixed pitch font at the requested height stands in for it. That keeps
+sizing and text path working with the terminal font, as the scalable terminal
+fonts of the other platforms do.
+
+*******************************************************************************/
+
+static HFONT scnfont(winptr win, scnptr sc, int esc)
+
+{
+
+    int   w;     /* weight */
+    int   h;     /* height */
+    int   attrc; /* attributes */
+    HFONT f;     /* the font */
+
+    if (sc->cfont->sys && !esc && win->gfhigh == sysfhigh) f = 0; /* stock font serves */
+    else if (sc->cfont->sys) { /* system font, resized or rotated */
+
+        h = win->gfhigh? win->gfhigh: sysfhigh; /* height, default to natural */
+        GDICALL(f = CreateFont(h, 0, esc, esc, FW_REGULAR,
+                               FALSE, FALSE, FALSE, ANSI_CHARSET,
+                               OUT_TT_ONLY_PRECIS, CLIP_DEFAULT_PRECIS,
+                               FQUALITY, FIXED_PITCH,
+                               "Consolas"), !f); /* process windows error */
+
+    } else {
+
+        attrc = sc->attr; /* copy attribute */
+        w = FW_REGULAR;
+        if (BIT(saxlight) & attrc) w = FW_EXTRALIGHT;
+        else if (BIT(salight) & attrc) w = FW_LIGHT;
+        else if (BIT(sabold) & attrc) w = FW_BOLD;
+        else if (BIT(saxbold) & attrc) w = FW_EXTRABOLD;
+        /* set normal height or half height for subscript/superscript */
+        if (BIT(sasuper) & attrc | BIT(sasubs) & attrc)
+            h = trunc(win->gfhigh*0.75); else h = win->gfhigh;
+        GDICALL(f = CreateFont(h, 0, esc, esc, w, BIT(saital) & attrc,
+                               BIT(saundl) & sc->attr, BIT(sastkout) & sc->attr, ANSI_CHARSET,
+                               OUT_TT_ONLY_PRECIS, CLIP_DEFAULT_PRECIS,
+                               FQUALITY, DEFAULT_PITCH,
+                               sc->cfont->face), !f); /* process windows error */
+
+    }
+
+    return (f);
+
+}
+
+/*******************************************************************************
+
 Create font for a screen
 
 Creates a font using the attributes of the given screen, and sets the
@@ -2950,13 +3007,10 @@ static void newfontscn(winptr win, scnptr sc)
 
 {
 
-    int        w; /* weight temp */
-    int        h; /* height temp */
-    TEXTMETRIC tm; /* text metric structure */
-    int        r; /* result holder */
-    HGDIOBJ    sf; /* system fixed font object */
+    TEXTMETRIC tm;  /* text metric structure */
+    HGDIOBJ    sf;  /* the font selected: the created one or the stock one */
+    HFONT      mf;  /* unrotated twin for measuring */
     int        b;
-    int        attrc;
     HGDIOBJ    rv;
     int        esc; /* escapement angle in tenths of a degree */
 
@@ -2983,72 +3037,38 @@ static void newfontscn(winptr win, scnptr sc)
     esc = 900-(int)floor((double)sc->angle/LONG_MAX*3600.0+0.5);
     while (esc < 0) esc = esc+3600;
     while (esc >= 3600) esc = esc-3600;
-    if (sc->cfont->sys && !esc && win->gfhigh == sysfhigh) {
-        /* system font, natural size, normal reading path */
+    sc->font = scnfont(win, sc, esc); /* create the font, 0 for the stock one */
+    sf = sc->font; /* the font to select */
+    if (!sf) GDICALL(sf = GetStockObject(SYSTEM_FIXED_FONT), !sf); /* process windows error */
+    /* select to buffer DC */
+    GDICALL(rv = SelectObject(sc->bdc, sf), rv == HGDI_ERROR);
+    /* select to screen DC */
+    if (sc == win->screens[win->curdsp-1]) {
 
-        /* select the stock system font. This is a raster font, so it is only
-           usable at its natural size with a normal path; the substitution
-           below handles any other case */
-        GDICALL(sf = GetStockObject(SYSTEM_FIXED_FONT), !sf); /* process windows error */
-        GDICALL(rv = SelectObject(sc->bdc, sf), rv == HGDI_ERROR);
-        /* select to screen dc */
-        if (sc == win->screens[win->curdsp-1]) {
-
-            GDICALL(rv = SelectObject(win->devcon, sf), rv == HGDI_ERROR); /* process error */
-
-        }
-
-    } else if (sc->cfont->sys) { /* system font, resized or rotated */
-
-        /* The stock system font is a raster font, which GDI cannot scale or
-           rotate. When the terminal font is requested at a non-natural size
-           or on a rotated path, substitute a standard scalable fixed pitch
-           font at the requested height so sizing and text path work with the
-           terminal font, matching the scalable terminal font on other
-           platforms. The stock font returns at natural size and normal
-           path. */
-        h = win->gfhigh? win->gfhigh: sysfhigh; /* height, default to natural */
-        GDICALL(sc->font = CreateFont(h, 0, esc, esc, FW_REGULAR,
-                          FALSE, FALSE, FALSE, ANSI_CHARSET,
-                          OUT_TT_ONLY_PRECIS, CLIP_DEFAULT_PRECIS,
-                          FQUALITY, FIXED_PITCH,
-                          "Consolas"), !sc->font); /* process windows error */
-        /* select to buffer DC */
-        GDICALL(rv = SelectObject(sc->bdc, sc->font), rv == HGDI_ERROR);
-        /* select to screen DC */
-        if (sc == win->screens[win->curdsp-1]) {
-
-            GDICALL(rv = SelectObject(win->devcon, sc->font), rv == HGDI_ERROR); /* process error */
-
-        }
-
-    } else {
-
-        attrc = sc->attr; /* copy attribute */
-        w = FW_REGULAR;
-        if (BIT(saxlight) & attrc) w = FW_EXTRALIGHT;
-        else if (BIT(salight) & attrc) w = FW_LIGHT;
-        else if (BIT(sabold) & attrc) w = FW_BOLD;
-        else if (BIT(saxbold) & attrc) w = FW_EXTRABOLD;
-        /* set normal height or half height for subscript/superscript */
-        if (BIT(sasuper) & attrc | BIT(sasubs) & attrc)
-            h = trunc(win->gfhigh*0.75); else h = win->gfhigh;
-        GDICALL(sc->font = CreateFont(h, 0, esc, esc, w, BIT(saital) & attrc,
-                          BIT(saundl) & sc->attr, BIT(sastkout) & sc->attr, ANSI_CHARSET,
-                          OUT_TT_ONLY_PRECIS, CLIP_DEFAULT_PRECIS,
-                          FQUALITY, DEFAULT_PITCH,
-                          sc->cfont->face), !sc->font); /* process windows error */
-        /* select to buffer DC */
-        GDICALL(rv = SelectObject(sc->bdc, sc->font), rv == HGDI_ERROR);
-        /* select to screen DC */
-        if (sc == win->screens[win->curdsp-1]) {
-
-            GDICALL(rv = SelectObject(win->devcon, sc->font), rv == HGDI_ERROR); /* process error */
-
-        }
+        GDICALL(rv = SelectObject(win->devcon, sf), rv == HGDI_ERROR); /* process error */
 
     }
-    GDICALL(b = GetTextMetrics(sc->bdc, &tm), !b); /* get the standard metrics */ /* process windows error */
+    /* The metrics set the character cell, which does not follow the text
+       path: the cell is the font's on the normal reading path, as on the
+       other platforms, so a program that lays text out by the cell size gets
+       the same answer on any path. GDI gives a rotated font the metrics of
+       its rotated bounding box, so a rotated font is measured by its
+       unrotated twin. */
+    if (esc) { /* rotated: measure the unrotated twin */
+
+        mf = scnfont(win, sc, 0); /* create the twin, 0 for the stock font */
+        if (mf) GDICALL(rv = SelectObject(sc->bdc, mf), rv == HGDI_ERROR);
+        else {
+
+            GDICALL(rv = GetStockObject(SYSTEM_FIXED_FONT), !rv); /* process windows error */
+            GDICALL(rv = SelectObject(sc->bdc, rv), rv == HGDI_ERROR);
+
+        }
+        GDICALL(b = GetTextMetrics(sc->bdc, &tm), !b); /* get the standard metrics */ /* process windows error */
+        GDICALL(rv = SelectObject(sc->bdc, sf), rv == HGDI_ERROR); /* back to the screen's font */
+        if (mf) DeleteObject(mf); /* release the twin */
+
+    } else GDICALL(b = GetTextMetrics(sc->bdc, &tm), !b); /* get the standard metrics */ /* process windows error */
     /* Calculate line spacing */
     win->linespace = tm.tmHeight;
     sc->lspc = win->linespace;
