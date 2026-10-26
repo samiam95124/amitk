@@ -15450,20 +15450,23 @@ static void itabbarsiz(winptr win, ami_strptr sp, ami_tabori tor, ami_long cw, a
 
 {
 
-    ami_long gw, gh, gox, goy;
+    ami_long gw, gh, gox, goy; /* the bar in pixels */
+    ami_long cs, ls;           /* the cell */
 
-    /* convert client sizes to graphical */
-    cw = cw*win->charspace;
-    ch = ch*win->linespace;
-    itabbarsizg(win, sp, tor, cw, ch, &gw, &gh, &gox, &goy); /* get size */
-    /* change graphical size to character */
-    *w = (gw-1) / win->charspace+1;
-    *h = (gh-1) / win->linespace+1;
-    *ox = (gox-1) / win->charspace+1;
-    *oy = (goy-1) / win->linespace+1;
-    /* must make sure that client dosen"t intrude on edges */
-    if (gw-gox-4%win->charspace) *w = *w+1;
-    if (gh-goy-4%win->charspace) *h = *h+1;
+    cs = win->charspace;
+    ls = win->linespace;
+    itabbarsizg(win, sp, tor, cw*cs, ch*ls, &gw, &gh, &gox, &goy); /* get size */
+    /* Change the graphical size to characters, in three pieces: the offset
+       before the client, the client, and what the bar has after it, its tab
+       strip or its edge. Each rounds up to whole cells on its own. The client
+       then starts on a cell past the strip or edge before it, and the strip
+       or edge after it starts on a cell past the client, so a bar laid out
+       in cells holds its client, and bars sharing one client, as the
+       overlaid tab bars do, keep their strips clear of each other's. */
+    *ox = (gox+cs-1)/cs;
+    *oy = (goy+ls-1)/ls;
+    *w = *ox+cw+(gw-gox-cw*cs+cs-1)/cs;
+    *h = *oy+ch+(gh-goy-ch*ls+ls-1)/ls;
 
 }
 
