@@ -1482,9 +1482,9 @@ static ami_long colc8(ami_long v)
 {
 
     if (v <= 0) return (0);
-    if (v >= LONG_MAX-LONG_MAX/255) return (255);
+    if (v >= AMI_LONG_MAX-AMI_LONG_MAX/255) return (255);
 
-    return (v/(LONG_MAX/255));
+    return (v/(AMI_LONG_MAX/255));
 
 }
 
@@ -1493,9 +1493,9 @@ static ami_long col8full(ami_long v)
 {
 
     if (v <= 0) return (0);
-    if (v >= 255) return (LONG_MAX);
+    if (v >= 255) return (AMI_LONG_MAX);
 
-    return (v*(LONG_MAX/255));
+    return (v*(AMI_LONG_MAX/255));
 
 }
 
@@ -1575,11 +1575,11 @@ static void colnumrgb(ami_color c, ami_long* r, ami_long* g, ami_long* b)
 
     }
     *r = (c == ami_red || c == ami_yellow || c == ami_magenta ||
-          c == ami_white)? LONG_MAX: 0;
+          c == ami_white)? AMI_LONG_MAX: 0;
     *g = (c == ami_green || c == ami_yellow || c == ami_cyan ||
-          c == ami_white)? LONG_MAX: 0;
+          c == ami_white)? AMI_LONG_MAX: 0;
     *b = (c == ami_blue || c == ami_cyan || c == ami_magenta ||
-          c == ami_white)? LONG_MAX: 0;
+          c == ami_white)? AMI_LONG_MAX: 0;
 
 }
 
@@ -1624,7 +1624,7 @@ static ami_color colrgbnum(ami_long r, ami_long g, ami_long b)
 
     ami_color c;
 
-    switch ((r > LONG_MAX/2) << 2 | (g > LONG_MAX/2) << 1 | (b > LONG_MAX/2)) {
+    switch ((r > AMI_LONG_MAX/2) << 2 | (g > AMI_LONG_MAX/2) << 1 | (b > AMI_LONG_MAX/2)) {
 
         /* rgb */
         /* 000 */ case 0: c = ami_black;   break;
@@ -8179,7 +8179,7 @@ static ami_color colcomp(ami_color c)
     ami_long r, g, b;
 
     colnumrgb(c, &r, &g, &b);
-    return colrgbnum(LONG_MAX-r, LONG_MAX-g, LONG_MAX-b);
+    return colrgbnum(AMI_LONG_MAX-r, AMI_LONG_MAX-g, AMI_LONG_MAX-b);
 
 }
 
@@ -9054,7 +9054,7 @@ static void wigsig(wigptr wg, ami_evtcod e, ami_long v)
 
 }
 
-/* cells from a full scale value: round(range*val/LONG_MAX), end exact.
+/* cells from a full scale value: round(range*val/AMI_LONG_MAX), end exact.
    The previous fixed point form quantized to 1024 steps and floored, so a
    full scale value always came out one cell short of the end. */
 static ami_long wigmul(ami_long range, ami_long val)
@@ -9062,9 +9062,9 @@ static ami_long wigmul(ami_long range, ami_long val)
 {
 
     if (val <= 0 || range <= 0) return (0);
-    if (val >= LONG_MAX) return (range);
+    if (val >= AMI_LONG_MAX) return (range);
 
-    return ((ami_long)((double)range*val/(double)LONG_MAX+0.5));
+    return ((ami_long)((double)range*val/(double)AMI_LONG_MAX+0.5));
 
 }
 
@@ -9075,9 +9075,9 @@ static ami_long wigscl(ami_long num, ami_long den)
 
     if (den <= 0) return (0);
     if (num <= 0) return (0);
-    if (num >= den) return (LONG_MAX);
+    if (num >= den) return (AMI_LONG_MAX);
 
-    return (num*(LONG_MAX/den));
+    return (num*(AMI_LONG_MAX/den));
 
 }
 
@@ -9630,7 +9630,7 @@ static wigptr wigcre(FILE* f, ami_long x1, ami_long y1, ami_long x2, ami_long y2
     wg->val = 0;
     wg->low = 0;
     wg->high = 0;
-    wg->sclsiz = LONG_MAX/8; /* nominal thumb */
+    wg->sclsiz = AMI_LONG_MAX/8; /* nominal thumb */
     wg->marks = 0;
     wg->top = 0;
     wg->lcol = NULL;
@@ -11616,7 +11616,7 @@ static void qfilbar(winptr dwin, ami_long lid, ami_long bid)
     vis = lw->win->cmaxy;
     max = lw->listn-vis;
     if (max < 0) max = 0;
-    bw->sclsiz = lw->listn > vis? wigscl(vis, lw->listn): LONG_MAX;
+    bw->sclsiz = lw->listn > vis? wigscl(vis, lw->listn): AMI_LONG_MAX;
     bw->val = max? wigscl(lw->top, max): 0;
     wigdrw(bw);
 

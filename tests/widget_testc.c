@@ -584,13 +584,13 @@ int main(int argc, char* argv[])
     printf("Character scroll bar sizing test\n");
     printf("\n");
     ami_scrollvert(stdout, 10, 10, 12, 20, 1);
-    ami_scrollsiz(stdout, 1, (LONG_MAX / 4)*3);
+    ami_scrollsiz(stdout, 1, (AMI_LONG_MAX / 4)*3);
     ami_scrollvert(stdout, 10+5, 10, 12+5, 20, 2);
-    ami_scrollsiz(stdout, 2, LONG_MAX / 2);
+    ami_scrollsiz(stdout, 2, AMI_LONG_MAX / 2);
     ami_scrollvert(stdout, 10+10, 10, 12+10, 20, 3);
-    ami_scrollsiz(stdout, 3, LONG_MAX / 4);
+    ami_scrollsiz(stdout, 3, AMI_LONG_MAX / 4);
     ami_scrollvert(stdout, 10+15, 10, 12+15, 20, 4);
-    ami_scrollsiz(stdout, 4, LONG_MAX / 8);
+    ami_scrollsiz(stdout, 4, AMI_LONG_MAX / 8);
     printf("Now should be four scrollbars, decending in size to the right.\n");
     printf("All of the scrollbars can be manipulated.\n");
     do {
@@ -750,12 +750,12 @@ int main(int argc, char* argv[])
 
             if (prog < 20) {
 
-                ami_progbarpos(stdout, 1, LONG_MAX-((20-prog)*(LONG_MAX / 20)));
+                ami_progbarpos(stdout, 1, AMI_LONG_MAX-((20-prog)*(AMI_LONG_MAX / 20)));
                 prog = prog+1; /* next progress value */
 
             } else if (prog == 20) {
 
-                ami_progbarpos(stdout, 1, LONG_MAX);
+                ami_progbarpos(stdout, 1, AMI_LONG_MAX);
                 printf("Done !\n");
                 prog = 11;
                 ami_killtimer(stdout, 1);
@@ -1160,9 +1160,9 @@ int main(int argc, char* argv[])
     printf("There should be an color query dialog\n");
     printf("Both the dialog and this window should be fully reactive\n");
     printf("The color pa_white should be the default selection\n");
-    r = LONG_MAX;
-    g = LONG_MAX;
-    b = LONG_MAX;
+    r = AMI_LONG_MAX;
+    g = AMI_LONG_MAX;
+    b = AMI_LONG_MAX;
     if (!autorun && framenum >= tstlo) /* modal: it waits for a person to answer */
     ami_querycolor(&r, &g, &b);
     printf("\n");
@@ -1282,9 +1282,9 @@ int main(int argc, char* argv[])
     fr = 0; /* set foreground to black */
     fg = 0;
     fb = 0;
-    br = LONG_MAX; /* set background to white */
-    bg = LONG_MAX;
-    bb = LONG_MAX;
+    br = AMI_LONG_MAX; /* set background to white */
+    bg = AMI_LONG_MAX;
+    bb = AMI_LONG_MAX;
     fe = 0;
     if (!autorun && framenum >= tstlo) /* modal: it waits for a person to answer */
     ami_queryfont(stdout, &fc, &fs, &fr, &fg, &fb, &br, &bg, &bb, &fe);
