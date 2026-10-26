@@ -15600,10 +15600,71 @@ static void uselesswidget(winptr win)
 
 /*******************************************************************************
 
+Find the length of a tab strip
+
+Finds what the tabs of a tab bar need along the strip. The control lays its
+tabs out with its own font, padding and minimum tab length, and a vertical
+bar's rotated font measures differently from a horizontal bar's, so a
+throwaway control of the bar's orientation holds the tabs and is asked where
+the last one ends, as the drop box sizing measures its control. The ragged
+right style keeps the tabs at their own lengths, since Windows gives every
+vertical bar the multiline style, which otherwise stretches a row of tabs to
+fill the strip. The tabs start two pixels in; the same is allowed after them.
+
+*******************************************************************************/
+
+static ami_long tabneed(ami_strptr sp, ami_tabori tor)
+
+{
+
+    HWND     mh;   /* measuring tab control */
+    TCITEM   tcr;  /* tab attributes record */
+    RECT     ir;   /* the last tab's rectangle */
+    int      inx;  /* tab index */
+    int      fl;   /* styles */
+    ami_long need; /* the strip's length */
+
+    if (!sp) return (0); /* no tabs, no need */
+    fl = WS_POPUP | TCS_RAGGEDRIGHT;
+    if (tor == ami_toright || tor == ami_toleft) fl |= TCS_VERTICAL;
+    if (tor == ami_toright) fl |= TCS_RIGHT;
+    if (tor == ami_tobottom) fl |= TCS_BOTTOM;
+    /* long enough that the tabs never wrap */
+    mh = CreateWindowEx(0, "systabcontrol32", "", fl, 0, 0, 10000, 10000,
+                        NULL, NULL, GetModuleHandle(NULL), NULL);
+    if (!mh) winerr(); /* process windows error */
+    inx = 0; /* set index */
+    while (sp) { /* add the tabs */
+
+        tcr.mask = TCIF_TEXT; /* set record contains text label */
+        tcr.dwState = 0; /* clear state */
+        tcr.dwStateMask = 0; /* clear state mask */
+        tcr.pszText = sp->str; /* place string */
+        tcr.iImage = -1; /* no image */
+        tcr.lParam = 0; /* no parameter */
+        if (SendMessage(mh, TCM_INSERTITEM, (WPARAM)inx, (LPARAM)&tcr) == -1)
+            error(etabbar); /* can"t create tab */
+        sp = sp->next; /* next string */
+        inx++; /* next index */
+
+    }
+    if (!SendMessage(mh, TCM_GETITEMRECT, inx-1, (LPARAM)&ir)) winerr();
+    if (tor == ami_toright || tor == ami_toleft) need = ir.bottom+2;
+    else need = ir.right+2;
+    DestroyWindow(mh);
+
+    return (need);
+
+}
+
+/*******************************************************************************
+
 Find minimum/standard tab bar size
 
-Finds the minimum size for a tab bar. The minimum size of a tab bar is
-calculated and returned.
+Finds the minimum size for a tab bar. Across the strip the bar is the client
+and the strip; along it the bar is the client with its edges or the tabs'
+own length, whichever is more, because a bar shorter than its tabs wraps
+them into a second row that lands over the client.
 
 *******************************************************************************/
 
@@ -15612,12 +15673,16 @@ static void itabbarsizg(winptr win, ami_strptr sp, ami_tabori tor, ami_long cw, 
 
 {
 
+    ami_long need; /* what the tabs need along the strip */
+
+    need = tabneed(sp, tor); /* measure the tabs */
     if (tor == ami_toright || tor == ami_toleft)  { /* vertical bar */
 
         *w = 32; /* set minimum width */
         *h = 2+20*2; /* set minimum height */
         *w = *w+cw; /* add client space to width */
         if (ch+4 > *h) *h = ch+4; /* set to client if greater */
+        if (need > *h) *h = need; /* set to the tabs if greater */
         if (tor == ami_toleft) {
 
             *ox = 28; /* set offsets */
@@ -15635,6 +15700,7 @@ static void itabbarsizg(winptr win, ami_strptr sp, ami_tabori tor, ami_long cw, 
         *w = 2+20*2; /* set minimum width, edges, arrows */
         *h = 32; /* set minimum height */
         if (cw+4 > *w) *w = cw+4; /* set to client if greater */
+        if (need > *w) *w = need; /* set to the tabs if greater */
         *h = *h+ch; /* add client space to height */
         if (tor == ami_totop)  {
 
@@ -15778,9 +15844,6 @@ static void itabbarclient(winptr win, ami_tabori tor, ami_long w, ami_long h, am
     *ch = (gh-1)/win->linespace+1;
     *ox = (gox-1)/win->charspace+1;
     *oy = (goy-1)/win->linespace+1;
-    /* must make sure that client dosen"t intrude on edges */
-    if (gw-gox-4%win->charspace) w = w+1;
-    if (gh-goy-4%win->charspace) h = h+1;
 
 }
 
