@@ -23,13 +23,15 @@
 # tests, so 0 means a pass.
 #
 # Some text standards are of a platform's paths, environment, option character
-# and directory listing, and no mask covers that; the document standard
-# (pdftest) is of the platform too: pdfgraph decides arc segment counts from
-# an angle scaled by LONG_MAX, and an exact quarter arc lands on the boundary
-# one way with a 32 bit long and the other with 64. Those tests keep a
+# and directory listing, and no mask covers that. Those tests keep a
 # standard per platform, in the platform's own directory: tests/windows,
 # tests/linux, tests/macosx. The tests that do are listed in plattests
 # below; the rest share one standard across the platforms, tests/<test>.cmp.
+# (The document standard, pdftest, was once of the platform too: pdfgraph
+# scaled its arc angles by LONG_MAX, 32 bits on Windows, and an exact
+# quarter arc landed on a segment boundary one way there and the other on
+# a 64 bit long. It scales by AMI_LONG_MAX now, the API's own constant, and
+# the document is the same everywhere.)
 #
 # The print tests, txttest and pdftest, print into a file, and that is what
 # is compared: the text page, tests/txttest.lst, by dif; the document,
@@ -141,7 +143,7 @@ FreeBSD)              plat="";        cmpdir="tests/freebsd" ;;
 *)                    plat="";        cmpdir="tests/linux" ;;
 
 esac
-plattests=" services_test pdftest "
+plattests=" services_test "
 
 # The test's program. Windows names it with .exe, and a same-named file of
 # another platform's, such as a Linux build left in bin, must not stand for

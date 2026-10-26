@@ -173,14 +173,14 @@ int main(int argc, char* argv[])
 
     /* arcs, pies, chords, triangle */
     ami_linewidth(p, 8);
-    ami_arc(p, 300, 2400, 1500, 3600, 0, LONG_MAX/4);
+    ami_arc(p, 300, 2400, 1500, 3600, 0, AMI_LONG_MAX/4);
     figlab(p, 300, 3650, "arc, quarter turn");
     ami_fcolor(p, ami_green);
-    ami_farc(p, 1700, 2400, 2900, 3600, 0, LONG_MAX/3);
+    ami_farc(p, 1700, 2400, 2900, 3600, 0, AMI_LONG_MAX/3);
     ami_fcolor(p, ami_black);
     figlab(p, 1700, 3650, "farc, a pie");
     ami_fcolor(p, ami_red);
-    ami_fchord(p, 3100, 2400, 4300, 3600, 0, LONG_MAX/3);
+    ami_fchord(p, 3100, 2400, 4300, 3600, 0, AMI_LONG_MAX/3);
     ami_fcolor(p, ami_black);
     figlab(p, 3100, 3650, "fchord");
     ami_fcolor(p, ami_blue);
