@@ -148,10 +148,6 @@ static enum { /* debug levels */
 #define BITMSK(b) (~BIT(b)) /* mask out bit number */
 
 
-/* the "standard character" sizes are used to form a pseudo-size for desktop
-   character measurements in a graphical system. */
-#define STDCHRX   8
-#define STDCHRY   12
 #define MAXLIN    250   /* maximum length of input bufferred line */
 #define MAXCON    10    /* number of screen contexts */
 #define MAXTAB    250   /* total number of tabs possible per screen */
@@ -694,6 +690,14 @@ static int       fntcnt;       /* number of fonts in font list */
 static int       sysfhigh;     /* natural pixel height of the stock terminal
                                   font, used to decide when the terminal font
                                   must be substituted with a scalable font */
+/* The desktop's character cell: the size and position of a window with no
+   parent are given in it. It is the main window's terminal font cell, taken
+   at the first open as the Linux drivers do, so a window asked for in
+   characters by setsiz and measured back by winclient agree, and it scales
+   with the display's DPI. Written once, at the main window's open, before
+   any other thread runs; read only after. */
+static int       stdchrx;      /* desktop cell width in pixels */
+static int       stdchry;      /* desktop cell height in pixels */
 static ami_evtrec er;           /* event record */
 static eqeptr    eqefre;       /* free event queuing entry list */
 static wigptr    wigfre;       /* free widget entry list */
@@ -10674,6 +10678,9 @@ static void opnwin(int fn, int pfn)
         GDICALL(b = DeleteObject(tf), !b); /* process windows error */
 
     }
+    /* the desktop cell is the main window's font cell, set at the first open
+       and held: it is the measure the top level windows are sized in */
+    if (!stdchrx) { stdchrx = win->charspace; stdchry = win->linespace; }
     /* find screen device parameters for dpm calculations */
     win->shsize = GetDeviceCaps(win->devcon, HORZSIZE); /* size x in millimeters */
     win->svsize = GetDeviceCaps(win->devcon, VERTSIZE); /* size y in millimeters */
@@ -11721,7 +11728,7 @@ static void parcell(winptr win, ami_long* cs, ami_long* ls)
         par = lfn2win(pl); /* index the parent */
         lockwin(par); *cs = par->charspace; *ls = par->linespace; unlockwin(par);
 
-    } else { *cs = STDCHRX; *ls = STDCHRY; } /* the desktop's cell */
+    } else { *cs = stdchrx; *ls = stdchry; } /* the desktop's cell */
     unlockmain();
 
 }
@@ -12045,8 +12052,8 @@ static void scnsiz_ivf(FILE* f, ami_long* x, ami_long* y)
     win = txt2win(f); /* get window from file */
     lockwin(win); /* the window's own lock */
     iscnsizg(win, x, y); /* execute */
-    *x = *x/STDCHRX; /* convert to "standard character" size */
-    *y = *y/STDCHRY;
+    *x = *x/stdchrx; /* convert to "standard character" size */
+    *y = *y/stdchry;
     unlockwin(win); /* the window's data is done with */
 
 }
