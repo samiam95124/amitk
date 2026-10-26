@@ -148,10 +148,6 @@ static enum { /* debug levels */
 #define BITMSK(b) (~BIT(b)) /* mask out bit number */
 
 
-/* the "standard character" sizes are used to form a pseudo-size for desktop
-   character measurements in a graphical system. */
-#define STDCHRX   8
-#define STDCHRY   12
 #define MAXLIN    250   /* maximum length of input bufferred line */
 #define MAXCON    10    /* number of screen contexts */
 #define MAXTAB    250   /* total number of tabs possible per screen */
@@ -167,6 +163,7 @@ static enum { /* debug levels */
 #define UM_EDITCR  0x409 /* edit widget sends cr */
 #define UM_NUMCR   0x410 /* number select widget sends cr */
 #define UM_SNDEVT  0x411 /* sendevent: an event record for the window */
+#define UM_FOCUS   0x412 /* give the window or widget in wparam the keyboard */
 /* standard file handles */
 #define INPFIL    0     /* input */
 #define OUTFIL    1     /* output */
@@ -266,9 +263,14 @@ typedef struct wigrec {
     wigtyp         typ;  /* type of widget */
     int            siz;  /* size of slider in scroll widget, in windows terms */
     WNDPROC        wprc; /* subclassed windows procedure, converted to int */
+    WNDPROC        wprc2; /* the same for the part of it that takes the keys,
+                             when that is a child of the control: the drop
+                             edit box's edit */
     ami_long       low;  /* low limit of up/down control */
     ami_long       high; /* high limit of up/down control */
     int            enb;  /* widget is enabled */
+    ami_long       seq;  /* creation stamp: the order a Tab walks */
+    int            tabstop; /* takes the focus by Tab */
 
 } wigrec, *wigptr;
 
@@ -694,9 +696,18 @@ static int       fntcnt;       /* number of fonts in font list */
 static int       sysfhigh;     /* natural pixel height of the stock terminal
                                   font, used to decide when the terminal font
                                   must be substituted with a scalable font */
+/* The desktop's character cell: the size and position of a window with no
+   parent are given in it. It is the main window's terminal font cell, taken
+   at the first open as the Linux drivers do, so a window asked for in
+   characters by setsiz and measured back by winclient agree, and it scales
+   with the display's DPI. Written once, at the main window's open, before
+   any other thread runs; read only after. */
+static int       stdchrx;      /* desktop cell width in pixels */
+static int       stdchry;      /* desktop cell height in pixels */
 static ami_evtrec er;           /* event record */
 static eqeptr    eqefre;       /* free event queuing entry list */
 static wigptr    wigfre;       /* free widget entry list */
+static ami_long  wigseq;       /* last creation stamp given a widget */
 /* message input queue */
 /* the message queue's lock, kept with it: around its pointers and
    the intratask request free list */
@@ -2432,7 +2443,11 @@ static void getwig(winptr win, wigptr* wp)
    (*wp)->id = 0; /* clear id */
    (*wp)->typ = wtbutton; /* arbitrary set for type */
    (*wp)->siz = 0; /* size */
+   (*wp)->wprc = NULL; /* no subclass yet */
+   (*wp)->wprc2 = NULL;
    (*wp)->enb = TRUE; /* set enabled by default */
+   (*wp)->seq = ++wigseq; /* its place in the Tab order */
+   (*wp)->tabstop = TRUE; /* takes the focus by Tab unless its kind says not */
 
 }
 
@@ -10674,6 +10689,9 @@ static void opnwin(int fn, int pfn)
         GDICALL(b = DeleteObject(tf), !b); /* process windows error */
 
     }
+    /* the desktop cell is the main window's font cell, set at the first open
+       and held: it is the measure the top level windows are sized in */
+    if (!stdchrx) { stdchrx = win->charspace; stdchry = win->linespace; }
     /* find screen device parameters for dpm calculations */
     win->shsize = GetDeviceCaps(win->devcon, HORZSIZE); /* size x in millimeters */
     win->svsize = GetDeviceCaps(win->devcon, VERTSIZE); /* size y in millimeters */
@@ -11721,7 +11739,7 @@ static void parcell(winptr win, ami_long* cs, ami_long* ls)
         par = lfn2win(pl); /* index the parent */
         lockwin(par); *cs = par->charspace; *ls = par->linespace; unlockwin(par);
 
-    } else { *cs = STDCHRX; *ls = STDCHRY; } /* the desktop's cell */
+    } else { *cs = stdchrx; *ls = stdchry; } /* the desktop's cell */
     unlockmain();
 
 }
@@ -12045,8 +12063,8 @@ static void scnsiz_ivf(FILE* f, ami_long* x, ami_long* y)
     win = txt2win(f); /* get window from file */
     lockwin(win); /* the window's own lock */
     iscnsizg(win, x, y); /* execute */
-    *x = *x/STDCHRX; /* convert to "standard character" size */
-    *y = *y/STDCHRY;
+    *x = *x/stdchrx; /* convert to "standard character" size */
+    *y = *y/stdchry;
     unlockwin(win); /* the window's data is done with */
 
 }
@@ -12458,6 +12476,180 @@ static void stdmenu_ivf(ami_stdmenusel sms, ami_menuptr* sm, ami_menuptr pm)
 
 /*******************************************************************************
 
+Tab between widgets
+
+A Tab typed in a widget moves the keyboard focus to the next widget of its
+window in creation order, of any kind, skipping widgets that are disabled or
+not tab stops, wrapping past the last; the tab goes no further. This is the
+rule the portable widget base gives the Linux widgets; the Windows widgets
+are native controls and do not pass through the base, so they get it here,
+in a window procedure subclassed onto every control that takes the keyboard.
+The kinds that show nothing for the keyboard, background, group, progress
+bar and the scroll bars, are not tab stops, as the Linux themes have it.
+
+The procedures here run on the display thread, which owns every widget
+window, so SetFocus is at home. They take the gate for the lookups and read
+the widget list without the window's lock, as the number box's procedure
+does: the main thread holds that lock while it waits on this thread to make
+a widget, and a procedure that took it would wait on the main thread in
+turn.
+
+*******************************************************************************/
+
+/* Whether a kind of widget takes the focus by Tab */
+static int tabstops(wigtyp typ)
+
+{
+
+    return (typ != wtbackground && typ != wtgroup && typ != wtprogressbar &&
+            typ != wtscrollvert && typ != wtscrollhoriz);
+
+}
+
+/* The window of a widget that takes its keys: the control itself, or the
+   part of it that holds the keyboard, the number box's field or the drop
+   edit box's edit */
+static HWND wigkbd(wigptr wp)
+
+{
+
+    if (wp->typ == wtnumselbox) return (wp->han2); /* the field */
+    if (wp->typ == wtdropeditbox)
+        return (GetWindow(wp->han, GW_CHILD)); /* the combo's edit */
+
+    return (wp->han);
+
+}
+
+/* The widget a key window belongs to, with its window: the control, or a
+   part of one whose parent is the control. NULL if none */
+static wigptr kbd2wig(HWND hwnd, winptr* win)
+
+{
+
+    HWND   wh;  /* parent window handle */
+    int    lfn; /* logical number for parent window */
+    wigptr wp;  /* widget pointer */
+
+    lockmain(); /* start exclusive access */
+    wh = GetParent(hwnd); /* the widget's parent: the window, or a widget */
+    lfn = hwn2lfn(wh); /* get the logical window number */
+    if (lfn < 0) { /* a widget: the part's control, or a group's background */
+
+        wh = GetParent(wh);
+        lfn = hwn2lfn(wh);
+
+    }
+    wp = NULL;
+    *win = NULL;
+    if (lfn >= 0) {
+
+        *win = lfn2win(lfn); /* index window from logical number */
+        wp = fndwighan(*win, hwnd); /* the control itself */
+        if (!wp) wp = fndwighan(*win, GetParent(hwnd)); /* a part of one */
+
+    }
+    unlockmain(); /* end exclusive access */
+
+    return (wp);
+
+}
+
+/* The tab stop after a widget in creation order, wrapping to the first.
+   NULL if it is the only one */
+static wigptr tabnext(winptr win, wigptr wg)
+
+{
+
+    wigptr wp;    /* widget pointer */
+    wigptr best;  /* the next in order after wg */
+    wigptr first; /* the first in order, for the wrap */
+
+    best = NULL;
+    first = NULL;
+    for (wp = win->wiglst; wp; wp = wp->next) {
+
+        if (wp == wg || !wp->enb || !wp->tabstop) continue;
+        if (wp->seq > wg->seq && (!best || wp->seq < best->seq)) best = wp;
+        if (!first || wp->seq < first->seq) first = wp;
+
+    }
+    if (!best) best = first;
+
+    return (best);
+
+}
+
+/* A Tab in a widget's key window: moves the focus on and takes the key
+   down, and takes the character that follows it. TRUE if taken */
+static int wigtab(HWND hwnd, UINT imsg, WPARAM wparam)
+
+{
+
+    winptr win; /* parent window data */
+    wigptr wp;  /* the widget */
+    wigptr np;  /* the next */
+
+    if ((imsg != WM_KEYDOWN && imsg != WM_CHAR) || wparam != VK_TAB)
+        return (FALSE); /* not a tab */
+    wp = kbd2wig(hwnd, &win); /* the widget it was typed in */
+    if (!wp) return (FALSE); /* not one of ours */
+    if (imsg == WM_KEYDOWN) {
+
+        np = tabnext(win, wp); /* the next tab stop */
+        if (np) {
+
+            SetFocus(wigkbd(np)); /* the keyboard goes there */
+            /* a field tabbed into offers its text whole, as the dialogs do:
+               typing replaces it, an arrow keeps it */
+            if (np->typ == wteditbox || np->typ == wtnumselbox ||
+                np->typ == wtdropeditbox)
+                SendMessage(wigkbd(np), EM_SETSEL, 0, -1);
+
+        }
+
+    }
+
+    return (TRUE); /* the tab goes no further */
+
+}
+
+/* Subclass procedure for the controls that have no other: a Tab moves on,
+   the rest is the control's own */
+static LRESULT CALLBACK wndprocwig(HWND hwnd, UINT imsg, WPARAM wparam, LPARAM lparam)
+
+{
+
+    winptr  win; /* parent window data */
+    wigptr  wp;  /* the widget */
+    WNDPROC op;  /* the control's own procedure */
+
+    if (wigtab(hwnd, imsg, wparam)) return (0);
+    wp = kbd2wig(hwnd, &win);
+    if (!wp) return (DefWindowProc(hwnd, imsg, wparam, lparam));
+    op = hwnd == wp->han? wp->wprc: wp->wprc2; /* the control's, or its part's */
+
+    return (CallWindowProc(op, hwnd, imsg, wparam, lparam));
+
+}
+
+/* Subclass a widget's key window with wndprocwig, keeping the control's
+   own procedure in the slot given */
+static void subwig(HWND hwnd, WNDPROC* op)
+
+{
+
+    LONG_PTR r;
+
+    *op = (WNDPROC)GetWindowLongPtr(hwnd, GWLP_WNDPROC);
+    if (!*op) winerr(); /* process windows error */
+    r = SetWindowLongPtr(hwnd, GWLP_WNDPROC, (LONG_PTR)wndprocwig);
+    if (!r) winerr(); /* process windows error */
+
+}
+
+/*******************************************************************************
+
 Create widget
 
 Creates a widget within the given window, within the specified bounding box,
@@ -12617,6 +12809,25 @@ static void widget(winptr win, ami_long x1, ami_long y1, ami_long x2, ami_long y
         (*wp)->han = createwidget(win, typ, x1, y1, x2, y2, s, id, exfl, 0);
     (*wp)->id = id; /* place button id */
     (*wp)->typ = typ; /* place type */
+    (*wp)->tabstop = tabstops(typ); /* takes the focus by Tab */
+    /* The key window gets the Tab procedure. The edit box and the drop edit
+       box's combo have procedures of their own, which call the Tab handler
+       themselves; the drop edit box's keys arrive at its edit, a child of the
+       combo, which takes the procedure in the part's slot. */
+    switch (typ) {
+
+        case wtbutton: case wtcheckbox: case wtradiobutton: case wtlistbox:
+        case wtdropbox: case wtslidehoriz: case wtslidevert: case wttabbar:
+            subwig((*wp)->han, &(*wp)->wprc);
+            break;
+
+        case wtdropeditbox:
+            subwig(wigkbd(*wp), &(*wp)->wprc2);
+            break;
+
+        default: break;
+
+    }
 
 }
 
@@ -13980,6 +14191,7 @@ static LRESULT CALLBACK wndprocnum(HWND hwnd, UINT imsg, WPARAM wparam, LPARAM l
 /*;fprintf(stderr, "wndprocnum: msg: ");
 ;prtmsgu(hwnd, imsg, wparam, lparam);*/
 
+    if (wigtab(hwnd, imsg, wparam)) return (0); /* a tab moves the focus on */
     /* We need to find out who we are talking to. */
     lockmain(); /* start exclusive access */
     wh = GetParent(hwnd); /* get the widget parent handle */
@@ -14124,6 +14336,7 @@ static void inumselboxg(winptr win, ami_long x1, ami_long y1, ami_long x2, ami_l
     getwig(win, &wp); /* get new widget */
     wp->id = id; /* place button id */
     wp->typ = wtnumselbox; /* place type */
+    wp->tabstop = tabstops(wtnumselbox); /* takes the focus by Tab */
     wp->han = 0; /* clear handles */
     wp->han2 = 0;
     wp->low = l; /* place limits */
@@ -14219,6 +14432,7 @@ static int wndprocedit(HWND hwnd, UINT imsg, WPARAM wparam, LPARAM lparam)
     wigptr  wp;  /* widget pointer */
 
 //dbg_printf(dlinfo, "Message: "); prtmsgu(hwnd, imsg, wparam, lparam);
+    if (wigtab(hwnd, imsg, wparam)) return (0); /* a tab moves the focus on */
     /* We need to find out who we are talking to. */
     wh = GetParent(hwnd); /* get the widget parent handle */
     lfn = hwn2lfn(wh); /* get the logical window number */
@@ -15443,20 +15657,23 @@ static void itabbarsiz(winptr win, ami_strptr sp, ami_tabori tor, ami_long cw, a
 
 {
 
-    ami_long gw, gh, gox, goy;
+    ami_long gw, gh, gox, goy; /* the bar in pixels */
+    ami_long cs, ls;           /* the cell */
 
-    /* convert client sizes to graphical */
-    cw = cw*win->charspace;
-    ch = ch*win->linespace;
-    itabbarsizg(win, sp, tor, cw, ch, &gw, &gh, &gox, &goy); /* get size */
-    /* change graphical size to character */
-    *w = (gw-1) / win->charspace+1;
-    *h = (gh-1) / win->linespace+1;
-    *ox = (gox-1) / win->charspace+1;
-    *oy = (goy-1) / win->linespace+1;
-    /* must make sure that client dosen"t intrude on edges */
-    if (gw-gox-4%win->charspace) *w = *w+1;
-    if (gh-goy-4%win->charspace) *h = *h+1;
+    cs = win->charspace;
+    ls = win->linespace;
+    itabbarsizg(win, sp, tor, cw*cs, ch*ls, &gw, &gh, &gox, &goy); /* get size */
+    /* Change the graphical size to characters, in three pieces: the offset
+       before the client, the client, and what the bar has after it, its tab
+       strip or its edge. Each rounds up to whole cells on its own. The client
+       then starts on a cell past the strip or edge before it, and the strip
+       or edge after it starts on a cell past the client, so a bar laid out
+       in cells holds its client, and bars sharing one client, as the
+       overlaid tab bars do, keep their strips clear of each other's. */
+    *ox = (gox+cs-1)/cs;
+    *oy = (goy+ls-1)/ls;
+    *w = *ox+cw+(gw-gox-cw*cs+cs-1)/cs;
+    *h = *oy+ch+(gh-goy-ch*ls+ls-1)/ls;
 
 }
 
@@ -16313,6 +16530,13 @@ static LRESULT CALLBACK wndproc(HWND hwnd, UINT imsg, WPARAM wparam,
         SetFocus(hwnd);
         putmsg(hwnd, imsg, wparam, lparam);
         r = DefWindowProc(hwnd, imsg, wparam, lparam);
+
+    } else if (imsg == UM_FOCUS) { /* give a window or widget the keyboard */
+
+        /* from ami_focus or ami_focuswidget on the main thread: the focus
+           can only be set by the thread that owns the window */
+        SetFocus((HWND)wparam);
+        r = 0;
 
     } else if (imsg == UM_IM) { /* intratask message */
 
@@ -17714,7 +17938,17 @@ static void focus_ivf(FILE* f)
 
 {
 
-   /* not implemented */
+    winptr win; /* windows record pointer */
+    BOOL   b;
+
+    win = txt2win(f); /* get window from file */
+    lockwin(win); /* the window's own lock */
+    /* The display thread owns the window, so it sets the focus. A toplevel
+       takes it only while the program is in the foreground, which is
+       Windows' policy, as the compositor's is on Wayland. */
+    b = PostMessage(dispwin, UM_FOCUS, (WPARAM)win->winhan, 0);
+    unlockwin(win); /* the window's data is done with */
+    if (!b) winerr(); /* process windows error */
 
 }
 
@@ -17766,7 +18000,20 @@ static void focuswidget_ivf(FILE* f, ami_long id)
 
 {
 
-   /* not implemented */
+    winptr win; /* windows record pointer */
+    wigptr wp;  /* widget pointer */
+    HWND   kh;  /* the widget's key window */
+    BOOL   b;
+
+    win = txt2win(f); /* get window from file */
+    lockwin(win); /* the window's own lock */
+    wp = fndwig(win, id); /* find widget */
+    if (!wp) error(ewignf); /* not found */
+    kh = wigkbd(wp); /* where its keys arrive */
+    unlockwin(win); /* the window's data is done with */
+    /* the display thread owns the widget, so it sets the focus */
+    b = PostMessage(dispwin, UM_FOCUS, (WPARAM)kh, 0);
+    if (!b) winerr(); /* process windows error */
 
 }
 
