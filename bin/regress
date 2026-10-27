@@ -78,8 +78,11 @@
 # this machine. An ssh test keeps no standard of its own: the terminal is
 # the same, so the screens are the same, and it compares against the local
 # test's standard. --update of an ssh test is refused; the standard is
-# retaken with the local test. The ssh tests run on Linux only, where
-# OpenSSH's sshd runs unprivileged: Windows and Mac skip them.
+# retaken with the local test. On the Mac the ssh client runs in the tmux
+# pane the local test would, and the test at the far end asks that pane for
+# its screen: the client hands it the pane, TMUX and TMUX_PANE, which the
+# private sshd accepts. The ssh tests run on Linux and the Mac, where
+# OpenSSH's sshd runs unprivileged: Windows skips them.
 #
 # The picture standards are of a desktop's look -- the frame the screen tests
 # size themselves against, the menus, the theme -- and of a backend's, since
@@ -364,6 +367,7 @@ PasswordAuthentication no
 KbdInteractiveAuthentication no
 PubkeyAuthentication yes
 AuthorizedKeysFile $sshdir/authorized_keys
+AcceptEnv TMUX TMUX_PANE
 StrictModes no
 LogLevel QUIET
 EOF
@@ -503,16 +507,40 @@ runtest()
             lim=1200
             if [ "$1" = "terminal_testc" ]; then lim=2400; fi
             tsock="pa_regress_$$"
-            (cd tests/terminal && \
-             LANG=en_US.UTF-8 tmux -L "$tsock" new-session -d -s run \
-                 -x "${geom%x*}" -y "${geom#*x}" \
-                 "exec '$root/$(binof "$1")' auto '$root/tests/$1.lst' 2> '$root/tests/$1.out'")
-            i=0
-            while tmux -L "$tsock" has-session -t run 2> /dev/null && [ "$i" -lt "$lim" ]; do
-                sleep 0.5
-                i=$((i+1))
-            done
-            tmux -L "$tsock" kill-server 2> /dev/null
+            run="exec '$root/$(binof "$1")' auto '$root/tests/$1.lst' 2> '$root/tests/$1.out'"
+            if [ "$1" != "$(baseof "$1")" ]; then
+
+                # an ssh test: the pane runs the ssh client, and the test runs
+                # at the far end, on this machine, in the sandbox, with the
+                # event file named in its environment there. The client hands
+                # it the pane to ask for its screen, and the far end, whose
+                # path is sshd's own, is told where tmux is (Homebrew's
+                # directory is not on it).
+                tdir="$(dirname "$(command -v tmux)")"
+                run="exec ssh -t -o BatchMode=yes -o StrictHostKeyChecking=no \
+-o UserKnownHostsFile='$sshdir/known_hosts' -o LogLevel=ERROR \
+-o SendEnv=TMUX -o SendEnv=TMUX_PANE -i '$sshdir/key' -p $sport localhost \
+\"cd '$root/tests/terminal' && PATH='$tdir':\\\$PATH \
+AUTO_EVENT_FILE='$AUTO_EVENT_FILE' $run\""
+
+            fi
+            if [ "$1" != "$(baseof "$1")" ] && [ -z "$sshdir" ]; then
+
+                echo "the private sshd did not start (see $sshd)" > "tests/$1.out"
+
+            else
+
+                (cd tests/terminal && \
+                 LANG=en_US.UTF-8 tmux -L "$tsock" new-session -d -s run \
+                     -x "${geom%x*}" -y "${geom#*x}" "$run")
+                i=0
+                while tmux -L "$tsock" has-session -t run 2> /dev/null && [ "$i" -lt "$lim" ]; do
+                    sleep 0.5
+                    i=$((i+1))
+                done
+                tmux -L "$tsock" kill-server 2> /dev/null
+
+            fi
         else
             Xvfb -displayfd 3 -screen 0 800x600x24 3> "tests/$1.dpy" \
                 > /dev/null 2>&1 &
@@ -703,11 +731,10 @@ for t in $tests; do
         continue
 
     fi
-    if [ "$overssh" = "1" ] && \
-       { [ -n "$plat" ] || [ "$(uname -s)" = Darwin ]; }; then
+    if [ "$overssh" = "1" ] && [ -n "$plat" ]; then
 
-        # the ssh run is the Linux harness's, with an sshd of its own
-        echo "$t: skipped, the ssh tests run on Linux"
+        # the ssh run wants an sshd of its own, which Windows has not
+        echo "$t: skipped, the ssh tests run on Linux and the Mac"
         continue
 
     fi
