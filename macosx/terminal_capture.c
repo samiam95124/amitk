@@ -42,7 +42,6 @@
 #include <string.h>
 #include <unistd.h>
 #include <fcntl.h>
-#include <time.h>
 
 static char cap_name[1024]; /* the listing */
 
@@ -53,28 +52,35 @@ void screen_capture_name(const char* fn)
 
 void screen_capture(void)
 {
+    static unsigned long seq; /* the page's number, for its mark */
     const char* pane;
+    char        mark[64];
     char        cmd[2048];
     int         fd;
-    struct timespec ts;
 
     if (!cap_name[0]) return;
     pane = getenv("TMUX_PANE");
     if (!pane || !*pane) return; /* not under tmux: no emulator to ask */
 
     /* Everything the program has written must be on the screen before it is
-       read. The output is already in the terminal's pipe, and the emulator
-       takes it up at once; the client that asks for the screen is a new
-       process, milliseconds behind. A short settle widens that margin. */
+       read, and the emulator takes it up when it gets to it: a moment after
+       here, or longer when the program runs at the far end of an ssh
+       connection. So the page is marked in the stream itself, as the pane's
+       title, which tmux keeps; it takes up the stream in order, so when it
+       shows the mark, all that came before it is on the screen. The page is
+       read then, or after five seconds without it, as the screen is. */
     fflush(stdout);
-    ts.tv_sec = 0;
-    ts.tv_nsec = 10000000; /* 10 ms */
-    nanosleep(&ts, NULL);
+    seq++;
+    snprintf(mark, sizeof(mark), "pa-capture-%lu", seq);
+    snprintf(cmd, sizeof(cmd), "\033]2;%s\033\\", mark);
+    if (write(STDOUT_FILENO, cmd, strlen(cmd)) < 0) { /* the wait runs out */ }
 
     /* the pane's rows, one line each, appended to the listing; the client
        finds its server through $TMUX, as it is run from inside the session */
     snprintf(cmd, sizeof(cmd),
-             "tmux capture-pane -p -t '%s' >> '%s'", pane, cap_name);
+             "i=0; while [ \"$(tmux display -p -t '%s' '#{pane_title}')\" != '%s' ] && "
+             "[ $i -lt 1000 ]; do sleep 0.005; i=$((i+1)); done; "
+             "tmux capture-pane -p -t '%s' >> '%s'", pane, mark, pane, cap_name);
     if (system(cmd) != 0) return; /* no page: the test will say so */
 
     /* the page ends with its form feed, which is what the test waits for */
