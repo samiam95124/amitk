@@ -140,6 +140,7 @@ static int evt_empty(void) {
     int           curW, curH;  /* cursor size (pixels) */
     int           bufmod;      /* buffered mode flag */
     float         bgR, bgG, bgB; /* background color for margins */
+    float         wbR, wbG, wbB; /* widget background, ami_backcolor */
     CGImageRef    displayImage;  /* snapshot for drawRect (threaded mode) */
     int           dispW, dispH;  /* dimensions of displayImage */
     double        lastPresent;   /* when the display was last snapshotted */
@@ -2035,6 +2036,17 @@ void pa_cocoa_set_background(pa_winhan win, float r, float g, float b)
     pw->view->bgB = b;
 }
 
+/* the widgets' background: the fixed ami_backcolor, which the surround of a
+   control and the background widget take, so that a program's own background
+   color does not show through them */
+void pa_cocoa_set_widget_background(pa_winhan win, float r, float g, float b)
+{
+    PAWindow* pw = (__bridge PAWindow*)win;
+    pw->view->wbR = r;
+    pw->view->wbG = g;
+    pw->view->wbB = b;
+}
+
 void pa_cocoa_select_screens(pa_winhan win, int upd, int dsp)
 {
     PAWindow* pw = (__bridge PAWindow*)win;
@@ -2158,13 +2170,14 @@ void pa_cocoa_kill_timer(pa_winhan win, int id)
 }
 @end
 
-/* wrap a control in an opaque backing box and add it to the window */
+/* wrap a control in an opaque backing box, in the widget background, and add
+   it to the window */
 static void add_widget_boxed(PAWindow* pw, NSView* ctl, NSRect rect)
 {
     PAWidgetBox* box = [[PAWidgetBox alloc] initWithFrame:rect];
-    box->r = pw->view->bgR;
-    box->g = pw->view->bgG;
-    box->b = pw->view->bgB;
+    box->r = pw->view->wbR;
+    box->g = pw->view->wbG;
+    box->b = pw->view->wbB;
     ctl.frame = NSMakeRect(0, 0, rect.size.width, rect.size.height);
     [box addSubview:ctl];
     [pw->view addSubview:box];
@@ -2269,9 +2282,9 @@ void pa_cocoa_background(pa_winhan win, int x, int y, int w, int h, int id)
         PAWindow* pw = (__bridge PAWindow*)win;
         PAWidgetBox* bg =
             [[PAWidgetBox alloc] initWithFrame:NSMakeRect(x-1, y-1, w, h)];
-        bg->r = pw->view->bgR;
-        bg->g = pw->view->bgG;
-        bg->b = pw->view->bgB;
+        bg->r = pw->view->wbR;
+        bg->g = pw->view->wbG;
+        bg->b = pw->view->wbB;
         pa_set_tag(bg, id);
         [pw->view addSubview:bg];
     });
@@ -2701,9 +2714,9 @@ void pa_cocoa_tabbar(pa_winhan win, int x, int y, int w, int h,
                            initWithFrame:NSMakeRect(x-1, y-1, w, h)];
         tb->ori  = ori;
         tb->barH = barh;
-        tb->r = pw->view->bgR;
-        tb->g = pw->view->bgG;
-        tb->b = pw->view->bgB;
+        tb->r = pw->view->wbR;
+        tb->g = pw->view->wbG;
+        tb->b = pw->view->wbB;
 
         NSSegmentedControl* sc = [[NSSegmentedControl alloc]
                                      initWithFrame:NSMakeRect(0, 0,

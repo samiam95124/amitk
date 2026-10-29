@@ -177,6 +177,7 @@ void         pa_cocoa_resize_bitmap(pa_winhan win, int w, int h);
 void         pa_cocoa_set_bufmod(pa_winhan win, int on);
 void         pa_cocoa_set_scrollbuffer(int on);
 void         pa_cocoa_set_background(pa_winhan win, float r, float g, float b);
+void         pa_cocoa_set_widget_background(pa_winhan win, float r, float g, float b);
 
 /*----------------------------------------------------------------------------
  * Event polling — single-threaded poll model.

@@ -1114,6 +1114,8 @@ static void pa_graphics_init(void)
         opnfil[1]  = 1; /* mark slot in use */
         pa_cocoa_set_bufmod(han, win->bufmod);
         pa_cocoa_set_background(han, 1.0f, 1.0f, 1.0f);
+        pa_rgba wb = ami2rgba(ami_backcolor);
+        pa_cocoa_set_widget_background(han, wb.r, wb.g, wb.b);
         clear_window(win);
         pa_cocoa_show_window(han);
         pa_cocoa_flush(han);
@@ -3112,6 +3114,8 @@ static void openwin_ivf(FILE** infile, FILE** outfile, FILE* parent, ami_long wi
     opnfil[ofn]  = 1;
     pa_cocoa_set_bufmod(han, win->bufmod);
     pa_cocoa_set_background(han, 1.0f, 1.0f, 1.0f);
+    pa_rgba wb = ami2rgba(ami_backcolor);
+    pa_cocoa_set_widget_background(han, wb.r, wb.g, wb.b);
 
     pa_cocoa_show_window(han);
     clear_window(win);
