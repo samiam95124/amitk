@@ -1752,6 +1752,14 @@ static void translate_event(const pa_rawevent* raw, ami_evtrec* er)
         er->etype = ami_etterm;
         break;
 
+    case PA_EVT_TERM:
+        /* the shell asked this program to stop: the terminate the close
+           button gives, and fend with it, as on x11 */
+        er->etype = ami_etterm;
+        er->winid = 1;
+        fend = TRUE;
+        break;
+
     case PA_EVT_FOCUS:
         er->etype = ami_etfocus;
         {

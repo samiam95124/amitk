@@ -42,7 +42,8 @@ typedef enum {
     PA_EVT_MAX,         /* window maximized/zoomed/fullscreen */
     PA_EVT_NORM,        /* window restored to normal */
     PA_EVT_WIDGET       /* widget activated (see pa_widgetact) */,
-    PA_EVT_USER         /* program-sent event (ami_sendevent): user carries the record */
+    PA_EVT_USER,        /* program-sent event (ami_sendevent): user carries the record */
+    PA_EVT_TERM         /* SIGINT or SIGTERM: the shell asked the program to stop */
 } pa_evttype;
 
 /* widget activation kinds for PA_EVT_WIDGET */
