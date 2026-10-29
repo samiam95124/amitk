@@ -14,6 +14,7 @@
 extern "C" {
 
 #include <stdio.h>
+#include <localdefs.h>
 
 }
 
