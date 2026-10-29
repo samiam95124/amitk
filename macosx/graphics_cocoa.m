@@ -500,6 +500,47 @@ static uint32_t translate_key(NSEvent* event, pa_keycode* out_special)
 - (void)rightMouseDown:(NSEvent*)e  { [self pushMouseEvent:PA_EVT_MOUSE_DOWN event:e]; }
 - (void)rightMouseUp:(NSEvent*)e    { [self pushMouseEvent:PA_EVT_MOUSE_UP   event:e]; }
 
+/* The wheel is buttons 4 (up) and 5 (down), each step an assert and a
+   deassert, as the X11 and Wayland backends give it. Up is the way the
+   wheel or fingers move, whatever the natural scrolling setting. A trackpad
+   gives a step for each PA_WHEEL_PIXELS of travel. */
+#define PA_WHEEL_PIXELS 12.0
+- (void)scrollWheel:(NSEvent*)e
+{
+    static double partial;
+    NSScrollView* sv = self.enclosingScrollView;
+    NSPoint       p = [self convertPoint:e.locationInWindow fromView:nil];
+    double        dy = e.scrollingDeltaY;
+    int           n = 0;
+
+    /* a buffer larger than the client still scrolls with its bars */
+    if (sv && (sv.hasVerticalScroller || sv.hasHorizontalScroller)) {
+        [super scrollWheel:e];
+        return;
+    }
+    if (e.directionInvertedFromDevice) dy = -dy;
+    if (e.hasPreciseScrollingDeltas) {
+        if (e.phase == NSEventPhaseBegan) partial = 0;
+        partial += dy;
+        n = (int)(partial / PA_WHEEL_PIXELS);
+        partial -= n * PA_WHEEL_PIXELS;
+    } else if (dy != 0) {
+        n = dy > 0 ? 1 : -1;
+    }
+    for (; n; n += n > 0 ? -1 : 1) {
+        pa_rawevent ev = {0};
+
+        ev.win = owner;
+        ev.mouse.x = (int)p.x + 1;
+        ev.mouse.y = (int)p.y + 1;
+        ev.mouse.buttons = n > 0 ? 4 : 5;
+        ev.type = PA_EVT_MOUSE_DOWN;
+        evt_push(&ev);
+        ev.type = PA_EVT_MOUSE_UP;
+        evt_push(&ev);
+    }
+}
+
 @end
 
 /*----------------------------------------------------------------------------
