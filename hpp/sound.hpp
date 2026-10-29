@@ -13,6 +13,12 @@
 #ifndef __SOUND_HPP__
 #define __SOUND_HPP__
 
+extern "C" {
+
+#include <localdefs.h>
+
+}
+
 namespace sound {
 
 /* MIDI note, channel and instrument */
