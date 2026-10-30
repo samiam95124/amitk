@@ -566,7 +566,9 @@ static uint32_t translate_key(NSEvent* event, pa_keycode* out_special)
 static int scrollbuffer = 1; /* a buffered window shows scroll bars for a
                                 buffer larger than its client */
 
-@interface PAScroll : NSScrollView
+@interface PAScroll : NSScrollView {
+    NSSize lastClient; /* client size last reported to the program */
+}
 - (void)layoutDoc;
 @end
 
@@ -640,6 +642,25 @@ static int scrollbuffer = 1; /* a buffered window shows scroll bars for a
         [v setNeedsDisplay:YES];
     }
     [self reflectScrolledClipView:self.contentView];
+
+    /* A buffered window's view stays the buffer's size, so the view sees
+       no resize while the window is dragged. Report the client here, as
+       the x11 backend does on each configure: during the drag, so the
+       program can follow it, and when the bars come or go, which changes
+       the client with no resize of the window. The first layout only
+       records the size. */
+    if (v->bufmod && !NSEqualSizes(c, lastClient)) {
+        BOOL first = lastClient.width == 0 && lastClient.height == 0;
+        lastClient = c;
+        if (!first && c.width > 0 && c.height > 0) {
+            pa_rawevent e = {0};
+            e.type     = PA_EVT_RESIZE;
+            e.win      = v->owner;
+            e.resize.w = (int)c.width;
+            e.resize.h = (int)c.height;
+            evt_push(&e);
+        }
+    }
 }
 
 - (void)setFrameSize:(NSSize)s
