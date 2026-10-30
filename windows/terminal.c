@@ -4553,6 +4553,9 @@ static void sizable_ivf(FILE* f, ami_long e)
 static void sysbar_ivf(FILE* f, ami_long e)
     { unimperr("sysbar"); }
 
+static void autobuf_ivf(FILE* f, ami_long e)
+    { unimperr("autobuf"); }
+
 static void menu_ivf(FILE* f, ami_menuptr m)
     { unimperr("menu"); }
 
@@ -4890,6 +4893,11 @@ static _pa_sysbar_t sysbar_vect = sysbar_ivf;
 APIOVER(sysbar)
 void ami_sysbar(FILE* f, ami_long e)
     { (*sysbar_vect)(f, e); }
+
+static _pa_autobuf_t autobuf_vect = autobuf_ivf;
+APIOVER(autobuf)
+void ami_autobuf(FILE* f, ami_long e)
+    { (*autobuf_vect)(f, e); }
 
 static _pa_menu_t menu_vect = menu_ivf;
 APIOVER(menu)

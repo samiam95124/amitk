@@ -547,6 +547,7 @@ static _pa_back_t        back_vect;
 static _pa_frame_t       frame_vect;
 static _pa_sizable_t     sizable_vect;
 static _pa_sysbar_t      sysbar_vect;
+static _pa_autobuf_t     autobuf_vect;
 static _pa_menu_t        menu_vect;
 static _pa_menuena_t     menuena_vect;
 static _pa_menusel_t     menusel_vect;
@@ -844,6 +845,7 @@ static void error_ivf(ami_errcod e)
         case ami_dispeframe_unimp: fprintf(stderr, "frame unimplemented"); break;
         case ami_dispesizable_unimp: fprintf(stderr, "sizable unimplemented"); break;
         case ami_dispesysbar_unimp: fprintf(stderr, "sysbar unimplemented"); break;
+        case ami_dispeautobuf_unimp: fprintf(stderr, "autobuf unimplemented"); break;
         case ami_dispemenu_unimp: fprintf(stderr, "menu unimplemented"); break;
         case ami_dispemenuena_unimp: fprintf(stderr, "menuena unimplemented"); break;
         case ami_dispemenusel_unimp: fprintf(stderr, "menusel unimplemented"); break;
@@ -5991,6 +5993,10 @@ APIOVER(sysbar)
 void ami_sysbar(FILE* f, ami_long e) { (*sysbar_vect)(f, e); }
 static void sysbar_ivf(FILE* f, ami_long e) { error(ami_dispesysbar_unimp); }
 
+APIOVER(autobuf)
+void ami_autobuf(FILE* f, ami_long e) { (*autobuf_vect)(f, e); }
+static void autobuf_ivf(FILE* f, ami_long e) { error(ami_dispeautobuf_unimp); }
+
 APIOVER(menu)
 void ami_menu(FILE* f, ami_menuptr m) { (*menu_vect)(f, m); }
 static void menu_ivf(FILE* f, ami_menuptr m) { error(ami_dispemenu_unimp); }
@@ -6190,6 +6196,7 @@ static void ami_init_terminal(int argc, char* argv[])
     frame_vect       = frame_ivf;
     sizable_vect     = sizable_ivf;
     sysbar_vect      = sysbar_ivf;
+    autobuf_vect     = autobuf_ivf;
     menu_vect        = menu_ivf;
     menuena_vect     = menuena_ivf;
     menusel_vect     = menusel_ivf;

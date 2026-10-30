@@ -5606,6 +5606,7 @@ static ami_back_t            back_vect;
 static ami_frame_t           frame_vect;
 static ami_sizable_t         sizable_vect;
 static ami_sysbar_t          sysbar_vect;
+static ami_autobuf_t         autobuf_vect;
 static ami_menu_t            menu_vect;
 static ami_menuena_t         menuena_vect;
 static ami_menusel_t         menusel_vect;
@@ -8984,6 +8985,12 @@ void ami_sysbar(FILE* f, ami_long e)
     { (*sysbar_vect)(f, e); }
 static void sysbar_ivf(FILE* f, ami_long e)
     { unimp("sysbar"); }
+void _pa_autobuf_ovr(ami_autobuf_t nfp, ami_autobuf_t* ofp)
+    { *ofp = autobuf_vect; autobuf_vect = nfp; }
+void ami_autobuf(FILE* f, ami_long e)
+    { (*autobuf_vect)(f, e); }
+static void autobuf_ivf(FILE* f, ami_long e)
+    { unimp("autobuf"); }
 
 void _pa_menu_ovr(ami_menu_t nfp, ami_menu_t* ofp)
     { *ofp = menu_vect; menu_vect = nfp; }
@@ -9949,6 +9956,7 @@ static void ami_init_graphics(void)
     frame_vect = frame_ivf;
     sizable_vect = sizable_ivf;
     sysbar_vect = sysbar_ivf;
+    autobuf_vect = autobuf_ivf;
     menu_vect = menu_ivf;
     menuena_vect = menuena_ivf;
     menusel_vect = menusel_ivf;

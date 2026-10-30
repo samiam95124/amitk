@@ -1493,6 +1493,8 @@ void ami_sizable(FILE* f, ami_long e)
     { begin(GR_MSIZABLE, wh(f)); pi(e); send0(); }
 void ami_sysbar(FILE* f, ami_long e)
     { begin(GR_MSYSBAR, wh(f)); pi(e); send0(); }
+void ami_autobuf(FILE* f, ami_long e)
+    { begin(GR_MAUTOBUF, wh(f)); pi(e); send0(); }
 void ami_menu(FILE* f, ami_menuptr m)
     { begin(GR_MMENU, wh(f)); pmenu(m); send0(); }
 void ami_menuena(FILE* f, ami_long id, ami_long onoff)

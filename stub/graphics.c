@@ -2313,6 +2313,23 @@ void ami_sysbar(FILE* f, ami_long e)
 
 /*******************************************************************************
 
+Enable or disable automatic buffer scroll bars
+
+Turns the scroll bars a buffered window shows for a buffer larger than its
+client on and off.
+
+*******************************************************************************/
+
+void ami_autobuf(FILE* f, ami_long e)
+
+{
+
+    error("ami_autobuf: Is not implemented");
+
+}
+
+/*******************************************************************************
+
 Create standard menu
 
 Creates a standard menu set. Given a set of standard items selected in a set,

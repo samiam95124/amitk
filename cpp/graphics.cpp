@@ -319,6 +319,8 @@ void sizable(FILE* f, ami_long e) { ami_sizable(f, e); }
 void sizable(ami_long e) { ami_sizable(stdout, e); }
 void sysbar(FILE* f, ami_long e) { ami_sysbar(f, e); }
 void sysbar(ami_long e) { ami_sysbar(stdout, e); }
+void autobuf(FILE* f, ami_long e) { ami_autobuf(f, e); }
+void autobuf(ami_long e) { ami_autobuf(stdout, e); }
 void menu(FILE* f, menuptr m) { ami_menu(f, (ami_menuptr)m); }
 void menu(menuptr m) { ami_menu(stdout, (ami_menuptr)m); }
 void menuena(FILE* f, ami_long id, ami_long onoff) { ami_menuena(f, id, onoff); }
@@ -615,6 +617,7 @@ void graph::back(void) { ami_back(outfile); }
 void graph::frame(ami_long e) { ami_frame(outfile, e); }
 void graph::sizable(ami_long e) { ami_sizable(outfile, e); }
 void graph::sysbar(ami_long e) { ami_sysbar(outfile, e); }
+void graph::autobuf(ami_long e) { ami_autobuf(outfile, e); }
 void graph::menu(menuptr m) { ami_menu(outfile, (ami_menuptr)m); }
 void graph::menuena(ami_long id, ami_long onoff) { ami_menuena(outfile, id, onoff); }
 void graph::menusel(ami_long id, ami_long select) { ami_menusel(outfile, id, select); }
@@ -1299,6 +1302,7 @@ void window::back(void) { ami_back(wf); }
 void window::frame(ami_long e) { ami_frame(wf, e); }
 void window::sizable(ami_long e) { ami_sizable(wf, e); }
 void window::sysbar(ami_long e) { ami_sysbar(wf, e); }
+void window::autobuf(ami_long e) { ami_autobuf(wf, e); }
 void window::menu(menuptr m) { ami_menu(wf, (ami_menuptr)m); }
 void window::menuena(ami_long id, ami_long onoff) { ami_menuena(wf, id, onoff); }
 void window::menusel(ami_long id, ami_long select) { ami_menusel(wf, id, select); }
