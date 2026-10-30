@@ -1323,8 +1323,33 @@ int pa_entry(int argc, char** argv, char** envp, char** apple)
     return user_main ? user_main(argc, argv) : 1;
 }
 
+/* SIGINT and SIGTERM become a terminate event, as the x11 and Wayland
+   backends give. The default disposition is replaced by ignore so the
+   process lives; the dispatch source still sees each delivery and pushes
+   the event from the main queue, which the Cocoa loop drains. */
+static void install_term_signals(void)
+{
+    static const int sigs[] = { SIGINT, SIGTERM };
+    static dispatch_source_t srcs[2];
+
+    for (int i = 0; i < 2; i++) {
+        signal(sigs[i], SIG_IGN);
+        srcs[i] = dispatch_source_create(DISPATCH_SOURCE_TYPE_SIGNAL,
+                                         (uintptr_t)sigs[i], 0,
+                                         dispatch_get_main_queue());
+        dispatch_source_set_event_handler(srcs[i], ^{
+            pa_rawevent e = {0};
+            e.type = PA_EVT_TERM;
+            evt_push(&e);
+        });
+        dispatch_resume(srcs[i]);
+    }
+}
+
 void pa_cocoa_start_event_thread(void)
 {
+    install_term_signals();
+
     pa_main_func_t user_main = (pa_main_func_t)dlsym(RTLD_DEFAULT, "main");
     if (!user_main) {
         fprintf(stderr, "pa_cocoa: cannot find main() — single-threaded fallback\n");
