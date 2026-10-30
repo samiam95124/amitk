@@ -433,6 +433,17 @@ CFLAGSCPP = $(filter-out -Ilibc,$(CFLAGS)) -Ihpp
 CPPKEEP = -Wl,-u,ami_iostream
 
 #
+# The general test program in graphical mode asks the link for the graphical
+# model by name, as it may call nothing in it. Mach-O symbols carry a leading
+# underscore.
+#
+ifeq ($(OSTYPE),Darwin)
+GKEEP = -Wl,-u,_ami_cursorg
+else
+GKEEP = -Wl,-u,ami_cursorg
+endif
+
+#
 # Specify object file for libc
 #
 ifeq ($(OSTYPE),Windows_NT)
@@ -1454,7 +1465,7 @@ testc: $(CLIBSD) test.c
 	$(CC) $(CFLAGS) test.c $(CLIBS) -o testc
 	
 testg: $(GLIBSD) test.c
-	$(CC) $(CFLAGS) test.c -Wl,-u,ami_cursorg $(GLIBS) -o testg
+	$(CC) $(CFLAGS) test.c $(GKEEP) $(GLIBS) -o testg
 
 #
 # Widget demonstrator: a graphics window with the demonstration widget
@@ -1476,7 +1487,7 @@ testc++: $(CLIBSCPPD) test.cpp
 	$(CPP) $(CFLAGSCPP) test.cpp $(CPPKEEP) $(CLIBSCPP) -o testc
 	
 testg++: $(GLIBSD) test.cpp
-	$(CPP) $(CFLAGSCPP) test.cpp $(CPPKEEP) -Wl,-u,ami_cursorg $(GLIBS) -o testg
+	$(CPP) $(CFLAGSCPP) test.cpp $(CPPKEEP) $(GKEEP) $(GLIBS) -o testg
 	
 #
 # Target programs that use Petit-Ami, such as games, utilities, etc.
