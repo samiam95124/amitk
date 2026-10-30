@@ -282,6 +282,8 @@ typedef struct winrec {
     int          focus;             /* screen in focus */
     picptr       pictbl[MAXPIC];    /* loadable pictures table */
     int          bufmod;            /* buffered screen mode */
+    int          autobuf;           /* the buffer shows scroll bars when
+                                       larger than the client */
     int          bufset;            /* the program set the buffer's size: until
                                        it does, the buffer follows the window's
                                        client through setsiz */

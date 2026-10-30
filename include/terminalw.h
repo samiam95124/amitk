@@ -293,6 +293,7 @@ typedef enum {
     ami_dispeframe_unimp,     /* frame unimplemented */
     ami_dispesizable_unimp,   /* sizable unimplemented */
     ami_dispesysbar_unimp,    /* sysbar unimplemented */
+    ami_dispeautobuf_unimp,   /* autobuf unimplemented */
     ami_dispemenu_unimp,      /* menu unimplemented */
     ami_dispemenuena_unimp,   /* menuena unimplemented */
     ami_dispemenusel_unimp,   /* menusel unimplemented */
@@ -450,6 +451,7 @@ void ami_back(FILE* f);
 void ami_frame(FILE* f, ami_long e);
 void ami_sizable(FILE* f, ami_long e);
 void ami_sysbar(FILE* f, ami_long e);
+void ami_autobuf(FILE* f, ami_long e);
 void ami_menu(FILE* f, ami_menuptr m);
 
 /* string list, for list box style widgets */
@@ -730,6 +732,7 @@ typedef void (*_pa_back_t)(FILE* f);
 typedef void (*_pa_frame_t)(FILE* f, ami_long e);
 typedef void (*_pa_sizable_t)(FILE* f, ami_long e);
 typedef void (*_pa_sysbar_t)(FILE* f, ami_long e);
+typedef void (*_pa_autobuf_t)(FILE* f, ami_long e);
 typedef void (*_pa_menu_t)(FILE* f, ami_menuptr m);
 typedef void (*_pa_menuena_t)(FILE* f, ami_long id, ami_long onoff);
 typedef void (*_pa_menusel_t)(FILE* f, ami_long id, ami_long select);
@@ -804,6 +807,7 @@ void _pa_back_ovr(_pa_back_t nfp, _pa_back_t* ofp);
 void _pa_frame_ovr(_pa_frame_t nfp, _pa_frame_t* ofp);
 void _pa_sizable_ovr(_pa_sizable_t nfp, _pa_sizable_t* ofp);
 void _pa_sysbar_ovr(_pa_sysbar_t nfp, _pa_sysbar_t* ofp);
+void _pa_autobuf_ovr(_pa_autobuf_t nfp, _pa_autobuf_t* ofp);
 void _pa_menu_ovr(_pa_menu_t nfp, _pa_menu_t* ofp);
 void _pa_menuena_ovr(_pa_menuena_t nfp, _pa_menuena_t* ofp);
 void _pa_menusel_ovr(_pa_menusel_t nfp, _pa_menusel_t* ofp);

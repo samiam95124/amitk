@@ -215,6 +215,8 @@ typedef struct winrec {
     int      frame;             /* frame on/off */
     int      size;              /* size bars on/off */
     int      sysbar;            /* system bar on/off */
+    int      autobuf;           /* automatic buffer scroll bars on/off (the
+                                   manager shows none: noted only) */
     int      visible;           /* window is visible */
     char*    title;             /* window title */
     int      focus;             /* window has focus */
@@ -413,6 +415,7 @@ static ami_back_t            back_down;
 static ami_frame_t           frame_down;
 static ami_sizable_t         sizable_down;
 static ami_sysbar_t          sysbar_down;
+static ami_autobuf_t         autobuf_down;
 static ami_getwinid_t        getwinid_down;
 static ami_focus_t           focus_down;
 
@@ -4440,6 +4443,7 @@ static void opnwin(int fn, int pfn, ami_long wid, int root)
     win->curdsp = 1;
     win->curupd = 1;
     win->bufmod = TRUE;
+    win->autobuf = TRUE;
     { int i; for (i = 0; i < MAXCON; i++)
         { win->autof[i] = TRUE; win->curvf[i] = TRUE; } }
     /* a window shows when it first has content, as on the other
@@ -4938,6 +4942,16 @@ static void sysbar_ivf(FILE* f, ami_long e)
 
 }
 
+static void autobuf_ivf(FILE* f, ami_long e)
+
+{
+
+    /* the manager shows no scroll bars for a buffer; the flag notes the
+       client's model, as buffer_ivf does */
+    txt2win(f)->autobuf = !!e;
+
+}
+
 static void focus_ivf(FILE* f)
 
 {
@@ -5183,6 +5197,7 @@ static void init_windowg(void)
     _pa_frame_ovr(frame_ivf, &frame_down);
     _pa_sizable_ovr(sizable_ivf, &sizable_down);
     _pa_sysbar_ovr(sysbar_ivf, &sysbar_down);
+    _pa_autobuf_ovr(autobuf_ivf, &autobuf_down);
     _pa_focus_ovr(focus_ivf, &focus_down);
     _pa_getwinid_ovr(getwinid_ivf, &getwinid_down);
     _pa_menu_ovr(menu_ivf, &menu_down);
@@ -6019,6 +6034,7 @@ static void deinit_windowg(void)
     { ami_frame_t t; _pa_frame_ovr(frame_down, &t); }
     { ami_sizable_t t; _pa_sizable_ovr(sizable_down, &t); }
     { ami_sysbar_t t; _pa_sysbar_ovr(sysbar_down, &t); }
+    { ami_autobuf_t t; _pa_autobuf_ovr(autobuf_down, &t); }
     { ami_focus_t t; _pa_focus_ovr(focus_down, &t); }
     /* and the system vectors; if we do not come off the top of the
        chain the stacking is corrupt */

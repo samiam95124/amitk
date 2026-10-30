@@ -176,6 +176,7 @@ void         pa_cocoa_select_screens(pa_winhan win, int upd, int dsp); /* 0-base
 void         pa_cocoa_set_cursor(pa_winhan win, int visible, int x, int y, int w, int h);
 void         pa_cocoa_resize_bitmap(pa_winhan win, int w, int h);
 void         pa_cocoa_set_bufmod(pa_winhan win, int on);
+void         pa_cocoa_set_autobuf(pa_winhan win, int on);
 void         pa_cocoa_set_scrollbuffer(int on);
 void         pa_cocoa_set_background(pa_winhan win, float r, float g, float b);
 void         pa_cocoa_set_widget_background(pa_winhan win, float r, float g, float b);

@@ -139,6 +139,8 @@ static int evt_empty(void) {
     int           curX, curY;  /* cursor position (0-based pixels) */
     int           curW, curH;  /* cursor size (pixels) */
     int           bufmod;      /* buffered mode flag */
+    int           noautobuf;   /* ami_autobuf off: no scroll bars for the
+                                  buffer, whatever its size */
     float         bgR, bgG, bgB; /* background color for margins */
     float         wbR, wbG, wbB; /* widget background, ami_backcolor */
     CGImageRef    displayImage;  /* snapshot for drawRect (threaded mode) */
@@ -560,7 +562,10 @@ static uint32_t translate_key(NSEvent* event, pa_keycode* out_special)
  * bar. They are the kind that stand beside the view, not the kind that
  * overlay it and fade: what the buffer holds under a bar could not be
  * reached. The option scrollbuffer under graphics in the configuration
- * turns the bars off.
+ * turns the bars off for every window; ami_autobuf turns them off for one,
+ * as a program whose buffer follows the window wants: the client is
+ * smaller than the buffer for a moment on each step of a shrink, and the
+ * bars would come and go with it.
  *----------------------------------------------------------------------------*/
 
 static int scrollbuffer = 1; /* a buffered window shows scroll bars for a
@@ -618,7 +623,7 @@ static int scrollbuffer = 1; /* a buffered window shows scroll bars for a
     CGFloat t  = [NSScroller scrollerWidthForControlSize:NSControlSizeRegular
                                            scrollerStyle:NSScrollerStyleLegacy];
     BOOL    vb = NO, hb = NO;
-    BOOL    on = scrollbuffer && v->bufmod;
+    BOOL    on = scrollbuffer && v->bufmod && !v->noautobuf;
 
     if (on && a.width > t && a.height > t) { /* room for a bar and a view */
         vb = v->bmpH > a.height; /* the buffer is taller than the client */
@@ -2053,6 +2058,15 @@ void pa_cocoa_resize_bitmap(pa_winhan win, int w, int h)
 void pa_cocoa_set_scrollbuffer(int on)
 {
     scrollbuffer = on;
+}
+
+/* ami_autobuf: the window's own say over its buffer's scroll bars */
+void pa_cocoa_set_autobuf(pa_winhan win, int on)
+{
+    PAWindow* pw = (__bridge PAWindow*)win;
+    int was = !pw->view->noautobuf;
+    pw->view->noautobuf = !on;
+    if (was != !!on) run_on_main(^{ [pw->scroll layoutDoc]; });
 }
 
 void pa_cocoa_set_bufmod(pa_winhan win, int on)

@@ -478,6 +478,7 @@ typedef enum {
     GR_MSEAT       = 483, /* str: a rig line; its pointer coordinates are
                              in the session window's client area, and the
                              server places them on its display */
+    GR_MAUTOBUF    = 484, /* i64 e */
 
     /* ----------------------------------------------------- events */
 
@@ -861,6 +862,7 @@ static const char* gr_msgname(int mid)
         case GR_MCAPTURELABEL: return "CAPTURELABEL";
         case GR_MCAPTURE: return "CAPTURE";
         case GR_MSEAT: return "SEAT";
+        case GR_MAUTOBUF: return "AUTOBUF";
         case GR_MEVENT: return "EVENT";
         case GR_MSTARTTIMEOUT: return "STARTTIMEOUT";
         case GR_MSTOPTIMEOUT: return "STOPTIMEOUT";

@@ -922,6 +922,7 @@ static ami_front_t           front_vect;
 static ami_back_t            back_vect;
 static ami_frame_t           frame_vect;
 static ami_sizable_t         sizable_vect;
+static ami_autobuf_t         autobuf_vect;
 static ami_sysbar_t          sysbar_vect;
 static ami_menu_t            menu_vect;
 static ami_menuena_t         menuena_vect;
@@ -5549,7 +5550,8 @@ not justify itself by the room it takes; a bar needed takes its strip from the
 other direction's client, which can call for the other bar. The thumb is the
 client's share of the buffer at the view's place; an arrow steps a character
 cell, the track pages by the client, and the thumb drags. The option
-scrollbuffer under graphics in the configuration turns the bars off.
+scrollbuffer under graphics in the configuration turns the bars off for every window,
+ami_autobuf for one.
 
 *******************************************************************************/
 
@@ -5615,7 +5617,8 @@ static void sclbars(winptr win, int* vb, int* hb)
     int aw, ah, t;
 
     *vb = *hb = FALSE;
-    if (!scrollbuffer || !win->bufmod || !win->xmwhan) return;
+    if (!scrollbuffer || !win->bufmod || !win->autobuf || !win->xmwhan)
+        return;
     sclavail(win, &aw, &ah);
     t = sclthick(win);
     if (aw <= t || ah <= t) return; /* no room for a bar and a view */
@@ -6234,6 +6237,7 @@ static void opnwin(int fn, int pfn, ami_long wid, int subclient)
     win->inpbuf[0] = 0;
     win->frmrun = FALSE; /* set framing timer not running */
     win->bufmod = TRUE; /* set buffering on */
+    win->autobuf = TRUE; /* scroll bars for a buffer larger than the client */
     win->metlst = NULL; /* clear menu tracking list */
     win->menu = NULL; /* set menu bar not active */
     win->frame = TRUE; /* set frame on */
@@ -17116,6 +17120,33 @@ void _pa_sizable_ovr(ami_sizable_t nfp, ami_sizable_t* ofp)
     { *ofp = sizable_vect; sizable_vect = nfp; }
 void ami_sizable(FILE* f, ami_long e) { (*sizable_vect)(f, e); }
 
+void _pa_autobuf_ovr(ami_autobuf_t nfp, ami_autobuf_t* ofp)
+    { *ofp = autobuf_vect; autobuf_vect = nfp; }
+void ami_autobuf(FILE* f, ami_long e) { (*autobuf_vect)(f, e); }
+
+static void autobuf_ivf(FILE* f, ami_long e)
+
+{
+
+    winptr win; /* pointer to windows context */
+
+    win = txt2win(f); /* get window context */
+    scnlock(win); /* the screens, through the change */
+    if (win->autobuf != !!e) {
+
+        win->autobuf = !!e;
+        if (win->bufmod) {
+
+            sclsync(win); /* the bars come or go, and the client with them */
+            restore(win);
+
+        }
+
+    }
+    scnunlock(win);
+
+}
+
 static void sizable_ivf(FILE* f, ami_long e)
 
 {
@@ -18283,6 +18314,7 @@ static void ami_init_graphics(int argc, char *argv[])
     back_vect =            back_ivf;
     frame_vect =           frame_ivf;
     sizable_vect =         sizable_ivf;
+    autobuf_vect =         autobuf_ivf;
     sysbar_vect =          sysbar_ivf;
     menu_vect =            menu_ivf;
     menuena_vect =         menuena_ivf;

@@ -416,6 +416,8 @@ typedef struct winrec {
     int      focus;           /* screen in focus */
     pict     pictbl[MAXPIC];  /* loadable pictures table */
     int      bufmod;          /* buffered screen mode */
+    int      autobuf;         /* the buffer shows scroll bars when larger
+                                 than the client */
     int      bufset;          /* the program set the buffer's size: until
                                  it does, the buffer follows the window's
                                  client through setsiz */
@@ -3329,7 +3331,7 @@ place in it. The view is scrolled by sclx and scly, the buffer pixels off the
 left and top of the client: the restore blits the buffer from there, drawing
 on the window is set back by that much (settransw), and the mouse and the
 caret are put in buffer terms. The option scrollbuffer under graphics in the
-configuration turns the bars off.
+configuration turns the bars off for every window, ami_autobuf for one.
 
 *******************************************************************************/
 
@@ -3362,7 +3364,7 @@ static void sclsync(winptr win, int mainheld)
     bw = cr.right+(win->vbar? cxv: 0); /* the client with no bars */
     bh = cr.bottom+(win->hbar? cyh: 0);
     vb = hb = FALSE;
-    if (scrollbuffer && win->bufmod) {
+    if (scrollbuffer && win->bufmod && win->autobuf) {
 
         vb = win->gmaxyg > bh; /* the buffer is taller than the client */
         hb = win->gmaxxg > bw; /* wider */
@@ -10573,6 +10575,7 @@ static void opnwin(int fn, int pfn)
     win->inpptr = -1; /* set buffer empty */
     win->frmrun = FALSE; /* set framing timer not running */
     win->bufmod = TRUE; /* set buffering on */
+    win->autobuf = TRUE; /* scroll bars for a buffer larger than the client */
     win->menhan = 0; /* set no menu */
     win->metlst = NULL; /* clear menu tracking list */
     win->wiglst = NULL; /* clear widget list */
@@ -12237,6 +12240,29 @@ static void isizable(winptr win, ami_long e)
     }
 
     win->resizing--; /* the geometry change is done */
+}
+
+static void autobuf_ivf(FILE* f, ami_long e)
+
+{
+
+    winptr win; /* windows record pointer */
+
+    win = txt2win(f); /* get window from file */
+    lockwin(win); /* the window's own lock */
+    if (win->autobuf != !!e) {
+
+        win->autobuf = !!e;
+        if (win->bufmod) {
+
+            sclsync(win, FALSE); /* the bars come or go, the client with them */
+            restore(win, TRUE);
+
+        }
+
+    }
+    unlockwin(win); /* the window's data is done with */
+
 }
 
 static void sizable_ivf(FILE* f, ami_long e)
@@ -18780,6 +18806,10 @@ static ami_sizable_t sizable_vect = sizable_ivf;
 APIOVER(sizable)
 void ami_sizable(FILE* f, ami_long e)
     { (*sizable_vect)(f, e); }
+static ami_autobuf_t autobuf_vect = autobuf_ivf;
+APIOVER(autobuf)
+void ami_autobuf(FILE* f, ami_long e)
+    { (*autobuf_vect)(f, e); }
 static ami_sysbar_t sysbar_vect = sysbar_ivf;
 APIOVER(sysbar)
 void ami_sysbar(FILE* f, ami_long e)

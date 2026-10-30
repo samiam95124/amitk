@@ -136,6 +136,8 @@ typedef struct winrec {
     /* state */
     int         visible;
     int         frame, sizable, sysbar;
+    int         autobuf;     /* the buffer shows scroll bars when larger than
+                                the client */
     int         bufmod;        /* double-buffer on */
     int         bufset;        /* the program set the buffer's size: until
                                   then it follows the window through setsiz */
@@ -836,6 +838,7 @@ static void win_init(winptr win, int wid, int parwid, int w, int h)
     win->sizable = TRUE;
     win->sysbar  = TRUE;
     win->bufmod  = TRUE;
+    win->autobuf = TRUE;
     win->curdsp  = 1;
     win->curupd  = 1;
     win->cfont   = fntlst;
@@ -3333,6 +3336,13 @@ static void sizable_ivf(FILE* f, ami_long e)
     pa_cocoa_set_sizable(win->han, e);
 }
 
+static void autobuf_ivf(FILE* f, ami_long e)
+{
+    winptr win = f2win(f); if (!win) return;
+    win->autobuf = !!e;
+    if (win->han) pa_cocoa_set_autobuf(win->han, win->autobuf);
+}
+
 static void sysbar_ivf(FILE* f, ami_long e)
 {
     winptr win = f2win(f); if (!win) return;
@@ -5106,6 +5116,9 @@ void ami_settabg(FILE* f, ami_long t) { (*settabg_vect)(f, t); }
 static ami_sizable_t sizable_vect = sizable_ivf;
 void _pa_sizable_ovr(ami_sizable_t nfp, ami_sizable_t* ofp) { *ofp = sizable_vect; sizable_vect = nfp; }
 void ami_sizable(FILE* f, ami_long e) { (*sizable_vect)(f, e); }
+static ami_autobuf_t autobuf_vect = autobuf_ivf;
+void _pa_autobuf_ovr(ami_autobuf_t nfp, ami_autobuf_t* ofp) { *ofp = autobuf_vect; autobuf_vect = nfp; }
+void ami_autobuf(FILE* f, ami_long e) { (*autobuf_vect)(f, e); }
 
 static ami_sizbuf_t sizbuf_vect = sizbuf_ivf;
 void _pa_sizbuf_ovr(ami_sizbuf_t nfp, ami_sizbuf_t* ofp) { *ofp = sizbuf_vect; sizbuf_vect = nfp; }

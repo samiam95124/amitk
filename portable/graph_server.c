@@ -1596,6 +1596,7 @@ static void dispatch(void)
         case GR_MFRAME: a = gi(); ami_frame(f, a); break;
         case GR_MSIZABLE: a = gi(); ami_sizable(f, a); break;
         case GR_MSYSBAR: a = gi(); ami_sysbar(f, a); break;
+        case GR_MAUTOBUF: a = gi(); ami_autobuf(f, a); break;
         case GR_MMENU: ami_menu(f, gmenu()); break;
         case GR_MMENUENA: a = gi(); b = gi(); ami_menuena(f, a, b); break;
         case GR_MMENUSEL: a = gi(); b = gi(); ami_menusel(f, a, b); break;

@@ -309,6 +309,7 @@ static _pa_back_t back_vect;
 static _pa_frame_t frame_vect;
 static _pa_sizable_t sizable_vect;
 static _pa_sysbar_t sysbar_vect;
+static _pa_autobuf_t autobuf_vect;
 static _pa_menu_t menu_vect;
 static _pa_menuena_t menuena_vect;
 static _pa_menusel_t menusel_vect;
@@ -427,6 +428,8 @@ typedef struct winrec {
     int      curv;              /* cursor visible */
     int      autof;             /* current status of scroll and wrap */
     int      bufmod;            /* buffered screen mode */
+    int      autobuf;           /* the buffer shows scroll bars when larger
+                                   than the client */
     int      bufset;            /* the program set the buffer's size: until
                                    it does, the buffer follows the client
                                    through setsiz and decoration changes */
@@ -2423,7 +2426,8 @@ place. The bars are the client's last column and row, so the view, the client
 cells that show the buffer, is the client less them; a bar taking a cell from
 the other direction's view can call for the other bar. The view is scrolled by
 vwx and vwy, the buffer columns and rows off its left and top. The option
-scrollbuffer under windowc in the configuration turns the bars off.
+scrollbuffer under windowc in the configuration turns the bars off for every
+window, ami_autobuf for one.
 
 *******************************************************************************/
 
@@ -2433,7 +2437,8 @@ static void sclbars(winptr win, int* vb, int* hb)
 {
 
     *vb = *hb = FALSE;
-    if (!scrollbuffer || win->root || win->widget || !win->bufmod) return;
+    if (!scrollbuffer || win->root || win->widget || !win->bufmod ||
+        !win->autobuf) return;
     if (win->cmaxx < 2 || win->cmaxy < 2) return; /* no room for bar and view */
     *vb = win->bufy > win->cmaxy;
     *hb = win->bufx > win->cmaxx;
@@ -3818,6 +3823,7 @@ static void opnwin(int fn, int pfn, ami_long wid, int subclient, int root)
     win->inpptr = -1; /* set buffer empty */
     win->inpbuf[0] = 0;
     win->bufmod = TRUE; /* set buffering on */
+    win->autobuf = TRUE; /* scroll bars for a buffer larger than the client */
     win->bufset = FALSE; /* the buffer follows the client until set */
     win->metlst = NULL; /* clear menu tracking list */
     win->menu = NULL; /* set menu bar not active */
@@ -7595,6 +7601,39 @@ the client keeps its size and place. Only the border's sizing goes, with its
 hover highlight; the system bar's buttons stay live.
 
 *******************************************************************************/
+
+/** ****************************************************************************
+
+Enable or disable automatic buffer scroll bars
+
+With it on, the default, a buffered window shows scroll bars when its buffer
+is larger than its client. Off, it never does: the program that keeps its
+buffer the client's size has no use for them, and they would come and go for
+a moment on each step of a shrink.
+
+*******************************************************************************/
+
+static void iautobuf(FILE* f, ami_long e)
+
+{
+
+    winptr win; /* windows record pointer */
+
+    win = txt2win(f); /* get window from file */
+    if (win->autobuf != !!e) {
+
+        win->autobuf = !!e;
+        if (win->bufmod) {
+
+            sclsync(win); /* the bars come or go, the view with them */
+            recalcfmask(); /* recalculate the forward masks */
+            if (indisp(win)) restore(win);
+
+        }
+
+    }
+
+}
 
 static void isizable(FILE* f, ami_long e)
 
@@ -12419,6 +12458,7 @@ static void init_windowc()
     _pa_frame_ovr(iframe, &frame_vect);
     _pa_sizable_ovr(isizable, &sizable_vect);
     _pa_sysbar_ovr(isysbar, &sysbar_vect);
+    _pa_autobuf_ovr(iautobuf, &autobuf_vect);
     _pa_menu_ovr(imenu, &menu_vect);
     _pa_menuena_ovr(imenuena, &menuena_vect);
     _pa_menusel_ovr(imenusel, &menusel_vect);
@@ -12570,6 +12610,7 @@ static void deinit_windowc()
     _pa_frame_t cppframe;
     _pa_sizable_t cppsizable;
     _pa_sysbar_t cppsysbar;
+    _pa_autobuf_t cppautobuf;
     _pa_menu_t cppmenu;
     _pa_menuena_t cppmenuena;
     _pa_menusel_t cppmenusel;
@@ -12651,6 +12692,7 @@ static void deinit_windowc()
     _pa_frame_ovr(frame_vect, &cppframe);
     _pa_sizable_ovr(sizable_vect, &cppsizable);
     _pa_sysbar_ovr(sysbar_vect, &cppsysbar);
+    _pa_autobuf_ovr(autobuf_vect, &cppautobuf);
     _pa_menu_ovr(menu_vect, &cppmenu);
     _pa_menuena_ovr(menuena_vect, &cppmenuena);
     _pa_menusel_ovr(menusel_vect, &cppmenusel);
