@@ -355,6 +355,8 @@ typedef struct winrec {
     int      gfcrgb;          /* foreground color in rgb */
     int      gbcrgb;          /* background color in rgb */
     int      gcurv;           /* state of cursor visible */
+    ami_long glwidth;         /* line width */
+    ami_lstyle glstyle;       /* line style */
     fontptr  gcfont;          /* current font select */
     ami_long gfhigh;          /* current font height */
     mode     gfmod;           /* foreground mix mode */
@@ -3631,8 +3633,8 @@ static void iniscn(winptr win, scnptr sc)
     sc->attr = win->gattr;
     sc->autof = win->gauto; /* set auto scroll and wrap */
     sc->curv = win->gcurv; /* set cursor visibility */
-    sc->lwidth = 1; /* set single pixel width */
-    sc->lstyle = ami_lssolid; /* set solid lines */
+    sc->lwidth = win->glwidth; /* set line width and style */
+    sc->lstyle = win->glstyle;
     sc->angle = LONG_MAX/4; /* set text path to normal reading (east) */
     sc->font = 0; /* set no font active */
     sc->cfont = win->gcfont; /* set current font */
@@ -6548,6 +6550,7 @@ static void ilinewidth(winptr win, ami_long w)
 
     sc = win->screens[win->curupd-1];
     sc->lwidth = w; /* set new width */
+    win->glwidth = w; /* and the window default, for buffer resize */
     /* create new pen with desired width */
     GDICALL(b = DeleteObject(sc->fpen), !b); /* remove old pen */ /* process windows error */
     /* create new pen */
@@ -6596,6 +6599,7 @@ static void ilinestyle(winptr win, ami_lstyle style)
 
     sc = win->screens[win->curupd-1];
     sc->lstyle = style; /* set new line style */
+    win->glstyle = style; /* and the window default, for buffer resize */
     /* create new pen with desired style */
     GDICALL(b = DeleteObject(sc->fpen), !b); /* remove old pen */ /* process windows error */
     GDICALL(sc->fpen = makfpen(sc), !sc->fpen); /* create new pen */ /* process windows error */
@@ -10768,6 +10772,8 @@ static void opnwin(int fn, int pfn)
     win->gfcrgb = colnum(ami_black); /* foreground black */
     win->gbcrgb = colnum(ami_white); /* background white */
     win->gcurv = TRUE; /* cursor visible */
+    win->glwidth = 1; /* single pixel lines */
+    win->glstyle = ami_lssolid; /* solid lines */
     win->gfmod = mdnorm; /* set mix modes */
     win->gbmod = mdnorm;
     win->goffx = 0;  /* set 0 offset */

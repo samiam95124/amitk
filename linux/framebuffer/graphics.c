@@ -1333,6 +1333,8 @@ typedef struct winrec {
     ami_long     gfcrgb;            /* foreground color in rgb */
     ami_long     gbcrgb;            /* background color in rgb */
     ami_long     gcurv;             /* state of cursor visible */
+    ami_long     glwidth;           /* line width */
+    ami_lstyle   glstyle;           /* line style */
     fontptr      gcfont;            /* current font select */
     int          gfhigh;            /* physical em-square pixel size y */
     int          gfhighx;           /* physical em-square pixel size x */
@@ -4260,6 +4262,29 @@ static void drwstr90(winptr win, scnptr sc, int tw, canvas* d, char* s, int l)
 
 }
 
+/** ****************************************************************************
+
+Apply line attributes to context
+
+Pushes the screen's line width and style into its drawing context.
+
+*******************************************************************************/
+
+static void applylineattrs(scnptr sc)
+
+{
+
+    switch (sc->lstyle) {
+
+        case ami_lsdash: sc->xcxt->lstyle = pd_linedash; break;
+        case ami_lsdot:  sc->xcxt->lstyle = pd_linedot; break;
+        default:         sc->xcxt->lstyle = pd_linesolid; break;
+
+    }
+    sc->xcxt->lw = sc->lwidth;
+
+}
+
 /*******************************************************************************
 
 Initialize screen
@@ -4288,8 +4313,8 @@ static void iniscn(winptr win, scnptr sc)
     sc->attr = win->gattr;
     sc->autof = win->gauto; /* set auto scroll and wrap */
     sc->curv = win->gcurv; /* set cursor visibility */
-    sc->lwidth = 1; /* set single pixel width */
-    sc->lstyle = ami_lssolid; /* set default line style */
+    sc->lwidth = win->glwidth; /* set line width and style */
+    sc->lstyle = win->glstyle;
     sc->cfont = win->gcfont; /* set current font */
     sc->fmod = win->gfmod; /* set mix modes */
     sc->bmod = win->gbmod;
@@ -4328,7 +4353,7 @@ static void iniscn(winptr win, scnptr sc)
     }
 
     /* set line attributes */
-    sc->xcxt->lw = 1; sc->xcxt->lstyle = pd_linesolid;
+    applylineattrs(sc); /* line width and style */
 
     /* set up backing buffer */
     sc->xbuf = newcanvas(sc->maxxg, sc->maxyg);
@@ -4403,6 +4428,8 @@ static void opnwin(int fn, int pfn, ami_long wid)
     win->gfcrgb = colnum(ami_black); /* foreground black */
     win->gbcrgb = colnum(ami_white); /* background white */
     win->gcurv = TRUE; /* cursor visible */
+    win->glwidth = 1; /* single pixel lines */
+    win->glstyle = ami_lssolid; /* solid lines */
     win->gfmod = mdnorm; /* set mix modes */
     win->gbmod = mdnorm;
     win->goffx = 0; /* set 0 offset */
@@ -7370,6 +7397,7 @@ static void linewidth_ivf(FILE* f, ami_long w)
     win = txt2win(f); /* get window from file */
     sc = win->screens[win->curupd-1]; /* index update screen */
     sc->lwidth = w; /* set the line width */
+    win->glwidth = w; /* and the window default, for buffer resize */
     sc->xcxt->lw = w; /* push to context */
 
 }
@@ -7388,6 +7416,7 @@ static void linestyle_ivf(FILE* f, ami_lstyle style)
     win = txt2win(f);
     sc = win->screens[win->curupd-1];
     sc->lstyle = style;
+    win->glstyle = style; /* and the window default, for buffer resize */
     /* push to context */
     switch (style) {
 
@@ -8793,16 +8822,14 @@ static void sizbufg_ivf(FILE* f, ami_long x, ami_long y)
        here a manager above may divide the one window into many, and
        the globals mix every window's settings -- the screen's own
        colors, attributes, font and modes ARE its window's current
-       state, so those stand. What the desktops reset unconditionally
-       resets here: the cursor home, the line width and style, and the
-       default tabs at the new width. */
+       state, so those stand, as do the line width and style. What the
+       desktops reset resets here: the cursor home and the default tabs
+       at the new width. */
     sc->curx = 1; /* cursor at home */
     sc->cury = 1;
     sc->curxg = 1;
     sc->curyg = 1;
     sc->angle = LONG_MAX/4;
-    sc->lwidth = 1; /* single pixel width */
-    sc->lstyle = ami_lssolid;
     if (BIT(sarev) & sc->attr) { /* the context follows */
 
         sc->xcxt->bg = sc->fcrgb;
@@ -8814,7 +8841,7 @@ static void sizbufg_ivf(FILE* f, ami_long x, ami_long y)
         sc->xcxt->fg = sc->fcrgb;
 
     }
-    sc->xcxt->lw = 1; sc->xcxt->lstyle = pd_linesolid;
+    applylineattrs(sc); /* line width and style */
     /* the default tabs at the new width */
     for (i = 0; i < MAXTAB; i++) sc->tab[i] = 0;
     {

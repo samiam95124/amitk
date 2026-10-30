@@ -196,6 +196,7 @@ static void cansync(winptr win);
 static void clisize(winptr win, int* w, int* h);
 static void sclavail(winptr win, int* w, int* h);
 static void isizbufg(winptr win, ami_long x, ami_long y);
+static void applylineattrs(scnptr sc);
 
 /* forward declarations: the notify waits (defined with the event
    machinery) */
@@ -6057,8 +6058,8 @@ static void iniscn(winptr win, scnptr sc)
     sc->attr = win->gattr;
     sc->autof = win->gauto; /* set auto scroll and wrap */
     sc->curv = win->gcurv; /* set cursor visibility */
-    sc->lwidth = 1; /* set single pixel width */
-    sc->lstyle = ami_lssolid; /* set default line style */
+    sc->lwidth = win->glwidth; /* set line width and style */
+    sc->lstyle = win->glstyle;
     sc->cfont = win->gcfont; /* set current font */
     sc->fmod = win->gfmod; /* set mix modes */
     sc->bmod = win->gbmod;
@@ -6097,7 +6098,7 @@ static void iniscn(winptr win, scnptr sc)
     }
 
     /* set line attributes */
-    sc->xcxt->lw = 1; sc->xcxt->lstyle = pd_linesolid;
+    applylineattrs(sc);
 
     /* set up pixmap backing buffer */
     sc->xbuf = pd_cannew(grx_padisplay, sc->maxxg, sc->maxyg);
@@ -6268,6 +6269,8 @@ static void opnwin(int fn, int pfn, ami_long wid, int subclient)
     win->gfcrgb = colnum(ami_black); /*foreground black */
     win->gbcrgb = colnum(ami_white); /* background white */
     win->gcurv = TRUE; /* cursor visible */
+    win->glwidth = 1; /* single pixel lines */
+    win->glstyle = ami_lssolid; /* solid lines */
     win->gfmod = mdnorm; /* set mix modes */
     win->gbmod = mdnorm;
     win->goffx = 0;  /* set 0 offset */
@@ -11573,6 +11576,7 @@ static void linewidth_ivf(FILE* f, ami_long w)
     scnlock(win); /* the screens */
     sc = win->screens[win->curupd-1]; /* index update screen */
     sc->lwidth = w; /* set the line width */
+    win->glwidth = w; /* and the window default, for buffer resize */
     applylineattrs(sc); /* push width + current style into X */
 
     scnunlock(win);
@@ -11605,6 +11609,7 @@ static void linestyle_ivf(FILE* f, ami_lstyle style)
     scnlock(win); /* the screens */
     sc = win->screens[win->curupd-1];
     sc->lstyle = style;
+    win->glstyle = style; /* and the window default, for buffer resize */
     applylineattrs(sc);
 
     scnunlock(win);

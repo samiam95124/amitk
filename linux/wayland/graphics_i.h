@@ -200,6 +200,8 @@ typedef struct winrec {
     ami_long     gfcrgb;            /* foreground color in rgb */
     ami_long     gbcrgb;            /* background color in rgb */
     ami_long     gcurv;             /* state of cursor visible */
+    ami_long     glwidth;           /* line width */
+    ami_lstyle   glstyle;           /* line style */
     fontptr      gcfont;            /* current font select */
     int          gfhigh;            /* physical em-square pixel size y (FreeType) */
     int          gfhighx;           /* physical em-square pixel size x (asymmetric) */
