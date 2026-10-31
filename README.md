@@ -46,6 +46,15 @@ Click to play on Youtube:
 
 [![Ami: breakout in Linux, Windows and Mac OS X, in multiple modes](https://img.youtube.com/vi/BLPet3lhYbM/maxresdefault.jpg)](https://youtu.be/BLPet3lhYbM)
 
+And an instrument on the bench. This is a remote control for a Rigol
+MSO1104Z oscilloscope, drawn as the face of the scope, with the scope's
+own screen fetched over USB and the keys and knobs working the real ones
+([mso1104](https://github.com/samiam95124/mso1104)):
+
+![the MSO1104 front panel](doc/images/mso1104_panel.png)
+
+![the scope itself, with the panel on the monitor behind it](doc/images/mso1104_scope.jpg)
+
 ---
 
 The AMI tk is a toolkit based on the idea that carefully crafted display
