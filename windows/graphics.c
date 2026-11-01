@@ -379,6 +379,7 @@ typedef struct winrec {
     int      nmb1;            /* new mouse assert status button 1 */
     int      nmb2;            /* new mouse assert status button 2 */
     int      nmb3;            /* new mouse assert status button 3 */
+    int      wheelacc;        /* mouse wheel delta short of a whole notch */
     ami_long nmpx, nmpy;      /* new mouse current position */
     ami_long nmpxg, nmpyg;    /* new mouse current position graphical */
     ami_long linespace;       /* line spacing in pixels */
@@ -7929,6 +7930,8 @@ painting into a buffer and transfering asymmetrically, or using outlines.
 
 *******************************************************************************/
 
+#define VSCALEDIV 10000 /* denominator of the viewport scale ratio */
+
 static void iviewscale(winptr win, float x, float y)
 
 {
@@ -7936,16 +7939,19 @@ static void iviewscale(winptr win, float x, float y)
     scnptr sc;
 
     sc = win->screens[win->curupd-1];
-    /* the scale ratio is expressed as a fraction over 100, which gives two
-       decimal digits of scale precision */
-    sc->wextx = 100;
-    sc->wexty = 100;
-    sc->vextx = trunc(x*100);
-    sc->vexty = trunc(y*100);
-    win->gwextx = 100;
-    win->gwexty = 100;
-    win->gvextx = trunc(x*100);
-    win->gvexty = trunc(y*100);
+    /* The scale ratio is expressed as a fraction over VSCALEDIV, the GDI
+       window and viewport extents being integers. Two decimal digits, the
+       original choice, drew a program's scaled layout up to 1% short of
+       where the program itself placed things by its exact scale; four
+       digits keep the two within a pixel. */
+    sc->wextx = VSCALEDIV;
+    sc->wexty = VSCALEDIV;
+    sc->vextx = lround(x*VSCALEDIV);
+    sc->vexty = lround(y*VSCALEDIV);
+    win->gwextx = VSCALEDIV;
+    win->gwexty = VSCALEDIV;
+    win->gvextx = lround(x*VSCALEDIV);
+    win->gvexty = lround(y*VSCALEDIV);
     /* apply to the drawing surfaces; subsequent drawing is scaled, existing
        content is unchanged */
     settrans(sc->bdc, sc);
@@ -8315,6 +8321,57 @@ static void mouseevent(winptr win, MSG* msg)
 
 /* queue event to window */
 
+static void enqueue(eqeptr* el, ami_evtrec* er);
+
+/*******************************************************************************
+
+Mouse wheel
+
+Windows reports the wheel as a signed delta in WM_MOUSEWHEEL, WHEEL_DELTA
+(120) per notch, in fractions of that from a touchpad or a free spinning
+wheel. Each whole notch is reported as a press and a release of mouse button
+4 (wheel up, away from the user) or 5 (wheel down), as the x11 and wayland
+ports do, so that a program reads the wheel the same way everywhere. The
+remainder short of a notch is kept for the next message. The first event of a
+burst goes back as the event found; the rest are queued on the input file,
+from where ievent delivers them in order before it reads another message. The
+mouse position is not taken from this message, since it carries screen and not
+client coordinates; the last movement has set it.
+
+*******************************************************************************/
+
+static void wheelevent(winptr win, ami_evtrec* er, MSG* msg, int ofn, int* keep)
+
+{
+
+    ami_evtrec ev; /* event to queue */
+    int        n;  /* whole notches, signed */
+    int        bn; /* button number to report */
+    int        i;
+
+    win->wheelacc += (short)HIWORD(msg->wParam); /* add the delta */
+    n = win->wheelacc/WHEEL_DELTA; /* whole notches, toward zero */
+    win->wheelacc -= n*WHEEL_DELTA; /* keep the remainder */
+    if (!n || opnfil[ofn]->inl < 0) return; /* nothing yet, or no input file */
+    bn = n > 0 ? 4 : 5; /* up is button 4, down is button 5 */
+    if (n < 0) n = -n;
+    for (i = 0; i < n; i++) {
+
+        ev = *er; /* carry the window id */
+        ev.etype = ami_etmouba; /* button assert */
+        ev.amoun = 1; /* mouse 1 */
+        ev.amoubn = bn;
+        if (!*keep) { *er = ev; *keep = TRUE; } /* the first is the event found */
+        else enqueue(&opnfil[opnfil[ofn]->inl]->evt, &ev); /* the rest queue behind */
+        ev.etype = ami_etmoubd; /* button deassert */
+        ev.dmoun = 1; /* mouse 1 */
+        ev.dmoubn = bn;
+        enqueue(&opnfil[opnfil[ofn]->inl]->evt, &ev);
+
+    }
+
+}
+
 static void enqueue(eqeptr* el, ami_evtrec* er)
 
 {
@@ -8334,6 +8391,9 @@ static void enqueue(eqeptr* el, ami_evtrec* er)
         ep->last = *el; /* link last to current */
         ep->next = (*el)->next; /* link next to next of current */
         (*el)->next = ep; /* link current to new */
+        ep->next->last = ep; /* and the next one back to new, or the removal
+                                of the oldest, which relinks through last,
+                                leaves the root pointing at a freed entry */
 
     }
     *el = ep; /* set that as new root */
@@ -8553,6 +8613,25 @@ static void winevt(winptr win, ami_evtrec* er, MSG* msg, int ofn, int* keep)
 
         mouseevent(win, msg); /* mouse event */
         mouseupdate(win, er, keep); /* check any mouse details need processing */
+
+    } else if (msg->message == WM_MOUSEWHEEL && mouseenb) {
+
+        /* A movement not yet reported goes first, so that the wheel acts
+           where the pointer is: mouseupdate gives one event per call, the
+           character position and then the graphical one, so it is asked
+           twice, and the second event, if any, queues behind the first. */
+        mouseupdate(win, er, keep);
+        if (*keep && opnfil[ofn]->inl >= 0) {
+
+            ami_evtrec ev; /* second movement event */
+            int        k = FALSE;
+
+            ev = *er;
+            mouseupdate(win, &ev, &k);
+            if (k) enqueue(&opnfil[opnfil[ofn]->inl]->evt, &ev);
+
+        }
+        wheelevent(win, er, msg, ofn, keep); /* wheel notches as buttons 4 and 5 */
 
     } else if (msg->message == WM_TIMER) {
 
@@ -10557,6 +10636,7 @@ static void opnwin(int fn, int pfn)
     win->nmb1 = FALSE;
     win->nmb2 = FALSE;
     win->nmb3 = FALSE;
+    win->wheelacc = 0;
     win->nmpx = 1;
     win->nmpy = 1;
     win->nmpxg = 1;
@@ -16744,7 +16824,8 @@ static LRESULT CALLBACK wndproc(HWND hwnd, UINT imsg, WPARAM wparam,
         switch (imsg) {
 
             case WM_PAINT: case WM_LBUTTONDOWN: case WM_LBUTTONUP: case WM_MBUTTONDOWN:
-            case WM_MBUTTONUP: case WM_RBUTTONDOWN: case WM_RBUTTONUP: case WM_SIZE:
+            case WM_MBUTTONUP: case WM_RBUTTONDOWN: case WM_RBUTTONUP: case WM_MOUSEWHEEL:
+            case WM_SIZE:
             case WM_CHAR: case WM_KEYDOWN: case WM_KEYUP: case WM_QUIT: case WM_CLOSE:
             case WM_MOUSEMOVE: case WM_TIMER: case WM_COMMAND: case WM_VSCROLL:
             case WM_HSCROLL: case WM_NOTIFY: case MM_JOY1MOVE: case MM_JOY2MOVE:
@@ -18003,12 +18084,30 @@ static void bor_ivf(FILE* f)
 
 }
 
-/* scale coordinates: no scaling in this port, identity */
+/*******************************************************************************
+
+Scale coordinates
+
+Converts a physical pixel coordinate of the window, such as a mouse position
+from an event, to the logical coordinate that drawing would have mapped there
+under the current viewport offset and scale (ami_viewoffg, ami_viewscale). It
+is the inverse of the drawing transform, so a program that draws scaled can
+hit test in its own coordinates. The transform is the last one set on the
+window, as the x11 and Mac OS X ports do. With no scale set it is the
+identity.
+
+*******************************************************************************/
+
 static ami_long scalex_ivf(FILE* f, ami_long x)
 
 {
 
-   return (x); /* identity */
+    winptr win; /* window pointer */
+
+    win = txt2win(f); /* get window pointer from text file */
+    if (win->gvextx == 0 || win->gwextx == 0) return (x); /* unscaled */
+
+    return ((ami_long)((double)(x-win->goffx)*win->gwextx/win->gvextx));
 
 }
 
@@ -18016,7 +18115,12 @@ static ami_long scaley_ivf(FILE* f, ami_long y)
 
 {
 
-   return (y); /* identity */
+    winptr win; /* window pointer */
+
+    win = txt2win(f); /* get window pointer from text file */
+    if (win->gvexty == 0 || win->gwexty == 0) return (y); /* unscaled */
+
+    return ((ami_long)((double)(y-win->goffy)*win->gwexty/win->gvexty));
 
 }
 
