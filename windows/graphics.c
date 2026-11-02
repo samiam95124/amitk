@@ -8511,32 +8511,32 @@ static void winevt(winptr win, ami_evtrec* er, MSG* msg, int ofn, int* keep)
 
     } else if (msg->message == WM_SIZE) { /* resize */
 
-        if (!win->bufmod) { /* main thread handles resizes */
+        /* check if maximize, minimize, or exit from either mode */
+        if (msg->wParam == SIZE_MAXIMIZED)  {
 
-            /* check if maximize, minimize, or exit from either mode */
-            if (msg->wParam == SIZE_MAXIMIZED)  {
+            er->etype = ami_etmax; /* set maximize event */
+            /* save the event ahead of the resize */
+            enqueue(&opnfil[opnfil[ofn]->inl]->evt, er); /* queue it */
 
-                er->etype = ami_etmax; /* set maximize event */
-                /* save the event ahead of the resize */
-                enqueue(&opnfil[opnfil[ofn]->inl]->evt, er); /* queue it */
+        } else if (msg->wParam == SIZE_MINIMIZED)  {
 
-            } else if (msg->wParam == SIZE_MINIMIZED)  {
+            er->etype = ami_etmin; /* set minimize event */
+            /* save the event ahead of the resize */
+            enqueue(&opnfil[opnfil[ofn]->inl]->evt, er); /* queue it */
 
-                er->etype = ami_etmin; /* set minimize event */
-                /* save the event ahead of the resize */
-                enqueue(&opnfil[opnfil[ofn]->inl]->evt, er); /* queue it */
+        } else if (msg->wParam == SIZE_RESTORED &&
+                   (win->sizests == SIZE_MINIMIZED ||
+                    win->sizests == SIZE_MAXIMIZED)) {
 
-            } else if (msg->wParam == SIZE_RESTORED &&
-                       (win->sizests == SIZE_MINIMIZED ||
-                        win->sizests == SIZE_MAXIMIZED)) {
+            /* window is restored, and was minimized or maximized */
+            er->etype = ami_etnorm; /* set normalize event */
+            /* save the event ahead of the resize */
+            enqueue(&opnfil[opnfil[ofn]->inl]->evt, er); /* queue it */
 
-                /* window is restored, and was minimized or maximized */
-                er->etype = ami_etnorm; /* set normalize event */
-                /* save the event ahead of the resize */
-                enqueue(&opnfil[opnfil[ofn]->inl]->evt, er); /* queue it */
+        }
+        win->sizests = msg->wParam; /* save size status */
+        if (!win->bufmod) { /* unbuffered: the surface is the client */
 
-            }
-            win->sizests = msg->wParam; /* save size status */
             /* process resize message */
             win->gmaxxg = msg->lParam & 0xffff; /* set x size */
             win->gmaxyg = msg->lParam >> 16 & 0xffff; /* set y size */
@@ -8548,21 +8548,48 @@ static void winevt(winptr win, ami_evtrec* er, MSG* msg, int ofn, int* keep)
             win->screens[win->curdsp-1]->maxyg = win->gmaxyg;
             /* place the resize message */
             er->etype = ami_etresize; /* set resize message */
+            er->rszxg = win->gmaxxg; /* the new size */
+            er->rszyg = win->gmaxyg;
+            er->rszx = win->gmaxx;
+            er->rszy = win->gmaxy;
             *keep = TRUE; /* set keep event */
 
-        } else sclsync(win, TRUE); /* buffered: the bars follow the client */
+        } else {
+
+            /* Buffered: the buffer holds its size and the bars follow the
+               client, but the program hears of the new client size as it
+               does on X11, Wayland and Mac OS X, so one that sizes its
+               buffer to the window (as the instrument panels do, scaling
+               their layout to it) can follow. A minimized window has no
+               client, and a resize to nothing would be an invalid buffer
+               size to such a program, so that is left to the minimize
+               event alone. */
+            sclsync(win, TRUE); /* the bars follow the client */
+            if (msg->wParam != SIZE_MINIMIZED &&
+                (msg->lParam & 0xffff) >= 1 && (msg->lParam >> 16 & 0xffff) >= 1) {
+
+                er->etype = ami_etresize; /* set resize message */
+                er->rszxg = msg->lParam & 0xffff; /* the client's size */
+                er->rszyg = msg->lParam >> 16 & 0xffff;
+                er->rszx = er->rszxg / win->charspace; /* in characters */
+                er->rszy = er->rszyg / win->linespace;
+                *keep = TRUE; /* set keep event */
+
+            }
+
+        }
 
     } else if (msg->message == WM_EXITSIZEMOVE) { /* end of interactive move/size */
 
+        /* During the interactive sizing modal loop, sizing requests the
+           program issues in response to resize events (say, resizing
+           child windows to track the parent) can be applied out of order
+           against the drag, leaving stale final geometry. Deliver one
+           final resize with the settled client size so the program makes
+           an authoritative last pass. */
+        b = GetClientRect(win->winhan, &cr); /* get the settled size */
         if (!win->bufmod) {
 
-            /* During the interactive sizing modal loop, sizing requests the
-               program issues in response to resize events (say, resizing
-               child windows to track the parent) can be applied out of order
-               against the drag, leaving stale final geometry. Deliver one
-               final resize with the settled client size so the program makes
-               an authoritative last pass. */
-            b = GetClientRect(win->winhan, &cr); /* get the settled size */
             win->gmaxxg = cr.right; /* set x size */
             win->gmaxyg = cr.bottom; /* set y size */
             win->gmaxx = win->gmaxxg / win->charspace; /* find character size x */
@@ -8573,6 +8600,20 @@ static void winevt(winptr win, ami_evtrec* er, MSG* msg, int ofn, int* keep)
             win->screens[win->curdsp-1]->maxyg = win->gmaxyg;
             /* place the resize message */
             er->etype = ami_etresize; /* set resize message */
+            er->rszxg = win->gmaxxg; /* the new size */
+            er->rszyg = win->gmaxyg;
+            er->rszx = win->gmaxx;
+            er->rszy = win->gmaxy;
+            *keep = TRUE; /* set keep event */
+
+        } else if (b && cr.right >= 1 && cr.bottom >= 1) {
+
+            /* buffered: the settled client, as above */
+            er->etype = ami_etresize; /* set resize message */
+            er->rszxg = cr.right;
+            er->rszyg = cr.bottom;
+            er->rszx = er->rszxg / win->charspace;
+            er->rszy = er->rszyg / win->linespace;
             *keep = TRUE; /* set keep event */
 
         }
