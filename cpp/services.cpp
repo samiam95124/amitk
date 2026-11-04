@@ -79,7 +79,6 @@ char pthchr(void) { return ami_pthchr(); }
 ami_long latitude(void) { return ami_latitude(); }
 ami_long longitude(void) { return ami_longitude(); }
 ami_long altitude(void) { return ami_altitude(); }
-void locsrc(char* s, ami_long sl) { ami_locsrc(s, sl); }
 ami_long country(void) { return ami_country(); }
 void countrys(char* s, ami_long sl, ami_long c) { ami_countrys(s, sl, c); }
 ami_long timezone(void) { return ami_timezone(); }

@@ -139,7 +139,6 @@ char pthchr(void);
 ami_long latitude(void);
 ami_long longitude(void);
 ami_long altitude(void);
-void locsrc(char* s, ami_long sl);
 ami_long country(void);
 void countrys(char* s, ami_long sl, ami_long c);
 ami_long timezone(void);

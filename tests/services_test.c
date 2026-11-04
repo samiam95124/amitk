@@ -254,8 +254,6 @@ int main(void)
     printf("test 53: Latitude: %lld\n", AMI_LONG_CAST(ami_latitude()));
     printf("test 54: longitude: %lld\n", AMI_LONG_CAST(ami_longitude()));
     printf("test 55: Altitude: %lld\n", AMI_LONG_CAST(ami_altitude()));
-    ami_locsrc(s, 100);
-    printf("test 55a: Location sources: %s\n", s);
     printf("test 56: Country code: %lld\n", AMI_LONG_CAST(ami_country()));
     ami_countrys(s, 100, ami_country());
     printf("test 57: Country name: %s\n", s);
