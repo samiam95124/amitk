@@ -76,6 +76,7 @@
 #include <stdlib.h>
 
 #include <services.h> /* the header for this file */
+#include <config.h>   /* ami.cfg, for the host location */
 
 /*
  * Debug print system
@@ -2124,6 +2125,80 @@ char ami_pthchr(void)
 
 /** ****************************************************************************
 
+Host location
+
+The position is read once, on the first call, from the services block of
+ami.cfg: "latitude" and "longitude" in signed decimal degrees (south and
+west negative) and "altitude" in metres. The Linux module also asks an IP
+geolocation service when the file gives nothing (see linux/services.c); that
+is still to do here. When nothing is known the calls return 0.
+
+*******************************************************************************/
+
+static int    locdone;              /* the file was read */
+static int    lochave;              /* a position is known */
+static double loclat, loclon;       /* degrees */
+static double localt;               /* metres */
+static int    althave;              /* an altitude is known */
+
+static const char *loccfg(ami_valptr blk, const char *name)
+{
+
+    ami_valptr v;
+
+    if (!blk) return NULL;
+    v = ami_schlst((string)name, blk->sublist);
+
+    return v && v->value && v->value[0] ? v->value : NULL;
+
+}
+
+static void findloc(void)
+{
+
+    ami_valptr root = NULL, svc;
+    const char *v, *w;
+    char *e;
+    double la, lo;
+
+    if (locdone) return;
+    locdone = 1;
+    ami_config(&root);
+    svc = ami_schlst("services", root);
+    v = loccfg(svc, "latitude");
+    w = loccfg(svc, "longitude");
+    if (v && w) {
+
+        la = strtod(v, &e);
+        if (!*e) lo = strtod(w, &e);
+        if (!*e && la >= -90 && la <= 90 && lo >= -180 && lo <= 180) {
+
+            loclat = la;
+            loclon = lo;
+            lochave = 1;
+
+        }
+
+    }
+    v = loccfg(svc, "altitude");
+    if (v) { la = strtod(v, &e); if (!*e) { localt = la; althave = 1; } }
+
+}
+
+static ami_long locratio(double v, double full)
+{
+
+    double r = v/full;
+
+    if (r >= 1.0) return AMI_LONG_MAX;
+    if (r <= -1.0) return -AMI_LONG_MAX;
+
+    return (ami_long)(r*(double)AMI_LONG_MAX);
+
+}
+
+/** ****************************************************************************
+
 Find latitude
 
 Finds the latitude of the host. Returns the latitude as a ratioed integer:
@@ -2139,17 +2214,15 @@ Note that implementations are generally divided into stationary and mobile
 hosts. A stationary host like a desktop computer can be set once on install.
 A mobile host is constantly reading its location (usually from a GPS).
 
-There are algorithims that can find the approximate location of a host from
-network connections. This would effectively allow the automatic setting of a
-host location.
-
 *******************************************************************************/
 
 ami_long ami_latitude(void)
 
 {
 
-    return (0);
+    findloc();
+
+    return lochave? locratio(loclat, 90.0): 0;
 
 }
 
@@ -2166,17 +2239,15 @@ LONG_MAX    The prime meridian eastward around the world
 This means that each increment equals 0.0000000838 degrees or about 0.00933
 meters (approximate because it is an angular measurement on an elipsoid).
 
-Note that implementations are generally divided into stationary and mobile
-hosts. A stationary host like a desktop computer can be set once on install.
-A mobile host is constantly reading its location (usually from a GPS).
-
 *******************************************************************************/
 
 ami_long ami_longitude(void)
 
 {
 
-    return 0;
+    findloc();
+
+    return lochave? locratio(loclon, 180.0): 0;
 
 }
 
@@ -2190,20 +2261,8 @@ Finds the altitude of the host. Returns the altitude as a ratioed integer:
 LONG_MAX    100km high
 -LONG_MAX   100km depth
 
-This means that each increment is 0.0000465 meters. MSL is determined by WGS84
-(World Geodetic System of 1984), which estalishes an ideal elipsoid as an
-approximation of the shape of the world. This is the basis for GPS and
-establishes GPS as the main reference MSL surface, which typically must be
-corrected for the exact local system in use, which could be:
-
-1. Local MSL.
-2. Presure altitude.
-
-Or another system.
-
-Note that implementations are generally divided into stationary and mobile
-hosts. A stationary host like a desktop computer can be set once on install.
-A mobile host is constantly reading its location (usually from a GPS).
+This means that each increment is 0.0000465 meters, from "altitude" in the
+services block of ami.cfg, in metres.
 
 *******************************************************************************/
 
@@ -2211,7 +2270,28 @@ ami_long ami_altitude(void)
 
 {
 
-    return 0;
+    findloc();
+
+    return althave? locratio(localt, 100000.0): 0;
+
+}
+
+/** ****************************************************************************
+
+Describe the location sources
+
+Gives, in words, where the position and altitude came from.
+
+*******************************************************************************/
+
+void ami_locsrc(char* s, ami_long sl)
+
+{
+
+    findloc();
+    if (sl < 1) return;
+    snprintf(s, sl, "position %s, altitude %s", lochave? "from ami.cfg": "unknown",
+             althave? "from ami.cfg": "unknown");
 
 }
 
