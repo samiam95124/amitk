@@ -11218,9 +11218,35 @@ static void isizbufg(winptr win, ami_long x, ami_long y)
 
     win->resizing++; /* a geometry change begins: paints are tolerant */
 
-    int si;  /* index for current display screen */
+    int      si;    /* index for current display screen */
+    scnptr   osc;   /* the display screen before the resize */
+    scnptr   nsc;   /* the display screen after it */
+    HGDIOBJ  obm;   /* the old display bitmap, kept for the copy */
+    HGDIOBJ  sbm;   /* what the copy context held before */
+    HDC      odc;   /* a context to read the old bitmap through */
+    ami_long oldw;  /* the old buffer's size */
+    ami_long oldh;
+    ami_long copyw; /* the part common to old and new */
+    ami_long copyh;
 
     if (x < 1 || y < 1)  error(einvsiz); /* invalid buffer size */
+    /* Keep the display screen's bitmap: what it shows carries over to the
+       new buffer, as the X11 and Mac OS X ports do, so a program that
+       redraws after each resize shows its last frame until the next one,
+       and not a frame of background. The bitmap comes out of its context
+       here, so the teardown below finds the stock bitmap there and leaves
+       ours alone. */
+    obm = NULL;
+    oldw = oldh = 0;
+    osc = win->screens[win->curdsp-1];
+    if (osc && osc->bdc) {
+
+        oldw = osc->maxxg;
+        oldh = osc->maxyg;
+        obm = SelectObject(osc->bdc, osc->bhn);
+        if (obm == HGDI_ERROR) obm = NULL;
+
+    }
     /* set buffer size */
     win->gmaxx = x/win->charspace; /* find character size x */
     win->gmaxy = y/win->linespace; /* find character size y */
@@ -11249,6 +11275,30 @@ static void isizbufg(winptr win, ami_long x, ami_long y)
 
         win->screens[win->curupd-1] = imalloc(sizeof(scncon));
         iniscn(win, win->screens[win->curupd-1]); /* initalize screen buffer */
+
+    }
+    /* the old display bitmap into the new display buffer, the part the two
+       have in common; the rest of the new buffer stays as iniscn cleared
+       it. The copy is of physical pixels, so the new buffer's transform is
+       lifted for it, as clrbuf does. A failure here only costs the copy. */
+    if (obm) {
+
+        nsc = win->screens[win->curdsp-1];
+        copyw = oldw < x ? oldw : x;
+        copyh = oldh < y ? oldh : y;
+        odc = CreateCompatibleDC(win->devcon);
+        if (odc) {
+
+            sbm = SelectObject(odc, obm);
+            SetMapMode(nsc->bdc, MM_TEXT);
+            SetViewportOrgEx(nsc->bdc, 0, 0, NULL);
+            BitBlt(nsc->bdc, 0, 0, copyw, copyh, odc, 0, 0, SRCCOPY);
+            settrans(nsc->bdc, nsc); /* the drawing transform back */
+            SelectObject(odc, sbm);
+            DeleteDC(odc);
+
+        }
+        DeleteObject(obm);
 
     }
     sclsync(win, FALSE); /* the scroll bars as the new buffer calls for */
