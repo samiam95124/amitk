@@ -300,6 +300,7 @@ typedef struct scncon { /* screen context */
     mode    bmod;        /* background mix mode */
     HFONT   font;        /* current font handle */
     fontptr cfont;       /* active font entry */
+    int     cwid[256];   /* advance of each character at the logical size */
     ami_long    cspc;        /* character spacing */
     ami_long    lspc;        /* line spacing */
     int     attr;        /* set of active attributes */
@@ -3001,6 +3002,38 @@ static HFONT scnfont(winptr win, scnptr sc, int esc)
 
 /*******************************************************************************
 
+Font metrics cache
+
+The metrics of a font at its logical size (see newfontscn): the text metrics
+and the advance of each character. Finding them means realizing a twin of the
+font at that size and loading every glyph, which is far more than selecting
+the font itself costs, and a program that redraws a display sets its few fonts
+over and over, so the metrics are kept by face, height and attributes and
+found again rather than measured again. The table is replaced round robin; a
+program using more fonts than it holds just measures more often.
+
+*******************************************************************************/
+
+#define FMCACHE 64 /* fonts whose metrics are kept */
+/* the attributes that select a different font in scnfont */
+#define FMATTR (BIT(saxlight)|BIT(salight)|BIT(sabold)|BIT(saxbold)| \
+                BIT(saital)|BIT(saundl)|BIT(sastkout)|BIT(sasuper)|BIT(sasubs))
+
+typedef struct fmrec { /* metrics of one font */
+
+    fontptr    cfont;     /* the face, or NULL for an empty entry */
+    ami_long   high;      /* the height requested */
+    int        attr;      /* the attributes, FMATTR bits */
+    TEXTMETRIC tm;        /* its text metrics */
+    int        cwid[256]; /* its character advances */
+
+} fmrec, *fmptr;
+
+static fmrec fmcache[FMCACHE]; /* the metrics kept */
+static int   fmnext;           /* the entry replaced next */
+
+/*******************************************************************************
+
 Create font for a screen
 
 Creates a font using the attributes of the given screen, and sets the
@@ -3015,6 +3048,9 @@ static void newfontscn(winptr win, scnptr sc)
     TEXTMETRIC tm;  /* text metric structure */
     HGDIOBJ    sf;  /* the font selected: the created one or the stock one */
     HFONT      mf;  /* unrotated twin for measuring */
+    HDC        mdc; /* an unscaled context to measure the twin in */
+    fmptr      fm;  /* the font's metrics, kept */
+    int        i;   /* index for the metrics kept */
     int        b;
     HGDIOBJ    rv;
     int        esc; /* escapement angle in tenths of a degree */
@@ -3053,27 +3089,51 @@ static void newfontscn(winptr win, scnptr sc)
         GDICALL(rv = SelectObject(win->devcon, sf), rv == HGDI_ERROR); /* process error */
 
     }
-    /* The metrics set the character cell, which does not follow the text
-       path: the cell is the font's on the normal reading path, as on the
-       other platforms, so a program that lays text out by the cell size gets
-       the same answer on any path. GDI gives a rotated font the metrics of
-       its rotated bounding box, so a rotated font is measured by its
-       unrotated twin. */
-    if (esc) { /* rotated: measure the unrotated twin */
+    /* The metrics set the character cell and the advances the cursor moves
+       by. They come from a twin of the font at its logical size, on the
+       normal reading path, in an unscaled context, for two reasons. The
+       cell does not follow the text path: it is the font's on the normal
+       path, as on the other platforms, so a program that lays text out by
+       the cell size gets the same answer on any path, while GDI gives a
+       rotated font the metrics of its rotated bounding box. And under a
+       view scale GDI realizes the font at a whole device pixel size, whose
+       advances, taken back to logical units, move with the scale by up to
+       half a device pixel per character; the twin's advances are the
+       font's at the logical size, so cursor movement, ami_strsiz and the
+       cell do not change with the scale. That is how the other platforms
+       work, measuring at the logical size and rendering at the scaled one.
+       Text is placed a character at a time at these logical positions
+       (plcglyph), so what is drawn follows them within a pixel at any
+       scale. Unscaled, the twin is the screen's own font, and the metrics
+       are those of the font in use. */
+    fm = NULL; /* look for the metrics kept */
+    for (i = 0; i < FMCACHE && !fm; i++)
+        if (fmcache[i].cfont == sc->cfont && fmcache[i].high == win->gfhigh &&
+            fmcache[i].attr == (sc->attr & FMATTR)) fm = &fmcache[i];
+    if (!fm) { /* not kept: measure the twin */
 
-        mf = scnfont(win, sc, 0); /* create the twin, 0 for the stock font */
-        if (mf) GDICALL(rv = SelectObject(sc->bdc, mf), rv == HGDI_ERROR);
+        mf = scnfont(win, sc, 0); /* the twin, 0 for the stock font */
+        GDICALL(mdc = CreateCompatibleDC(win->devcon), !mdc); /* process windows error */
+        if (mf) GDICALL(rv = SelectObject(mdc, mf), rv == HGDI_ERROR);
         else {
 
             GDICALL(rv = GetStockObject(SYSTEM_FIXED_FONT), !rv); /* process windows error */
-            GDICALL(rv = SelectObject(sc->bdc, rv), rv == HGDI_ERROR);
+            GDICALL(rv = SelectObject(mdc, rv), rv == HGDI_ERROR);
 
         }
-        GDICALL(b = GetTextMetrics(sc->bdc, &tm), !b); /* get the standard metrics */ /* process windows error */
-        GDICALL(rv = SelectObject(sc->bdc, sf), rv == HGDI_ERROR); /* back to the screen's font */
+        fm = &fmcache[fmnext]; /* the entry to keep them in */
+        fmnext = (fmnext+1)%FMCACHE;
+        GDICALL(b = GetTextMetrics(mdc, &fm->tm), !b); /* get the standard metrics */ /* process windows error */
+        GDICALL(b = GetCharWidth32(mdc, 0, 255, fm->cwid), !b); /* and each character's advance */ /* process windows error */
+        GDICALL(b = DeleteDC(mdc), !b); /* process windows error */
         if (mf) DeleteObject(mf); /* release the twin */
+        fm->cfont = sc->cfont; /* key the entry */
+        fm->high = win->gfhigh;
+        fm->attr = sc->attr & FMATTR;
 
-    } else GDICALL(b = GetTextMetrics(sc->bdc, &tm), !b); /* get the standard metrics */ /* process windows error */
+    }
+    tm = fm->tm; /* the metrics, for the cell */
+    memcpy(sc->cwid, fm->cwid, sizeof(sc->cwid)); /* the advances, for the cursor */
     /* Calculate line spacing */
     win->linespace = tm.tmHeight;
     sc->lspc = win->linespace;
@@ -5320,6 +5380,75 @@ static void select_ivf(FILE* f, ami_long u, ami_long d)
 
 /*******************************************************************************
 
+Place a visible character
+
+Draws the character at the cursor and moves the cursor past it, for terminal
+character placement and for string writes on the normal reading path. The
+advance is the character's at the font's logical size (see newfontscn), so
+the cursor moves the same at any view scale, and the character lands within
+a pixel of where the cursor says, as on the other platforms. GDI's own spacing
+of a string, by the whole device pixel advances of the font it realized at the
+scaled size, is not used: it drifts from the logical cell by up to half a
+pixel per character, which shows as text that shifts within itself as a
+scaled window is resized.
+
+*******************************************************************************/
+
+static void plcglyph(winptr win, char c)
+
+{
+
+    int    b;   /* int return */
+    int    off; /* subscript offset */
+    SIZE   sz;  /* size holder */
+    double a;   /* text path angle in radians */
+    scnptr sc;
+
+    sc = win->screens[win->curupd-1];
+    off = 0; /* set no subscript offset */
+    if (BIT(sasubs) & sc->attr) off = trunc(win->linespace*0.35);
+    /* update buffer */
+    if (win->bufmod) { /* buffer is active */
+
+        /* draw character */
+        GDICALL(b = TextOut(sc->bdc, sc->curxg-1, sc->curyg-1+off, &c, 1), !b); /* process windows error */
+
+    }
+    if (indisp(win)) { /* activate on screen */
+
+        /* draw character on screen */
+        curoff(win); /* hide the cursor */
+        /* draw character */
+        GDICALL(b = TextOut(win->devcon, sc->curxg-1, sc->curyg-1+off, &c, 1), !b); /* process windows error */
+        curon(win); /* show the cursor */
+
+    }
+    /* note the system font is substituted with a scalable font when the
+       text path is rotated, so it advances as proportional below */
+    if (sc->cfont->sys && sc->angle == LONG_MAX/4)
+        iright(win); /* move cursor right character */
+    else if (sc->angle == LONG_MAX/4) { /* normal reading text, proportional */
+
+        sc->curxg = sc->curxg+sc->cwid[(unsigned char)c]; /* advance the character width */
+        sc->curx = sc->curxg/win->charspace+1; /* recalculate character position */
+        if (indisp(win)) setcur(win); /* set cursor on screen */
+
+    } else { /* advance along the text path direction */
+
+        GDICALL(b = GetTextExtentPoint32(sc->bdc, &c, 1, &sz), !b); /* get spacing */ /* process windows error */
+        a = (double)sc->angle/LONG_MAX*2.0*PI; /* angle in radians */
+        sc->curxg = sc->curxg+(int)floor(sz.cx*sin(a)+0.5);
+        sc->curyg = sc->curyg-(int)floor(sz.cx*cos(a)+0.5);
+        sc->cury = sc->curyg/win->linespace+1; /* recalculate row */
+        sc->curx = sc->curxg/win->charspace+1; /* recalculate character position */
+        if (indisp(win)) setcur(win); /* set cursor on screen */
+
+    }
+
+}
+
+/*******************************************************************************
+
 Place next terminal character
 
 Places the given character to the current cursor position using the current
@@ -5336,10 +5465,6 @@ static void plcchr(winptr win, char c)
 
 {
 
-    int    b;   /* int return */
-    int    off; /* subscript offset */
-    SIZE   sz;  /* size holder */
-    double a;   /* text path angle in radians */
     scnptr sc;
 
     sc = win->screens[win->curupd-1];
@@ -5364,51 +5489,7 @@ static void plcchr(winptr win, char c)
     } else if (c == '\b') ileft(win); /* back space, move left */
     else if (c == '\f') iclear(win); /* clear screen */
     else if (c == '\t') itab(win); /* process tab */
-    else if (c >= ' ' && c != 0x7f) { /* character is visible */
-
-        off = 0; /* set no subscript offset */
-        if (BIT(sasubs) & sc->attr) off = trunc(win->linespace*0.35);
-        /* update buffer */
-        if (win->bufmod) { /* buffer is active */
-
-            /* draw character */
-            GDICALL(b = TextOut(sc->bdc, sc->curxg-1, sc->curyg-1+off, &c, 1), !b); /* process windows error */
-
-        }
-        if (indisp(win)) { /* activate on screen */
-
-            /* draw character on screen */
-            curoff(win); /* hide the cursor */
-            /* draw character */
-            GDICALL(b = TextOut(win->devcon, sc->curxg-1, sc->curyg-1+off, &c, 1), !b); /* process windows error */
-            curon(win); /* show the cursor */
-
-        }
-        /* note the system font is substituted with a scalable font when the
-           text path is rotated, so it advances as proportional below */
-        if (sc->cfont->sys && sc->angle == LONG_MAX/4)
-            iright(win); /* move cursor right character */
-        else { /* perform proportional version */
-
-            GDICALL(b = GetTextExtentPoint32(sc->bdc, &c, 1, &sz), !b); /* get spacing */ /* process windows error */
-            if (sc->angle == LONG_MAX/4) { /* normal reading text */
-
-                sc->curxg = sc->curxg+sz.cx; /* advance the character width */
-
-            } else { /* advance along the text path direction */
-
-                a = (double)sc->angle/LONG_MAX*2.0*PI; /* angle in radians */
-                sc->curxg = sc->curxg+(int)floor(sz.cx*sin(a)+0.5);
-                sc->curyg = sc->curyg-(int)floor(sz.cx*cos(a)+0.5);
-                sc->cury = sc->curyg/win->linespace+1; /* recalculate row */
-
-            }
-            sc->curx = sc->curxg/win->charspace+1; /* recalculate character position */
-            if (indisp(win)) setcur(win); /* set cursor on screen */
-
-        }
-
-    }
+    else if (c >= ' ' && c != 0x7f) plcglyph(win, c); /* character is visible */
 
 }
 
@@ -5442,6 +5523,14 @@ static void iwrtstr(winptr win,  char* s)
     sc = win->screens[win->curupd-1];
     if (sc->autof) error(estrato); /* autowrap is on */
     if (!win->visible) winvis(win); /* make sure we are displayed */
+    if (sc->angle == LONG_MAX/4) { /* normal reading text */
+
+        /* a character at a time, each at its logical place: see plcglyph */
+        while (*s) plcglyph(win, *s++);
+        return;
+
+    }
+    /* rotated text: GDI lays the string out along the path */
     off = 0; /* set no subscript offset */
     if (BIT(sasubs) & sc->attr) off = trunc(win->linespace*0.35);
     /* update buffer */
@@ -7003,16 +7092,17 @@ static ami_long istrsiz(winptr win, const char* s)
 
 {
 
-    SIZE sz; /* size holder */
-    BOOL b;  /* return value */
-    int ss;
+    scnptr   sc;
+    ami_long w;
 
-    /* get spacing */
-    GDICALL(b = GetTextExtentPoint32(win->screens[win->curupd-1]->bdc, s, strlen(s),
-                             &sz), !b); /* process windows error */
-    ss = sz.cx; /* return that */
+    /* the sum of the advances at the logical size, which is how the cursor
+       moves over the string (plcglyph): the width in logical units does not
+       change with the view scale, as on the other platforms */
+    sc = win->screens[win->curupd-1];
+    w = 0;
+    while (*s) w += sc->cwid[(unsigned char)*s++];
 
-    return (ss);
+    return (w);
 
 }
 
