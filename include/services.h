@@ -154,6 +154,9 @@ extern char ami_pthchr(void);
 extern ami_long  ami_latitude(void);
 extern ami_long  ami_longitude(void);
 extern ami_long  ami_altitude(void);
+/* how the position and altitude were found, as a sentence: "position from
+   ami.cfg, altitude from the terrain height at it via api.open-meteo.com" */
+extern void ami_locsrc(char* s, ami_long sl);
 extern ami_long  ami_country(void);
 extern void ami_countrys(char* s, ami_long sl, ami_long c);
 extern ami_long  ami_timezone(void);

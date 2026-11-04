@@ -72,7 +72,11 @@
 #include <mach-o/dyld.h>
 #endif
 
+#include <sys/socket.h>
+#include <sys/select.h>
+#include <netdb.h>
 #include <services.h> /* the header for this file */
+#include <config.h>   /* ami.cfg, for the host location */
 
 /*
  * Debug print system
@@ -2317,6 +2321,249 @@ char ami_pthchr(void)
 
 /** ****************************************************************************
 
+Host location
+
+The position the location calls report is found once, on the first call, from
+these sources in order:
+
+1. The services block of ami.cfg: "latitude" and "longitude" in signed decimal
+   degrees (south and west negative) and "altitude" in metres. A desktop that
+   never moves is set here once.
+
+2. The network, when the host is connected and "location_lookup" in the
+   services block is not 0: the public address of the host is looked up in an
+   IP geolocation service, which places it in a city, typically within 5 to
+   50 km of the truth, and at the provider's exchange when the connection is
+   satellite or a VPN. The service is ip-api.com unless "location_host" and
+   "location_path" in the services block name another that answers a plain
+   HTTP GET with JSON holding "lat" and "lon" fields. No key is needed and
+   the host is contacted at most once per run.
+
+The altitude comes from "altitude" in the services block, else, with a
+position known and lookups allowed, from the terrain height at that position
+as a digital elevation model gives it (api.open-meteo.com, 90 m cells,
+unless "altitude_host" names another host answering the same request): the
+ground under a computer that sits on it, as good as the position is.
+
+A GPS or the desktop's location service (GeoClue) would come before the
+network lookup on a host that has one; that is still to do.
+
+When nothing is known the calls return 0, the equator at Greenwich. A caller
+that wants to tell "unknown" from a real position there can test that both
+latitude and longitude are 0. ami_locsrc() says in words where the figures
+came from.
+
+*******************************************************************************/
+
+static pthread_mutex_t loclck = PTHREAD_MUTEX_INITIALIZER;
+static int    locdone;              /* the search was made */
+static int    lochave;              /* a position is known */
+static double loclat, loclon;       /* degrees */
+static double localt;               /* metres */
+static int    althave;              /* an altitude is known */
+static char   locsrc[256];          /* where the figures came from */
+
+#define LOCTIMEOUT 5                /* seconds allowed for the network lookup */
+
+/* a value of a config block, or NULL when absent or empty */
+static const char *loccfg(ami_valptr blk, const char *name)
+{
+
+    ami_valptr v;
+
+    if (!blk) return NULL;
+    v = ami_schlst((string)name, blk->sublist);
+
+    return v && v->value && v->value[0] ? v->value : NULL;
+
+}
+
+/* fetch a page by plain HTTP; the body lands in buf. 1 on success */
+static int locget(const char *host, const char *path, char *buf, size_t buflen)
+{
+
+    struct addrinfo hints, *res, *ai;
+    int fd = -1, r, flags;
+    size_t got = 0;
+    char req[512], *body;
+    struct timeval tv;
+    fd_set wf;
+
+    memset(&hints, 0, sizeof hints);
+    hints.ai_socktype = SOCK_STREAM;
+    if (getaddrinfo(host, "80", &hints, &res)) return 0;
+    for (ai = res; ai && fd < 0; ai = ai->ai_next) {
+
+        fd = socket(ai->ai_family, ai->ai_socktype, ai->ai_protocol);
+        if (fd < 0) continue;
+        /* connect with a deadline: a host without a route must not hang the
+           caller */
+        flags = fcntl(fd, F_GETFL, 0);
+        fcntl(fd, F_SETFL, flags | O_NONBLOCK);
+        r = connect(fd, ai->ai_addr, ai->ai_addrlen);
+        if (r < 0 && errno == EINPROGRESS) {
+
+            int err = 0;
+            socklen_t el = sizeof err;
+
+            FD_ZERO(&wf);
+            FD_SET(fd, &wf);
+            tv.tv_sec = LOCTIMEOUT; tv.tv_usec = 0;
+            r = select(fd+1, NULL, &wf, NULL, &tv);
+            if (r > 0 && !getsockopt(fd, SOL_SOCKET, SO_ERROR, &err, &el) && !err) r = 0;
+            else r = -1;
+
+        }
+        if (r < 0) { close(fd); fd = -1; continue; }
+        fcntl(fd, F_SETFL, flags);
+
+    }
+    freeaddrinfo(res);
+    if (fd < 0) return 0;
+    tv.tv_sec = LOCTIMEOUT; tv.tv_usec = 0;
+    setsockopt(fd, SOL_SOCKET, SO_RCVTIMEO, &tv, sizeof tv);
+    setsockopt(fd, SOL_SOCKET, SO_SNDTIMEO, &tv, sizeof tv);
+    snprintf(req, sizeof req, "GET %s HTTP/1.0\r\nHost: %s\r\nUser-Agent: petit-ami\r\n\r\n", path, host);
+    if (send(fd, req, strlen(req), 0) != (ssize_t)strlen(req)) { close(fd); return 0; }
+    while (got < buflen-1) {
+
+        r = (int)recv(fd, buf+got, buflen-1-got, 0);
+        if (r <= 0) break;
+        got += r;
+
+    }
+    close(fd);
+    buf[got] = 0;
+    if (strncmp(buf, "HTTP/", 5) || !strstr(buf, " 200 ")) return 0;
+    body = strstr(buf, "\r\n\r\n");
+    if (!body) return 0;
+    memmove(buf, body+4, strlen(body+4)+1);
+
+    return 1;
+
+}
+
+/* find the host position once */
+static void findloc(void)
+{
+
+    ami_valptr root = NULL, svc;
+    const char *v, *w, *host = "ip-api.com", *path = "/json/?fields=status,lat,lon,query";
+    const char *althost = "api.open-meteo.com";
+    char *e, body[4096], altpath[128], addr[64];
+    int lookup = 1;
+    double la, lo;
+
+    pthread_mutex_lock(&loclck);
+    if (!locdone) {
+
+        locdone = 1;
+        strcpy(locsrc, "position unknown");
+        ami_config(&root);
+        svc = ami_schlst("services", root);
+        v = loccfg(svc, "latitude");
+        w = loccfg(svc, "longitude");
+        if (v && w) {
+
+            la = strtod(v, &e);
+            if (!*e) { lo = strtod(w, &e); }
+            if (!*e && la >= -90 && la <= 90 && lo >= -180 && lo <= 180) {
+
+                loclat = la;
+                loclon = lo;
+                lochave = 1;
+                strcpy(locsrc, "position from ami.cfg");
+
+            }
+
+        }
+        v = loccfg(svc, "altitude");
+        if (v) { la = strtod(v, &e); if (!*e) { localt = la; althave = 1; } }
+        v = loccfg(svc, "location_lookup");
+        if (v) lookup = strtol(v, &e, 10) != 0;
+        v = loccfg(svc, "location_host");
+        if (v) host = v;
+        v = loccfg(svc, "location_path");
+        if (v) path = v;
+        v = loccfg(svc, "altitude_host");
+        if (v) althost = v;
+        if (!lochave && lookup && locget(host, path, body, sizeof body)) {
+
+            v = strstr(body, "\"lat\":");
+            w = strstr(body, "\"lon\":");
+            if (v && w && !strstr(body, "\"fail\"")) {
+
+                la = strtod(v+6, &e);
+                lo = strtod(w+6, NULL);
+                if (la >= -90 && la <= 90 && lo >= -180 && lo <= 180) {
+
+                    loclat = la;
+                    loclon = lo;
+                    lochave = 1;
+                    /* the address looked up, for the account */
+                    addr[0] = 0;
+                    v = strstr(body, "\"query\":\"");
+                    if (v) {
+
+                        v += 9;
+                        for (e = addr; *v && *v != '"' && e < addr+sizeof addr-1; v++) *e++ = *v;
+                        *e = 0;
+
+                    }
+                    snprintf(locsrc, sizeof locsrc, "position from internet address%s%s via %s, city level",
+                             addr[0]? " ": "", addr, host);
+
+                }
+
+            }
+
+        }
+        if (lochave && !althave && lookup) {
+
+            snprintf(altpath, sizeof altpath, "/v1/elevation?latitude=%.5f&longitude=%.5f", loclat, loclon);
+            if (locget(althost, altpath, body, sizeof body)) {
+
+                v = strstr(body, "\"elevation\":[");
+                if (v) {
+
+                    la = strtod(v+13, &e);
+                    if (e != v+13) {
+
+                        localt = la;
+                        althave = 1;
+                        snprintf(locsrc+strlen(locsrc), sizeof locsrc-strlen(locsrc),
+                                 ", altitude from the terrain height there via %s", althost);
+
+                    }
+
+                }
+
+            }
+
+        } else if (althave)
+            snprintf(locsrc+strlen(locsrc), sizeof locsrc-strlen(locsrc), ", altitude from ami.cfg");
+        if (!althave) snprintf(locsrc+strlen(locsrc), sizeof locsrc-strlen(locsrc), ", altitude unknown");
+
+    }
+    pthread_mutex_unlock(&loclck);
+
+}
+
+/* a measure as a ratioed integer: full scale is AMI_LONG_MAX */
+static ami_long locratio(double v, double full)
+{
+
+    double r = v/full;
+
+    if (r >= 1.0) return AMI_LONG_MAX;
+    if (r <= -1.0) return -AMI_LONG_MAX;
+
+    return (ami_long)(r*(double)AMI_LONG_MAX);
+
+}
+
+/** ****************************************************************************
+
 Find ami_latitude
 
 Finds the ami_latitude of the host. Returns the ami_latitude as a ratioed integer:
@@ -2332,9 +2579,7 @@ Note that implementations are generally divided into stationary and mobile
 hosts. A stationary host like a desktop computer can be set once on install.
 A mobile host is constantly reading its location (usually from a GPS).
 
-There are algorithims that can find the approximate location of a host from
-network connections. This would effectively allow the automatic setting of a
-host location.
+See "Host location" above for where the position comes from.
 
 *******************************************************************************/
 
@@ -2342,7 +2587,9 @@ ami_long ami_latitude(void)
 
 {
 
-    return 0;
+    findloc();
+
+    return lochave? locratio(loclat, 90.0): 0;
 
 }
 
@@ -2363,13 +2610,17 @@ Note that implementations are generally divided into stationary and mobile
 hosts. A stationary host like a desktop computer can be set once on install.
 A mobile host is constantly reading its location (usually from a GPS).
 
+See "Host location" above for where the position comes from.
+
 *******************************************************************************/
 
 ami_long ami_longitude(void)
 
 {
 
-    return 0;
+    findloc();
+
+    return lochave? locratio(loclon, 180.0): 0;
 
 }
 
@@ -2398,13 +2649,42 @@ Note that implementations are generally divided into stationary and mobile
 hosts. A stationary host like a desktop computer can be set once on install.
 A mobile host is constantly reading its location (usually from a GPS).
 
+Only "altitude" in the services block of ami.cfg gives one; the network
+lookup has no height.
+
 *******************************************************************************/
 
 ami_long ami_altitude(void)
 
 {
 
-    return 0;
+    findloc();
+
+    return althave? locratio(localt, 100000.0): 0;
+
+}
+
+/** ****************************************************************************
+
+Describe the location sources
+
+Gives, in words, where the position and altitude came from: "position from
+ami.cfg, altitude from ami.cfg", "position from internet address 1.2.3.4 via
+ip-api.com, city level, altitude from the terrain height there via
+api.open-meteo.com", "position unknown, altitude unknown" and so on. The
+string is cut to fit.
+
+*******************************************************************************/
+
+void ami_locsrc(char* s, ami_long sl)
+
+{
+
+    findloc();
+    if (sl < 1) return;
+    pthread_mutex_lock(&loclck);
+    snprintf(s, sl, "%s", locsrc);
+    pthread_mutex_unlock(&loclck);
 
 }
 
