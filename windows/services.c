@@ -2276,24 +2276,7 @@ ami_long ami_altitude(void)
 
 }
 
-/** ****************************************************************************
 
-Describe the location sources
-
-Gives, in words, where the position and altitude came from.
-
-*******************************************************************************/
-
-void ami_locsrc(char* s, ami_long sl)
-
-{
-
-    findloc();
-    if (sl < 1) return;
-    snprintf(s, sl, "position %s, altitude %s", lochave? "from ami.cfg": "unknown",
-             althave? "from ami.cfg": "unknown");
-
-}
 
 /** ****************************************************************************
 

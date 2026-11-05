@@ -1022,14 +1022,6 @@ ami_long ami_altitude(void)
 
 }
 
-void ami_locsrc(char* s, ami_long sl)
-
-{
-
-    error("ami_locsrc: Is not implemented");
-
-}
-
 
 /** ****************************************************************************
 

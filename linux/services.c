@@ -2350,8 +2350,7 @@ network lookup on a host that has one; that is still to do.
 
 When nothing is known the calls return 0, the equator at Greenwich. A caller
 that wants to tell "unknown" from a real position there can test that both
-latitude and longitude are 0. ami_locsrc() says in words where the figures
-came from.
+latitude and longitude are 0.
 
 *******************************************************************************/
 
@@ -2361,7 +2360,6 @@ static int    lochave;              /* a position is known */
 static double loclat, loclon;       /* degrees */
 static double localt;               /* metres */
 static int    althave;              /* an altitude is known */
-static char   locsrc[256];          /* where the figures came from */
 
 #define LOCTIMEOUT 5                /* seconds allowed for the network lookup */
 
@@ -2448,9 +2446,9 @@ static void findloc(void)
 {
 
     ami_valptr root = NULL, svc;
-    const char *v, *w, *host = "ip-api.com", *path = "/json/?fields=status,lat,lon,query";
+    const char *v, *w, *host = "ip-api.com", *path = "/json/?fields=status,lat,lon";
     const char *althost = "api.open-meteo.com";
-    char *e, body[4096], altpath[128], addr[64];
+    char *e, body[4096], altpath[128];
     int lookup = 1;
     double la, lo;
 
@@ -2458,7 +2456,6 @@ static void findloc(void)
     if (!locdone) {
 
         locdone = 1;
-        strcpy(locsrc, "position unknown");
         ami_config(&root);
         svc = ami_schlst("services", root);
         v = loccfg(svc, "latitude");
@@ -2472,7 +2469,6 @@ static void findloc(void)
                 loclat = la;
                 loclon = lo;
                 lochave = 1;
-                strcpy(locsrc, "position from ami.cfg");
 
             }
 
@@ -2500,18 +2496,6 @@ static void findloc(void)
                     loclat = la;
                     loclon = lo;
                     lochave = 1;
-                    /* the address looked up, for the account */
-                    addr[0] = 0;
-                    v = strstr(body, "\"query\":\"");
-                    if (v) {
-
-                        v += 9;
-                        for (e = addr; *v && *v != '"' && e < addr+sizeof addr-1; v++) *e++ = *v;
-                        *e = 0;
-
-                    }
-                    snprintf(locsrc, sizeof locsrc, "position from internet address%s%s via %s, city level",
-                             addr[0]? " ": "", addr, host);
 
                 }
 
@@ -2531,8 +2515,6 @@ static void findloc(void)
 
                         localt = la;
                         althave = 1;
-                        snprintf(locsrc+strlen(locsrc), sizeof locsrc-strlen(locsrc),
-                                 ", altitude from the terrain height there via %s", althost);
 
                     }
 
@@ -2540,9 +2522,7 @@ static void findloc(void)
 
             }
 
-        } else if (althave)
-            snprintf(locsrc+strlen(locsrc), sizeof locsrc-strlen(locsrc), ", altitude from ami.cfg");
-        if (!althave) snprintf(locsrc+strlen(locsrc), sizeof locsrc-strlen(locsrc), ", altitude unknown");
+        }
 
     }
     pthread_mutex_unlock(&loclck);
@@ -2661,30 +2641,6 @@ ami_long ami_altitude(void)
     findloc();
 
     return althave? locratio(localt, 100000.0): 0;
-
-}
-
-/** ****************************************************************************
-
-Describe the location sources
-
-Gives, in words, where the position and altitude came from: "position from
-ami.cfg, altitude from ami.cfg", "position from internet address 1.2.3.4 via
-ip-api.com, city level, altitude from the terrain height there via
-api.open-meteo.com", "position unknown, altitude unknown" and so on. The
-string is cut to fit.
-
-*******************************************************************************/
-
-void ami_locsrc(char* s, ami_long sl)
-
-{
-
-    findloc();
-    if (sl < 1) return;
-    pthread_mutex_lock(&loclck);
-    snprintf(s, sl, "%s", locsrc);
-    pthread_mutex_unlock(&loclck);
 
 }
 
