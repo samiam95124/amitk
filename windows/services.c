@@ -71,9 +71,14 @@
 #define _WIN32_WINNT 0xA00
 #define _WIN32_IE 0xA00
 
+/* winsock2 must precede windows.h; it serves the host location lookup */
+#include <winsock2.h>
+#include <ws2tcpip.h>
 #include <windows.h>
 #include <limits.h>
 #include <stdlib.h>
+#include <stdio.h>
+#include <string.h>
 
 #include <services.h> /* the header for this file */
 #include <config.h>   /* ami.cfg, for the host location */
@@ -2127,20 +2132,51 @@ char ami_pthchr(void)
 
 Host location
 
-The position is read once, on the first call, from the services block of
-ami.cfg: "latitude" and "longitude" in signed decimal degrees (south and
-west negative) and "altitude" in metres. The Linux module also asks an IP
-geolocation service when the file gives nothing (see linux/services.c); that
-is still to do here. When nothing is known the calls return 0.
+The position the location calls report is found once, on the first call, from
+these sources in order, as on Linux (see linux/services.c):
+
+1. The services block of ami.cfg: "latitude" and "longitude" in signed decimal
+   degrees (south and west negative) and "altitude" in metres. A desktop that
+   never moves is set here once.
+
+2. The network, when the host is connected and "location_lookup" in the
+   services block is not 0: the public address of the host is looked up in an
+   IP geolocation service, which places it in a city, typically within 5 to
+   50 km of the truth, and at the provider's exchange when the connection is
+   satellite or a VPN. The service is ip-api.com unless "location_host" and
+   "location_path" in the services block name another that answers a plain
+   HTTP GET with JSON holding "lat" and "lon" fields. No key is needed and
+   the host is contacted at most once per run.
+
+The altitude comes from "altitude" in the services block, else, with a
+position known and lookups allowed, from the terrain height at that position
+as a digital elevation model gives it (api.open-meteo.com, 90 m cells,
+unless "altitude_host" names another host answering the same request): the
+ground under a computer that sits on it, as good as the position is.
+
+The Windows location service (Windows.Devices.Geolocation), with a GPS or
+Wi-Fi positioning behind it, would come before the network lookup on a host
+that has it; that is still to do.
+
+When nothing is known the calls return 0, the equator at Greenwich. A caller
+that wants to tell "unknown" from a real position there can test that both
+latitude and longitude are 0.
+
+The fetch runs on Winsock, started and stopped around it: Winsock counts its
+users, so this is independent of what the network module has done.
 
 *******************************************************************************/
 
-static int    locdone;              /* the file was read */
+static CRITICAL_SECTION loclck;     /* one search at a time */
+static int    locdone;              /* the search was made */
 static int    lochave;              /* a position is known */
 static double loclat, loclon;       /* degrees */
 static double localt;               /* metres */
 static int    althave;              /* an altitude is known */
 
+#define LOCTIMEOUT 5                /* seconds allowed for the network lookup */
+
+/* a value of a config block, or NULL when absent or empty */
 static const char *loccfg(ami_valptr blk, const char *name)
 {
 
@@ -2153,35 +2189,164 @@ static const char *loccfg(ami_valptr blk, const char *name)
 
 }
 
+/* fetch a page by plain HTTP; the body lands in buf. 1 on success */
+static int locget(const char *host, const char *path, char *buf, size_t buflen)
+{
+
+    struct addrinfo hints, *res, *ai;
+    SOCKET s = INVALID_SOCKET;
+    WSADATA wsd;
+    int r;
+    u_long nb;
+    DWORD tmo = LOCTIMEOUT*1000;
+    size_t got = 0;
+    char req[512], *body;
+    struct timeval tv;
+    fd_set wf, ef;
+
+    if (WSAStartup(MAKEWORD(2,2), &wsd)) return 0;
+    memset(&hints, 0, sizeof hints);
+    hints.ai_socktype = SOCK_STREAM;
+    if (getaddrinfo(host, "80", &hints, &res)) { WSACleanup(); return 0; }
+    for (ai = res; ai && s == INVALID_SOCKET; ai = ai->ai_next) {
+
+        s = socket(ai->ai_family, ai->ai_socktype, ai->ai_protocol);
+        if (s == INVALID_SOCKET) continue;
+        /* connect with a deadline: a host without a route must not hang the
+           caller. A refusal is signalled in the exception set here */
+        nb = 1;
+        ioctlsocket(s, FIONBIO, &nb);
+        r = connect(s, ai->ai_addr, (int)ai->ai_addrlen);
+        if (r == SOCKET_ERROR && WSAGetLastError() == WSAEWOULDBLOCK) {
+
+            int err = 0, el = sizeof err;
+
+            FD_ZERO(&wf);
+            FD_SET(s, &wf);
+            FD_ZERO(&ef);
+            FD_SET(s, &ef);
+            tv.tv_sec = LOCTIMEOUT; tv.tv_usec = 0;
+            r = select(0, NULL, &wf, &ef, &tv);
+            if (r > 0 && FD_ISSET(s, &wf) &&
+                !getsockopt(s, SOL_SOCKET, SO_ERROR, (char*)&err, &el) && !err) r = 0;
+            else r = -1;
+
+        }
+        if (r < 0) { closesocket(s); s = INVALID_SOCKET; continue; }
+        nb = 0;
+        ioctlsocket(s, FIONBIO, &nb);
+
+    }
+    freeaddrinfo(res);
+    if (s == INVALID_SOCKET) { WSACleanup(); return 0; }
+    setsockopt(s, SOL_SOCKET, SO_RCVTIMEO, (const char*)&tmo, sizeof tmo);
+    setsockopt(s, SOL_SOCKET, SO_SNDTIMEO, (const char*)&tmo, sizeof tmo);
+    snprintf(req, sizeof req, "GET %s HTTP/1.0\r\nHost: %s\r\nUser-Agent: petit-ami\r\n\r\n", path, host);
+    if (send(s, req, (int)strlen(req), 0) != (int)strlen(req)) { closesocket(s); WSACleanup(); return 0; }
+    while (got < buflen-1) {
+
+        r = recv(s, buf+got, (int)(buflen-1-got), 0);
+        if (r <= 0) break;
+        got += (size_t)r;
+
+    }
+    closesocket(s);
+    WSACleanup();
+    buf[got] = 0;
+    if (strncmp(buf, "HTTP/", 5) || !strstr(buf, " 200 ")) return 0;
+    body = strstr(buf, "\r\n\r\n");
+    if (!body) return 0;
+    memmove(buf, body+4, strlen(body+4)+1);
+
+    return 1;
+
+}
+
+/* find the host position once */
 static void findloc(void)
 {
 
     ami_valptr root = NULL, svc;
-    const char *v, *w;
-    char *e;
+    const char *v, *w, *host = "ip-api.com", *path = "/json/?fields=status,lat,lon";
+    const char *althost = "api.open-meteo.com";
+    char *e, body[4096], altpath[128];
+    int lookup = 1;
     double la, lo;
 
-    if (locdone) return;
-    locdone = 1;
-    ami_config(&root);
-    svc = ami_schlst("services", root);
-    v = loccfg(svc, "latitude");
-    w = loccfg(svc, "longitude");
-    if (v && w) {
+    EnterCriticalSection(&loclck);
+    if (!locdone) {
 
-        la = strtod(v, &e);
-        if (!*e) lo = strtod(w, &e);
-        if (!*e && la >= -90 && la <= 90 && lo >= -180 && lo <= 180) {
+        locdone = 1;
+        ami_config(&root);
+        svc = ami_schlst("services", root);
+        v = loccfg(svc, "latitude");
+        w = loccfg(svc, "longitude");
+        if (v && w) {
 
-            loclat = la;
-            loclon = lo;
-            lochave = 1;
+            la = strtod(v, &e);
+            if (!*e) { lo = strtod(w, &e); }
+            if (!*e && la >= -90 && la <= 90 && lo >= -180 && lo <= 180) {
+
+                loclat = la;
+                loclon = lo;
+                lochave = 1;
+
+            }
+
+        }
+        v = loccfg(svc, "altitude");
+        if (v) { la = strtod(v, &e); if (!*e) { localt = la; althave = 1; } }
+        v = loccfg(svc, "location_lookup");
+        if (v) lookup = strtol(v, &e, 10) != 0;
+        v = loccfg(svc, "location_host");
+        if (v) host = v;
+        v = loccfg(svc, "location_path");
+        if (v) path = v;
+        v = loccfg(svc, "altitude_host");
+        if (v) althost = v;
+        if (!lochave && lookup && locget(host, path, body, sizeof body)) {
+
+            v = strstr(body, "\"lat\":");
+            w = strstr(body, "\"lon\":");
+            if (v && w && !strstr(body, "\"fail\"")) {
+
+                la = strtod(v+6, &e);
+                lo = strtod(w+6, NULL);
+                if (la >= -90 && la <= 90 && lo >= -180 && lo <= 180) {
+
+                    loclat = la;
+                    loclon = lo;
+                    lochave = 1;
+
+                }
+
+            }
+
+        }
+        if (lochave && !althave && lookup) {
+
+            snprintf(altpath, sizeof altpath, "/v1/elevation?latitude=%.5f&longitude=%.5f", loclat, loclon);
+            if (locget(althost, altpath, body, sizeof body)) {
+
+                v = strstr(body, "\"elevation\":[");
+                if (v) {
+
+                    la = strtod(v+13, &e);
+                    if (e != v+13) {
+
+                        localt = la;
+                        althave = 1;
+
+                    }
+
+                }
+
+            }
 
         }
 
     }
-    v = loccfg(svc, "altitude");
-    if (v) { la = strtod(v, &e); if (!*e) { localt = la; althave = 1; } }
+    LeaveCriticalSection(&loclck);
 
 }
 
@@ -3467,6 +3632,7 @@ static void ami_init_services()
     InitializeCriticalSection(&thdtbllck);
     InitializeCriticalSection(&semtbllck);
     InitializeCriticalSection(&lcktbllck);
+    InitializeCriticalSection(&loclck);
 
 }
 
