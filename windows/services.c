@@ -437,9 +437,23 @@ void ami_list(
     ami_filrec*      fp; /* file entry pointer */
     ami_filrec*      lp; /* last entry pointer */
     int             e;  /* error code */
+    bufstr          sf; /* specification completed with '*' */
+    int             fl; /* specification length */
 
     *l = NULL; /* clear destination list */
     lp = NULL; /* clear last pointer */
+    /* a specification ending in the path character means everything in that
+       directory: the same as a trailing '*'. Both separators count, as in
+       brknam */
+    fl = strlen(fn);
+    if (fl && (fn[fl-1] == ami_pthchr() || fn[fl-1] == '/')) {
+
+        if (fl+1 >= MAXSTR) error("String too large for destination");
+        strcpy(sf, fn);
+        strcat(sf, "*");
+        fn = sf;
+
+    }
     r = 1; /* set ok */
     hdl = FindFirstFile(fn, &fd); /* find first file reference */
     if (hdl == INVALID_HANDLE_VALUE) {

@@ -482,10 +482,23 @@ void ami_list(
     bufstr         fn; /* name holder */
     bufstr         tn; /* name holder */
     bufstr         dn; /* directory name holder */
+    bufstr         sf; /* specification completed with '*' */
     int            ls;
+    int            fl; /* specification length */
 
     *l = NULL; /* clear destination list */
     lp = NULL; /* clear last pointer */
+    /* a specification ending in the path character means everything in that
+       directory: the same as a trailing '*' */
+    fl = strlen(f);
+    if (fl && f[fl-1] == ami_pthchr()) {
+
+        if (fl+1 >= MAXSTR) error("String too large for destination");
+        strcpy(sf, f);
+        strcat(sf, "*");
+        f = sf;
+
+    }
     ami_brknam(f, p, MAXSTR, n, MAXSTR, e, MAXSTR); /* break up filename */
     /* check wildcards in path */
     if (strstr(p, "*") || strstr(p, "?")) error("Path cannot contain wildcards");
