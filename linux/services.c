@@ -15,9 +15,9 @@
 *                                                                              *
 * 1. This version is US english only. Need translations according to locale.   *
 *                                                                              *
-* Functions to be changed to translations: ami_dateorder(), ami_datesep(),       *
-* ami_timesep(), ami_currchar(), ami_timeorder(), ami_numbersep(), ami_decimal(),   *
-* ami_time24hour().                                                             *
+* The internationalization calls ami_dateorder(), ami_datesep(), ami_timesep(),  *
+* ami_currchr(), ami_timeorder(), ami_numbersep(), ami_decimal() and              *
+* ami_time24hour() read the host locale at startup.                              *
 *                                                                              *
 *                          BSD LICENSE INFORMATION                             *
 *                                                                              *
@@ -67,6 +67,8 @@
 #include <dirent.h>
 #include <limits.h>
 #include <pthread.h>
+#include <locale.h>
+#include <langinfo.h>
 
 #ifdef __MACH__ /* Mac OS X */
 #include <mach-o/dyld.h>
@@ -134,6 +136,17 @@ static bufstr pthstr;   /* buffer for execution path */
 static bufstr langstr;  /* buffer for ami_language ami_country string (locale) */
 static ami_long curlanguage; /* current ami_language */
 static ami_long curcountry;  /* current ami_country */
+
+/* host internationalization, read from the locale at startup. The defaults are
+   ISO 8601 and the C locale, for a host with no locale set */
+static char     locdecimal = '.';  /* decimal point */
+static char     locnumsep  = ',';  /* digit group separator */
+static char     loccurr    = '$';  /* currency symbol */
+static int      loc24hour  = 1;    /* 24 hour time */
+static ami_long locdateord = 1;    /* date order code, year-month-day */
+static ami_long loctimeord = 1;    /* time order code, hour:minute:second */
+static char     locdatesep = '-';  /* date separator */
+static char     loctimesep = ':';  /* time separator */
 static char* prgpth;    /* program path */
 /* end of read-only group */
 
@@ -506,13 +519,21 @@ void ami_list(
                    how to calculate it from block/blocksize */
                 fp->alloc = sr.st_size;   /* place allocation */
                 fp->attr = 0;   /* clear attributes */
-                /* clear permissions to all is allowed */
-                fp->user = BIT(ami_pmread) | BIT(ami_pmwrite) | BIT(ami_pmexec) | BIT(ami_pmdel) |
-                           BIT(ami_pmvis) | BIT(ami_pmcopy) | BIT(ami_pmren);
-                fp->other = BIT(ami_pmread) | BIT(ami_pmwrite) | BIT(ami_pmexec) | BIT(ami_pmdel) |
-                            BIT(ami_pmvis) | BIT(ami_pmcopy) | BIT(ami_pmren);
-                fp->group = BIT(ami_pmread) | BIT(ami_pmwrite) | BIT(ami_pmexec) | BIT(ami_pmdel) |
-                            BIT(ami_pmvis) | BIT(ami_pmcopy) | BIT(ami_pmren);
+                /* permissions: read, write and execute come from the mode
+                   bits, visible from the dot file convention below. Delete,
+                   copy and rename have no Unix equivalent and read unset */
+                fp->user = BIT(ami_pmvis);
+                fp->group = BIT(ami_pmvis);
+                fp->other = BIT(ami_pmvis);
+                if (sr.st_mode & S_IRUSR) fp->user |= BIT(ami_pmread);
+                if (sr.st_mode & S_IWUSR) fp->user |= BIT(ami_pmwrite);
+                if (sr.st_mode & S_IXUSR) fp->user |= BIT(ami_pmexec);
+                if (sr.st_mode & S_IRGRP) fp->group |= BIT(ami_pmread);
+                if (sr.st_mode & S_IWGRP) fp->group |= BIT(ami_pmwrite);
+                if (sr.st_mode & S_IXGRP) fp->group |= BIT(ami_pmexec);
+                if (sr.st_mode & S_IROTH) fp->other |= BIT(ami_pmread);
+                if (sr.st_mode & S_IWOTH) fp->other |= BIT(ami_pmwrite);
+                if (sr.st_mode & S_IXOTH) fp->other |= BIT(ami_pmexec);
                 /* check and set directory attribute */
                 if (sr.st_mode & S_IFDIR) fp->attr |= BIT(ami_atdir);
                 /* check and set any system special file */
@@ -2552,6 +2573,8 @@ Finds the ami_latitude of the host. Returns the ami_latitude as a ratioed intege
 LONG_MAX    North pole
 -LONG_MAX   South pole
 
+With no position known, latitude and longitude are both -LONG_MAX.
+
 This means each increment equals 0.0000000419 degrees or about 0.00465 meters
 (approximate because it is an angular measurement on an elipsiod).
 
@@ -2569,7 +2592,7 @@ ami_long ami_latitude(void)
 
     findloc();
 
-    return lochave? locratio(loclat, 90.0): 0;
+    return lochave? locratio(loclat, 90.0): -AMI_LONG_MAX; /* -LONG_MAX: no position */
 
 }
 
@@ -2580,8 +2603,8 @@ Find ami_longitude
 Finds the ami_longitude of the host. Returns the ami_longitude as a ratioed integer:
 
 0           The prime meridian (Greenwitch)
-LONG_MAX    The prime meridian eastward around the world
--LONG_MAX   The prime meridian westward around the world
+LONG_MAX    The prime meridian eastward or westward around the world
+-LONG_MAX   No position is known
 
 This means that each increment equals 0.0000000838 degrees or about 0.00933
 meters (approximate because it is an angular measurement on an elipsoid).
@@ -2598,9 +2621,15 @@ ami_long ami_longitude(void)
 
 {
 
-    findloc();
+    ami_long r;
 
-    return lochave? locratio(loclon, 180.0): 0;
+    findloc();
+    if (!lochave) return -AMI_LONG_MAX; /* no position */
+    r = locratio(loclon, 180.0);
+    /* 180 degrees west is 180 degrees east, and -LONG_MAX means no position */
+    if (r == -AMI_LONG_MAX) r = AMI_LONG_MAX;
+
+    return r;
 
 }
 
@@ -2612,7 +2641,7 @@ Finds the ami_altitude of the host. Returns the ami_altitude as a ratioed intege
 
 0           MSL
 LONG_MAX    100km high
--LONG_MAX   100km depth
+-LONG_MAX   100km depth, and also no altitude known
 
 This means that each increment is 0.0000465 meters. MSL is determined by WGS84
 (World Geodetic System of 1984), which estalishes an ideal elipsoid as an
@@ -2640,7 +2669,7 @@ ami_long ami_altitude(void)
 
     findloc();
 
-    return althave? locratio(localt, 100000.0): 0;
+    return althave? locratio(localt, 100000.0): -AMI_LONG_MAX; /* -LONG_MAX: unknown */
 
 }
 
@@ -2954,8 +2983,8 @@ void ami_countrys(
 
     p = countrytab;
     while (p->countrynum && p->countrynum != c) p++;
-    if (!p->countrynum) error("Country number invalid");
-    cpycrit(s, len, p->countrystr); /* copy result to critical buffer */
+    /* a code that is not a country gives the empty string */
+    cpycrit(s, len, p->countrynum? p->countrystr: "");
 
 }
 
@@ -3041,7 +3070,7 @@ ami_long ami_time24hour(void)
 
 {
 
-    return 0;
+    return loc24hour;
 
 }
 
@@ -3312,7 +3341,7 @@ char ami_decimal(void)
 
 {
 
-    return '.';
+    return locdecimal;
 
 }
 
@@ -3329,7 +3358,7 @@ char ami_numbersep(void)
 
 {
 
-    return ',';
+    return locnumsep;
 
 }
 
@@ -3343,7 +3372,7 @@ Returns a code for order of time presentation, which is:
 2   hour:second:minute
 3   minute:hour:second
 4   minute:second:hour
-5   second:minute:hour
+5   second:hour:minute
 6   second:minute:hour
 
 The #1 format is the recommended standard for international exchange and is
@@ -3358,7 +3387,7 @@ ami_long ami_timeorder(void)
 
 {
 
-    return 1;
+    return loctimeord;
 
 }
 
@@ -3390,7 +3419,7 @@ ami_long ami_dateorder(void)
 
 {
 
-    return 1;
+    return locdateord;
 
 }
 /** ****************************************************************************
@@ -3407,7 +3436,7 @@ char ami_datesep(void)
 
 {
 
-    return '/';
+    return locdatesep;
 
 }
 
@@ -3425,7 +3454,198 @@ char ami_timesep(void)
 
 {
 
-    return ':';
+    return loctimesep;
+
+}
+
+/** ****************************************************************************
+
+Read the host internationalization
+
+The locale of the host, as the environment names it, gives the decimal point,
+digit group separator and currency symbol, and the strftime() formats for the
+date and time, from which the field order, separators and 12 or 24 hour clock
+are taken. A host with no locale set, or the C or POSIX locale, keeps the ISO
+8601 defaults.
+
+*******************************************************************************/
+
+/* the locale name the environment gives for a category: LC_ALL, then the
+   category's own variable, then LANG */
+static const char* locname(const char* cat)
+
+{
+
+    const char* v;
+
+    v = getenv("LC_ALL");
+    if (!v || !*v) v = getenv(cat);
+    if (!v || !*v) v = getenv("LANG");
+    if (!v) v = "";
+
+    return v;
+
+}
+
+/* a locale name that means the C locale: empty, C, POSIX, or C.<charset> */
+static int locisc(const char* n)
+
+{
+
+    return !*n || !strcmp(n, "POSIX") || !strcmp(n, "C") || !strncmp(n, "C.", 2);
+
+}
+
+/* the single byte of a locale string, or the default when it is empty or
+   longer than a byte */
+static char locchr(const char* s, char def)
+
+{
+
+    return s && s[0] && !s[1]? s[0]: def;
+
+}
+
+/* Expand the strftime() composites of a format into their fields, so that
+   one walk sees every field. %D is %m/%d/%y, %F is %Y-%m-%d, %T is %H:%M:%S,
+   %R is %H:%M and %r is %I:%M:%S %p. */
+static void locexpand(const char* f, char* d, int dl)
+
+{
+
+    const char* e;
+    int l;
+
+    dl--; /* room for the terminator */
+    while (*f && dl > 0) {
+
+        e = NULL;
+        if (f[0] == '%') {
+
+            if (f[1] == 'D') e = "%m/%d/%y";
+            else if (f[1] == 'F') e = "%Y-%m-%d";
+            else if (f[1] == 'T') e = "%H:%M:%S";
+            else if (f[1] == 'R') e = "%H:%M";
+            else if (f[1] == 'r') e = "%I:%M:%S %p";
+
+        }
+        if (e) {
+
+            l = strlen(e);
+            if (l > dl) l = dl;
+            memcpy(d, e, l);
+            d += l; dl -= l; f += 2;
+
+        } else { *d++ = *f++; dl--; }
+
+    }
+    *d = 0;
+
+}
+
+/* Find the field order and separator of a date or time format. The three
+   field classes are given as strings of the strftime() letters that belong
+   to each, in canonical order (year month day, or hour minute second). The
+   result is the permutation code, 1 to 6, from the table perm of the six
+   orders as the manual numbers them for dates or times. The separator is the first
+   literal character between two fields; a multibyte or absent one keeps the
+   default. */
+static ami_long locorder(const char* f, const char* fa, const char* fb,
+                         const char* fc, const char** perm, char* sep)
+
+{
+
+    char order[4]; /* the classes in order of appearance */
+    int n = 0;
+    int infld = 0;  /* a field was seen, the separator may follow */
+    int sepdone = 0;
+    char c;
+    int i;
+
+    while (*f && n < 3) {
+
+        if (*f == '%') {
+
+            f++;
+            while (*f && strchr("-_0^#EO123456789", *f)) f++; /* flags */
+            if (!*f) break;
+            c = 0;
+            if (strchr(fa, *f)) c = 'a';
+            else if (strchr(fb, *f)) c = 'b';
+            else if (strchr(fc, *f)) c = 'c';
+            if (c && !memchr(order, c, n)) { order[n++] = c; infld = 1; }
+            f++;
+
+        } else {
+
+            if (infld && !sepdone && n < 3) {
+
+                /* a literal between fields: a single byte is the separator */
+                if (!(*f & 0x80)) *sep = *f;
+                sepdone = 1;
+
+            }
+            f++;
+
+        }
+
+    }
+    /* fill in fields the format leaves out, in canonical order */
+    for (c = 'a'; c <= 'c'; c++) if (!memchr(order, c, n)) order[n++] = c;
+    order[3] = 0;
+    for (i = 0; i < 6; i++) if (!strcmp(order, perm[i])) return i+1;
+
+    return 1;
+
+}
+
+static void initlocale(void)
+
+{
+
+    locale_t lc;
+    char fmt[128];
+    /* the manual's numbering of the orders: dates are year a, month b, day c,
+       times hour a, minute b, second c */
+    static const char* dateperm[] = { "abc", "acb", "bca", "bac", "cba", "cab" };
+    static const char* timeperm[] = { "abc", "acb", "bac", "bca", "cab", "cba" };
+
+    /* numbers and currency */
+    if (!locisc(locname("LC_NUMERIC")) || !locisc(locname("LC_MONETARY"))) {
+
+        lc = newlocale(LC_NUMERIC_MASK|LC_MONETARY_MASK, "", (locale_t)0);
+        if (lc) {
+
+            locdecimal = locchr(nl_langinfo_l(RADIXCHAR, lc), '.');
+            /* a group separator longer than a byte is a space of some kind */
+            locnumsep = nl_langinfo_l(THOUSEP, lc)[0] & 0x80? ' ':
+                        locchr(nl_langinfo_l(THOUSEP, lc), ',');
+            /* the currency string leads with its position, + - or . */
+            loccurr = locchr(nl_langinfo_l(CRNCYSTR, lc)+
+                             (nl_langinfo_l(CRNCYSTR, lc)[0] != 0), '$');
+            freelocale(lc);
+
+        }
+
+    }
+    /* date and time formats */
+    if (!locisc(locname("LC_TIME"))) {
+
+        lc = newlocale(LC_TIME_MASK, "", (locale_t)0);
+        if (lc) {
+
+            locexpand(nl_langinfo_l(D_FMT, lc), fmt, sizeof fmt);
+            locdateord = locorder(fmt, "yYCGg", "mbBh", "de", dateperm, &locdatesep);
+            locexpand(nl_langinfo_l(T_FMT, lc), fmt, sizeof fmt);
+            loctimeord = locorder(fmt, "HkIl", "M", "S", timeperm, &loctimesep);
+            /* a 12 hour clock shows the hour as %I or %l, with %p or %P */
+            loc24hour = !(strstr(fmt, "%I") || strstr(fmt, "%l") ||
+                          strstr(fmt, "%p") || strstr(fmt, "%P"));
+            freelocale(lc);
+
+        }
+
+    }
 
 }
 
@@ -3433,7 +3653,9 @@ char ami_timesep(void)
 
 Find the currency marker character
 
-Finds the currency symbol of the host ami_country.
+Finds the currency symbol of the host ami_country. The character interface
+carries a single byte symbol; the dollar sign stands for a symbol that is
+longer than one byte in the host character set, such as the euro sign.
 
 *******************************************************************************/
 
@@ -3441,7 +3663,7 @@ char ami_currchr(void)
 
 {
 
-    return '$';
+    return loccurr;
 
 }
 
@@ -3863,11 +4085,13 @@ static void ami_init_services(int argc, char* argv[])
        convention) and these buffers are read as zero terminated strings */
     ami_getenv("PATH", pthstr, MAXSTR-1); /* load up the current path */
     trim(pthstr); /* make sure left aligned */
-    ami_getenv("LANG", langstr, MAXSTR-1); /* get locale */
+    /* the locale: LC_ALL overrides LC_MESSAGES, which overrides LANG */
+    strncpy(langstr, locname("LC_MESSAGES"), MAXSTR-1);
+    langstr[MAXSTR-1] = 0;
     trim(langstr); /* clean */
 
     /* set default ami_language and ami_country */
-    curlanguage = 30; /* english */
+    curlanguage = 41; /* english */
     curcountry = 840; /* USA */
 
     /* the (misnamed) LANG environment variable contains the locale in the
@@ -3916,6 +4140,8 @@ static void ami_init_services(int argc, char* argv[])
         }
 
     }
+
+    initlocale(); /* the rest of the host internationalization */
 
     /* find program path */
     l = strlen(argv[0]); /* get length */
