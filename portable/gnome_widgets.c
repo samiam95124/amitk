@@ -334,7 +334,7 @@ typedef struct ccolor {
 typedef struct wigrec* wigptr;
 typedef struct wigrec {
 
-    WB_WIGHEAD(wigptr) /* the widget base head, first */
+    /** the widget base head, first */        wbwig     head;
     /** type of widget */                     wigtyp    typ;
     /** creation order stamp */               ami_long  seq;
     /** in the pressed state */               ami_long  pressed;
@@ -979,14 +979,14 @@ static void widget_redraw(
 
     ami_evtrec ev;  /* outbound menu event */
 
-    wp->live = TRUE; /* whole from here: every creator ends with its
+    wp->head.live = TRUE; /* whole from here: every creator ends with its
                         first-paint request, and reconfigures keep it */
     ev.etype = ami_etredraw; /* set redraw event */
     ev.rsx = 1; /* set extent */
     ev.rsy = 1;
-    ev.rex = ami_maxxg(wp->wf);
-    ev.rey = ami_maxyg(wp->wf);
-    ami_sendevent(wp->wf, &ev); /* send to widget window */
+    ev.rex = ami_maxxg(wp->head.wf);
+    ev.rey = ami_maxyg(wp->head.wf);
+    ami_sendevent(wp->head.wf, &ev); /* send to widget window */
 
 }
 
@@ -1115,8 +1115,8 @@ static void wigkill(void* vwg)
     wigptr wp = (wigptr)vwg;
 
     /* if there is a subwidget, kill that as well */
-    if (wp->cw) ami_killwidget(wp->cw->pw->wf, wp->cw->id);
-    if (wp->cw2) ami_killwidget(wp->cw2->pw->wf, wp->cw2->id);
+    if (wp->cw) ami_killwidget(wp->cw->pw->head.wf, wp->cw->head.id);
+    if (wp->cw2) ami_killwidget(wp->cw2->pw->head.wf, wp->cw2->head.id);
 
 }
 
@@ -1169,11 +1169,11 @@ static void widget(
     wb_widget(&pkg, f, x1, y1, x2, y2, id, &wp);
     wp->seq = ++wigseq; /* stamp creation order */
     wp->face = str(s); /* place face */
-    ami_font(wp->wf, AMI_FONT_SIGN); /* set sign font */
+    ami_font(wp->head.wf, AMI_FONT_SIGN); /* set sign font */
     wp->typ = typ; /* place type */
     /* the kinds that show nothing for the keyboard are not tab stops:
        the tab walk passes over them */
-    wp->tabstop = typ != wtbackground && typ != wtgroup && typ != wtprogbar &&
+    wp->head.tabstop = typ != wtbackground && typ != wtgroup && typ != wtprogbar &&
                   typ != wtscrollvert && typ != wtscrollhoriz;
     wp->sclsiz = LONG_MAX/10; /* set default size scrollbar */
     /* Implicit Z ordering: a component goes behind the controls of its
@@ -1193,7 +1193,7 @@ static void widget(
                     sp->seq > last && (!np || sp->seq < np->seq)) np = sp;
 
             }
-            if (np) { ami_front(np->wf); last = np->seq; }
+            if (np) { ami_front(np->head.wf); last = np->seq; }
 
         } while (np);
 
@@ -1232,41 +1232,41 @@ static void cbutton_draw(
 
     /* the surround first: the square behind the rounded corners shows the
        surface the button sits on, not the window's blank canvas */
-    fcolorp(wg->wf, wg->cbc->bsr);
-    ami_frect(wg->wf, 1, 1, ami_maxxg(wg->wf), ami_maxyg(wg->wf));
+    fcolorp(wg->head.wf, wg->cbc->bsr);
+    ami_frect(wg->head.wf, 1, 1, ami_maxxg(wg->head.wf), ami_maxyg(wg->head.wf));
     /* color the background */
-    if (wg->pressed) fcolorp(wg->wf, wg->cbc->bbp);
-    else fcolorp(wg->wf, wg->cbc->bbn);
-    ami_frrect(wg->wf, 1, 1, ami_maxxg(wg->wf), ami_maxyg(wg->wf), 20, 20);
+    if (wg->pressed) fcolorp(wg->head.wf, wg->cbc->bbp);
+    else fcolorp(wg->head.wf, wg->cbc->bbn);
+    ami_frrect(wg->head.wf, 1, 1, ami_maxxg(wg->head.wf), ami_maxyg(wg->head.wf), 20, 20);
     /* outline */
-    ami_linewidth(wg->wf, 3);
+    ami_linewidth(wg->head.wf, 3);
     /* a disabled widget does not show the focus ring; see button_draw */
-    if (wg->focus && wg->enb) fcolorp(wg->wf, wg->cbc->bof);
-    else fcolorp(wg->wf, wg->cbc->bon);
-    ami_rrect(wg->wf, 2, 2, ami_maxxg(wg->wf)-1, ami_maxyg(wg->wf)-1, 20, 20);
-    if (wg->enb) fcolorp(wg->wf, wg->cbc->btn);
-    else fcolorp(wg->wf, wg->cbc->btd);
+    if (wg->head.focus && wg->head.enb) fcolorp(wg->head.wf, wg->cbc->bof);
+    else fcolorp(wg->head.wf, wg->cbc->bon);
+    ami_rrect(wg->head.wf, 2, 2, ami_maxxg(wg->head.wf)-1, ami_maxyg(wg->head.wf)-1, 20, 20);
+    if (wg->head.enb) fcolorp(wg->head.wf, wg->cbc->btn);
+    else fcolorp(wg->head.wf, wg->cbc->btd);
     if (wg->select && wg->check) { /* use check instead of text */
 
         /* set size of square as ratio of font height */
-        sq = 0.80*ami_chrsizy(wg->wf);
-        md = ami_maxyg(wg->wf)/2; /* set middle line of checkbox */
-        sqm = ami_maxxg(wg->wf)/2; /* set square middle x */
+        sq = 0.80*ami_chrsizy(wg->head.wf);
+        md = ami_maxyg(wg->head.wf)/2; /* set middle line of checkbox */
+        sqm = ami_maxxg(wg->head.wf)/2; /* set square middle x */
         cb = sq*.70; /* set bounding box of check figure */
         /* place selected checkmark */
-        ami_linewidth(wg->wf, 4);
-        ami_line(wg->wf, sqm-cb/2, md-cb*.10,
+        ami_linewidth(wg->head.wf, 4);
+        ami_line(wg->head.wf, sqm-cb/2, md-cb*.10,
                         sqm, md+cb*.25);
-        ami_line(wg->wf, sqm-1, md+cb*.25-1,
+        ami_line(wg->head.wf, sqm-1, md+cb*.25-1,
                         sqm+cb/2, md-cb*.4);
-        ami_linewidth(wg->wf, 1);
+        ami_linewidth(wg->head.wf, 1);
 
     } else { /* use text */
 
-        ami_cursorg(wg->wf,
-                   ami_maxxg(wg->wf)/2-ami_strsiz(wg->wf, wg->face)/2,
-                   ami_maxyg(wg->wf)/2-ami_chrsizy(wg->wf)/2);
-        fprintf(wg->wf, "%s", wg->face); /* place button face */
+        ami_cursorg(wg->head.wf,
+                   ami_maxxg(wg->head.wf)/2-ami_strsiz(wg->head.wf, wg->face)/2,
+                   ami_maxyg(wg->head.wf)/2-ami_chrsizy(wg->head.wf)/2);
+        fprintf(wg->head.wf, "%s", wg->face); /* place button face */
 
     }
 
@@ -1292,12 +1292,12 @@ static void cbutton_event(
     if (ev->etype == ami_etredraw) cbutton_draw(wg); /* redraw the window */
     else if (ev->etype == ami_etmouba && ev->amoubn == 1) {
 
-        if (wg->enb) { /* enabled */
+        if (wg->head.enb) { /* enabled */
 
             /* send event back to parent window */
             er.etype = ami_etbutton; /* set button event */
-            er.butid = wg->id; /* set id */
-            ami_sendevent(wg->parent, &er); /* send the event to the parent */
+            er.butid = wg->head.id; /* set id */
+            ami_sendevent(wg->head.parent, &er); /* send the event to the parent */
 
         }
 
@@ -1312,22 +1312,22 @@ static void cbutton_event(
 
     } else if (ev->etype == ami_etfocus) {
 
-        wg->focus = 1; /* in focus */
+        wg->head.focus = 1; /* in focus */
         cbutton_draw(wg); /* redraw the window */
 
     } else if (ev->etype == ami_etnofocus) {
 
-        wg->focus = 0; /* out of focus */
+        wg->head.focus = 0; /* out of focus */
         cbutton_draw(wg); /* redraw the window */
 
     } else if (ev->etype == ami_ethover) {
 
-        wg->hover = 1; /* hovered */
+        wg->head.hover = 1; /* hovered */
         cbutton_draw(wg); /* redraw the window */
 
     } else if (ev->etype == ami_etnohover) {
 
-        wg->hover = 0; /* not hovered */
+        wg->head.hover = 0; /* not hovered */
         cbutton_draw(wg); /* redraw the window */
 
     }
@@ -1351,25 +1351,25 @@ static void button_draw(
     /* color the background; a selected button keeps the pressed in look,
        giving a persistent active state for modal buttons, and a hovered
        button lights up */
-    if (wg->pressed || wg->select) fcolort(wg->wf, th_backpressed);
-    else if (wg->hover && wg->enb) fcolort(wg->wf, th_backhover);
-    else fcolort(wg->wf, th_back);
-    ami_frect(wg->wf, 1, 1, ami_maxxg(wg->wf),
-              ami_maxyg(wg->wf));
+    if (wg->pressed || wg->select) fcolort(wg->head.wf, th_backpressed);
+    else if (wg->head.hover && wg->head.enb) fcolort(wg->head.wf, th_backhover);
+    else fcolort(wg->head.wf, th_back);
+    ami_frect(wg->head.wf, 1, 1, ami_maxxg(wg->head.wf),
+              ami_maxyg(wg->head.wf));
     /* Outline. A disabled widget does not show the focus ring: it cannot be
        operated, so advertising focus on it misleads (windows denies focus to
        disabled widgets outright) */
-    ami_linewidth(wg->wf, 4);
-    if (wg->focus && wg->enb) fcolort(wg->wf, th_focus);
-    else fcolort(wg->wf, th_outline1);
-    ami_rrect(wg->wf, 2, 2, ami_maxxg(wg->wf)-1,
-             ami_maxyg(wg->wf)-1, 20, 20);
-    if (wg->enb) fcolort(wg->wf, th_text);
-    else fcolort(wg->wf, th_textdis);
-    ami_cursorg(wg->wf,
-               ami_maxxg(wg->wf)/2-ami_strsiz(wg->wf, wg->face)/2,
-               ami_maxyg(wg->wf)/2-ami_chrsizy(wg->wf)/2);
-    fprintf(wg->wf, "%s", wg->face); /* place button face */
+    ami_linewidth(wg->head.wf, 4);
+    if (wg->head.focus && wg->head.enb) fcolort(wg->head.wf, th_focus);
+    else fcolort(wg->head.wf, th_outline1);
+    ami_rrect(wg->head.wf, 2, 2, ami_maxxg(wg->head.wf)-1,
+             ami_maxyg(wg->head.wf)-1, 20, 20);
+    if (wg->head.enb) fcolort(wg->head.wf, th_text);
+    else fcolort(wg->head.wf, th_textdis);
+    ami_cursorg(wg->head.wf,
+               ami_maxxg(wg->head.wf)/2-ami_strsiz(wg->head.wf, wg->face)/2,
+               ami_maxyg(wg->head.wf)/2-ami_chrsizy(wg->head.wf)/2);
+    fprintf(wg->head.wf, "%s", wg->face); /* place button face */
 
 }
 
@@ -1393,12 +1393,12 @@ static void button_event(
     if (ev->etype == ami_etredraw) button_draw(wg); /* redraw the window */
     else if (ev->etype == ami_etmouba && ev->amoubn == 1) {
 
-        if (wg->enb) { /* enabled */
+        if (wg->head.enb) { /* enabled */
 
             /* send event back to parent window */
             er.etype = ami_etbutton; /* set button event */
-            er.butid = wg->id; /* set id */
-            ami_sendevent(wg->parent, &er); /* send the event to the parent */
+            er.butid = wg->head.id; /* set id */
+            ami_sendevent(wg->head.parent, &er); /* send the event to the parent */
 
         }
 
@@ -1413,22 +1413,22 @@ static void button_event(
 
     } else if (ev->etype == ami_etfocus) {
 
-        wg->focus = 1; /* in focus */
+        wg->head.focus = 1; /* in focus */
         button_draw(wg); /* redraw the window */
 
     } else if (ev->etype == ami_etnofocus) {
 
-        wg->focus = 0; /* out of focus */
+        wg->head.focus = 0; /* out of focus */
         button_draw(wg); /* redraw the window */
 
     } else if (ev->etype == ami_ethover) {
 
-        wg->hover = 1; /* hovered, light up */
+        wg->head.hover = 1; /* hovered, light up */
         button_draw(wg); /* redraw the window */
 
     } else if (ev->etype == ami_etnohover) {
 
-        wg->hover = 0; /* not hovered */
+        wg->head.hover = 0; /* not hovered */
         button_draw(wg); /* redraw the window */
 
     }
@@ -1456,51 +1456,51 @@ static void checkbox_draw(
     ami_long cb; /* bounding box of check figure */
 
     /* color the background */
-    ami_fcolor(wg->wf, ami_backcolor);
-    ami_frect(wg->wf, 1, 1, ami_maxxg(wg->wf), ami_maxyg(wg->wf));
+    ami_fcolor(wg->head.wf, ami_backcolor);
+    ami_frect(wg->head.wf, 1, 1, ami_maxxg(wg->head.wf), ami_maxyg(wg->head.wf));
     /* outline */
-    ami_linewidth(wg->wf, 4);
-    if (wg->focus) {
+    ami_linewidth(wg->head.wf, 4);
+    if (wg->head.focus) {
 
-        fcolort(wg->wf, th_focus);
-        ami_rrect(wg->wf, 2, 2, ami_maxxg(wg->wf)-1,
-                 ami_maxyg(wg->wf)-1, 20, 20);
+        fcolort(wg->head.wf, th_focus);
+        ami_rrect(wg->head.wf, 2, 2, ami_maxxg(wg->head.wf)-1,
+                 ami_maxyg(wg->head.wf)-1, 20, 20);
 
     }
     /* draw text */
-    if (wg->enb) fcolort(wg->wf, th_text);
-    else fcolort(wg->wf, th_textdis);
-    ami_cursorg(wg->wf, ami_chrsizy(wg->wf)+ami_chrsizy(wg->wf)/2,
-                       ami_maxyg(wg->wf)/2-ami_chrsizy(wg->wf)/2);
-    fprintf(wg->wf, "%s", wg->face); /* place button face */
+    if (wg->head.enb) fcolort(wg->head.wf, th_text);
+    else fcolort(wg->head.wf, th_textdis);
+    ami_cursorg(wg->head.wf, ami_chrsizy(wg->head.wf)+ami_chrsizy(wg->head.wf)/2,
+                       ami_maxyg(wg->head.wf)/2-ami_chrsizy(wg->head.wf)/2);
+    fprintf(wg->head.wf, "%s", wg->face); /* place button face */
     /* set size of square as ratio of font height */
-    sq = 0.80*ami_chrsizy(wg->wf);
-    md = ami_maxyg(wg->wf)/2; /* set middle line of checkbox */
-    sqo = ami_maxyg(wg->wf)/4; /* set offset of square from left */
+    sq = 0.80*ami_chrsizy(wg->head.wf);
+    md = ami_maxyg(wg->head.wf)/2; /* set middle line of checkbox */
+    sqo = ami_maxyg(wg->head.wf)/4; /* set offset of square from left */
     sqm = sqo+sq/2; /* set square middle x */
     cb = sq*.70; /* set bounding box of check figure */
 
     if (wg->select) {
 
         /* place selected checkmark */
-        fcolort(wg->wf, th_chkrad);
-        ami_frrect(wg->wf, sqo, md-sq/2, sqo+sq, md+sq/2, 10, 10);
-        ami_fcolor(wg->wf, ami_white);
-        ami_linewidth(wg->wf, 4);
-        ami_line(wg->wf, sqm-cb/2, md-cb*.10,
+        fcolort(wg->head.wf, th_chkrad);
+        ami_frrect(wg->head.wf, sqo, md-sq/2, sqo+sq, md+sq/2, 10, 10);
+        ami_fcolor(wg->head.wf, ami_white);
+        ami_linewidth(wg->head.wf, 4);
+        ami_line(wg->head.wf, sqm-cb/2, md-cb*.10,
                         sqm, md+cb*.25);
-        ami_line(wg->wf, sqm-1, md+cb*.25-1,
+        ami_line(wg->head.wf, sqm-1, md+cb*.25-1,
                         sqm+cb/2, md-cb*.4);
-        ami_linewidth(wg->wf, 1);
+        ami_linewidth(wg->head.wf, 1);
 
     } else {
 
         /* place non-selected checkmark background */
-        ami_fcolor(wg->wf, ami_white);
-        ami_frrect(wg->wf, sqo, md-sq/2, sqo+sq, md+sq/2, 10, 10);
-        ami_linewidth(wg->wf, 2);
-        fcolort(wg->wf, th_chkradout);
-        ami_rrect(wg->wf, sqo, md-sq/2, sqo+sq, md+sq/2, 10, 10);
+        ami_fcolor(wg->head.wf, ami_white);
+        ami_frrect(wg->head.wf, sqo, md-sq/2, sqo+sq, md+sq/2, 10, 10);
+        ami_linewidth(wg->head.wf, 2);
+        fcolort(wg->head.wf, th_chkradout);
+        ami_rrect(wg->head.wf, sqo, md-sq/2, sqo+sq, md+sq/2, 10, 10);
 
     }
 
@@ -1526,12 +1526,12 @@ static void checkbox_event(
     if (ev->etype == ami_etredraw) checkbox_draw(wg); /* redraw the window */
     else if (ev->etype == ami_etmouba && ev->amoubn == 1) {
 
-        if (wg->enb) { /* enabled */
+        if (wg->head.enb) { /* enabled */
 
             /* send event back to parent window */
             er.etype = ami_etchkbox; /* set checkbox event */
-            er.butid = wg->id; /* set id */
-            ami_sendevent(wg->parent, &er); /* send the event to the parent */
+            er.butid = wg->head.id; /* set id */
+            ami_sendevent(wg->head.parent, &er); /* send the event to the parent */
 
         }
         checkbox_draw(wg);
@@ -1539,12 +1539,12 @@ static void checkbox_event(
     } else if (ev->etype == ami_etmoubd && ev->amoubn == 1) checkbox_draw(wg);
     else if (ev->etype == ami_etfocus) {
 
-        wg->focus = 1; /* in focus */
+        wg->head.focus = 1; /* in focus */
         checkbox_draw(wg); /* redraw the window */
 
     } else if (ev->etype == ami_etnofocus) {
 
-        wg->focus = 0; /* out of focus */
+        wg->head.focus = 0; /* out of focus */
         checkbox_draw(wg); /* redraw the window */
 
     }
@@ -1571,45 +1571,45 @@ static void radiobutton_draw(
     ami_long md; /* radiobutton center line */
 
     /* color the background */
-    ami_fcolor(wg->wf, ami_backcolor);
-    ami_frect(wg->wf, 1, 1, ami_maxxg(wg->wf), ami_maxyg(wg->wf));
+    ami_fcolor(wg->head.wf, ami_backcolor);
+    ami_frect(wg->head.wf, 1, 1, ami_maxxg(wg->head.wf), ami_maxyg(wg->head.wf));
     /* outline */
-    ami_linewidth(wg->wf, 4);
-    if (wg->focus) {
+    ami_linewidth(wg->head.wf, 4);
+    if (wg->head.focus) {
 
-        fcolort(wg->wf, th_focus);
-        ami_rrect(wg->wf, 2, 2, ami_maxxg(wg->wf)-1,
-                 ami_maxyg(wg->wf)-1, 20, 20);
+        fcolort(wg->head.wf, th_focus);
+        ami_rrect(wg->head.wf, 2, 2, ami_maxxg(wg->head.wf)-1,
+                 ami_maxyg(wg->head.wf)-1, 20, 20);
 
     }
     /* draw text */
-    if (wg->enb) fcolort(wg->wf, th_text);
-    else fcolort(wg->wf, th_textdis);
-    ami_cursorg(wg->wf, ami_chrsizy(wg->wf)+ami_chrsizy(wg->wf)/2,
-                       ami_maxyg(wg->wf)/2-ami_chrsizy(wg->wf)/2);
-    fprintf(wg->wf, "%s", wg->face); /* place button face */
+    if (wg->head.enb) fcolort(wg->head.wf, th_text);
+    else fcolort(wg->head.wf, th_textdis);
+    ami_cursorg(wg->head.wf, ami_chrsizy(wg->head.wf)+ami_chrsizy(wg->head.wf)/2,
+                       ami_maxyg(wg->head.wf)/2-ami_chrsizy(wg->head.wf)/2);
+    fprintf(wg->head.wf, "%s", wg->face); /* place button face */
     /* set size of circle as ratio of font height */
-    cr = 0.80*ami_chrsizy(wg->wf);
-    md = ami_maxyg(wg->wf)/2; /* set middle line of radiobutton */
-    cro = ami_maxyg(wg->wf)/4; /* set offset of circle from left */
+    cr = 0.80*ami_chrsizy(wg->head.wf);
+    md = ami_maxyg(wg->head.wf)/2; /* set middle line of radiobutton */
+    cro = ami_maxyg(wg->head.wf)/4; /* set offset of circle from left */
     crm = cro+cr/2; /* set circle middle x */
 
     if (wg->select) {
 
         /* place select figure */
-        fcolort(wg->wf, th_chkrad);
-        ami_fellipse(wg->wf, cro, md-cr/2, cro+cr, md+cr/2);
-        ami_fcolor(wg->wf, ami_white);
-        ami_fellipse(wg->wf, crm-cr/6, md-cr/6, crm+cr/6, md+cr/6);
+        fcolort(wg->head.wf, th_chkrad);
+        ami_fellipse(wg->head.wf, cro, md-cr/2, cro+cr, md+cr/2);
+        ami_fcolor(wg->head.wf, ami_white);
+        ami_fellipse(wg->head.wf, crm-cr/6, md-cr/6, crm+cr/6, md+cr/6);
 
     } else {
 
         /* place non-selected background */
-        ami_fcolor(wg->wf, ami_white);
-        ami_fellipse(wg->wf, cro, md-cr/2, cro+cr, md+cr/2);
-        ami_linewidth(wg->wf, 2);
-        fcolort(wg->wf, th_chkradout);
-        ami_ellipse(wg->wf, cro, md-cr/2, cro+cr, md+cr/2);
+        ami_fcolor(wg->head.wf, ami_white);
+        ami_fellipse(wg->head.wf, cro, md-cr/2, cro+cr, md+cr/2);
+        ami_linewidth(wg->head.wf, 2);
+        fcolort(wg->head.wf, th_chkradout);
+        ami_ellipse(wg->head.wf, cro, md-cr/2, cro+cr, md+cr/2);
 
     }
 
@@ -1627,12 +1627,12 @@ static void radiobutton_event(
     if (ev->etype == ami_etredraw) radiobutton_draw(wg); /* redraw the window */
     else if (ev->etype == ami_etmouba && ev->amoubn == 1) {
 
-        if (wg->enb) { /* enabled */
+        if (wg->head.enb) { /* enabled */
 
             /* send event back to parent window */
             er.etype = ami_etradbut; /* set button event */
-            er.butid = wg->id; /* set id */
-            ami_sendevent(wg->parent, &er); /* send the event to the parent */
+            er.butid = wg->head.id; /* set id */
+            ami_sendevent(wg->head.parent, &er); /* send the event to the parent */
 
         }
         radiobutton_draw(wg);
@@ -1640,12 +1640,12 @@ static void radiobutton_event(
     } else if (ev->etype == ami_etmoubd) radiobutton_draw(wg);
     else if (ev->etype == ami_etfocus) {
 
-        wg->focus = 1; /* in focus */
+        wg->head.focus = 1; /* in focus */
         radiobutton_draw(wg); /* redraw the window */
 
     } else if (ev->etype == ami_etnofocus) {
 
-        wg->focus = 0; /* out of focus */
+        wg->head.focus = 0; /* out of focus */
         radiobutton_draw(wg); /* redraw the window */
 
     }
@@ -1676,7 +1676,7 @@ static void scrollvert_draw(
     ami_long  y;
 
     /* find net total slider space */
-    totsizp = ami_maxyg(wg->wf)-ENDSPACE-ENDSPACE;
+    totsizp = ami_maxyg(wg->head.wf)-ENDSPACE-ENDSPACE;
     /* find size of slider in pixels */
     sclsizp = round((double)totsizp*wg->sclsiz/LONG_MAX);
     /* find remaining size after slider */
@@ -1701,9 +1701,9 @@ static void scrollvert_draw(
             sclpos = y >= remsizp? LONG_MAX: LONG_MAX/remsizp*y;
             /* send event back to parent window */
             er.etype = ami_etsclpos; /* set scroll position event */
-            er.sclpid = wg->id; /* set id */
+            er.sclpid = wg->head.id; /* set id */
             er.sclpos = sclpos; /* set scrollbar position */
-            ami_sendevent(wg->parent, &er); /* send the event to the parent */
+            ami_sendevent(wg->head.parent, &er); /* send the event to the parent */
             wg->grab = TRUE; /* set we grabbed the scrollbar */
 
         }
@@ -1711,15 +1711,15 @@ static void scrollvert_draw(
     } else if (!wg->pressed) wg->grab = FALSE;
 
     /* color the background */
-    fcolort(wg->wf, th_scrollback);
-    ami_frect(wg->wf, 1, 1, ami_maxxg(wg->wf), ami_maxyg(wg->wf));
+    fcolort(wg->head.wf, th_scrollback);
+    ami_frect(wg->head.wf, 1, 1, ami_maxxg(wg->head.wf), ami_maxyg(wg->head.wf));
     if (wg->pressed && (inbar || wg->grab))
         /* color as pressed */
-        fcolort(wg->wf, th_scrollbarpressed);
+        fcolort(wg->head.wf, th_scrollbarpressed);
     else
         /* color as not pressed */
-        fcolort(wg->wf, th_scrollbar);
-    ami_frrect(wg->wf, ENDSPACE, ENDSPACE+sclposp, ami_maxxg(wg->wf)-ENDSPACE, ENDSPACE+sclposp+sclsizp,
+        fcolort(wg->head.wf, th_scrollbar);
+    ami_frrect(wg->head.wf, ENDSPACE, ENDSPACE+sclposp, ami_maxxg(wg->head.wf)-ENDSPACE, ENDSPACE+sclposp+sclsizp,
               10, 10);
 
 }
@@ -1752,7 +1752,7 @@ static void scrollvert_event(
         wg->lpressed = wg->pressed; /* save last pressed state */
         wg->pressed = TRUE; /* set is pressed */
         /* find net total slider space */
-        totsizp = ami_maxyg(wg->wf)-ENDSPACE-ENDSPACE;
+        totsizp = ami_maxyg(wg->head.wf)-ENDSPACE-ENDSPACE;
         /* find size of slider in pixels */
         sclsizp = round((double)totsizp*wg->sclsiz/LONG_MAX);
         /* find remaining size after slider */
@@ -1760,15 +1760,15 @@ static void scrollvert_event(
         /* find new top for click */
         y = wg->mpy-sclsizp/2;
         if (y < ENDSPACE) y = ENDSPACE; /* limit top travel */
-        else if (y+sclsizp > ami_maxyg(wg->wf)-ENDSPACE)
-            y = ami_maxyg(wg->wf)-sclsizp-ENDSPACE;
+        else if (y+sclsizp > ami_maxyg(wg->head.wf)-ENDSPACE)
+            y = ami_maxyg(wg->head.wf)-sclsizp-ENDSPACE;
         /* find new ratioed position */
         sclpos = y-ENDSPACE >= remsizp? LONG_MAX: LONG_MAX/remsizp*(y-ENDSPACE);
         /* send event back to parent window */
         er.etype = ami_etsclpos; /* set scroll position event */
-        er.sclpid = wg->id; /* set id */
+        er.sclpid = wg->head.id; /* set id */
         er.sclpos = sclpos; /* set scrollbar position */
-        ami_sendevent(wg->parent, &er); /* send the event to the parent */
+        ami_sendevent(wg->head.parent, &er); /* send the event to the parent */
         scrollvert_draw(wg);
 
     } else if (ev->etype == ami_etmoubd) {
@@ -1821,7 +1821,7 @@ static void scrollhoriz_draw(
     ami_long  x;
 
     /* find net total slider space */
-    totsizp = ami_maxxg(wg->wf)-ENDSPACE-ENDSPACE;
+    totsizp = ami_maxxg(wg->head.wf)-ENDSPACE-ENDSPACE;
     /* find size of slider in pixels */
     sclsizp = round((double)totsizp*wg->sclsiz/LONG_MAX);
     /* find remaining size after slider */
@@ -1845,23 +1845,23 @@ static void scrollhoriz_draw(
         sclpos = x >= remsizp? LONG_MAX: LONG_MAX/remsizp*x;
         /* send event back to parent window */
         er.etype = ami_etsclpos; /* set scroll position event */
-        er.sclpid = wg->id; /* set id */
+        er.sclpid = wg->head.id; /* set id */
         er.sclpos = sclpos; /* set scrollbar position */
-        ami_sendevent(wg->parent, &er); /* send the event to the parent */
+        ami_sendevent(wg->head.parent, &er); /* send the event to the parent */
         wg->grab = TRUE; /* set we grabbed the scrollbar */
 
     } else if (!wg->pressed) wg->grab = FALSE;
 
     /* color the background */
-    fcolort(wg->wf, th_scrollback);
-    ami_frect(wg->wf, 1, 1, ami_maxxg(wg->wf), ami_maxyg(wg->wf));
+    fcolort(wg->head.wf, th_scrollback);
+    ami_frect(wg->head.wf, 1, 1, ami_maxxg(wg->head.wf), ami_maxyg(wg->head.wf));
     if (wg->pressed && (inbar || wg->grab))
         /* color as pressed */
-        fcolort(wg->wf, th_scrollbarpressed);
+        fcolort(wg->head.wf, th_scrollbarpressed);
     else
         /* color as not pressed */
-        fcolort(wg->wf, th_scrollbar);
-    ami_frrect(wg->wf, ENDSPACE+sclposp, ENDSPACE, ENDSPACE+sclposp+sclsizp, ami_maxyg(wg->wf)-ENDSPACE,
+        fcolort(wg->head.wf, th_scrollbar);
+    ami_frrect(wg->head.wf, ENDSPACE+sclposp, ENDSPACE, ENDSPACE+sclposp+sclsizp, ami_maxyg(wg->head.wf)-ENDSPACE,
               10, 10);
 
 }
@@ -1893,7 +1893,7 @@ static void scrollhoriz_event(
 
         wg->lpressed = wg->pressed; /* save last pressed state */
         wg->pressed = TRUE; /* set is pressed */
-        totsizp = ami_maxxg(wg->wf)-ENDSPACE-ENDSPACE; /* find net total slider space */
+        totsizp = ami_maxxg(wg->head.wf)-ENDSPACE-ENDSPACE; /* find net total slider space */
         /* find size of slider in pixels */
         sclsizp = round((double)totsizp*wg->sclsiz/LONG_MAX);
         /* find remaining size after slider */
@@ -1901,15 +1901,15 @@ static void scrollhoriz_event(
         /* find new top for click */
         x = wg->mpx-sclsizp/2;
         if (x < ENDSPACE) x = ENDSPACE; /* limit left travel */
-        else if (x+sclsizp > ami_maxxg(wg->wf)-ENDSPACE)
-            x = ami_maxxg(wg->wf)-sclsizp-ENDSPACE;
+        else if (x+sclsizp > ami_maxxg(wg->head.wf)-ENDSPACE)
+            x = ami_maxxg(wg->head.wf)-sclsizp-ENDSPACE;
         /* find new ratioed position */
         sclpos = x-ENDSPACE >= remsizp? LONG_MAX: LONG_MAX/remsizp*(x-ENDSPACE);
         /* send event back to parent window */
         er.etype = ami_etsclpos; /* set scroll position event */
-        er.sclpid = wg->id; /* set id */
+        er.sclpid = wg->head.id; /* set id */
         er.sclpos = sclpos; /* set scrollbar position */
-        ami_sendevent(wg->parent, &er); /* send the event to the parent */
+        ami_sendevent(wg->head.parent, &er); /* send the event to the parent */
 
         scrollhoriz_draw(wg);
 
@@ -1951,16 +1951,16 @@ static void group_draw(
 {
 
     /* color the background */
-    ami_fcolor(wg->wf, ami_backcolor);
-    ami_frect(wg->wf, 1, 1, ami_maxxg(wg->wf), ami_maxyg(wg->wf));
-    fcolort(wg->wf, th_outline1);
-    ami_linewidth(wg->wf, 2);
-    ami_rect(wg->wf, 2, ami_chrsizy(wg->wf)/2, ami_maxxg(wg->wf), ami_maxyg(wg->wf));
-    ami_fcolor(wg->wf, ami_black);
-    ami_cursorg(wg->wf, 1, 1);
-    ami_bover(wg->wf);
-    ami_bcolor(wg->wf, ami_backcolor);
-    fprintf(wg->wf, "%s", wg->face); /* place button face */
+    ami_fcolor(wg->head.wf, ami_backcolor);
+    ami_frect(wg->head.wf, 1, 1, ami_maxxg(wg->head.wf), ami_maxyg(wg->head.wf));
+    fcolort(wg->head.wf, th_outline1);
+    ami_linewidth(wg->head.wf, 2);
+    ami_rect(wg->head.wf, 2, ami_chrsizy(wg->head.wf)/2, ami_maxxg(wg->head.wf), ami_maxyg(wg->head.wf));
+    ami_fcolor(wg->head.wf, ami_black);
+    ami_cursorg(wg->head.wf, 1, 1);
+    ami_bover(wg->head.wf);
+    ami_bcolor(wg->head.wf, ami_backcolor);
+    fprintf(wg->head.wf, "%s", wg->face); /* place button face */
 
 
 }
@@ -1999,9 +1999,9 @@ static void background_draw(
 {
 
     /* color the background */
-    ami_fcolor(wg->wf, ami_backcolor);
-    ami_frect(wg->wf, 1, 1, ami_maxxg(wg->wf), ami_maxyg(wg->wf));
-    ami_fcolor(wg->wf, ami_black);
+    ami_fcolor(wg->head.wf, ami_backcolor);
+    ami_frect(wg->head.wf, 1, 1, ami_maxxg(wg->head.wf), ami_maxyg(wg->head.wf));
+    ami_fcolor(wg->head.wf, ami_black);
 
 }
 
@@ -2053,85 +2053,85 @@ static void editbox_draw(
 
     }
     /* color the background */
-    ami_fcolor(wg->wf, ami_white);
-    ami_frect(wg->wf, 1, 1, ami_maxxg(wg->wf), ami_maxyg(wg->wf));
+    ami_fcolor(wg->head.wf, ami_white);
+    ami_frect(wg->head.wf, 1, 1, ami_maxxg(wg->head.wf), ami_maxyg(wg->head.wf));
     if (!wg->pw) { /* if not subclassed, draw background and outline */
 
         /* outline */
-        if (wg->focus) {
+        if (wg->head.focus) {
 
-            ami_linewidth(wg->wf, 4);
-            fcolort(wg->wf, th_focus);
+            ami_linewidth(wg->head.wf, 4);
+            fcolort(wg->head.wf, th_focus);
 
         } else {
 
-            ami_linewidth(wg->wf, 2);
-            fcolort(wg->wf, th_outline1);
+            ami_linewidth(wg->head.wf, 2);
+            fcolort(wg->head.wf, th_outline1);
 
         }
-        ami_rrect(wg->wf, 2, 2, ami_maxxg(wg->wf)-1,
-                 ami_maxyg(wg->wf)-1, 20, 20);
+        ami_rrect(wg->head.wf, 2, 2, ami_maxxg(wg->head.wf)-1,
+                 ami_maxyg(wg->head.wf)-1, 20, 20);
 
     }
     /* text */
-    if (wg->enb) {
+    if (wg->head.enb) {
 
-        if (err) fcolort(wg->wf, th_texterr);
-        else fcolort(wg->wf, th_text);
+        if (err) fcolort(wg->head.wf, th_texterr);
+        else fcolort(wg->head.wf, th_text);
 
-    } else fcolort(wg->wf, th_textdis);
-    ami_cursorg(wg->wf, ENDLEDSPC, ami_maxyg(wg->wf)/2-ami_chrsizy(wg->wf)/2);
+    } else fcolort(wg->head.wf, th_textdis);
+    ami_cursorg(wg->head.wf, ENDLEDSPC, ami_maxyg(wg->head.wf)/2-ami_chrsizy(wg->head.wf)/2);
     /* check cursor in box */
     if (wg->tleft > strlen(wg->face)) wg->tleft = 0;
-    cl = ENDLEDSPC+ami_chrpos(wg->wf, wg->face, wg->curs)-
-         ami_chrpos(wg->wf, wg->face, wg->tleft);
+    cl = ENDLEDSPC+ami_chrpos(wg->head.wf, wg->face, wg->curs)-
+         ami_chrpos(wg->head.wf, wg->face, wg->tleft);
     while (cl < ENDLEDSPC && wg->tleft > 0) {
 
         /* cursor out of field left */
         wg->tleft--; /* back up left margin */
         /* recalculate */
-        cl = ENDLEDSPC+ami_chrpos(wg->wf, wg->face, wg->curs)-
-             ami_chrpos(wg->wf, wg->face, wg->tleft);
+        cl = ENDLEDSPC+ami_chrpos(wg->head.wf, wg->face, wg->curs)-
+             ami_chrpos(wg->head.wf, wg->face, wg->tleft);
 
     }
-    while (cl > ami_maxxg(wg->wf)-ENDLEDSPC && wg->tleft < strlen(wg->face)) {
+    while (cl > ami_maxxg(wg->head.wf)-ENDLEDSPC && wg->tleft < strlen(wg->face)) {
 
         /* cursor out of field right */
         wg->tleft++; /* advance left margin */
         /* recalculate */
-        cl = ENDLEDSPC+ami_chrpos(wg->wf, wg->face, wg->curs)-
-             ami_chrpos(wg->wf, wg->face, wg->tleft);
+        cl = ENDLEDSPC+ami_chrpos(wg->head.wf, wg->face, wg->curs)-
+             ami_chrpos(wg->head.wf, wg->face, wg->tleft);
 
     }
     /* display only characters that completely fit the field */
     s = &wg->face[wg->tleft]; /* index displayable string */
-    while (*s && ami_curxg(wg->wf)+ami_chrpos(wg->wf, s, 1) <=
-                 ami_maxxg(wg->wf)-ENDLEDSPC)
-        fputc(*s++, wg->wf);
-    if (wg->focus && wg->enb) { /* if in focus and enabled, draw the cursor */
+    while (*s && ami_curxg(wg->head.wf)+ami_chrpos(wg->head.wf, s, 1) <=
+                 ami_maxxg(wg->head.wf)-ENDLEDSPC)
+        fputc(*s++, wg->head.wf);
+    if (wg->head.focus && wg->head.enb) { /* if in focus and enabled, draw the cursor */
 
-        fcolort(wg->wf, th_text); /* set color */
+        fcolort(wg->head.wf, th_text); /* set color */
         /* find x location of cursor */
-        x = ENDLEDSPC+ami_chrpos(wg->wf, wg->face, wg->curs)-
-            ami_chrpos(wg->wf, wg->face, wg->tleft);
+        x = ENDLEDSPC+ami_chrpos(wg->head.wf, wg->face, wg->curs)-
+            ami_chrpos(wg->head.wf, wg->face, wg->tleft);
         if (wg->ins) { /* in overwrite mode */
 
-            ami_reverse(wg->wf, TRUE); /* set reverse mode */
-            ami_bover(wg->wf); /* paint background */
+            ami_reverse(wg->head.wf, TRUE); /* set reverse mode */
+            ami_bover(wg->head.wf); /* paint background */
             /* index cursor character */
-            ami_cursorg(wg->wf, x, ami_maxyg(wg->wf)/2-ami_chrsizy(wg->wf)/2);
+            ami_cursorg(wg->head.wf, x, ami_maxyg(wg->head.wf)/2-ami_chrsizy(wg->head.wf)/2);
             /* if off the end of string, use space to reverse */
-            if (wg->curs >= strlen(wg->face)) fputc(' ', wg->wf);
-            else fputc(wg->face[wg->curs], wg->wf);
-            ami_reverse(wg->wf, FALSE); /* reset reverse mode */
-            ami_binvis(wg->wf); /* remove background */
+            if (wg->curs >= strlen(wg->face)) fputc(' ', wg->head.wf);
+            else fputc(wg->face[wg->curs], wg->head.wf);
+            ami_reverse(wg->head.wf, FALSE); /* reset reverse mode */
+            ami_binvis(wg->head.wf); /* remove background */
 
         } else { /* in insert mode */
 
-            ami_linewidth(wg->wf, 2); /* set line size */
-            ami_line(wg->wf, x, ami_maxyg(wg->wf)/2-ami_chrsizy(wg->wf)/2,
-                            x, ami_maxyg(wg->wf)/2-ami_chrsizy(wg->wf)/2+
-                            ami_chrsizy(wg->wf));
+            ami_linewidth(wg->head.wf, 2); /* set line size */
+            ami_line(wg->head.wf, x, ami_maxyg(wg->head.wf)/2-ami_chrsizy(wg->head.wf)/2,
+                            x, ami_maxyg(wg->head.wf)/2-ami_chrsizy(wg->head.wf)/2+
+                            ami_chrsizy(wg->head.wf));
 
         }
 
@@ -2189,27 +2189,27 @@ static void editbox_event(
             break;
 
         case ami_etfocus: /* gain focus */
-            wg->focus = 1; /* in focus */
+            wg->head.focus = 1; /* in focus */
             editbox_draw(wg); /* redraw */
             /* send light focus event to parent */
             if (wg->pw) { /* if subclassed */
 
                 /* send the event to the parent */
                 er.etype = WMC_LGTFOC; /* set light up */
-                ami_sendevent(wg->pw->wf, &er);
+                ami_sendevent(wg->pw->head.wf, &er);
 
             }
             break;
 
         case ami_etnofocus: /* lose focus */
-            wg->focus = 0; /* out of focus */
+            wg->head.focus = 0; /* out of focus */
             editbox_draw(wg); /* redraw */
             /* send light focus event to parent */
             if (wg->pw) { /* if subclassed */
 
                 /* send the event to the parent */
                 er.etype = WMC_DRKFOC; /* set light up */
-                ami_sendevent(wg->pw->wf, &er);
+                ami_sendevent(wg->pw->head.wf, &er);
 
             }
             break;
@@ -2272,14 +2272,14 @@ static void editbox_event(
                 l = strlen(wg->face); /* get length of existing face string */
                 i = 0;
                 /* find first character beyond click */
-                while (ENDLEDSPC+ami_chrpos(wg->wf, wg->face, i) < wg->mpx && i < l) i++;
+                while (ENDLEDSPC+ami_chrpos(wg->head.wf, wg->face, i) < wg->mpx && i < l) i++;
                 if (i) {
 
                     /* find span between last and next characters */
-                    span = ami_chrpos(wg->wf, wg->face, i)-
-                           ami_chrpos(wg->wf, wg->face, i-1);
+                    span = ami_chrpos(wg->head.wf, wg->face, i)-
+                           ami_chrpos(wg->head.wf, wg->face, i-1);
                     /* find offset last to mouse click */
-                    off = wg->mpx-(ENDLEDSPC+ami_chrpos(wg->wf, wg->face, i-1));
+                    off = wg->mpx-(ENDLEDSPC+ami_chrpos(wg->head.wf, wg->face, i-1));
                     /* if mouse click is closer to last, index last */
                     if (off < span/2) i--;
 
@@ -2293,8 +2293,8 @@ static void editbox_event(
         case ami_etenter: /* signal entry done */
             /* send event back to parent window */
             er.etype = ami_etedtbox; /* set button event */
-            er.edtbid = wg->id; /* set id */
-            ami_sendevent(wg->parent, &er); /* send the event to the parent */
+            er.edtbid = wg->head.id; /* set id */
+            ami_sendevent(wg->head.parent, &er); /* send the event to the parent */
             break;
 
         case ami_ethomel: /* beginning of line */
@@ -2362,49 +2362,49 @@ static void numselbox_draw(
 
     udspc = ami_chrsizy(win0)*1.9; /* square space for up/down control */
     /* color the background */
-    ami_fcolor(wg->wf, ami_white);
-    ami_frect(wg->wf, 1, 1, ami_maxxg(wg->wf), ami_maxyg(wg->wf));
+    ami_fcolor(wg->head.wf, ami_white);
+    ami_frect(wg->head.wf, 1, 1, ami_maxxg(wg->head.wf), ami_maxyg(wg->head.wf));
     if (wg->downpress) {
 
-        fcolort(wg->wf, th_backpressed);
-        ami_frect(wg->wf, ami_maxxg(wg->wf)-udspc*2, 1,
-                        ami_maxxg(wg->wf)-udspc*1-1, ami_maxyg(wg->wf));
+        fcolort(wg->head.wf, th_backpressed);
+        ami_frect(wg->head.wf, ami_maxxg(wg->head.wf)-udspc*2, 1,
+                        ami_maxxg(wg->head.wf)-udspc*1-1, ami_maxyg(wg->head.wf));
 
     } else if (wg->uppress) {
 
-        fcolort(wg->wf, th_backpressed);
-        ami_frect(wg->wf, ami_maxxg(wg->wf)-udspc*1, 1,
-                        ami_maxxg(wg->wf), ami_maxyg(wg->wf));
+        fcolort(wg->head.wf, th_backpressed);
+        ami_frect(wg->head.wf, ami_maxxg(wg->head.wf)-udspc*1, 1,
+                        ami_maxxg(wg->head.wf), ami_maxyg(wg->head.wf));
 
     }
     /* draw divider lines */
-    fcolort(wg->wf, th_numseldiv);
-    ami_line(wg->wf, ami_maxxg(wg->wf)-udspc, 1,
-                    ami_maxxg(wg->wf)-udspc, ami_maxyg(wg->wf));
-    ami_line(wg->wf, ami_maxxg(wg->wf)-udspc*2, 1,
-                    ami_maxxg(wg->wf)-udspc*2, ami_maxyg(wg->wf));
+    fcolort(wg->head.wf, th_numseldiv);
+    ami_line(wg->head.wf, ami_maxxg(wg->head.wf)-udspc, 1,
+                    ami_maxxg(wg->head.wf)-udspc, ami_maxyg(wg->head.wf));
+    ami_line(wg->head.wf, ami_maxxg(wg->head.wf)-udspc*2, 1,
+                    ami_maxxg(wg->head.wf)-udspc*2, ami_maxyg(wg->head.wf));
     /* draw up/down figures */
-    figsiz = ami_maxyg(wg->wf)/2; /* set figure size */
-    fcolort(wg->wf, th_numselud);
-    ami_line(wg->wf, ami_maxxg(wg->wf)-udspc*1.5-figsiz/2.75, ami_maxyg(wg->wf)/2,
-                    ami_maxxg(wg->wf)-udspc*1.5+figsiz/2.75, ami_maxyg(wg->wf)/2);
-    ami_line(wg->wf, ami_maxxg(wg->wf)-udspc*0.5-figsiz/2.75, ami_maxyg(wg->wf)/2,
-                    ami_maxxg(wg->wf)-udspc*0.5+figsiz/2.75, ami_maxyg(wg->wf)/2);
-    ami_line(wg->wf, ami_maxxg(wg->wf)-udspc*0.5, ami_maxyg(wg->wf)/2-figsiz/2.75,
-                    ami_maxxg(wg->wf)-udspc*0.5, ami_maxyg(wg->wf)/2+figsiz/2.75);
+    figsiz = ami_maxyg(wg->head.wf)/2; /* set figure size */
+    fcolort(wg->head.wf, th_numselud);
+    ami_line(wg->head.wf, ami_maxxg(wg->head.wf)-udspc*1.5-figsiz/2.75, ami_maxyg(wg->head.wf)/2,
+                    ami_maxxg(wg->head.wf)-udspc*1.5+figsiz/2.75, ami_maxyg(wg->head.wf)/2);
+    ami_line(wg->head.wf, ami_maxxg(wg->head.wf)-udspc*0.5-figsiz/2.75, ami_maxyg(wg->head.wf)/2,
+                    ami_maxxg(wg->head.wf)-udspc*0.5+figsiz/2.75, ami_maxyg(wg->head.wf)/2);
+    ami_line(wg->head.wf, ami_maxxg(wg->head.wf)-udspc*0.5, ami_maxyg(wg->head.wf)/2-figsiz/2.75,
+                    ami_maxxg(wg->head.wf)-udspc*0.5, ami_maxyg(wg->head.wf)/2+figsiz/2.75);
     /* outline */
-    if (wg->focus | wg->cw->focus) {
+    if (wg->head.focus | wg->cw->head.focus) {
 
-        ami_linewidth(wg->wf, 4);
-        fcolort(wg->wf, th_focus);
+        ami_linewidth(wg->head.wf, 4);
+        fcolort(wg->head.wf, th_focus);
 
     } else {
 
-        ami_linewidth(wg->wf, 2);
-        fcolort(wg->wf, th_outline1);
+        ami_linewidth(wg->head.wf, 2);
+        fcolort(wg->head.wf, th_outline1);
 
     }
-    ami_rrect(wg->wf, 2, 2, ami_maxxg(wg->wf)-1, ami_maxyg(wg->wf)-1, 20, 20);
+    ami_rrect(wg->head.wf, 2, 2, ami_maxxg(wg->head.wf)-1, ami_maxyg(wg->head.wf)-1, 20, 20);
 
 }
 
@@ -2438,23 +2438,23 @@ static void numselbox_event(
             break;
 
         case ami_etfocus: /* gain focus */
-            wg->focus = 1; /* in focus */
+            wg->head.focus = 1; /* in focus */
             /* if we get focus, send it on to subclassed edit window */
-            ami_focus(wg->cw->wf);
+            ami_focus(wg->cw->head.wf);
             numselbox_draw(wg); /* redraw */
             break;
 
         case ami_etnofocus: /* lose focus */
-            wg->focus = 0; /* out of focus */
+            wg->head.focus = 0; /* out of focus */
             numselbox_draw(wg); /* redraw */
             break;
 
         case ami_etedtbox: /* signal entry done */
             /* send event back to parent window */
             er.etype = ami_etnumbox; /* set button event */
-            er.numbid = wg->id; /* set id */
+            er.numbid = wg->head.id; /* set id */
             er.numbsl = atol(wg->cw->face); /* set value */
-            ami_sendevent(wg->parent, &er); /* send the event to the parent */
+            ami_sendevent(wg->head.parent, &er); /* send the event to the parent */
             break;
 
         case ami_etmoumovg: /* mouse moved */
@@ -2468,29 +2468,29 @@ static void numselbox_event(
 
                 if (wg->cw->face[0]) {
 
-                    if (wg->mpx >= ami_maxxg(wg->wf)-udspc*2 &&
-                        wg->mpx < ami_maxxg(wg->wf)-udspc) {
+                    if (wg->mpx >= ami_maxxg(wg->head.wf)-udspc*2 &&
+                        wg->mpx < ami_maxxg(wg->head.wf)-udspc) {
 
                         /* down control */
-                        getwidgettextz(wg->wf, wg->cw->id, buff, sizeof(buff));
+                        getwidgettextz(wg->head.wf, wg->cw->head.id, buff, sizeof(buff));
                         v = atol(buff);
                         if (wg->cw->lbnd < v && v <= wg->cw->ubnd) v--;
                         sprintf(buff, "%lld", AMI_LONG_CAST(v));
-                        ami_putwidgettext(wg->wf, wg->cw->id, buff);
+                        ami_putwidgettext(wg->head.wf, wg->cw->head.id, buff);
                         if (wg->cw->curs > strlen(wg->cw->face))
                             wg->cw->curs = strlen(wg->cw->face);
                         editbox_draw(wg->cw);
                         wg->downpress = TRUE; /* set down pressed */
                         numselbox_draw(wg); /* redraw */
 
-                    } else if (wg->mpx >= ami_maxxg(wg->wf)-udspc) {
+                    } else if (wg->mpx >= ami_maxxg(wg->head.wf)-udspc) {
 
                         /* up control */
-                        getwidgettextz(wg->wf, wg->cw->id, buff, sizeof(buff));
+                        getwidgettextz(wg->head.wf, wg->cw->head.id, buff, sizeof(buff));
                         v = atol(buff);
                         if (wg->cw->lbnd <= v && v < wg->cw->ubnd) v++;
                         sprintf(buff, "%lld", AMI_LONG_CAST(v));
-                        ami_putwidgettext(wg->wf, wg->cw->id, buff);
+                        ami_putwidgettext(wg->head.wf, wg->cw->head.id, buff);
                         if (wg->cw->curs > strlen(wg->cw->face))
                             wg->cw->curs = strlen(wg->cw->face);
                         editbox_draw(wg->cw);
@@ -2536,21 +2536,21 @@ static void progbar_draw(
     ami_long pbpp; /* prog bar pixel position right side */
 
     /* draw inactive background */
-    fcolort(wg->wf, th_proginacen);
-    ami_linewidth(wg->wf, 2);
-    ami_frrect(wg->wf, 1, 1, ami_maxxg(wg->wf), ami_maxyg(wg->wf), 10, 10);
+    fcolort(wg->head.wf, th_proginacen);
+    ami_linewidth(wg->head.wf, 2);
+    ami_frrect(wg->head.wf, 1, 1, ami_maxxg(wg->head.wf), ami_maxyg(wg->head.wf), 10, 10);
     /* draw inactive edget */
-    fcolort(wg->wf, th_proginaedg);
-    ami_rrect(wg->wf, 2, 2, ami_maxxg(wg->wf)-1, ami_maxyg(wg->wf)-1, 10, 10);
+    fcolort(wg->head.wf, th_proginaedg);
+    ami_rrect(wg->head.wf, 2, 2, ami_maxxg(wg->head.wf)-1, ami_maxyg(wg->head.wf)-1, 10, 10);
     /* find right side of prog bar */
-    pbpp = round((double)wg->ppos*ami_maxxg(wg->wf)/LONG_MAX);
+    pbpp = round((double)wg->ppos*ami_maxxg(wg->head.wf)/LONG_MAX);
     /* now draw active */
-    fcolort(wg->wf, th_progactcen);
-    ami_linewidth(wg->wf, 2);
-    ami_frrect(wg->wf, 1, 1, pbpp, ami_maxyg(wg->wf), 10, 10);
+    fcolort(wg->head.wf, th_progactcen);
+    ami_linewidth(wg->head.wf, 2);
+    ami_frrect(wg->head.wf, 1, 1, pbpp, ami_maxyg(wg->head.wf), 10, 10);
     /* draw inactive edget */
-    fcolort(wg->wf, th_progactedg);
-    ami_rrect(wg->wf, 2, 2,pbpp-1, ami_maxyg(wg->wf)-1, 10, 10);
+    fcolort(wg->head.wf, th_progactedg);
+    ami_rrect(wg->head.wf, 2, 2,pbpp-1, ami_maxyg(wg->head.wf)-1, 10, 10);
 
 }
 
@@ -2591,7 +2591,7 @@ static ami_long listbox_vis(wigptr wg)
 
 {
 
-    ami_long n = (ami_maxyg(wg->wf)-ami_chrsizy(wg->wf)*0.5)/ami_chrsizy(wg->wf);
+    ami_long n = (ami_maxyg(wg->head.wf)-ami_chrsizy(wg->head.wf)*0.5)/ami_chrsizy(wg->head.wf);
 
     return (n < 1? 1: n);
 
@@ -2629,12 +2629,12 @@ static void listbox_line(wigptr wg, ami_strptr sp, ami_long idx, ami_long y)
 {
 
     if (idx == wg->lsel)
-        fcolort(wg->wf, th_lstsel); /* the held selection */
-    else if (wg->hover && idx == wg->ss)
-        fcolort(wg->wf, th_lsthov); /* hover background */
-    else ami_fcolor(wg->wf, ami_white); /* normal background */
-    ami_frect(wg->wf, 4, y, ami_maxxg(wg->wf)-3, y+ami_chrsizy(wg->wf)-1);
-    ami_fcolor(wg->wf, ami_black);
+        fcolort(wg->head.wf, th_lstsel); /* the held selection */
+    else if (wg->head.hover && idx == wg->ss)
+        fcolort(wg->head.wf, th_lsthov); /* hover background */
+    else ami_fcolor(wg->head.wf, ami_white); /* normal background */
+    ami_frect(wg->head.wf, 4, y, ami_maxxg(wg->head.wf)-3, y+ami_chrsizy(wg->head.wf)-1);
+    ami_fcolor(wg->head.wf, ami_black);
     if (wg->ntabs) { /* in columns, each field at its stop */
 
         const char* p = sp->str;
@@ -2650,12 +2650,12 @@ static void listbox_line(wigptr wg, ami_strptr sp, ami_long idx, ami_long y)
             if (l > (ami_long)sizeof(fld)-1) l = sizeof(fld)-1;
             memcpy(fld, p, l);
             fld[l] = 0;
-            if (!i) x = ami_chrsizy(wg->wf)*0.5; /* the name leads */
+            if (!i) x = ami_chrsizy(wg->head.wf)*0.5; /* the name leads */
             else if (wg->tabs[i-1] < 0) /* right aligned to its stop */
-                x = -wg->tabs[i-1]-ami_strsiz(wg->wf, fld);
+                x = -wg->tabs[i-1]-ami_strsiz(wg->head.wf, fld);
             else x = wg->tabs[i-1];
-            ami_cursorg(wg->wf, x, y);
-            fprintf(wg->wf, "%s", fld);
+            ami_cursorg(wg->head.wf, x, y);
+            fprintf(wg->head.wf, "%s", fld);
             if (!e) break;
             p = e+1;
             i++;
@@ -2664,8 +2664,8 @@ static void listbox_line(wigptr wg, ami_strptr sp, ami_long idx, ami_long y)
 
     } else {
 
-        ami_cursorg(wg->wf, ami_chrsizy(wg->wf)*0.5, y);
-        fprintf(wg->wf, "%s", sp->str); /* place string */
+        ami_cursorg(wg->head.wf, ami_chrsizy(wg->head.wf)*0.5, y);
+        fprintf(wg->head.wf, "%s", sp->str); /* place string */
 
     }
 
@@ -2686,16 +2686,16 @@ static void listbox_line_idx(wigptr wg, ami_long idx)
     sp = wg->strlst; /* index top of stringlist */
     sc = 1; /* set first string */
     while (sp && sc < wg->top) { sp = sp->next; sc++; } /* to the view */
-    y = ami_chrsizy(wg->wf)*0.5; /* space to first string */
+    y = ami_chrsizy(wg->head.wf)*0.5; /* space to first string */
     while (sp && sc < idx) { /* walk to the target line */
 
-        y += ami_chrsizy(wg->wf); /* next line */
+        y += ami_chrsizy(wg->head.wf); /* next line */
         sp = sp->next; /* next string */
         sc++; /* next select */
 
     }
     /* in the view: paint it. Below it, there is nothing to paint */
-    if (sp && y+ami_chrsizy(wg->wf) <= ami_maxyg(wg->wf))
+    if (sp && y+ami_chrsizy(wg->head.wf) <= ami_maxyg(wg->head.wf))
         listbox_line(wg, sp, idx, y);
 
 }
@@ -2711,22 +2711,22 @@ static void listbox_draw(
     ami_long  sc;
 
     /* draw background */
-    ami_fcolor(wg->wf, ami_white);
-    ami_frrect(wg->wf, 1, 1, ami_maxxg(wg->wf), ami_maxyg(wg->wf), 10, 10);
+    ami_fcolor(wg->head.wf, ami_white);
+    ami_frrect(wg->head.wf, 1, 1, ami_maxxg(wg->head.wf), ami_maxyg(wg->head.wf), 10, 10);
     /* draw outline */
-    fcolort(wg->wf, th_outline1);
-    ami_linewidth(wg->wf, 2);
-    ami_rrect(wg->wf, 2, 2, ami_maxxg(wg->wf)-1, ami_maxyg(wg->wf)-1, 10, 10);
+    fcolort(wg->head.wf, th_outline1);
+    ami_linewidth(wg->head.wf, 2);
+    ami_rrect(wg->head.wf, 2, 2, ami_maxxg(wg->head.wf)-1, ami_maxyg(wg->head.wf)-1, 10, 10);
     /* from the entry the view starts at, for as many as the box holds */
     listbox_clamp(wg);
     sp = wg->strlst; /* index top of stringlist */
     sc = 1; /* set first string */
     while (sp && sc < wg->top) { sp = sp->next; sc++; } /* to the view */
-    y = ami_chrsizy(wg->wf)*0.5; /* space to first string */
-    while (sp && y+ami_chrsizy(wg->wf) <= ami_maxyg(wg->wf)) {
+    y = ami_chrsizy(wg->head.wf)*0.5; /* space to first string */
+    while (sp && y+ami_chrsizy(wg->head.wf) <= ami_maxyg(wg->head.wf)) {
 
         listbox_line(wg, sp, sc, y); /* paint this line */
-        y += ami_chrsizy(wg->wf); /* next line */
+        y += ami_chrsizy(wg->head.wf); /* next line */
         sp = sp->next; /* next string */
         sc++; /* next select */
 
@@ -2802,14 +2802,14 @@ static void listbox_event(
             }
             /* send event back to parent window */
             er.etype = ami_etlstbox; /* set button event */
-            er.lstbid = wg->id; /* set id */
+            er.lstbid = wg->head.id; /* set id */
             er.lstbsl = wg->ss; /* set string select */
             if (wg->pw)
                 /* send the event to the superclass widget */
                 ami_sendevent(wg->pf, &er);
             else
                 /* send the event to the parent */
-                ami_sendevent(wg->parent, &er);
+                ami_sendevent(wg->head.parent, &er);
 
         }
 
@@ -2826,13 +2826,13 @@ static void listbox_event(
         sp = wg->strlst; /* index top of string list */
         sc = 1; /* set first string */
         while (sp && sc < wg->top) { sp = sp->next; sc++; } /* to the view */
-        y = ami_chrsizy(wg->wf)*0.5; /* space to first string */
+        y = ami_chrsizy(wg->head.wf)*0.5; /* space to first string */
         wg->ss = 0; /* set no string selected */
-        while (sp && y+ami_chrsizy(wg->wf) <= ami_maxyg(wg->wf)) {
+        while (sp && y+ami_chrsizy(wg->head.wf) <= ami_maxyg(wg->head.wf)) {
 
             /* if within the string bounding box, select it */
-            if (wg->mpy >= y && wg->mpy <= y+ami_chrsizy(wg->wf)) wg->ss = sc;
-            y += ami_chrsizy(wg->wf); /* next line */
+            if (wg->mpy >= y && wg->mpy <= y+ami_chrsizy(wg->head.wf)) wg->ss = sc;
+            y += ami_chrsizy(wg->head.wf); /* next line */
             sc++; /* next select */
             sp = sp->next; /* next string */
 
@@ -2854,18 +2854,18 @@ static void listbox_event(
            (NotifyNonlinear/Virtual/Ancestor), and hover only affects the one
            highlighted line -- so act only on the real 0->1 transition and
            repaint just that line, never the whole list (which flashed). */
-        if (!wg->hover) {
+        if (!wg->head.hover) {
 
-            wg->hover = 1; /* hovered */
+            wg->head.hover = 1; /* hovered */
             listbox_line_idx(wg, wg->ss); /* highlight the hovered line, if any */
 
         }
 
     } else if (ev->etype == ami_etnohover) {
 
-        if (wg->hover) {
+        if (wg->head.hover) {
 
-            wg->hover = 0; /* not hovered */
+            wg->head.hover = 0; /* not hovered */
             listbox_line_idx(wg, wg->ss); /* un-highlight (now paints normal) */
             wg->ss = 0; /* forget the line so re-entry starts clean */
 
@@ -2901,43 +2901,43 @@ static void dropbox_draw(
     ddspc = ami_chrsizy(win0)*1.9; /* square space for dropdown control */
     aw = ddspc*0.3; /* set dropdown arrow width */
     ah = ddspc*0.15; /* set dropdown arrow height */
-    cx = ami_maxxg(wg->wf)-ddspc*0.5; /* center dropdown arrow */
-    cy = ami_maxyg(wg->wf)*0.5-ami_maxyg(wg->wf)*0.05;
+    cx = ami_maxxg(wg->head.wf)-ddspc*0.5; /* center dropdown arrow */
+    cy = ami_maxyg(wg->head.wf)*0.5-ami_maxyg(wg->head.wf)*0.05;
     /* color the background */
-    fcolort(wg->wf, th_back);
-    ami_frect(wg->wf, 1, 1, ami_maxxg(wg->wf), ami_maxyg(wg->wf));
+    fcolort(wg->head.wf, th_back);
+    ami_frect(wg->head.wf, 1, 1, ami_maxxg(wg->head.wf), ami_maxyg(wg->head.wf));
 
     /* outline */
-    if (wg->pw && wg->focus) { /* superclassed by dropeditbox and in focus */
+    if (wg->pw && wg->head.focus) { /* superclassed by dropeditbox and in focus */
 
-        ami_linewidth(wg->wf, 4);
-        fcolort(wg->wf, th_focus);
+        ami_linewidth(wg->head.wf, 4);
+        fcolort(wg->head.wf, th_focus);
 
     } else {
 
-        ami_linewidth(wg->wf, 2);
-        fcolort(wg->wf, th_outline2);
+        ami_linewidth(wg->head.wf, 2);
+        fcolort(wg->head.wf, th_outline2);
 
     }
-    ami_rrect(wg->wf, 2, 2, ami_maxxg(wg->wf)-1, ami_maxyg(wg->wf)-1, 20, 20);
+    ami_rrect(wg->head.wf, 2, 2, ami_maxxg(wg->head.wf)-1, ami_maxyg(wg->head.wf)-1, 20, 20);
 
     /* draw divider lines */
-    ami_linewidth(wg->wf, 2);
-    fcolort(wg->wf, th_outline2);
-    ami_line(wg->wf, ami_maxxg(wg->wf)-ddspc, 1,
-                    ami_maxxg(wg->wf)-ddspc, ami_maxyg(wg->wf));
+    ami_linewidth(wg->head.wf, 2);
+    fcolort(wg->head.wf, th_outline2);
+    ami_line(wg->head.wf, ami_maxxg(wg->head.wf)-ddspc, 1,
+                    ami_maxxg(wg->head.wf)-ddspc, ami_maxyg(wg->head.wf));
     /* draw dropbox arrow */
-    fcolort(wg->wf, th_droparrow);
-    ami_ftriangle(wg->wf, cx-aw*0.5, cy, cx+aw*0.5, cy, cx, cy+ah);
+    fcolort(wg->head.wf, th_droparrow);
+    ami_ftriangle(wg->head.wf, cx-aw*0.5, cy, cx+aw*0.5, cy, cx, cy+ah);
 
     /* draw current select */
     sp = wg->strlst;
     sc = wg->ss;
     /* find selected string */
     while (sc > 1 && sp) { sp = sp->next; sc--; }
-    fcolort(wg->wf, th_droptext);
-    ami_cursorg(wg->wf, ami_chrsizy(wg->wf)*0.5, ami_chrsizy(wg->wf)*0.5);
-    if (sp) fprintf(wg->wf, "%s", sp->str); /* place string */
+    fcolort(wg->head.wf, th_droptext);
+    ami_cursorg(wg->head.wf, ami_chrsizy(wg->head.wf)*0.5, ami_chrsizy(wg->head.wf)*0.5);
+    if (sp) fprintf(wg->head.wf, "%s", sp->str); /* place string */
 
 }
 
@@ -2969,13 +2969,13 @@ static void dropbox_event(
     else if (ev->etype == WMC_LGTFOC) { /* light focus */
 
         /* light focus, but we don't really have it */
-        wg->focus = 1; /* in focus */
+        wg->head.focus = 1; /* in focus */
         dropbox_draw(wg); /* redraw */
 
     } else if (ev->etype == WMC_DRKFOC) { /* lose focus */
 
         /* dark focus */
-        wg->focus = 0; /* out of focus */
+        wg->head.focus = 0; /* out of focus */
         dropbox_draw(wg); /* redraw */
 
     } else if (ev->etype == ami_etmoumovg) { /* mouse moved */
@@ -2989,38 +2989,38 @@ static void dropbox_event(
         /* The whole face opens the list, as it does on the desktop. The
            drop box within a drop edit box keeps to its control: there the
            face belongs to the edit box standing over it. */
-        if (!wg->pw || wg->mpx >= ami_maxxg(wg->wf)-udspc) {
+        if (!wg->pw || wg->mpx >= ami_maxxg(wg->head.wf)-udspc) {
 
             /* find parent parameters, since subwidget displays in that
                parent */
-            par = wg->parent; /* set near parent */
-            px = wg->px; /* set near origin */
-            py = wg->py;
+            par = wg->head.parent; /* set near parent */
+            px = wg->head.px; /* set near origin */
+            py = wg->head.py;
             if (wg->pw) { /* if we are subclass, parent is up one */
 
-                par = wg->pw->parent; /* set near parent */
-                px = wg->pw->px; /* set near origin */
-                py = wg->pw->py;
+                par = wg->pw->head.parent; /* set near parent */
+                px = wg->pw->head.px; /* set near origin */
+                py = wg->pw->head.py;
 
             }
             if (!wg->cw) { /* not already in dropdown mode */
 
                 /* find dimensions */
-                ami_listboxsizg(wg->wf, wg->strlst, &lbw, &lbh);
-                w = ami_maxxg(wg->wf); /* set width as same */
+                ami_listboxsizg(wg->head.wf, wg->strlst, &lbw, &lbh);
+                w = ami_maxxg(wg->head.wf); /* set width as same */
                 h = lbh;
 
                 /* create the list subwidget */
                 wp = getwig(); /* predef so we can plant list before display */
                 wp->strlst = wg->strlst; /* plant the list */
                 /* set to send messages to us (and not logical parent) */
-                wp->pf = wg->wf;
+                wp->pf = wg->head.wf;
                 wg->cw = wp; /* set child widget */
                 wp->pw = wg; /* set parent widget */
                 /* open listbox */
                 wg->cid = ami_getwigid(par); /* get anonymous widget id */
-                widget(par, px, py+ami_maxyg(wg->wf)-1,
-                            px+w, py+ami_maxyg(wg->wf)-1+h,
+                widget(par, px, py+ami_maxyg(wg->head.wf)-1,
+                            px+w, py+ami_maxyg(wg->head.wf)-1+h,
                        "", wg->cid, wtlistbox, &wp);
 
             } else { /* already in dropdown mode */
@@ -3036,14 +3036,14 @@ static void dropbox_event(
 
         /* find parent parameters, since subwidget displays in that
            parent */
-        par = wg->parent; /* set near parent */
-        if (wg->pw) par = wg->pw->parent; /* set near parent up one */
+        par = wg->head.parent; /* set near parent */
+        if (wg->pw) par = wg->pw->head.parent; /* set near parent up one */
         /* send event back to parent window */
         er.etype = ami_etdrpbox; /* set button event */
-        er.drpbid = wg->id; /* set id */
+        er.drpbid = wg->head.id; /* set id */
         er.drpbsl = ev->lstbsl; /* set string select */
         /* send the event to the near parent */
-        ami_sendevent(wg->parent, &er);
+        ami_sendevent(wg->head.parent, &er);
         ami_killwidget(par, wg->cid); /* close the widget in far parent */
         wg->cw = NULL; /* set no child window */
         wg->ss = ev->lstbsl; /* set our new select */
@@ -3100,13 +3100,13 @@ static void dropeditbox_event(
 
         /* edit box got focus, wants us to light it up, cross to dropbox */
         er.etype = WMC_LGTFOC; /* send light focus event */
-        ami_sendevent(wg->cw->wf, &er); /* send to dropbox */
+        ami_sendevent(wg->cw->head.wf, &er); /* send to dropbox */
 
     } else if (ev->etype == WMC_DRKFOC) { /* dark focus */
 
         /* edit box got focus, wants us to turn it off, cross to dropbox */
         er.etype = WMC_DRKFOC; /* set dark focus event */
-        ami_sendevent(wg->cw->wf, &er); /* send to child */
+        ami_sendevent(wg->cw->head.wf, &er); /* send to child */
 
     } else if (ev->etype == ami_etdrpbox) {
 
@@ -3128,8 +3128,8 @@ static void dropeditbox_event(
         wg->face = str(wg->cw2->face); /* copy the resulting string */
         /* send event back to parent window */
         er.etype = ami_etdrebox; /* set drop edit completion event */
-        er.drebid = wg->id; /* set id */
-        ami_sendevent(wg->parent, &er); /* send the event to the parent */
+        er.drebid = wg->head.id; /* set id */
+        ami_sendevent(wg->head.parent, &er); /* send the event to the parent */
 
     }
 
@@ -3164,11 +3164,11 @@ static void slidehoriz_draw(
     ami_long tickno;     /* ticks counter */
     ami_long x;
 
-    mid = ami_maxyg(wg->wf)*0.5; /* find y midpoint */
-    thk = ami_chrsizy(wg->wf)*0.14; /* find slider track thickness */
-    sldsizp = ami_chrsizy(wg->wf)*1.0; /* find slider size in pixels */
+    mid = ami_maxyg(wg->head.wf)*0.5; /* find y midpoint */
+    thk = ami_chrsizy(wg->head.wf)*0.14; /* find slider track thickness */
+    sldsizp = ami_chrsizy(wg->head.wf)*1.0; /* find slider size in pixels */
     margin = sldsizp*0.5+ENDSPACE; /* set edge margins */
-    trksizp = ami_maxxg(wg->wf)-margin*2; /* set track width */
+    trksizp = ami_maxxg(wg->head.wf)-margin*2; /* set track width */
     sldposp = margin+round((double)trksizp*wg->sclpos/LONG_MAX);
 
     /* set status of mouse inside the slider */
@@ -3180,16 +3180,16 @@ static void slidehoriz_draw(
         /* find new top if click is middle */
         x = wg->mpx;
         if (x < margin) x = margin; /* limit travel */
-        else if (x+sldsizp > ami_maxxg(wg->wf)-margin)
-            x = ami_maxxg(wg->wf)-margin;
+        else if (x+sldsizp > ami_maxxg(wg->head.wf)-margin)
+            x = ami_maxxg(wg->head.wf)-margin;
         /* find new ratioed position */
         sldpos = x-margin >= trksizp? LONG_MAX: LONG_MAX/trksizp*(x-margin);
         wg->sclpos = sldpos; /* place to widget data */
         /* send event back to parent window */
         er.etype = ami_etsldpos; /* set scroll position event */
-        er.sldpid = wg->id; /* set id */
+        er.sldpid = wg->head.id; /* set id */
         er.sldpos = sldpos; /* set scrollbar position */
-        ami_sendevent(wg->parent, &er); /* send the event to the parent */
+        ami_sendevent(wg->head.parent, &er); /* send the event to the parent */
 
     } else if ((insld || wg->grab) && wg->pressed && wg->lpressed &&
                wg->mpx != wg->lmpx) {
@@ -3203,9 +3203,9 @@ static void slidehoriz_draw(
         wg->sclpos = sldpos; /* place to widget data */
         /* send event back to parent window */
         er.etype = ami_etsldpos; /* set scroll position event */
-        er.sldpid = wg->id; /* set id */
+        er.sldpid = wg->head.id; /* set id */
         er.sldpos = sldpos; /* set scrollbar position */
-        ami_sendevent(wg->parent, &er); /* send the event to the parent */
+        ami_sendevent(wg->head.parent, &er); /* send the event to the parent */
         wg->grab = TRUE; /* set we grabbed the scrollbar */
 
     } else if (!wg->pressed) wg->grab = FALSE;
@@ -3214,30 +3214,30 @@ static void slidehoriz_draw(
     sldposp = margin+round((double)trksizp*wg->sclpos/LONG_MAX);
 
     /* color the background */
-    ami_fcolor(wg->wf, ami_white);
-    ami_frect(wg->wf, 1, 1, ami_maxxg(wg->wf), ami_maxyg(wg->wf));
+    ami_fcolor(wg->head.wf, ami_white);
+    ami_frect(wg->head.wf, 1, 1, ami_maxxg(wg->head.wf), ami_maxyg(wg->head.wf));
     /* color scale track */
-    fcolort(wg->wf, th_sldint);
-    ami_frrect(wg->wf, margin, mid-thk*0.5, ami_maxxg(wg->wf)-margin,
+    fcolort(wg->head.wf, th_sldint);
+    ami_frrect(wg->head.wf, margin, mid-thk*0.5, ami_maxxg(wg->head.wf)-margin,
               mid+thk*0.5, 10, 10);
-    ami_linewidth(wg->wf, 2);
-    fcolort(wg->wf, th_outline2);
-    ami_rrect(wg->wf, margin, mid-thk*0.5, ami_maxxg(wg->wf)-margin,
+    ami_linewidth(wg->head.wf, 2);
+    fcolort(wg->head.wf, th_outline2);
+    ami_rrect(wg->head.wf, margin, mid-thk*0.5, ami_maxxg(wg->head.wf)-margin,
              mid+thk*0.5, 10, 10);
     /* color active side */
-    fcolort(wg->wf, th_progactcen);
-    ami_frrect(wg->wf, margin, mid-thk*0.5, sldposp, mid+thk*0.5, 10, 10);
+    fcolort(wg->head.wf, th_progactcen);
+    ami_frrect(wg->head.wf, margin, mid-thk*0.5, sldposp, mid+thk*0.5, 10, 10);
     /* draw slider */
-    ami_fcolor(wg->wf, ami_white);
-    ami_fellipse(wg->wf, sldposp-sldsizp*0.5, mid-sldsizp*0.5,
+    ami_fcolor(wg->head.wf, ami_white);
+    ami_fellipse(wg->head.wf, sldposp-sldsizp*0.5, mid-sldsizp*0.5,
                        sldposp+sldsizp*0.5, mid+sldsizp*0.5);
     if (wg->pressed && (insld || wg->grab))
         /* color as pressed */
-        fcolort(wg->wf, th_droptext);
+        fcolort(wg->head.wf, th_droptext);
     else
         /* color as not pressed */
-        fcolort(wg->wf, th_outline2);
-    ami_ellipse(wg->wf, sldposp-sldsizp*0.5, mid-sldsizp*0.5,
+        fcolort(wg->head.wf, th_outline2);
+    ami_ellipse(wg->head.wf, sldposp-sldsizp*0.5, mid-sldsizp*0.5,
                       sldposp+sldsizp*0.5, mid+sldsizp*0.5);
 
     /* place tickmarks */
@@ -3246,11 +3246,11 @@ static void slidehoriz_draw(
         /* Counted, not accumulated: a degenerate track size makes the
            step zero, and a while over an unmoving position never ends. */
         tiksizp = wg->ticks > 1? trksizp/(wg->ticks-1): 0;
-        ami_fcolor(wg->wf, ami_black); /* set color */
+        ami_fcolor(wg->head.wf, ami_black); /* set color */
         for (tickno = 0; tickno < wg->ticks; tickno++) {
 
             x = margin+tiksizp*tickno; /* set location */
-            ami_line(wg->wf, x, 1, x, mid-sldsizp*0.5); /* draw tick */
+            ami_line(wg->head.wf, x, 1, x, mid-sldsizp*0.5); /* draw tick */
 
         }
 
@@ -3332,11 +3332,11 @@ static void slidevert_draw(
     ami_long tickno;     /* ticks counter */
     ami_long y;
 
-    mid = ami_maxxg(wg->wf)*0.5; /* find x midpoint */
-    thk = ami_chrsizy(wg->wf)*0.14; /* find slider track thickness */
-    sldsizp = ami_chrsizy(wg->wf)*1.0; /* find slider size in pixels */
+    mid = ami_maxxg(wg->head.wf)*0.5; /* find x midpoint */
+    thk = ami_chrsizy(wg->head.wf)*0.14; /* find slider track thickness */
+    sldsizp = ami_chrsizy(wg->head.wf)*1.0; /* find slider size in pixels */
     margin = sldsizp*0.5+ENDSPACE; /* set edge margins */
-    trksizp = ami_maxyg(wg->wf)-margin*2; /* set track width */
+    trksizp = ami_maxyg(wg->head.wf)-margin*2; /* set track width */
     sldposp = margin+round((double)trksizp*wg->sclpos/LONG_MAX);
 
     /* set status of mouse inside the slider */
@@ -3348,16 +3348,16 @@ static void slidevert_draw(
         /* find new top if click is middle */
         y = wg->mpy;
         if (y < margin) y = margin; /* limit travel */
-        else if (y+sldsizp > ami_maxyg(wg->wf)-margin)
-            y = ami_maxyg(wg->wf)-margin;
+        else if (y+sldsizp > ami_maxyg(wg->head.wf)-margin)
+            y = ami_maxyg(wg->head.wf)-margin;
         /* find new ratioed position */
         sldpos = y-margin >= trksizp? LONG_MAX: LONG_MAX/trksizp*(y-margin);
         wg->sclpos = sldpos; /* place to widget data */
         /* send event back to parent window */
         er.etype = ami_etsldpos; /* set scroll position event */
-        er.sldpid = wg->id; /* set id */
+        er.sldpid = wg->head.id; /* set id */
         er.sldpos = sldpos; /* set scrollbar position */
-        ami_sendevent(wg->parent, &er); /* send the event to the parent */
+        ami_sendevent(wg->head.parent, &er); /* send the event to the parent */
 
     } else if ((insld || wg->grab) && wg->pressed && wg->lpressed &&
                wg->mpy != wg->lmpy) {
@@ -3371,9 +3371,9 @@ static void slidevert_draw(
         wg->sclpos = sldpos; /* place to widget data */
         /* send event back to parent window */
         er.etype = ami_etsldpos; /* set scroll position event */
-        er.sldpid = wg->id; /* set id */
+        er.sldpid = wg->head.id; /* set id */
         er.sldpos = sldpos; /* set scrollbar position */
-        ami_sendevent(wg->parent, &er); /* send the event to the parent */
+        ami_sendevent(wg->head.parent, &er); /* send the event to the parent */
         wg->grab = TRUE; /* set we grabbed the scrollbar */
 
     } else if (!wg->pressed) wg->grab = FALSE;
@@ -3382,30 +3382,30 @@ static void slidevert_draw(
     sldposp = margin+round((double)trksizp*wg->sclpos/LONG_MAX);
 
     /* color the background */
-    ami_fcolor(wg->wf, ami_white);
-    ami_frect(wg->wf, 1, 1, ami_maxxg(wg->wf), ami_maxyg(wg->wf));
+    ami_fcolor(wg->head.wf, ami_white);
+    ami_frect(wg->head.wf, 1, 1, ami_maxxg(wg->head.wf), ami_maxyg(wg->head.wf));
     /* color scale track */
-    fcolort(wg->wf, th_sldint);
-    ami_frrect(wg->wf, mid-thk*0.5, margin, mid+thk*0.5,
-              ami_maxyg(wg->wf)-margin, 10, 10);
-    ami_linewidth(wg->wf, 2);
-    fcolort(wg->wf, th_outline2);
-    ami_rrect(wg->wf, mid-thk*0.5, margin, mid+thk*0.5,
-             ami_maxyg(wg->wf)-margin, 10, 10);
+    fcolort(wg->head.wf, th_sldint);
+    ami_frrect(wg->head.wf, mid-thk*0.5, margin, mid+thk*0.5,
+              ami_maxyg(wg->head.wf)-margin, 10, 10);
+    ami_linewidth(wg->head.wf, 2);
+    fcolort(wg->head.wf, th_outline2);
+    ami_rrect(wg->head.wf, mid-thk*0.5, margin, mid+thk*0.5,
+             ami_maxyg(wg->head.wf)-margin, 10, 10);
     /* color active side */
-    fcolort(wg->wf, th_progactcen);
-    ami_frrect(wg->wf, mid-thk*0.5, margin, mid+thk*0.5, sldposp, 10, 10);
+    fcolort(wg->head.wf, th_progactcen);
+    ami_frrect(wg->head.wf, mid-thk*0.5, margin, mid+thk*0.5, sldposp, 10, 10);
     /* draw slider */
-    ami_fcolor(wg->wf, ami_white);
-    ami_fellipse(wg->wf, mid-sldsizp*0.5, sldposp-sldsizp*0.5,
+    ami_fcolor(wg->head.wf, ami_white);
+    ami_fellipse(wg->head.wf, mid-sldsizp*0.5, sldposp-sldsizp*0.5,
                        mid+sldsizp*0.5, sldposp+sldsizp*0.5);
     if (wg->pressed && (insld || wg->grab))
         /* color as pressed */
-        fcolort(wg->wf, th_droptext);
+        fcolort(wg->head.wf, th_droptext);
     else
         /* color as not pressed */
-        fcolort(wg->wf, th_outline2);
-    ami_ellipse(wg->wf, mid-sldsizp*0.5, sldposp-sldsizp*0.5,
+        fcolort(wg->head.wf, th_outline2);
+    ami_ellipse(wg->head.wf, mid-sldsizp*0.5, sldposp-sldsizp*0.5,
                       mid+sldsizp*0.5, sldposp+sldsizp*0.5);
 
     /* place tickmarks */
@@ -3414,11 +3414,11 @@ static void slidevert_draw(
         /* Counted, not accumulated: a degenerate track size makes the
            step zero, and a while over an unmoving position never ends. */
         tiksizp = wg->ticks > 1? trksizp/(wg->ticks-1): 0;
-        ami_fcolor(wg->wf, ami_black); /* set color */
+        ami_fcolor(wg->head.wf, ami_black); /* set color */
         for (tickno = 0; tickno < wg->ticks; tickno++) {
 
             y = margin+tiksizp*tickno; /* set location */
-            ami_line(wg->wf, mid+sldsizp*0.5, y, ami_maxxg(wg->wf), y); /* draw tick */
+            ami_line(wg->head.wf, mid+sldsizp*0.5, y, ami_maxxg(wg->head.wf), y); /* draw tick */
 
         }
 
@@ -3491,93 +3491,93 @@ static void tabbar_draw(
     ami_long  th; /* tabbar height/width (by orientation) */
 
     /* find tabbar height/width */
-    if (wg->charb) th = ami_chrsizy(wg->parent)*TABHGT; /* character */
-    th = ami_chrsizy(wg->wf)*TABHGT; /* graphical */
+    if (wg->charb) th = ami_chrsizy(wg->head.parent)*TABHGT; /* character */
+    th = ami_chrsizy(wg->head.wf)*TABHGT; /* graphical */
     if (wg->tor == ami_totop || wg->tor == ami_tobottom) { /* top or bottom */
 
         /* color the background */
-        ami_fcolor(wg->wf, ami_white);
-        ami_frect(wg->wf, 1, 1, ami_maxxg(wg->wf), ami_maxyg(wg->wf));
-        fcolort(wg->wf, th_tabback);
+        ami_fcolor(wg->head.wf, ami_white);
+        ami_frect(wg->head.wf, 1, 1, ami_maxxg(wg->head.wf), ami_maxyg(wg->head.wf));
+        fcolort(wg->head.wf, th_tabback);
         if (wg->tor == ami_totop)
-            ami_frect(wg->wf, 1, 1, ami_maxxg(wg->wf), th);
+            ami_frect(wg->head.wf, 1, 1, ami_maxxg(wg->head.wf), th);
         else /* bottom */
-            ami_frect(wg->wf, 1, ami_maxyg(wg->wf)-th,
-                             ami_maxxg(wg->wf), ami_maxyg(wg->wf));
+            ami_frect(wg->head.wf, 1, ami_maxyg(wg->head.wf)-th,
+                             ami_maxxg(wg->head.wf), ami_maxyg(wg->head.wf));
         /* outline */
-        ami_linewidth(wg->wf, 1);
-        fcolort(wg->wf, th_outline1);
-        ami_rect(wg->wf, 1, 1, ami_maxxg(wg->wf), ami_maxyg(wg->wf));
-        ami_rect(wg->wf, 2, 2, ami_maxxg(wg->wf)-1, ami_maxyg(wg->wf)-1);
+        ami_linewidth(wg->head.wf, 1);
+        fcolort(wg->head.wf, th_outline1);
+        ami_rect(wg->head.wf, 1, 1, ami_maxxg(wg->head.wf), ami_maxyg(wg->head.wf));
+        ami_rect(wg->head.wf, 2, 2, ami_maxxg(wg->head.wf)-1, ami_maxyg(wg->head.wf)-1);
         if (wg->tor == ami_totop) {
 
-            ami_line(wg->wf, 1, th, ami_maxxg(wg->wf), th);
-            ami_line(wg->wf, 1, th-1, ami_maxxg(wg->wf), th-1);
+            ami_line(wg->head.wf, 1, th, ami_maxxg(wg->head.wf), th);
+            ami_line(wg->head.wf, 1, th-1, ami_maxxg(wg->head.wf), th-1);
 
         } else {
 
-            ami_line(wg->wf, 1, ami_maxyg(wg->wf)-th+1, 
-                            ami_maxxg(wg->wf), ami_maxyg(wg->wf)-th+1);
-            ami_line(wg->wf, 1, ami_maxyg(wg->wf)-th+2, 
-                            ami_maxxg(wg->wf), ami_maxyg(wg->wf)-th+2);
+            ami_line(wg->head.wf, 1, ami_maxyg(wg->head.wf)-th+1, 
+                            ami_maxxg(wg->head.wf), ami_maxyg(wg->head.wf)-th+1);
+            ami_line(wg->head.wf, 1, ami_maxyg(wg->head.wf)-th+2, 
+                            ami_maxxg(wg->head.wf), ami_maxyg(wg->head.wf)-th+2);
 
         }
         /* draw tab text */
         if (wg->tor == ami_totop)
-            ami_cursorg(wg->wf, ami_chrsizy(wg->wf), ami_chrsizy(wg->wf)*0.5);
+            ami_cursorg(wg->head.wf, ami_chrsizy(wg->head.wf), ami_chrsizy(wg->head.wf)*0.5);
         else /* bottom */
-            ami_cursorg(wg->wf, ami_chrsizy(wg->wf), 
-                               ami_maxyg(wg->wf)-th+ami_chrsizy(wg->wf)*0.5);
+            ami_cursorg(wg->head.wf, ami_chrsizy(wg->head.wf), 
+                               ami_maxyg(wg->head.wf)-th+ami_chrsizy(wg->head.wf)*0.5);
         sp = wg->strlst; /* index tab string list */
         sc = 1; /* set first string */
-        while (sp && ami_curxg(wg->wf) <= ami_maxxg(wg->wf)) {
+        while (sp && ami_curxg(wg->head.wf) <= ami_maxxg(wg->head.wf)) {
 
             if (sc == wg->ss || sc == wg->sh) { /* draw select/hover */
 
-                ami_linewidth(wg->wf, 6);
-                if (sc == wg->ss) fcolort(wg->wf, th_tabsel);
-                else fcolort(wg->wf, th_outline1);
+                ami_linewidth(wg->head.wf, 6);
+                if (sc == wg->ss) fcolort(wg->head.wf, th_tabsel);
+                else fcolort(wg->head.wf, th_outline1);
                 if (wg->tor == ami_totop)
-                    ami_line(wg->wf, ami_curxg(wg->wf)-ami_chrsizy(wg->wf)*0.5,
+                    ami_line(wg->head.wf, ami_curxg(wg->head.wf)-ami_chrsizy(wg->head.wf)*0.5,
                                     th-2,
-                                    ami_curxg(wg->wf)+ami_strsiz(wg->wf, sp->str)+
-                                             ami_chrsizy(wg->wf)*0.5,
+                                    ami_curxg(wg->head.wf)+ami_strsiz(wg->head.wf, sp->str)+
+                                             ami_chrsizy(wg->head.wf)*0.5,
                                     th-2);
                 else
-                    ami_line(wg->wf, ami_curxg(wg->wf)-ami_chrsizy(wg->wf)*0.5,
-                                    ami_maxyg(wg->wf)-th+4,
-                                    ami_curxg(wg->wf)+ami_strsiz(wg->wf, sp->str)+
-                                             ami_chrsizy(wg->wf)*0.5,
-                                    ami_maxyg(wg->wf)-th+4);
+                    ami_line(wg->head.wf, ami_curxg(wg->head.wf)-ami_chrsizy(wg->head.wf)*0.5,
+                                    ami_maxyg(wg->head.wf)-th+4,
+                                    ami_curxg(wg->head.wf)+ami_strsiz(wg->head.wf, sp->str)+
+                                             ami_chrsizy(wg->head.wf)*0.5,
+                                    ami_maxyg(wg->head.wf)-th+4);
 
             }
-            if (sc == wg->ss && wg->focus) { /* draw focus box */
+            if (sc == wg->ss && wg->head.focus) { /* draw focus box */
 
-                ami_linewidth(wg->wf, 2);
-                fcolort(wg->wf, th_tabfocus);
+                ami_linewidth(wg->head.wf, 2);
+                fcolort(wg->head.wf, th_tabfocus);
                 if (wg->tor == ami_totop)
-                    ami_rrect(wg->wf, ami_curxg(wg->wf)-ami_chrsizy(wg->wf)*0.5,
+                    ami_rrect(wg->head.wf, ami_curxg(wg->head.wf)-ami_chrsizy(wg->head.wf)*0.5,
                                      5,
-                                     ami_curxg(wg->wf)+
-                                         ami_strsiz(wg->wf, sp->str)+
-                                         ami_chrsizy(wg->wf)*0.5,
+                                     ami_curxg(wg->head.wf)+
+                                         ami_strsiz(wg->head.wf, sp->str)+
+                                         ami_chrsizy(wg->head.wf)*0.5,
                                      th-3,
                                      10, 10);
                 else
-                    ami_rrect(wg->wf, ami_curxg(wg->wf)-ami_chrsizy(wg->wf)*0.5,
-                                     ami_maxyg(wg->wf)-th+5,
-                                     ami_curxg(wg->wf)+ami_strsiz(wg->wf, sp->str)+
-                                         ami_chrsizy(wg->wf)*0.5,
-                                     ami_maxyg(wg->wf)-th+th-3,
+                    ami_rrect(wg->head.wf, ami_curxg(wg->head.wf)-ami_chrsizy(wg->head.wf)*0.5,
+                                     ami_maxyg(wg->head.wf)-th+5,
+                                     ami_curxg(wg->head.wf)+ami_strsiz(wg->head.wf, sp->str)+
+                                         ami_chrsizy(wg->head.wf)*0.5,
+                                     ami_maxyg(wg->head.wf)-th+th-3,
                                      10, 10);
 
             }
-            fcolort(wg->wf, th_tabdis); /* set color disabled */
-            fprintf(wg->wf, "%s", sp->str); /* place button face */
+            fcolort(wg->head.wf, th_tabdis); /* set color disabled */
+            fprintf(wg->head.wf, "%s", sp->str); /* place button face */
             /* space off between tabs */
-            if (sp->next) ami_cursorg(wg->wf,
-                                     ami_curxg(wg->wf)+ami_chrsizy(wg->wf),
-                                     ami_curyg(wg->wf));
+            if (sp->next) ami_cursorg(wg->head.wf,
+                                     ami_curxg(wg->head.wf)+ami_chrsizy(wg->head.wf),
+                                     ami_curyg(wg->head.wf));
             sp = sp->next; /* next tab */
             sc++; /* count */
 
@@ -3586,113 +3586,113 @@ static void tabbar_draw(
     } else { /* left or right */
 
         /* if in character mode, round tabbar size to character cell */
-        if (wg->charb && th % ami_chrsizx(wg->parent)) 
-            th = th-(th % ami_chrsizx(wg->parent))+ami_chrsizx(wg->parent);
+        if (wg->charb && th % ami_chrsizx(wg->head.parent)) 
+            th = th-(th % ami_chrsizx(wg->head.parent))+ami_chrsizx(wg->head.parent);
         /* color the background */
-        ami_fcolor(wg->wf, ami_white);
-        ami_frect(wg->wf, 1, 1, ami_maxxg(wg->wf), ami_maxyg(wg->wf));
-        fcolort(wg->wf, th_tabback);
+        ami_fcolor(wg->head.wf, ami_white);
+        ami_frect(wg->head.wf, 1, 1, ami_maxxg(wg->head.wf), ami_maxyg(wg->head.wf));
+        fcolort(wg->head.wf, th_tabback);
         if (wg->tor == ami_toleft) {
 
             x1 = 1;
             x2 = th;
-            ami_frect(wg->wf, x1, 1, x2, ami_maxyg(wg->wf));
+            ami_frect(wg->head.wf, x1, 1, x2, ami_maxyg(wg->head.wf));
 
         } else {
 
-            x1 = ami_maxxg(wg->wf)-th;
-            x2 = ami_maxxg(wg->wf);
-            ami_frect(wg->wf, x1+1, 1, x2, ami_maxyg(wg->wf));
+            x1 = ami_maxxg(wg->head.wf)-th;
+            x2 = ami_maxxg(wg->head.wf);
+            ami_frect(wg->head.wf, x1+1, 1, x2, ami_maxyg(wg->head.wf));
 
         }
         /* outline */
-        ami_linewidth(wg->wf, 1);
-        fcolort(wg->wf, th_outline1);
-        ami_rect(wg->wf, 1, 1, ami_maxxg(wg->wf), ami_maxyg(wg->wf));
-        ami_rect(wg->wf, 2, 2, ami_maxxg(wg->wf)-1, ami_maxyg(wg->wf)-1);
+        ami_linewidth(wg->head.wf, 1);
+        fcolort(wg->head.wf, th_outline1);
+        ami_rect(wg->head.wf, 1, 1, ami_maxxg(wg->head.wf), ami_maxyg(wg->head.wf));
+        ami_rect(wg->head.wf, 2, 2, ami_maxxg(wg->head.wf)-1, ami_maxyg(wg->head.wf)-1);
 
         if (wg->tor == ami_toleft) {
 
-            ami_line(wg->wf, th, 1, th, ami_maxyg(wg->wf));
-            ami_line(wg->wf, th, 1, th-1, ami_maxyg(wg->wf)-1);
+            ami_line(wg->head.wf, th, 1, th, ami_maxyg(wg->head.wf));
+            ami_line(wg->head.wf, th, 1, th-1, ami_maxyg(wg->head.wf)-1);
 
         } else { /* right */
 
-           ami_line(wg->wf, ami_maxxg(wg->wf)-th+1, 1,
-                           ami_maxxg(wg->wf)-th+1, ami_maxyg(wg->wf));
-           ami_line(wg->wf, ami_maxxg(wg->wf)-th+2, 1,
-                           ami_maxxg(wg->wf)-th+2, ami_maxyg(wg->wf));
+           ami_line(wg->head.wf, ami_maxxg(wg->head.wf)-th+1, 1,
+                           ami_maxxg(wg->head.wf)-th+1, ami_maxyg(wg->head.wf));
+           ami_line(wg->head.wf, ami_maxxg(wg->head.wf)-th+2, 1,
+                           ami_maxxg(wg->head.wf)-th+2, ami_maxyg(wg->head.wf));
 
         }
 
         /* draw tab text */
         if (wg->tor == ami_toleft)
-            ami_cursorg(wg->wf, ami_chrsizy(wg->wf)*0.5, ami_chrsizy(wg->wf));
+            ami_cursorg(wg->head.wf, ami_chrsizy(wg->head.wf)*0.5, ami_chrsizy(wg->head.wf));
         else
-            ami_cursorg(wg->wf, ami_maxxg(wg->wf)-th+
-                                   ami_chrsizy(wg->wf)+ami_chrsizy(wg->wf)*0.5,
-                               ami_chrsizy(wg->wf));
-        xm = ami_curxg(wg->wf); /* save the left margin */
+            ami_cursorg(wg->head.wf, ami_maxxg(wg->head.wf)-th+
+                                   ami_chrsizy(wg->head.wf)+ami_chrsizy(wg->head.wf)*0.5,
+                               ami_chrsizy(wg->head.wf));
+        xm = ami_curxg(wg->head.wf); /* save the left margin */
         sp = wg->strlst; /* index tab string list */
         sc = 1; /* set first string */
         if (wg->tor == ami_toleft)
-            ami_path(wg->wf, 0); /* set vertical upwards text */
+            ami_path(wg->head.wf, 0); /* set vertical upwards text */
         else /* right */
-            ami_path(wg->wf, LONG_MAX/2); /* set vertical downwards text */
-        while (sp && ami_curyg(wg->wf) >= 1) {
+            ami_path(wg->head.wf, LONG_MAX/2); /* set vertical downwards text */
+        while (sp && ami_curyg(wg->head.wf) >= 1) {
 
             if (sc == wg->ss || sc == wg->sh) { /* draw select/hover */
 
-                ami_linewidth(wg->wf, 6);
-                if (sc == wg->ss) fcolort(wg->wf, th_tabsel);
-                else fcolort(wg->wf, th_outline1);
+                ami_linewidth(wg->head.wf, 6);
+                if (sc == wg->ss) fcolort(wg->head.wf, th_tabsel);
+                else fcolort(wg->head.wf, th_outline1);
                 if (wg->tor == ami_toleft)
-                    ami_line(wg->wf, th-3,
-                                    ami_curyg(wg->wf)-ami_chrsizy(wg->wf)*0.5,
+                    ami_line(wg->head.wf, th-3,
+                                    ami_curyg(wg->head.wf)-ami_chrsizy(wg->head.wf)*0.5,
                                     th-3,
-                                    ami_curyg(wg->wf)+ami_strsiz(wg->wf, sp->str)+
-                                             ami_chrsizy(wg->wf)*0.5);
+                                    ami_curyg(wg->head.wf)+ami_strsiz(wg->head.wf, sp->str)+
+                                             ami_chrsizy(wg->head.wf)*0.5);
                 else
-                    ami_line(wg->wf, ami_maxxg(wg->wf)-th+3,
-                                    ami_curyg(wg->wf)-ami_chrsizy(wg->wf)*0.5,
-                                    ami_maxxg(wg->wf)-th+3,
-                                    ami_curyg(wg->wf)+ami_strsiz(wg->wf, sp->str)+
-                                             ami_chrsizy(wg->wf)*0.5);
+                    ami_line(wg->head.wf, ami_maxxg(wg->head.wf)-th+3,
+                                    ami_curyg(wg->head.wf)-ami_chrsizy(wg->head.wf)*0.5,
+                                    ami_maxxg(wg->head.wf)-th+3,
+                                    ami_curyg(wg->head.wf)+ami_strsiz(wg->head.wf, sp->str)+
+                                             ami_chrsizy(wg->head.wf)*0.5);
 
             }
-            if (sc == wg->ss && wg->focus) { /* draw focus box */
+            if (sc == wg->ss && wg->head.focus) { /* draw focus box */
 
-                ami_linewidth(wg->wf, 2);
-                fcolort(wg->wf, th_tabfocus);
+                ami_linewidth(wg->head.wf, 2);
+                fcolort(wg->head.wf, th_tabfocus);
                 if (wg->tor == ami_toleft)
-                    ami_rrect(wg->wf, 5, ami_curyg(wg->wf)-ami_chrsizy(wg->wf)*0.5,
-                                     th-3, ami_curyg(wg->wf)+
-                                               ami_strsiz(wg->wf, sp->str)+
-                                               ami_chrsizy(wg->wf)*0.5,
+                    ami_rrect(wg->head.wf, 5, ami_curyg(wg->head.wf)-ami_chrsizy(wg->head.wf)*0.5,
+                                     th-3, ami_curyg(wg->head.wf)+
+                                               ami_strsiz(wg->head.wf, sp->str)+
+                                               ami_chrsizy(wg->head.wf)*0.5,
                                      10, 10);
                 else
-                    ami_rrect(wg->wf, ami_maxxg(wg->wf)-th+5,
-                                     ami_curyg(wg->wf)-ami_chrsizy(wg->wf)*0.5,
-                                     ami_maxxg(wg->wf)-th+th-3,
-                                     ami_curyg(wg->wf)+ami_strsiz(wg->wf, sp->str)+
-                                         ami_chrsizy(wg->wf)*0.5,
+                    ami_rrect(wg->head.wf, ami_maxxg(wg->head.wf)-th+5,
+                                     ami_curyg(wg->head.wf)-ami_chrsizy(wg->head.wf)*0.5,
+                                     ami_maxxg(wg->head.wf)-th+th-3,
+                                     ami_curyg(wg->head.wf)+ami_strsiz(wg->head.wf, sp->str)+
+                                         ami_chrsizy(wg->head.wf)*0.5,
                                      10, 10);
 
             }
-            fcolort(wg->wf, th_tabdis); /* set color disabled */
+            fcolort(wg->head.wf, th_tabdis); /* set color disabled */
             if (wg->tor == ami_toleft)
                 /* back up to start of string */
-                ami_cursorg(wg->wf, ami_curxg(wg->wf),
-                                   ami_curyg(wg->wf)+ami_strsiz(wg->wf, sp->str));
-            y = ami_curyg(wg->wf); /* save y position */
-            fprintf(wg->wf, "%s", sp->str); /* place button face */
+                ami_cursorg(wg->head.wf, ami_curxg(wg->head.wf),
+                                   ami_curyg(wg->head.wf)+ami_strsiz(wg->head.wf, sp->str));
+            y = ami_curyg(wg->head.wf); /* save y position */
+            fprintf(wg->head.wf, "%s", sp->str); /* place button face */
             /* space off between tabs */
             if (sp->next) {
 
                 if (wg->tor == ami_toleft)
-                    ami_cursorg(wg->wf, xm, y+ami_chrsizy(wg->wf));
+                    ami_cursorg(wg->head.wf, xm, y+ami_chrsizy(wg->head.wf));
                 else
-                    ami_cursorg(wg->wf, xm, ami_curyg(wg->wf)+ami_chrsizy(wg->wf));
+                    ami_cursorg(wg->head.wf, xm, ami_curyg(wg->head.wf)+ami_chrsizy(wg->head.wf));
 
 
             }
@@ -3700,7 +3700,7 @@ static void tabbar_draw(
             sc++; /* count */
 
         }
-        ami_path(wg->wf, LONG_MAX/4); /* set normal text */
+        ami_path(wg->head.wf, LONG_MAX/4); /* set normal text */
 
     }
 
@@ -3728,7 +3728,7 @@ static void tabbar_event(
     ami_long  sh;
     ami_strptr sp;
 
-    th = ami_chrsizy(wg->wf)*TABHGT; /* find tabbar height/width graphical */
+    th = ami_chrsizy(wg->head.wf)*TABHGT; /* find tabbar height/width graphical */
     if (ev->etype == ami_etredraw) tabbar_draw(wg); /* redraw the window */
     else if (ev->etype == ami_etmouba && ev->amoubn == 1) {
 
@@ -3739,10 +3739,10 @@ static void tabbar_event(
             wg->ss = wg->sh; /* set hover as select */
             /* send event back to parent window */
             er.etype = ami_ettabbar; /* set tabbar event */
-            er.tabid = wg->id; /* set id */
+            er.tabid = wg->head.id; /* set id */
             er.tabsel = wg->ss; /* set string select */
             /* send the event to the parent */
-            ami_sendevent(wg->parent, &er);
+            ami_sendevent(wg->head.parent, &er);
             tabbar_draw(wg); /* redraw the window */
 
         }
@@ -3755,9 +3755,9 @@ static void tabbar_event(
 
         /* find which string the mouse is over */
         if (wg->tor == ami_totop || wg->tor == ami_tobottom)
-            x = ami_chrsizy(wg->wf); /* space to first string */
+            x = ami_chrsizy(wg->head.wf); /* space to first string */
         else
-            y = ami_chrsizy(wg->wf); /* space to first string */
+            y = ami_chrsizy(wg->head.wf); /* space to first string */
         sp = wg->strlst; /* index top of string list */
         sc = 1; /* set first string */
         sh = wg->sh; /* save previous hover */
@@ -3767,39 +3767,39 @@ static void tabbar_event(
             /* if within the string bounding box, select it */
             if (wg->tor == ami_totop) {
 
-                if (wg->mpx >= x-ami_chrsizy(wg->wf)*0.5 &&
-                    wg->mpx <= x+ami_strsiz(wg->wf, sp->str)+ami_chrsizy(wg->wf)*0.5 &&
+                if (wg->mpx >= x-ami_chrsizy(wg->head.wf)*0.5 &&
+                    wg->mpx <= x+ami_strsiz(wg->head.wf, sp->str)+ami_chrsizy(wg->head.wf)*0.5 &&
                     wg->mpy <= th)
                     wg->sh = sc;
 
             } else if (wg->tor == ami_tobottom) {
 
-                if (wg->mpx >= x-ami_chrsizy(wg->wf)*0.5 &&
-                    wg->mpx <= x+ami_strsiz(wg->wf, sp->str)+ami_chrsizy(wg->wf)*0.5 &&
-                    wg->mpy >= ami_maxyg(wg->wf)-th)
+                if (wg->mpx >= x-ami_chrsizy(wg->head.wf)*0.5 &&
+                    wg->mpx <= x+ami_strsiz(wg->head.wf, sp->str)+ami_chrsizy(wg->head.wf)*0.5 &&
+                    wg->mpy >= ami_maxyg(wg->head.wf)-th)
                     wg->sh = sc;
 
             } if (wg->tor == ami_toleft) {
 
-                if (wg->mpy >= y-ami_chrsizy(wg->wf)*0.5 &&
-                    wg->mpy <= y+ami_strsiz(wg->wf, sp->str)+ami_chrsizy(wg->wf)*0.5 &&
+                if (wg->mpy >= y-ami_chrsizy(wg->head.wf)*0.5 &&
+                    wg->mpy <= y+ami_strsiz(wg->head.wf, sp->str)+ami_chrsizy(wg->head.wf)*0.5 &&
                     wg->mpx <= th)
                     wg->sh = sc;
 
             } else {
 
-                if (wg->mpy >= y-ami_chrsizy(wg->wf)*0.5 &&
-                    wg->mpy <= y+ami_strsiz(wg->wf, sp->str)+ami_chrsizy(wg->wf)*0.5 &&
-                    wg->mpx >= ami_maxxg(wg->wf)-th)
+                if (wg->mpy >= y-ami_chrsizy(wg->head.wf)*0.5 &&
+                    wg->mpy <= y+ami_strsiz(wg->head.wf, sp->str)+ami_chrsizy(wg->head.wf)*0.5 &&
+                    wg->mpx >= ami_maxxg(wg->head.wf)-th)
                     wg->sh = sc;
 
             }
 
             /* next tab */
             if (wg->tor == ami_totop || wg->tor == ami_tobottom)
-                x += ami_strsiz(wg->wf, sp->str)+ami_chrsizy(wg->wf);
+                x += ami_strsiz(wg->head.wf, sp->str)+ami_chrsizy(wg->head.wf);
             else
-                y += ami_strsiz(wg->wf, sp->str)+ami_chrsizy(wg->wf);
+                y += ami_strsiz(wg->head.wf, sp->str)+ami_chrsizy(wg->head.wf);
             sc++; /* next select */
             sp = sp->next; /* next string */
 
@@ -3809,22 +3809,22 @@ static void tabbar_event(
 
     } else if (ev->etype == ami_ethover) {
 
-        wg->hover = 1; /* hovered */
+        wg->head.hover = 1; /* hovered */
         tabbar_draw(wg); /* redraw the window */
 
     } else if (ev->etype == ami_etnohover) {
 
-        wg->hover = 0; /* not hovered */
+        wg->head.hover = 0; /* not hovered */
         tabbar_draw(wg); /* redraw the window */
 
     } else if (ev->etype == ami_etfocus) {
 
-        wg->focus = 1; /* in focus */
+        wg->head.focus = 1; /* in focus */
         tabbar_draw(wg); /* redraw the window */
 
     } else if (ev->etype == ami_etnofocus) {
 
-        wg->focus = 0; /* out of focus */
+        wg->head.focus = 0; /* out of focus */
         tabbar_draw(wg); /* redraw the window */
 
     } else if (ev->etype == ami_etleft &&
@@ -3832,7 +3832,7 @@ static void tabbar_event(
                ev->etype == ami_etup &&
                    (wg->tor == ami_toleft || wg->tor == ami_toright)) {
 
-        if (wg->focus && wg->strlst) {
+        if (wg->head.focus && wg->strlst) {
 
             /* in focus, there is a list */
             wg->ss--; /* back up */
@@ -3847,10 +3847,10 @@ static void tabbar_event(
             }
             /* send event back to parent window */
             er.etype = ami_ettabbar; /* set tabbar event */
-            er.tabid = wg->id; /* set id */
+            er.tabid = wg->head.id; /* set id */
             er.tabsel = wg->ss; /* set string select */
             /* send the event to the parent */
-            ami_sendevent(wg->parent, &er);
+            ami_sendevent(wg->head.parent, &er);
             tabbar_draw(wg); /* redraw the window */
 
         }
@@ -3860,7 +3860,7 @@ static void tabbar_event(
                ev->etype == ami_etdown &&
                    (wg->tor == ami_toleft || wg->tor == ami_toright)) {
 
-        if (wg->focus && sp) { /* in focus, there is a list */
+        if (wg->head.focus && sp) { /* in focus, there is a list */
 
             /* find last entry */
             sp = wg->strlst; /* index top of string list */
@@ -3871,10 +3871,10 @@ static void tabbar_event(
             if (wg->ss > sc) wg->ss = 1; /* off end, wrap */
             /* send event back to parent window */
             er.etype = ami_ettabbar; /* set tabbar event */
-            er.tabid = wg->id; /* set id */
+            er.tabid = wg->head.id; /* set id */
             er.tabsel = wg->ss; /* set string select */
             /* send the event to the parent */
-            ami_sendevent(wg->parent, &er);
+            ami_sendevent(wg->head.parent, &er);
             tabbar_draw(wg); /* redraw the window */
 
         }
@@ -3988,8 +3988,8 @@ static void dropdownkill(
     /* a drop edit box drops its list through the drop box within it */
     dp = wp->typ == wtdropeditbox? wp->cw: wp;
     if (!dp || dp->typ != wtdropbox || !dp->cw) return;
-    par = dp->parent; /* set near parent */
-    if (dp->pw) par = dp->pw->parent; /* a subclass parents one up */
+    par = dp->head.parent; /* set near parent */
+    if (dp->pw) par = dp->pw->head.parent; /* a subclass parents one up */
     ami_killwidget(par, dp->cid); /* close the list */
     dp->cw = NULL; /* set no child widget */
 
@@ -4070,8 +4070,8 @@ static void ienablewidget(
     if (wp->typ != wtbutton && wp->typ != wtcheckbox &&
         wp->typ != wtradiobutton)
         error("Widget is not disablable");
-    chg = wp->enb != e; /* check enable state changes */
-    wp->enb = e; /* set enable state */
+    chg = wp->head.enb != e; /* check enable state changes */
+    wp->head.enb = e; /* set enable state */
     /* if the select changes, refresh the checkbox */
     if (chg) widget_redraw(wp); /* send redraw to widget */
 
@@ -4174,7 +4174,7 @@ static void isizwidgetg(
     wigptr    wp;  /* widget entry pointer */
 
     wp = fndwig(f, id); /* index the widget */
-    ami_setsizg(wp->wf, x, y); /* set size */
+    ami_setsizg(wp->head.wf, x, y); /* set size */
 
 }
 
@@ -4201,7 +4201,7 @@ static void isizwidget(
     /* form graphical from character size */
     x = (x-1)*ami_chrsizx(f)+1;
     y = (y-1)*ami_chrsizy(f)+1;
-    ami_setsizg(wp->wf, x, y); /* set size */
+    ami_setsizg(wp->head.wf, x, y); /* set size */
 
 }
 
@@ -4225,7 +4225,7 @@ static void iposwidgetg(
     wigptr wp;  /* widget entry pointer */
 
     wp = fndwig(f, id); /* index the widget */
-    ami_setposg(wp->wf, x, y); /* set size */
+    ami_setposg(wp->head.wf, x, y); /* set size */
 
 }
 
@@ -4252,7 +4252,7 @@ static void iposwidget(
     /* form graphical from character coordinates */
     x = (x-1)*ami_chrsizx(f)+1;
     y = (y-1)*ami_chrsizy(f)+1;
-    ami_setposg(wp->wf, x, y); /* set size */
+    ami_setposg(wp->head.wf, x, y); /* set size */
 
 }
 
@@ -4309,7 +4309,7 @@ static void sinkcomponents(
     for (i = 0; i < MAXWIG*2+1; i++) {
 
         q = (wigptr)fp->widgets[i];
-        if (q && q != wp && iscomponent(q)) ami_back(q->wf);
+        if (q && q != wp && iscomponent(q)) ami_back(q->head.wf);
 
     }
 
@@ -4328,7 +4328,7 @@ static void ibackwidget(
     /* components do not lie over one another, so there is no place in the
        order to move one to */
     if (iscomponent(wp)) error("Z order call on a component");
-    ami_back(wp->wf); /* to the back of everything... */
+    ami_back(wp->head.wf); /* to the back of everything... */
     sinkcomponents(f, wp); /* ...and the components behind it again */
 
 }
@@ -4353,7 +4353,7 @@ static void ifrontwidget(
        order to move one to */
     if (iscomponent(wp)) error("Z order call on a component");
     /* the top of everything is the top of the control layer */
-    ami_front(wp->wf);
+    ami_front(wp->head.wf);
 
 }
 
@@ -4373,7 +4373,7 @@ static void ifocuswidget(
     wigptr    wp;  /* widget entry pointer */
 
     wp = fndwig(f, id); /* index the widget */
-    ami_focus(wp->wf); /* send focus to that window */
+    ami_focus(wp->head.wf); /* send focus to that window */
 
 }
 
@@ -4454,7 +4454,7 @@ static void ibuttong(
 
     wp = NULL; /* set no predefinition */
     widget(f, x1, y1, x2, y2, s, id, wtbutton, &wp);
-    ami_linewidth(wp->wf, 3); /* thicker lines */
+    ami_linewidth(wp->head.wf, 3); /* thicker lines */
 
     widget_redraw(wp); /* first paint of the finished face */
 
@@ -5250,9 +5250,9 @@ static void inumselboxg(
     wps->ubnd = u; /* set upper bound */
     sprintf(numbuf, "%lld", AMI_LONG_CAST(l)); /* the box opens showing its lower bound */
     /* subclass an edit control,leaving space for up/down controls */
-    widget(wp->wf, 1+4, 1+4, ami_maxxg(wp->wf)-udspc*2-4, ami_maxyg(wp->wf)-4,
+    widget(wp->head.wf, 1+4, 1+4, ami_maxxg(wp->head.wf)-udspc*2-4, ami_maxyg(wp->head.wf)-4,
            numbuf, 1, wteditbox, &wps);
-    ami_curvis(wps->wf, FALSE); /* turn on cursor */
+    ami_curvis(wps->head.wf, FALSE); /* turn on cursor */
     wp->cw = wps; /* give the master its child window */
     wps->pw = wp; /* give the child its master */
     widget_redraw(wps); /* the child's first paint */
@@ -5360,7 +5360,7 @@ static void ieditboxg(
 
     wp = NULL; /* set no predefinition */
     widget(f, x1, y1, x2, y2, "", id, wteditbox, &wp);
-    ami_curvis(wp->wf, FALSE); /* turn on cursor */
+    ami_curvis(wp->head.wf, FALSE); /* turn on cursor */
 
     widget_redraw(wp); /* first paint of the finished face */
 
@@ -5918,7 +5918,7 @@ static void idropeditboxg(
     wps->strlst = nl; /* set up string list */
     wps->ss = 1; /* select first entry */
     /* subclass drop/edit control */
-    widget(wp->wf, 1, 1, cw, ch, "", 1, wtdropbox, &wps);
+    widget(wp->head.wf, 1, 1, cw, ch, "", 1, wtdropbox, &wps);
 
     wp->cw = wps; /* give the master its child window */
     wps->pw = wp; /* give the child its master */
@@ -5927,11 +5927,11 @@ static void idropeditboxg(
     /* set up a subclass entry for edit */
     wps = getwig(); /* get widget entry */
     /* subclass an edit control,leaving space for dropbox control */
-    widget(wp->wf, 1+4, 1+4,
-                   ami_maxxg(wp->wf)-ami_chrsizy(win0)*1.9-4,
-                   ami_maxyg(wp->wf)-4,
+    widget(wp->head.wf, 1+4, 1+4,
+                   ami_maxxg(wp->head.wf)-ami_chrsizy(win0)*1.9-4,
+                   ami_maxyg(wp->head.wf)-4,
                    "", 2, wteditbox, &wps);
-    ami_curvis(wps->wf, FALSE); /* turn on cursor */
+    ami_curvis(wps->head.wf, FALSE); /* turn on cursor */
     wp->cw2 = wps; /* give the master its child window */
     wps->pw = wp; /* give the child its master */
     widget_redraw(wps); /* the child's first paint */

@@ -135,7 +135,10 @@ static char sessi[SNDPORTS]; /* synth in ports opened */
 static char seswo[SNDPORTS]; /* wave out ports opened */
 static char seswi[SNDPORTS]; /* wave in ports opened */
 static char sessy[SNDPORTS]; /* synth stores loaded */
-static char seswv[SNDPORTS]; /* waves loaded */
+static char seswv[SNDPORTS*2+1]; /* waves loaded, by id+SNDPORTS: the
+                                    program's ids above, the anonymous ids
+                                    from getwaveid below */
+#define SESWV(w) ((w) != 0 && (w) >= -SNDPORTS && (w) <= SNDPORTS)
 static char sesto;           /* output time base started */
 static char sesti;           /* input time base started */
 
@@ -1085,9 +1088,10 @@ static void job_winddown(void* a)
             if (seswo[sp]) { ami_closewaveout(sp+1); seswo[sp] = 0; }
             if (seswi[sp]) { ami_closewavein(sp+1); seswi[sp] = 0; }
             if (sessy[sp]) { ami_delsynth(sp+1); sessy[sp] = 0; }
-            if (seswv[sp]) { ami_delwave(sp+1); seswv[sp] = 0; }
 
         }
+        for (sp = -SNDPORTS; sp <= SNDPORTS; sp++)
+            if (sp && seswv[sp+SNDPORTS]) { ami_delwave(sp); seswv[sp+SNDPORTS] = 0; }
         if (sesto) { ami_stoptimeout(); sesto = 0; }
         if (sesti) { ami_stoptimein(); sesti = 0; }
 
@@ -2039,13 +2043,16 @@ static void dispatch(void)
         case GR_MLOADWAVE:
             a = gi(); gstr(s1, MAXSTR);
             ami_loadwave(a, (char*)fndfile(s1, s2, MAXSTR, ".wav"));
-            if (a >= 1 && a <= SNDPORTS) seswv[a-1] = 1;
+            if (SESWV(a)) seswv[a+SNDPORTS] = 1;
             rbegin(); ri(0); rsend();
             break;
         case GR_MPLAYWAVE:
             a = gi(); b = gi(); c = gi(); ami_playwave(a, b, c); break;
         case GR_MDELWAVE: a = gi(); ami_delwave(a);
-            if (a >= 1 && a <= SNDPORTS) seswv[a-1] = 0; break;
+            if (SESWV(a)) seswv[a+SNDPORTS] = 0; break;
+        case GR_MGETWAVEID: a = ami_getwaveid();
+            if (SESWV(a)) seswv[a+SNDPORTS] = 1; /* the id goes with the session */
+            rbegin(); ri(a); rsend(); break;
         case GR_MVOLWAVE:
             a = gi(); b = gi(); c = gi(); ami_volwave(a, b, c); break;
         case GR_MWAITWAVE:

@@ -87,6 +87,11 @@ static pthread_mutex_t wblock;     /* recursive; made in wb_lockinit */
 static pthread_once_t  wbonce = PTHREAD_ONCE_INIT;
 static int             wbdispatch; /* a dispatch is in flight */
 static ami_long        wbtabseq;   /* creation stamp of the last widget */
+/* The reserved marker: a table entry holding it is an anonymous id taken by
+   wb_getwigid() with no widget made under it yet. The record itself is
+   never read. */
+static wbwig           wbresrec;
+#define WBRES (&wbresrec)
 static wbdefer*        wbdeflst;   /* kills awaiting the dispatch end */
 
 static void wb_lockinit(void)
@@ -263,7 +268,8 @@ void* wb_fndwig(
     fn = fileno(f);
     if (fn < 0 || fn > MAXFIL) error(pk, "Invalid file number");
     wb_lock();
-    if (!pk->opnfil[fn] || !pk->opnfil[fn]->widgets[id+MAXWIG]) {
+    if (!pk->opnfil[fn] || !pk->opnfil[fn]->widgets[id+MAXWIG] ||
+        pk->opnfil[fn]->widgets[id+MAXWIG] == WBRES) {
 
         wb_unlock();
         error(pk, "No widget by given id");
@@ -313,13 +319,14 @@ void wb_widget(
     fn = fileno(f);
     wp = *wprp; /* get any predefined widget entry */
     if (!wp) wp = wb_getwig(pk); /* get widget entry if none passed in */
-    if (pk->opnfil[fn]->widgets[id+MAXWIG]) {
+    if (pk->opnfil[fn]->widgets[id+MAXWIG] &&
+        pk->opnfil[fn]->widgets[id+MAXWIG] != WBRES) {
 
         wb_unlock();
         error(pk, "Widget by id already in use");
 
     }
-    pk->opnfil[fn]->widgets[id+MAXWIG] = wp;
+    pk->opnfil[fn]->widgets[id+MAXWIG] = wp; /* fills a held id, or a free one */
     wb_unlock();
     wp->wid = ami_getwinid(); /* allocate a buried window id */
     ami_openwin(&stdin, &wp->wf, f, wp->wid); /* open widget window */
@@ -412,6 +419,13 @@ static void intkillwidget(
 
     }
     wp = pk->opnfil[fn]->widgets[id+MAXWIG];
+    if (wp == WBRES) { /* an id taken and never used: it is free again */
+
+        pk->opnfil[fn]->widgets[id+MAXWIG] = NULL;
+        wb_unlock();
+        return;
+
+    }
     /* out of the tables at once: nothing new finds the widget */
     pk->xltwig[wp->wid+MAXFIL] = NULL;
     pk->opnfil[fn]->widgets[id+MAXWIG] = NULL;
@@ -449,9 +463,9 @@ Allocate anonymous widget id
 
 Allocates and returns an "anonymous" widget id for the given window.
 Client assigned ids are positive; anonymous ids are negative, starting
-with -1 and proceeding downwards, so the two can never collide. The id
-entry opens at widget creation and closes with the kill, so an anonymous
-id, once allocated, is reserved until used and killed.
+with -1 and proceeding downwards, so the two can never collide. The id is
+taken here: its table entry holds the reserved marker until a widget is
+made under it, and the kill of that id, with or without a widget, frees it.
 
 \returns The widget id.
 
@@ -472,8 +486,11 @@ ami_long wb_getwigid(
     fn = fileno(f);
     wid = -1; /* start at -1 */
     while (wid > -MAXWIG && pk->opnfil[fn]->widgets[wid+MAXWIG]) wid--;
+    if (!pk->opnfil[fn]->widgets[wid+MAXWIG])
+        pk->opnfil[fn]->widgets[wid+MAXWIG] = WBRES; /* take it */
+    else wid = 0; /* none free */
     wb_unlock();
-    if (wid == -MAXWIG) error(pk, "No more anonymous widget IDs");
+    if (!wid) error(pk, "No more anonymous widget IDs");
 
     return (wid);
 
@@ -568,8 +585,8 @@ static wbwigptr tabnext(
                     for (i = 0; i < MAXWIG*2+1; i++) {
 
             wp = pk->opnfil[fn]->widgets[i];
-            if (!wp || wp == wg || !wp->live || !wp->enb || !wp->tabstop)
-                continue;
+            if (!wp || wp == WBRES || wp == wg || !wp->live || !wp->enb ||
+                !wp->tabstop) continue;
             if (wp->tabseq > wg->tabseq &&
                 (!best || wp->tabseq < best->tabseq)) best = wp;
             if (!first || wp->tabseq < first->tabseq) first = wp;

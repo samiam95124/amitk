@@ -1927,6 +1927,8 @@ void ami_openwaveout(ami_long p)
     { begin(GR_MOPENWAVEOUT, 0); pi(p); send0(); }
 void ami_closewaveout(ami_long p)
     { begin(GR_MCLOSEWAVEOUT, 0); pi(p); send0(); }
+ami_long ami_getwaveid(void)
+    { begin(GR_MGETWAVEID, 0); qsend(); return (gi()); }
 void ami_loadwave(ami_long w, string fn)
     { begin(GR_MLOADWAVE, 0); pi(w); ps(fn); qsend(); gi(); }
 void ami_playwave(ami_long p, ami_long t, ami_long w)

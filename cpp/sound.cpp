@@ -52,6 +52,7 @@ ami_long waveout(void) { return ami_waveout(); }
 ami_long wavein(void) { return ami_wavein(); }
 void loadsynth(ami_long s, const char* sf) { ami_loadsynth(s, (char*)sf); }
 void delsynth(ami_long s) { ami_delsynth(s); }
+ami_long getwaveid(void) { return ami_getwaveid(); }
 void loadwave(ami_long w, const char* fn) { ami_loadwave(w, (char*)fn); }
 void delwave(ami_long w) { ami_delwave(w); }
 void opensynthout(ami_long p) { ami_opensynthout(p); }

@@ -861,6 +861,30 @@ void ami_closewaveout(ami_long p)
 
 /*******************************************************************************
 
+Get anonymous wave id
+
+Takes a wave id the program did not name: the ids run -1, -2 and so on down to
+-N, the first free one each time. The id is held from here until delwave()
+releases it, whether or not a file is ever loaded to it. A library that plays
+a sound of its own takes its id this way, and so never collides with a wave
+the program loaded.
+
+\returns The wave id.
+
+*******************************************************************************/
+
+ami_long ami_getwaveid(void)
+
+{
+
+    error("ami_getwaveid: Is not implemented");
+
+    return (0);
+
+}
+
+/*******************************************************************************
+
 Load waveform file
 
 Loads a waveform file to a logical cache, from 1 to N. These are loaded up into

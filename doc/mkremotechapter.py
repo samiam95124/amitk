@@ -139,7 +139,7 @@ out = [P % inline(" ".join(abstract.split()))]
 rest = body[body.index(r"\section{Introduction}"):]
 # drop the longtable scaffolding; the catalog is built from its own file
 rest = re.sub(r'\\begin\{longtable\}.*?\\endhead', '@CATALOG@', rest, flags=re.S)
-rest = re.sub(r'\\hline\s*\\input\{remote_catalog\}\s*\\hline\s*\\end\{longtable\}', '', rest, flags=re.S)
+rest = re.sub(r'(?:\\hline\s*)?\\input\{remote_catalog\}\s*\\hline\s*\\end\{longtable\}', '', rest, flags=re.S)
 
 tabno = 0
 tabstyles = []
@@ -227,10 +227,16 @@ CAT_IMG = "Pictures/10000001000003400000035C2E5150E9.png"
 prevch = c.rfind("<text:list ", 0, c.rfind("<text:h", 0, c.index('draw:name="ChapCatRemote"')))
 tag = c[prevch:c.index(">", prevch)]
 m = re.search(r'xml:id="([^"]+)"', tag) or re.search(r'text:continue-list="([^"]+)"', tag)
-if not m: raise SystemExit("the chapter before this one hangs off no list: " + tag[:80])
-lid = m.group(1)
+if m:
+    hang = 'text:continue-list="' + m.group(1) + '"'
+elif 'text:continue-numbering="true"' in tag:
+    # LibreOffice also writes chapters that simply continue the numbering of
+    # whatever list came before them, with no id at all; this one does the same
+    hang = 'text:continue-numbering="true"'
+else:
+    raise SystemExit("the chapter before this one hangs off no list: " + tag[:80])
 
-heading = ('<text:list text:continue-list="' + lid + '" text:style-name="WWNum3">'
+heading = ('<text:list ' + hang + ' text:style-name="WWNum3">'
            '<text:list-item>'
            '<text:h text:style-name="Chapter_20_Banner" text:outline-level="1" '
            'loext:marker-style-name="T20">'

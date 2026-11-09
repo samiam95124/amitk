@@ -44,12 +44,13 @@ CATLEFT = 406.0
 TITLES = [
     "Introduction: What is Ami", "Using C++ With Ami", "System Services Library",
     "Terminal Interface Library", "Character Windows Management Library",
-    "Graphical Interface Library", "Windows Management Library", "Widgets Library",
+    "Graphical Interface Library", "Graphical Windows Management Library",
+    "Widgets Library",
     "Sound Library", "Networking Library", "Option: Command Line Option Processing",
     "Config: The configuration database", "Print modules", "Remote mode",
     "The remote display protocol", "Widget Creation", "Sound module plugins",
     "Example Applications", "Libc and alternatives", "Directory layout",
-    "Installing and building Ami", "Testing Ami", "Windows Specific Details",
+    "Installing and building Ami", "Building user applications", "Testing Ami", "Windows Specific Details",
     "Linux Specific details", "Mac OS X specific details", "License",
 ]
 

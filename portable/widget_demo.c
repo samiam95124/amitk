@@ -26,8 +26,8 @@ window. The base (widget_base.h) owns that machinery; what remains for
 the widget author is exactly what makes the widget itself:
 
 1. THE RECORD: declare your widget record with the base head first
-   (WB_WIGHEAD) and your own state after it -- here, the animation frame
-   and whether it is running. Register the package once at startup
+   (a wbwig named head) and your own state after it -- here, the
+   animation frame and whether it is running. Register the package once at startup
    (wb_init), passing your callbacks.
 
 2. DRAW: paint the face on the widget window when a redraw event arrives,
@@ -114,9 +114,6 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 /* where the assets live, relative to the run directory */
 #define FRMFILE   "tests/widget_demo/kick%02d" /* .bmp is implied */
 #define WAVFILE   "tests/widget_demo/kick"     /* .wav is implied */
-#define KICKWAV   42 /* wave table slot for the kick sound. The wave table
-                        is global to the program, so a widget package must
-                        pick a slot its clients are unlikely to use */
 
 /* the widget's few colors, packed RGB. The stock set draws from a theme
    table read from configuration; a one widget demo hardcodes them */
@@ -131,7 +128,7 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 typedef struct wigrec* wigptr;
 typedef struct wigrec {
 
-    WB_WIGHEAD(struct wigrec*) /* the base head, first */
+    wbwig head; /* the base head, first */
     /** the kick is running */              ami_long playing;
     /** current animation frame, 1 based */ ami_long frame;
 
@@ -139,6 +136,8 @@ typedef struct wigrec {
 
 static wbpkg pkg;    /* this package's base instance */
 static int   sndopn; /* kick sound is loaded */
+static ami_long kickwav; /* the kick sound's wave id, from ami_getwaveid():
+                            an anonymous id, clear of any the program names */
 
 /** ****************************************************************************
 
@@ -160,18 +159,18 @@ static void kickbutton_draw(
     ami_long fr = wg->frame;
 
     if (fr < 1 || fr > FRAMES) fr = 1;
-    ami_picture(wg->wf, fr, 1, 1, ami_maxxg(wg->wf), ami_maxyg(wg->wf));
-    ami_linewidth(wg->wf, 3);
-    if (wg->focus && wg->enb)
-        ami_fcolorg(wg->wf, COL_FOCUS >> 16&0xff, COL_FOCUS >> 8&0xff,
+    ami_picture(wg->head.wf, fr, 1, 1, ami_maxxg(wg->head.wf), ami_maxyg(wg->head.wf));
+    ami_linewidth(wg->head.wf, 3);
+    if (wg->head.focus && wg->head.enb)
+        ami_fcolorg(wg->head.wf, COL_FOCUS >> 16&0xff, COL_FOCUS >> 8&0xff,
                             COL_FOCUS&0xff);
-    else if (wg->hover && wg->enb)
-        ami_fcolorg(wg->wf, COL_HOVER >> 16&0xff, COL_HOVER >> 8&0xff,
+    else if (wg->head.hover && wg->head.enb)
+        ami_fcolorg(wg->head.wf, COL_HOVER >> 16&0xff, COL_HOVER >> 8&0xff,
                             COL_HOVER&0xff);
     else
-        ami_fcolorg(wg->wf, COL_OUTLINE >> 16&0xff, COL_OUTLINE >> 8&0xff,
+        ami_fcolorg(wg->head.wf, COL_OUTLINE >> 16&0xff, COL_OUTLINE >> 8&0xff,
                             COL_OUTLINE&0xff);
-    ami_rrect(wg->wf, 2, 2, ami_maxxg(wg->wf)-1, ami_maxyg(wg->wf)-1, 20, 20);
+    ami_rrect(wg->head.wf, 2, 2, ami_maxxg(wg->head.wf)-1, ami_maxyg(wg->head.wf)-1, 20, 20);
 
 }
 
@@ -207,12 +206,12 @@ static void kickbutton_event(
     if (ev->etype == ami_etredraw) kickbutton_draw(wg);
     else if (ev->etype == ami_etmouba && ev->amoubn == 1) {
 
-        if (wg->enb && !wg->playing) {
+        if (wg->head.enb && !wg->playing) {
 
             /* roll the animation off the press */
             wg->playing = TRUE;
             wg->frame = 1;
-            ami_timer(wg->wf, FRMTIMER, FRATE, TRUE);
+            ami_timer(wg->head.wf, FRMTIMER, FRATE, TRUE);
 
         }
 
@@ -226,17 +225,17 @@ static void kickbutton_event(
                 /* The foot meets the ball: the sound, and the report.
                    The kick goes to the parent as the widget's own user
                    defined event, at the moment it means. */
-                if (sndopn) ami_playwave(AMI_WAVE_OUT, 0, KICKWAV);
+                if (sndopn) ami_playwave(AMI_WAVE_OUT, 0, kickwav);
                 er.etype = ETKICKED;
-                er.butid = wg->id; /* ours to assign for our own code */
-                ami_sendevent(wg->parent, &er);
+                er.butid = wg->head.id; /* ours to assign for our own code */
+                ami_sendevent(wg->head.parent, &er);
 
             }
             kickbutton_draw(wg);
 
         } else { /* done: back to the still */
 
-            ami_killtimer(wg->wf, FRMTIMER);
+            ami_killtimer(wg->head.wf, FRMTIMER);
             wg->playing = FALSE;
             wg->frame = 1;
             kickbutton_draw(wg);
@@ -245,22 +244,22 @@ static void kickbutton_event(
 
     } else if (ev->etype == ami_etfocus) {
 
-        wg->focus = TRUE;
+        wg->head.focus = TRUE;
         kickbutton_draw(wg);
 
     } else if (ev->etype == ami_etnofocus) {
 
-        wg->focus = FALSE;
+        wg->head.focus = FALSE;
         kickbutton_draw(wg);
 
     } else if (ev->etype == ami_ethover) {
 
-        wg->hover = TRUE;
+        wg->head.hover = TRUE;
         kickbutton_draw(wg);
 
     } else if (ev->etype == ami_etnohover) {
 
-        wg->hover = FALSE;
+        wg->head.hover = FALSE;
         kickbutton_draw(wg);
 
     }
@@ -298,7 +297,7 @@ static void kickbutton_kill(
 
     wigptr wg = (wigptr)vwg;
 
-    if (wg->playing) ami_killtimer(wg->wf, FRMTIMER);
+    if (wg->playing) ami_killtimer(wg->head.wf, FRMTIMER);
 
 }
 
@@ -332,17 +331,18 @@ void kickbutton(
     for (i = 1; i <= FRAMES; i++) {
 
         sprintf(fn, FRMFILE, (int)i);
-        ami_loadpict(wp->wf, i, fn);
+        ami_loadpict(wp->head.wf, i, fn);
 
     }
     if (!sndopn) { /* the kick sound loads once */
 
         ami_openwaveout(AMI_WAVE_OUT);
-        ami_loadwave(KICKWAV, WAVFILE);
+        kickwav = ami_getwaveid();
+        ami_loadwave(kickwav, WAVFILE);
         sndopn = TRUE;
 
     }
-    wp->live = TRUE; /* whole from here: events may dispatch */
+    wp->head.live = TRUE; /* whole from here: events may dispatch */
     kickbutton_draw(wp); /* show the resting face */
 
 }
@@ -386,7 +386,7 @@ void kickbuttonenable(
 
     wigptr wp = wb_fndwig(&pkg, f, id);
 
-    wp->enb = !!e;
+    wp->head.enb = !!e;
     kickbutton_draw(wp);
 
 }

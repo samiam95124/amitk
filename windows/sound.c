@@ -277,9 +277,68 @@ static DWORD            sintim;             /* start time input midi, in raw
                                                windows time */
 static CRITICAL_SECTION seqlock;            /* sequencer task lock */
 static string           synthnam[MAXMIDT];  /* midi track file names */
-static string           wavenam[MAXWAVT];   /* wave track file names */
+/* The ids a program names are 1 to MAXWAVT; the ids ami_getwaveid() hands
+   out are -1 down to -MAXWAVT, so a library that plays a sound of its own
+   never collides with the program's. Both halves live in one table, indexed
+   by WAVIDX(). An id taken but not yet loaded holds the reserved marker, an
+   empty name. */
+static string           wavenam[MAXWAVT*2+1]; /* wave track file names */
+static char             wavres[1] = "";     /* reserved marker: taken, empty */
+#define WAVIDX(w) ((w)+MAXWAVT) /* wave id to table index */
+#define WAVIDOK(w) ((w) != 0 && (w) >= -MAXWAVT && (w) <= MAXWAVT)
 static HANDLE           playwavecomplete;   /* wave end event handle */
 static int              wavcnt;             /* count outstanding wave starts */
+
+/* wave output volume by port, 0..LONG_MAX, LONG_MAX full: a property of the
+   port, held across opens, read by every writer of samples to it */
+static CRITICAL_SECTION vollock;            /* guards wavvol */
+static volatile ami_long wavvol[MAXWAVP];   /* wave output volume by port */
+
+/* the .wav file as it lies on disk: RIFF header, then chunks, the format
+   chunk first and the data chunk after it. Packed to the byte. */
+#pragma pack(push, 1)
+
+typedef struct wavhdr {
+
+    unsigned char id[4];   /* type of header */
+    unsigned int  len;     /* length */
+    unsigned char type[4]; /* type of file */
+
+} wavhdr;
+
+typedef struct cnkhdr {
+
+    unsigned char id[4]; /* type of chunk */
+    unsigned int  len;   /* length of chunk */
+
+} cnkhdr;
+
+typedef struct fmthdr {
+
+    unsigned char   id[4];         /* type of chunk */
+    unsigned int    len;           /* size of chunk */
+    short           tag;           /* type (1=PCM, 3=float) */
+    unsigned short  channels;      /* number of channels */
+    unsigned int    samplerate;    /* sample rate per second */
+    unsigned int    byterate;      /* byte rate per second */
+    unsigned short  blockalign;    /* number of bytes in a frame */
+    unsigned short  bitspersample; /* number of bits in a sample */
+
+} fmthdr;
+
+#pragma pack(pop)
+
+#ifndef WAVE_FORMAT_IEEE_FLOAT
+#define WAVE_FORMAT_IEEE_FLOAT 3 /* .wav format tag for floating point */
+#endif
+
+/* a wave file play in progress: what its thread is given */
+typedef struct {
+
+    ami_long port; /* wave output port */
+    ami_long w;    /* wave id */
+
+} wavplay;
 
 /*******************************************************************************
 
@@ -2853,11 +2912,40 @@ void ami_closewaveout(ami_long p)
 
 /*******************************************************************************
 
+Get anonymous wave id
+
+Takes a wave id the program did not name: the ids run -1, -2 and so on down to
+-N, the first free one each time. The id is held from here until delwave()
+releases it, whether or not a file is ever loaded to it. A library that plays
+a sound of its own takes its id this way, and so never collides with a wave
+the program loaded.
+
+\returns The wave id.
+
+*******************************************************************************/
+
+ami_long ami_getwaveid(void)
+
+{
+
+    ami_long w;
+
+    w = -1; /* start at -1 */
+    while (w > -MAXWAVT && wavenam[WAVIDX(w)]) w--;
+    if (wavenam[WAVIDX(w)]) error("No more anonymous wave ids");
+    wavenam[WAVIDX(w)] = wavres; /* hold it */
+
+    return (w);
+
+}
+
+/*******************************************************************************
+
 Load waveform file
 
-Loads a waveform file to a logical cache, from 1 to N. These are loaded up into
-memory for minimum latency. The file is specified by file name, and the file
-type is system dependent.
+Loads a waveform file to a logical cache, 1 to N for the ids a program names,
+or an id from getwaveid(). These are loaded up into memory for minimum latency.
+The file is specified by file name, and the file type is system dependent.
 
 Note that we support 100 wave files loaded, but the Petit-ami "rule of thumb"
 is no more than 10 wave files at a time.
@@ -2871,13 +2959,13 @@ void ami_loadwave(ami_long w, string fn)
 
 {
 
-    if (w < 1 || w > MAXWAVT) error("Invalid logical wave file number");
-    if (wavenam[w-1])
+    if (!WAVIDOK(w)) error("Invalid logical wave file number");
+    if (wavenam[WAVIDX(w)] && wavenam[WAVIDX(w)] != wavres)
         error("Wave file already defined for logical number");
     /* simply store the filename for later */
-    wavenam[w-1] = malloc(strlen(fn)+1); /* get a name entry */
-    if (!wavenam[w-1]) error("No memory");
-    strcpy(wavenam[w-1], fn);
+    wavenam[WAVIDX(w)] = malloc(strlen(fn)+1); /* get a name entry */
+    if (!wavenam[WAVIDX(w)]) error("No memory");
+    strcpy(wavenam[WAVIDX(w)], fn);
 
 }
 
@@ -2886,7 +2974,7 @@ void ami_loadwave(ami_long w, string fn)
 Delete waveform file
 
 Removes a waveform file from the caching table. This frees up the entry to be
-redefined.
+redefined, and releases an id taken by getwaveid().
 
 *******************************************************************************/
 
@@ -2894,11 +2982,12 @@ void ami_delwave(ami_long w)
 
 {
 
-    if (w < 1 || w > MAXWAVT) error("Invalid logical wave file number");
-    if (!wavenam[w-1])
+    if (!WAVIDOK(w)) error("Invalid logical wave file number");
+    if (!wavenam[WAVIDX(w)])
         error("No wave file loaded for logical number");
-    free(wavenam[w-1]); /* the wave's own entry, and the slot is free again */
-    wavenam[w-1] = NULL;
+    /* the wave's own entry, and the slot is free again */
+    if (wavenam[WAVIDX(w)] != wavres) free(wavenam[WAVIDX(w)]);
+    wavenam[WAVIDX(w)] = NULL;
 
 }
 
@@ -2913,14 +3002,201 @@ The file is specified by file name, and the file type is system dependent.
 
 ********************************************************************************/
 
+/* find the gain of a wave output port, 0.0 to 1.0 */
+
+static double wavgain(ami_long p)
+
+{
+
+    ami_long v;
+
+    EnterCriticalSection(&vollock);
+    v = wavvol[p-1];
+    LeaveCriticalSection(&vollock);
+
+    return ((double)v/LONG_MAX);
+
+}
+
+/*******************************************************************************
+
+Scale wave samples
+
+Scales a buffer of interleaved little endian samples in place by the gain, 0.0
+to 1.0. The samples are 8 bit unsigned, 16, 24 or 32 bit signed, or 32 bit
+floating point, as the wave devices and .wav files hold them. An integer sample
+is taken to a signed value about zero, scaled, and put back in its own form.
+
+*******************************************************************************/
+
+static void scalewave(byte* buff, ami_long bytes, int bits, int sgn, int flt,
+                      double gain)
+
+{
+
+    int       phys; /* bytes per sample */
+    long long v;    /* sample value */
+    long long half; /* half of full scale, the unsigned zero */
+    unsigned long long u, mask;
+    int       i;
+    byte*     bp;
+
+    phys = (bits+7)/8;
+    if (flt && phys == 4) {
+
+        for (bp = buff; bytes >= phys; bytes -= phys, bp += phys) {
+
+            float f;
+
+            memcpy(&f, bp, sizeof(f));
+            f *= gain;
+            memcpy(bp, &f, sizeof(f));
+
+        }
+        return;
+
+    }
+    mask = (1ULL << bits)-1;
+    half = 1LL << (bits-1);
+    for (bp = buff; bytes >= phys; bytes -= phys, bp += phys) {
+
+        u = 0;
+        for (i = 0; i < phys; i++) u |= (unsigned long long)bp[i] << (8*i);
+        v = (long long)(u & mask);
+        if (sgn) { if (v & half) v -= 1LL << bits; }
+        else v -= half;
+        v = (long long)(v*gain);
+        if (!sgn) v += half;
+        u = (unsigned long long)v & mask;
+        for (i = 0; i < phys; i++) bp[i] = (byte)(u >> (8*i));
+
+    }
+
+}
+
+/* The play thread: reads the .wav file, a RIFF header, a format chunk and
+   data chunks, and writes the data to the port's wave device in two
+   alternating buffers, at the port's volume as it stands at each buffer.
+   The device is opened for this play alone; Windows mixes it with whatever
+   else is going to the device. */
+
 static DWORD WINAPI waveplaythread(LPVOID lpParameter)
 
 {
 
-    ami_long w = (ami_long)(INT_PTR)lpParameter; /* get wave number */
+    wavplay*     wp = (wavplay*)lpParameter;
+    ami_long     p = wp->port;
+    ami_long     w = wp->w;
+    FILE*        fh;
+    wavhdr       whd;  /* .wav file header */
+    fmthdr       fhd;  /* fmt chunk header */
+    cnkhdr       chd;  /* data chunk header */
+    WAVEFORMATEX wf;
+    HWAVEOUT     hwo;
+    HANDLE       evt;  /* a buffer was played */
+    WAVEHDR      hdr[2];
+    int          cur;  /* buffer in hand */
+    unsigned     remsiz, xfrsiz;
+    int          sgn, flt, i;
+    MMRESULT     r;
+    size_t       len;
 
-    /* play sound without error checking, wait complete */
-    PlaySound(wavenam[w-1], 0, SND_FILENAME | SND_NODEFAULT | SND_SYNC);
+    free(wp);
+    fh = fopen(wavenam[WAVIDX(w)], "rb");
+    if (!fh) error("Cannot open input .wav file");
+
+    /* RIFF header with WAVE type */
+    len = fread(&whd, 1, sizeof(wavhdr), fh);
+    if (len != sizeof(wavhdr)) error(".wav file format");
+    if (memcmp(whd.id, "RIFF", 4) || memcmp(whd.type, "WAVE", 4))
+       error("Not a valid .wav file");
+
+    /* the format chunk, expected at the top of the file */
+    len = fread(&fhd, 1, sizeof(fmthdr), fh);
+    if (len != sizeof(fmthdr)) error(".wav file format");
+    if (memcmp(fhd.id, "fmt ", 4)) error("Not a valid .wav file");
+    if (fhd.len > sizeof(fmthdr)-8) /* extra format bytes: skip them */
+        fseek(fh, fhd.len-(sizeof(fmthdr)-8), SEEK_CUR);
+    flt = fhd.tag == 3;
+    sgn = fhd.bitspersample > 8;
+    if (fhd.tag != 1 && fhd.tag != 3) error("Cannot play this PCM format");
+    if (fhd.bitspersample != 8 && fhd.bitspersample != 16 &&
+        fhd.bitspersample != 24 && fhd.bitspersample != 32)
+        error("Cannot play this PCM format");
+
+    /* open the port's device for this play */
+    wf.wFormatTag = flt? WAVE_FORMAT_IEEE_FLOAT: WAVE_FORMAT_PCM;
+    wf.nChannels = fhd.channels;
+    wf.nSamplesPerSec = fhd.samplerate;
+    wf.nBlockAlign = fhd.blockalign;
+    wf.nAvgBytesPerSec = fhd.blockalign*fhd.samplerate;
+    wf.wBitsPerSample = fhd.bitspersample;
+    wf.cbSize = 0;
+    evt = CreateEvent(NULL, FALSE, FALSE, NULL);
+    r = waveOutOpen(&hwo, p-1, &wf, (DWORD_PTR)evt, 0, CALLBACK_EVENT);
+    if (r != MMSYSERR_NOERROR) error("Couldn't open wave output device");
+    for (i = 0; i < 2; i++) {
+
+        memset(&hdr[i], 0, sizeof(WAVEHDR));
+        hdr[i].lpData = malloc(WAVSIZ);
+        if (!hdr[i].lpData) error("No memory");
+        hdr[i].dwBufferLength = WAVSIZ;
+        r = waveOutPrepareHeader(hwo, &hdr[i], sizeof(WAVEHDR));
+        if (r != MMSYSERR_NOERROR)
+            error("Couldn't prepare wave output device header");
+        hdr[i].dwFlags |= WHDR_DONE; /* free to fill */
+
+    }
+    cur = 0;
+
+    /* the chunks: data plays, anything else is skipped */
+    while (fread(&chd, 1, sizeof(cnkhdr), fh) == sizeof(cnkhdr)) {
+
+        if (!memcmp(chd.id, "data", 4)) {
+
+            remsiz = chd.len;
+            while (remsiz) {
+
+                /* a whole number of frames, as many as fit the buffer */
+                xfrsiz = WAVSIZ/fhd.blockalign*fhd.blockalign;
+                if (xfrsiz > remsiz) xfrsiz = remsiz;
+                /* wait for the buffer to come back from the device */
+                while (!(hdr[cur].dwFlags & WHDR_DONE))
+                    WaitForSingleObject(evt, 100);
+                len = fread(hdr[cur].lpData, 1, xfrsiz, fh);
+                if (len != xfrsiz) error(".wav file format");
+                /* the port's volume, as it stands at each buffer, so a
+                   change in mid play is heard */
+                if (wavgain(p) < 1.0)
+                    scalewave((byte*)hdr[cur].lpData, xfrsiz, fhd.bitspersample,
+                              sgn, flt, wavgain(p));
+                hdr[cur].dwBufferLength = xfrsiz;
+                hdr[cur].dwFlags &= ~WHDR_DONE;
+                r = waveOutWrite(hwo, &hdr[cur], sizeof(WAVEHDR));
+                if (r != MMSYSERR_NOERROR)
+                    error("Couldn't write wave output device");
+                cur = !cur;
+                remsiz -= xfrsiz;
+
+            }
+
+        } else fseek(fh, chd.len+(chd.len & 1), SEEK_CUR);
+
+    }
+
+    /* let the last buffers play out, then take the device down */
+    for (i = 0; i < 2; i++)
+        while (!(hdr[i].dwFlags & WHDR_DONE)) WaitForSingleObject(evt, 100);
+    for (i = 0; i < 2; i++) {
+
+        waveOutUnprepareHeader(hwo, &hdr[i], sizeof(WAVEHDR));
+        free(hdr[i].lpData);
+
+    }
+    waveOutClose(hwo);
+    CloseHandle(evt);
+    fclose(fh);
+
     wavcnt--; /* set wave complete */
     SetEvent(playwavecomplete); /* flag play has finished */
 
@@ -2937,15 +3213,21 @@ void ami_playwave(ami_long p, ami_long t, ami_long w)
     int       tact; /* timer active */
     BOOL      b;
 
-    if (w < 1 || w > MAXWAVT) error("Invalid logical wave file number");
-    if (!wavenam[w-1])
+    if (p < 1 || p > MAXWAVP) error("Invalid wave output port number");
+    if (p > waveOutGetNumDevs()) error("No system wave output device exists");
+    if (!WAVIDOK(w)) error("Invalid logical wave file number");
+    if (!wavenam[WAVIDX(w)] || wavenam[WAVIDX(w)] == wavres)
         error("No wave file loaded for logical number");
     elap = difftime(strtim); /* find elapsed time */
     /* execute immediate if 0 or sequencer running and time past */
     if (t == 0 || (t <= elap && seqrun)) {
 
-        CreateThread(NULL, 0, waveplaythread, (void*)(INT_PTR)w, 0, NULL);
+        wavplay* wp = malloc(sizeof(wavplay));
+
+        if (!wp) error("No memory");
+        wp->port = p; wp->w = w;
         wavcnt++; /* count active wave starts */
+        CreateThread(NULL, 0, waveplaythread, wp, 0, NULL);
 
     } else { /* sequence */
 
@@ -2980,11 +3262,41 @@ void ami_volwave(ami_long p, ami_long t, ami_long v)
 
 {
 
-    /* a stub, as on Linux: the port is checked and the volume is left
-       alone. The wave device opens on the first play here, so an open
-       port is not required of the call. */
+    ami_seqptr sp;   /* message pointer */
+    DWORD      elap; /* current elapsed time */
+    int        tact; /* timer active */
+
     if (p < 1 || p > MAXWAVP) error("Invalid wave output port number");
     if (p > waveOutGetNumDevs()) error("No system wave output device exists");
+    if (v < 0) error("Invalid wave volume");
+    elap = difftime(strtim); /* find elapsed time */
+    /* execute immediate if 0 or sequencer running and time past */
+    if (t == 0 || (t <= elap && seqrun)) {
+
+        /* the volume is a property of the port, held across opens; plays
+           and writes in progress take it at their next buffer */
+        EnterCriticalSection(&vollock);
+        wavvol[p-1] = v;
+        LeaveCriticalSection(&vollock);
+
+    } else { /* sequence */
+
+        /* check sequencer running */
+        if (!seqrun) error("Sequencer not running");
+        tact = seqlst != NULL; /* flag if pending timers */
+        getseq(&sp); /* get a sequencer message */
+        sp->port = p; /* set port */
+        sp->time = t; /* set time */
+        sp->st = st_volwave; /* set type */
+        sp->wv = v; /* set volume */
+        insseq(sp); /* insert to sequencer list */
+        if (!tact) /* activate timer */
+            timhan = timeSetEvent((t-elap) / 10, 0, nextseq, 0,
+                                   TIME_CALLBACK_FUNCTION |
+                                   TIME_KILL_SYNCHRONOUS |
+                                   TIME_ONESHOT);
+
+    }
 
 }
 
@@ -3190,11 +3502,13 @@ void ami_wrwave(ami_long p, byte* buff, ami_long len)
     LPWAVEHDR    wp;
     devptr       dp;
     unsigned*    rem;
+    double       gain; /* port gain */
 
     if (p < 1 || p > MAXWAVP) error("Invalid wave output port number");
     if (p > waveOutGetNumDevs()) error("No system wave output device exists");
     dp = pcmout[p-1]; /* index the device */
     if (!dp || !dp->open) error("Wave output device not open");
+    gain = wavgain(p); /* the port's volume for this write */
     if (!dp->init) {
 
         /* first operation on device, set parameters and open */
@@ -3278,6 +3592,10 @@ dbg_printf(dlinfo, "wBitsPerSample: %d\n", wf.wBitsPerSample);
         n = wp->dwBufferLength-*rem;
         if (n > len) n = len;
         memcpy(wp->lpData+*rem, buff, n);
+        /* the port's volume applies to the copy; the caller's buffer is
+           left as given */
+        if (gain < 1.0)
+            scalewave((byte*)wp->lpData+*rem, n, dp->bits, dp->sgn, dp->flt, gain);
         *rem += n;
         buff += n;
         len -= n;
@@ -4424,11 +4742,13 @@ static void ami_init_sound()
     strtim = 0; /* clear start time */
     timhan = 0; /* set no timer active */
     wavcnt = 0; /* clear wave start count */
+    for (i = 0; i < MAXWAVP; i++) wavvol[i] = LONG_MAX; /* ports start at full volume */
+    InitializeCriticalSection(&vollock);
     for (i = 0; i < MAXMIDP; i++) midouttab[i] = (HMIDIOUT)-1; /* set no midi output ports open */
     for (i = 0; i < MAXMIDP; i++) midinptab[i] = NULL; /* set no midi output ports open */
     for (i = 0; i < MAXWAVP; i++) pcmout[i] = NULL; /* set no wave output ports open */
     for (i = 0; i < MAXMIDT; i++) synthnam[i] = NULL; /* clear synth track list */
-    for (i = 0; i < MAXWAVT; i++) wavenam[i] = NULL; /* clear wave track list */
+    for (i = 0; i < MAXWAVT*2+1; i++) wavenam[i] = NULL; /* clear wave track list */
     InitializeCriticalSection(&seqlock); /* initialize the sequencer lock */
     /* initialize wave play complete signal */
     playwavecomplete = CreateEvent(NULL, TRUE, FALSE, NULL);
