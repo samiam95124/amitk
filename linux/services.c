@@ -1800,6 +1800,7 @@ void ami_maknam(
     char s[2];
     bufstr b; /* buffer to build result in */
 
+    if (!*p && !*n) error("Path and name cannot both be blank");
     if (strlen(p) >= MAXSTR) error("String too large for desination");
     strcpy(b, p); /* place path */
     /* check path properly terminated */
