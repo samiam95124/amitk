@@ -137,6 +137,17 @@ static ami_envrec *envlst;   /* our environment list */
 static ami_long language;    /* current language */
 static ami_long country;     /* current country */
 
+/* host internationalization, read from the user locale at startup. The
+   defaults are ISO 8601 and the C locale, for a host with no locale set */
+static char     locdecimal = '.';  /* decimal point */
+static char     locnumsep  = ',';  /* digit group separator */
+static char     loccurr    = '$';  /* currency symbol */
+static int      loc24hour  = 1;    /* 24 hour time */
+static ami_long locdateord = 1;    /* date order code, year-month-day */
+static ami_long loctimeord = 1;    /* time order code, hour:minute:second */
+static char     locdatesep = '-';  /* date separator */
+static char     loctimesep = ':';  /* time separator */
+
 void ami_brknam(char *fn, char *p, ami_long pl, char *n, ami_long nl, char *e, ami_long el);
 void ami_maknam(char *fn, ami_long fnl, char *p, char *n, char *e);
 
@@ -431,9 +442,23 @@ void ami_list(
     ami_filrec*      fp; /* file entry pointer */
     ami_filrec*      lp; /* last entry pointer */
     int             e;  /* error code */
+    bufstr          sf; /* specification completed with '*' */
+    int             fl; /* specification length */
 
     *l = NULL; /* clear destination list */
     lp = NULL; /* clear last pointer */
+    /* a specification ending in the path character means everything in that
+       directory: the same as a trailing '*'. Both separators count, as in
+       brknam */
+    fl = strlen(fn);
+    if (fl && (fn[fl-1] == ami_pthchr() || fn[fl-1] == '/')) {
+
+        if (fl+1 >= MAXSTR) error("String too large for destination");
+        strcpy(sf, fn);
+        strcat(sf, "*");
+        fn = sf;
+
+    }
     r = 1; /* set ok */
     hdl = FindFirstFile(fn, &fd); /* find first file reference */
     if (hdl == INVALID_HANDLE_VALUE) {
@@ -453,13 +478,13 @@ void ami_list(
         strcpy(fp->name, fd.cFileName);
         fp->size = (DWORDLONG)fd.nFileSizeHigh*(MAXDWORD+1)+(DWORDLONG)fd.nFileSizeLow;
         fp->alloc = fp->size;
-        /* clear permissions to all is allowed */
-        fp->user = BIT(ami_pmread) | BIT(ami_pmwrite) | BIT(ami_pmexec) | BIT(ami_pmdel) |
-                   BIT(ami_pmvis) | BIT(ami_pmcopy) | BIT(ami_pmren);
-        fp->other = BIT(ami_pmread) | BIT(ami_pmwrite) | BIT(ami_pmexec) | BIT(ami_pmdel) |
-                    BIT(ami_pmvis) | BIT(ami_pmcopy) | BIT(ami_pmren);
-        fp->group = BIT(ami_pmread) | BIT(ami_pmwrite) | BIT(ami_pmexec) | BIT(ami_pmdel) |
-                    BIT(ami_pmvis) | BIT(ami_pmcopy) | BIT(ami_pmren);
+        /* permissions: Windows has no permission classes, so the same bits
+           go to all three. Write comes from the read-only attribute, visible
+           from hidden, and delete follows both. Read, execute, copy and
+           rename have no Windows equivalent and read unset */
+        fp->user = BIT(ami_pmwrite) | BIT(ami_pmdel) | BIT(ami_pmvis);
+        fp->other = fp->user;
+        fp->group = fp->user;
         fp->attr = 0;   /* clear attributes */
         /* check and set archive attribute */
         if (fd.dwFileAttributes & FILE_ATTRIBUTE_ARCHIVE) fp->attr |= BIT(ami_atarc);
@@ -483,17 +508,17 @@ void ami_list(
         if (fd.dwFileAttributes & FILE_ATTRIBUTE_SYSTEM) {
 
             /* system removes write and delete priveledges */
-            fp->user |= (BIT(ami_pmvis) | BIT(ami_pmdel));
-            fp->other |= (BIT(ami_pmvis) | BIT(ami_pmdel));
-            fp->group |= (BIT(ami_pmvis) | BIT(ami_pmdel));
+            fp->user &= ~(BIT(ami_pmwrite) | BIT(ami_pmdel));
+            fp->other &= ~(BIT(ami_pmwrite) | BIT(ami_pmdel));
+            fp->group &= ~(BIT(ami_pmwrite) | BIT(ami_pmdel));
 
         }
         if (fd.dwFileAttributes & FILE_ATTRIBUTE_HIDDEN) {
 
-            /* hidden removes visiblity, delete, rename and copy privledges */
-            fp->user &= ~(BIT(ami_pmvis) | BIT(ami_pmdel) | BIT(ami_pmren) | BIT(ami_pmcopy));
-            fp->other &= ~(BIT(ami_pmvis) | BIT(ami_pmdel) | BIT(ami_pmren) | BIT(ami_pmcopy));
-            fp->group &= ~(BIT(ami_pmvis) | BIT(ami_pmdel) | BIT(ami_pmren) | BIT(ami_pmcopy));
+            /* hidden removes visiblity and delete privledges */
+            fp->user &= ~(BIT(ami_pmvis) | BIT(ami_pmdel));
+            fp->other &= ~(BIT(ami_pmvis) | BIT(ami_pmdel));
+            fp->group &= ~(BIT(ami_pmvis) | BIT(ami_pmdel));
 
         }
         /* find and flag heriarchy loops '.' and '..' */
@@ -1577,6 +1602,7 @@ void ami_maknam(
     char   s[2]; /* path character buffer */
     bufstr b;    /* buffer to build result in */
 
+    if (!*p && !*n) error("Path and name cannot both be blank");
     if (strlen(p) >= MAXSTR) error("String too large for destination");
     strcpy(b, p); /* place path */
     /* check path properly terminated; a '/' terminator counts, since the
@@ -1912,16 +1938,11 @@ void ami_setuper(char *fn, ami_permset p)
 
     fa = GetFileAttributes(fn); /* get existing attributes on file */
     if (fa < 0) winerr(); /* error, process */
-    /* built attributes equivalent word */
-    fa = 0;
-    if (INISET(p, ami_pmwrite)) fa = fa & !FILE_ATTRIBUTE_READONLY;
-    if (INISET(p, ami_pmvis)) {
-
-        /* remove hidden and system bits, if set */
-        if (fa & FILE_ATTRIBUTE_HIDDEN) fa = fa & ~FILE_ATTRIBUTE_HIDDEN;
-        if (fa & FILE_ATTRIBUTE_SYSTEM) fa = fa & ~FILE_ATTRIBUTE_SYSTEM;
-
-    }
+    /* write clears read-only, visible clears hidden and system; the other
+       permissions have no Windows equivalent */
+    if (INISET(p, ami_pmwrite)) fa &= ~FILE_ATTRIBUTE_READONLY;
+    if (INISET(p, ami_pmvis)) fa &= ~(FILE_ATTRIBUTE_HIDDEN | FILE_ATTRIBUTE_SYSTEM);
+    if (!fa) fa = FILE_ATTRIBUTE_NORMAL; /* nothing left set: a normal file */
     r = SetFileAttributes(fn, fa); /* set attributes */
     if (!r) winerr(); /* error, process */
 
@@ -1943,13 +1964,15 @@ void ami_resuper(char *fn, ami_permset p)
     int fa; /* attribute words */
     int r;  /* result holder */
 
-   fa = GetFileAttributes(fn); /* get existing attributes on file */
-   if (fa < 0) winerr(); /* error, process */
-   /* built attributes equivalent word */
-   fa = 0;
-   if (INISET(p, ami_pmwrite)) fa = fa | FILE_ATTRIBUTE_READONLY;
-   if (INISET(p, ami_pmvis)) fa = fa | FILE_ATTRIBUTE_HIDDEN;
-   r = SetFileAttributes(fn, fa); /* set attributes */
+    fa = GetFileAttributes(fn); /* get existing attributes on file */
+    if (fa < 0) winerr(); /* error, process */
+    /* write sets read-only, visible sets hidden; the other permissions have
+       no Windows equivalent */
+    fa &= ~FILE_ATTRIBUTE_NORMAL; /* normal is only valid alone */
+    if (INISET(p, ami_pmwrite)) fa |= FILE_ATTRIBUTE_READONLY;
+    if (INISET(p, ami_pmvis)) fa |= FILE_ATTRIBUTE_HIDDEN;
+    if (!fa) fa = FILE_ATTRIBUTE_NORMAL;
+    r = SetFileAttributes(fn, fa); /* set attributes */
    if (!r) winerr(); /* error, process */
 
 }
@@ -2372,6 +2395,8 @@ Finds the latitude of the host. Returns the latitude as a ratioed integer:
 LONG_MAX    North pole
 -LONG_MAX   South pole
 
+With no position known, latitude and longitude are both -LONG_MAX.
+
 This means each increment equals 0.0000000419 degrees or about 0.00465 meters
 (approximate because it is an angular measurement on an elipsiod).
 
@@ -2387,7 +2412,7 @@ ami_long ami_latitude(void)
 
     findloc();
 
-    return lochave? locratio(loclat, 90.0): 0;
+    return lochave? locratio(loclat, 90.0): -AMI_LONG_MAX; /* -LONG_MAX: no position */
 
 }
 
@@ -2398,8 +2423,8 @@ Find longitude
 Finds the longitude of the host. Returns the longitude as a ratioed integer:
 
 0           The prime meridian (Greenwitch)
-LONG_MAX    The prime meridian eastward around the world
--LONG_MAX   The prime meridian westward around the world
+LONG_MAX    The prime meridian eastward or westward around the world
+-LONG_MAX   No position is known
 
 This means that each increment equals 0.0000000838 degrees or about 0.00933
 meters (approximate because it is an angular measurement on an elipsoid).
@@ -2410,9 +2435,15 @@ ami_long ami_longitude(void)
 
 {
 
-    findloc();
+    ami_long r;
 
-    return lochave? locratio(loclon, 180.0): 0;
+    findloc();
+    if (!lochave) return -AMI_LONG_MAX; /* no position */
+    r = locratio(loclon, 180.0);
+    /* 180 degrees west is 180 degrees east, and -LONG_MAX means no position */
+    if (r == -AMI_LONG_MAX) r = AMI_LONG_MAX;
+
+    return r;
 
 }
 
@@ -2424,7 +2455,7 @@ Finds the altitude of the host. Returns the altitude as a ratioed integer:
 
 0           MSL
 LONG_MAX    100km high
--LONG_MAX   100km depth
+-LONG_MAX   100km depth, and also no altitude known
 
 This means that each increment is 0.0000465 meters, from "altitude" in the
 services block of ami.cfg, in metres.
@@ -2437,7 +2468,7 @@ ami_long ami_altitude(void)
 
     findloc();
 
-    return althave? locratio(localt, 100000.0): 0;
+    return althave? locratio(localt, 100000.0): -AMI_LONG_MAX; /* -LONG_MAX: unknown */
 
 }
 
@@ -2753,8 +2784,8 @@ void ami_countrys(
 
     p = countrytab;
     while (p->countrynum && p->countrynum != c) p++;
-    if (!p->countrynum) error("Country number invalid");
-    cpycrit(s, len, p->countrystr); /* copy result to critical buffer */
+    /* a code that is not a country gives the empty string */
+    cpycrit(s, len, p->countrynum? p->countrystr: "");
 
 }
 
@@ -2826,7 +2857,7 @@ ami_long ami_time24hour(void)
 
 {
 
-    return 0;
+    return loc24hour;
 
 }
 
@@ -3093,7 +3124,7 @@ char ami_decimal(void)
 
 {
 
-    return '.';
+    return locdecimal;
 
 }
 
@@ -3110,7 +3141,7 @@ char ami_numbersep(void)
 
 {
 
-    return ',';
+    return locnumsep;
 
 }
 
@@ -3139,7 +3170,7 @@ ami_long ami_timeorder(void)
 
 {
 
-    return 1;
+    return loctimeord;
 
 }
 
@@ -3171,7 +3202,7 @@ ami_long ami_dateorder(void)
 
 {
 
-    return 1;
+    return locdateord;
 
 }
 /** ****************************************************************************
@@ -3188,7 +3219,7 @@ char ami_datesep(void)
 
 {
 
-    return '/';
+    return locdatesep;
 
 }
 
@@ -3206,7 +3237,7 @@ char ami_timesep(void)
 
 {
 
-    return ':';
+    return loctimesep;
 
 }
 
@@ -3222,7 +3253,7 @@ char ami_currchr(void)
 
 {
 
-    return '$';
+    return loccurr;
 
 }
 
@@ -3560,6 +3591,71 @@ Note the environment is unordered.
 
 *******************************************************************************/
 
+/** ****************************************************************************
+
+Read the host internationalization
+
+The user locale gives the decimal point, digit group separator and currency
+symbol, the date and time separators, the date order and the 12 or 24 hour
+clock, and the ISO language and country codes. Windows always orders time as
+hour:minute:second. A host that answers none of these keeps the ISO 8601
+defaults.
+
+*******************************************************************************/
+
+/* the single byte of a locale string, or the default when it is empty or
+   longer than a byte */
+static char locchr(const char* s, char def)
+
+{
+
+    return s && s[0] && !s[1]? s[0]: def;
+
+}
+
+static void initlocale(void)
+
+{
+
+    char b[64];
+    langety*    lp;  /* language table pointer */
+    countryety* ctp; /* country table pointer */
+
+    if (GetLocaleInfoA(LOCALE_USER_DEFAULT, LOCALE_SDECIMAL, b, sizeof b))
+        locdecimal = locchr(b, '.');
+    if (GetLocaleInfoA(LOCALE_USER_DEFAULT, LOCALE_STHOUSAND, b, sizeof b))
+        locnumsep = (b[0] & 0x80)? ' ': locchr(b, ',');
+    if (GetLocaleInfoA(LOCALE_USER_DEFAULT, LOCALE_SCURRENCY, b, sizeof b))
+        loccurr = locchr(b, '$');
+    if (GetLocaleInfoA(LOCALE_USER_DEFAULT, LOCALE_SDATE, b, sizeof b))
+        locdatesep = locchr(b, '-');
+    if (GetLocaleInfoA(LOCALE_USER_DEFAULT, LOCALE_STIME, b, sizeof b))
+        loctimesep = locchr(b, ':');
+    if (GetLocaleInfoA(LOCALE_USER_DEFAULT, LOCALE_ITIME, b, sizeof b))
+        loc24hour = b[0] == '1';
+    if (GetLocaleInfoA(LOCALE_USER_DEFAULT, LOCALE_IDATE, b, sizeof b)) {
+
+        /* 0 month-day-year, 1 day-month-year, 2 year-month-day */
+        if (b[0] == '0') locdateord = 3;
+        else if (b[0] == '1') locdateord = 5;
+        else locdateord = 1;
+
+    }
+    if (GetLocaleInfoA(LOCALE_USER_DEFAULT, LOCALE_SISO639LANGNAME, b, sizeof b)) {
+
+        for (lp = langtab; lp->langnum; lp++)
+            if (strlen(b) == 2 && !_strnicmp(b, lp->langnamea2c, 2)) { language = lp->langnum; break; }
+
+    }
+    if (GetLocaleInfoA(LOCALE_USER_DEFAULT, LOCALE_SISO3166CTRYNAME, b, sizeof b)) {
+
+        for (ctp = countrytab; ctp->countrynum; ctp++)
+            if (strlen(b) == 2 && !_strnicmp(b, ctp->countrya2c, 2)) { country = ctp->countrynum; break; }
+
+    }
+
+}
+
 static void ami_init_services (void) __attribute__((constructor (102)));
 static void ami_init_services()
 
@@ -3618,6 +3714,7 @@ static void ami_init_services()
     /* set default language and country */
     language = 41; /* english */
     country = 840; /* USA */
+    initlocale(); /* then the user locale, where Windows has one */
 
     /* clear thread table */
     for (i = 0; i < MAXTHREAD; i++) threadtbl[i] = NULL;

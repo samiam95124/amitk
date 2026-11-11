@@ -27,15 +27,16 @@ A package declares one wbpkg, statically, and initializes it with
 wb_init from its constructor, passing its callbacks. Packages coexist:
 each catches only its own windows.
 
-The package's widget record must begin with the base head, laid down by
-the WB_WIGHEAD macro with the package's own record pointer type, so the
-head fields read naturally (wg->wf, wg->id) and the base can work on any
-package's records:
+The package's widget record must begin with the base head, the record
+wbwig, as its first member under the name head, so that the base can work
+on any package's record through it. The head fields read through that
+member (wg->head.wf, wg->head.id). The head is a plain record so that a
+binding in a language without macros can lay it down the same way:
 
     typedef struct wigrec* wigptr;
     typedef struct wigrec {
 
-        WB_WIGHEAD(wigptr)          -- the base head, first
+        wbwig head;                 -- the base head, first
         (the package's own fields)
 
     } wigrec;
@@ -81,28 +82,28 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 #define MAXFIL 100 /* maximum open files */
 #define MAXWIG 100 /* maximum widgets per window */
 
-/* The common head of every widget record, laid down first in the
-   package's record with the package's own record pointer type. The base
-   works on records through this head; the package's fields follow it. */
-#define WB_WIGHEAD(recptr) \
-    /** next entry in free list */            recptr next; \
-    /** output file for the widget window */  FILE*  wf; \
-    /** parent window */                      FILE*  parent; \
-    /** id number, client assigned */         ami_long   id; \
-    /** widget window id */                   ami_long   wid; \
-    /** widget is enabled */                  ami_long   enb; \
-    /** focused */                            ami_long   focus; \
-    /** hovered */                            ami_long   hover; \
-    /** position of widget in parent */       ami_long   px, py; \
-    /** creation order, for the tab walk */   ami_long   tabseq; \
-    /** Tab stops here: the widget takes the keyboard focus */ \
-                                              ami_long   tabstop; \
-    /** construction complete: events dispatch only from here */ \
+/* The common head of every widget record. The package lays it down as the
+   first member of its own record, named head, and its own fields follow.
+   The base works on any package's record through it. */
+typedef struct wbwig* wbwigptr;
+typedef struct wbwig {
+
+    /** next entry in free list */            struct wbwig* next;
+    /** output file for the widget window */  FILE*  wf;
+    /** parent window */                      FILE*  parent;
+    /** id number, client assigned */         ami_long   id;
+    /** widget window id */                   ami_long   wid;
+    /** widget is enabled */                  ami_long   enb;
+    /** focused */                            ami_long   focus;
+    /** hovered */                            ami_long   hover;
+    /** position of widget in parent */       ami_long   px, py;
+    /** creation order, for the tab walk */   ami_long   tabseq;
+    /** Tab stops here: the widget takes the keyboard focus */
+                                              ami_long   tabstop;
+    /** construction complete: events dispatch only from here */
                                               ami_long   live;
 
-/* the base's view of a widget record: the head alone */
-typedef struct wbwig* wbwigptr;
-typedef struct wbwig { WB_WIGHEAD(struct wbwig*) } wbwig;
+} wbwig;
 
 /* package callbacks. The records pass as void* and the package casts to
    its own record type. */
@@ -167,7 +168,8 @@ void* wb_fndwig(wbpkg* pk, FILE* f, ami_long id);
 /* take a widget down: pre-teardown callback, window closed, record
    released */
 void wb_killwidget(wbpkg* pk, FILE* f, ami_long id);
-/* allocate an anonymous (negative) widget id in the window */
+/* allocate an anonymous (negative) widget id in the window: the id is held
+   from here until wb_killwidget on it, with or without a widget made */
 ami_long wb_getwigid(wbpkg* pk, FILE* f);
 /* kill every widget on the window, every package, without closing it;
    what a session leaves behind must not greet the next one */

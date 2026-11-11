@@ -605,7 +605,12 @@ typedef enum {
     GR_MGETPARAMSYNTHIN  = GR_SNDBASE+76, /* i64 p, str -> str */
     GR_MGETPARAMSYNTHOUT = GR_SNDBASE+77, /* i64 p, str -> str */
     GR_MGETPARAMWAVEIN   = GR_SNDBASE+78, /* i64 p, str -> str */
-    GR_MGETPARAMWAVEOUT  = GR_SNDBASE+79  /* i64 p, str -> str */
+    GR_MGETPARAMWAVEOUT  = GR_SNDBASE+79, /* i64 p, str -> str */
+
+    /* anonymous wave ids: the server allocates from its own table, so
+       the id a library takes is clear of the program's on the same
+       session */
+    GR_MGETWAVEID      = GR_SNDBASE+80  /* -> i64 w, negative */
 
 } gr_msgcod;
 
@@ -914,6 +919,7 @@ static const char* gr_msgname(int mid)
         case GR_MLOADWAVE: return "LOADWAVE";
         case GR_MPLAYWAVE: return "PLAYWAVE";
         case GR_MDELWAVE: return "DELWAVE";
+        case GR_MGETWAVEID: return "GETWAVEID";
         case GR_MVOLWAVE: return "VOLWAVE";
         case GR_MWAITWAVE: return "WAITWAVE";
         case GR_MCHANWAVEOUT: return "CHANWAVEOUT";

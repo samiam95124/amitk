@@ -1563,14 +1563,18 @@ newtests:
     printf("\n===== Test 39 =====\n\n");
     printf("A wave file: made here, loaded, played, deleted. You should\n");
     printf("hear a C, a bit above the tone before, for a second and a\n");
-    printf("half. volwave is exercised on the way; it is a stub in this\n");
-    printf("implementation, so it changes nothing audible yet.\n");
+    printf("half, twice: at full volume, then at a quarter of it, by\n");
+    printf("volwave. The port's volume goes back to full at the end.\n");
     makewav("sound_test.wav", 523.25, 1.5);
     ami_openwaveout(wport); /* so the test runs on its own, "sound_test 39" */
     ami_loadwave(1, "sound_test.wav");
-    ami_volwave(wport, 0, LONG_MAX/2);
+    ami_volwave(wport, 0, LONG_MAX);
     ami_playwave(wport, 0, 1);
     ami_waitwave(wport);
+    ami_volwave(wport, 0, LONG_MAX/4);
+    ami_playwave(wport, 0, 1);
+    ami_waitwave(wport);
+    ami_volwave(wport, 0, LONG_MAX);
     ami_delwave(1);
     remove("sound_test.wav");
     ami_closewaveout(wport);

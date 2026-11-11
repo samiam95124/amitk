@@ -1,16 +1,16 @@
 Services module test v1.0
 
 test1:
-..                        *      *      e sd  ????/??/?? * ????/??/?? * ????/??/?? * ********** ******** rwed cm r ed cm r ed cm 
-readme.txt                269        269              ????/??/?? * ????/??/?? * ????/??/?? * ********** ******** rw dvcm rw dvcm r  dvcm 
-lib                       4096       4096       e sd  ????/??/?? * ????/??/?? * ????/??/?? * ********** ******** rwedvcm rwedvcm r edvcm 
-.                         4096       4096       e sd  ????/??/?? * ????/??/?? * ????/??/?? * ********** ******** rwed cm rwed cm r ed cm 
+..                        *      *      e sd  ??/??/???? * ??/??/???? * ??/??/???? * ********** ******** rwe     r e     r e     
+readme.txt                269        269              ??/??/???? * ??/??/???? * ??/??/???? * ********** ******** rw  v   rw  v   r   v   
+lib                       4096       4096       e sd  ??/??/???? * ??/??/???? * ??/??/???? * ********** ******** rwe v   rwe v   r e v   
+.                         4096       4096       e sd  ??/??/???? * ??/??/???? * ??/??/???? * ********** ******** rwe     rwe     r e     
 s/b <the listing for the current directory>
 test 3: * s/b <the current time in zulu>
 test 5: * s/b <the current time in local>
-test 7: ????/??/?? s/b <the current date>
+test 7: ??/??/???? s/b <the current date>
 test 9: * s/b <the time>
-test 10: ????/??/?? s/b <the date>
+test 10: ??/??/???? s/b <the date>
 test11: waiting 1 second
 test 11: * s/b 10000 (approximate)
 test 12: 1 s/b 1
@@ -64,9 +64,9 @@ test 49: 1 s/b 1
 test 50: Set of valid characters: !"#$%&'()*+,-./0123456789:;<=>?@ABCDEFGHIJKLMNOPQRSTUVWXYZ[\]^_`abcdefghijklmnopqrstuvwxyz{|}
 test 51: Option character: -
 test 52: Path character: /
-test 53: Latitude: 0
-test 54: longitude: 0
-test 55: Altitude: 0
+test 53: Latitude: *
+test 54: longitude: *
+test 55: Altitude: *
 test 56: Country code: 840
 test 57: Country name: United States of America
 test 58: Timezone: -28800
@@ -77,7 +77,7 @@ test 62: Language name: English
 test 63: Decimal character: .
 test 64: Separator character: ,
 test 65: Time order: 1
-test 66: Date order: 1
+test 66: Date order: 3
 test 67: Date separator: /
 test 68: time separator: :
 test 69: Currency character: $

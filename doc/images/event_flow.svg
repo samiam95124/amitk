@@ -1,79 +1,89 @@
-<svg xmlns="http://www.w3.org/2000/svg" width="980" height="560" viewBox="0 0 980 560" font-family="Helvetica, Arial, sans-serif">
-<rect x="120" y="22" width="120" height="34" rx="4" fill="#eef0f3" stroke="#99a3b3" stroke-width="1.2"/>
-<text x="180.0" y="44" font-size="16" fill="#1c2941" text-anchor="middle">keyboard</text>
-<rect x="260" y="22" width="120" height="34" rx="4" fill="#eef0f3" stroke="#99a3b3" stroke-width="1.2"/>
-<text x="320.0" y="44" font-size="16" fill="#1c2941" text-anchor="middle">mouse</text>
-<rect x="400" y="22" width="120" height="34" rx="4" fill="#eef0f3" stroke="#99a3b3" stroke-width="1.2"/>
-<text x="460.0" y="44" font-size="16" fill="#1c2941" text-anchor="middle">joystick</text>
-<rect x="540" y="22" width="120" height="34" rx="4" fill="#eef0f3" stroke="#99a3b3" stroke-width="1.2"/>
-<text x="600.0" y="44" font-size="16" fill="#1c2941" text-anchor="middle">timers</text>
-<rect x="680" y="22" width="130" height="34" rx="4" fill="#eef0f3" stroke="#99a3b3" stroke-width="1.2"/>
-<text x="745.0" y="44" font-size="16" fill="#1c2941" text-anchor="middle">window system</text>
-<line x1="180" y1="56" x2="400" y2="96" stroke="#4a6699" stroke-width="1.6"/>
-<polygon points="400.0,96.0 390.3,98.8 392.0,90.0" fill="#4a6699"/>
-<line x1="320" y1="56" x2="440" y2="96" stroke="#4a6699" stroke-width="1.6"/>
-<polygon points="440.0,96.0 430.0,97.4 432.9,88.9" fill="#4a6699"/>
-<line x1="460" y1="56" x2="480" y2="96" stroke="#4a6699" stroke-width="1.6"/>
-<polygon points="480.0,96.0 472.0,90.0 480.0,85.9" fill="#4a6699"/>
-<line x1="600" y1="56" x2="520" y2="96" stroke="#4a6699" stroke-width="1.6"/>
-<polygon points="520.0,96.0 526.0,88.0 530.1,96.0" fill="#4a6699"/>
-<line x1="745" y1="56" x2="560" y2="96" stroke="#4a6699" stroke-width="1.6"/>
-<polygon points="560.0,96.0 567.8,89.7 569.7,98.5" fill="#4a6699"/>
-<rect x="330" y="98" width="300" height="38" rx="4" fill="#dfe7f5" stroke="#4a6699" stroke-width="1.4"/>
-<text x="480" y="122" font-size="16" fill="#1c2941" text-anchor="middle" font-weight="bold">the event queue</text>
-<line x1="480" y1="136" x2="480" y2="168" stroke="#4a6699" stroke-width="1.6"/>
-<polygon points="480.0,168.0 475.5,159.0 484.5,159.0" fill="#4a6699"/>
-<rect x="250" y="170" width="460" height="84" rx="4" fill="#dfe7f5" stroke="#4a6699" stroke-width="1.4"/>
-<text x="480" y="190" font-size="16" fill="#1c2941" text-anchor="middle" font-weight="bold">eventsover(): the master handler</text>
-<rect x="268" y="204" width="130" height="30" rx="3" fill="#ffffff" stroke="#879ecb" stroke-width="1.2"/>
-<text x="333" y="224" font-size="13" fill="#253555" text-anchor="middle">newest handler</text>
-<rect x="415" y="204" width="130" height="30" rx="3" fill="#ffffff" stroke="#879ecb" stroke-width="1.2"/>
-<text x="480" y="224" font-size="13" fill="#253555" text-anchor="middle">the one it replaced</text>
-<rect x="562" y="204" width="130" height="30" rx="3" fill="#ffffff" stroke="#879ecb" stroke-width="1.2"/>
-<text x="627" y="224" font-size="13" fill="#253555" text-anchor="middle">the default</text>
-<line x1="398" y1="219" x2="413" y2="219" stroke="#4a6699" stroke-width="1.6"/>
-<polygon points="413.0,219.0 404.0,223.5 404.0,214.5" fill="#4a6699"/>
-<line x1="545" y1="219" x2="560" y2="219" stroke="#4a6699" stroke-width="1.6"/>
-<polygon points="560.0,219.0 551.0,223.5 551.0,214.5" fill="#4a6699"/>
-<text x="480" y="248" font-size="12.5" fill="#5a6478" text-anchor="middle" font-style="italic">every event passes here; the widgets, windowc and the C++ wrapper hook this chain</text>
-<line x1="480" y1="254" x2="480" y2="300" stroke="#4a6699" stroke-width="1.6"/>
-<polygon points="480.0,300.0 475.5,291.0 484.5,291.0" fill="#4a6699"/>
-<text x="520" y="283" font-size="12.5" fill="#5a6478" text-anchor="start" font-style="italic">not handled</text>
-<rect x="250" y="302" width="460" height="84" rx="4" fill="#dfe7f5" stroke="#4a6699" stroke-width="1.4"/>
-<text x="480" y="322" font-size="16" fill="#1c2941" text-anchor="middle" font-weight="bold">eventover(e): the handler for this one event</text>
-<rect x="268" y="336" width="130" height="30" rx="3" fill="#ffffff" stroke="#879ecb" stroke-width="1.2"/>
-<text x="333" y="356" font-size="13" fill="#253555" text-anchor="middle">newest handler</text>
-<rect x="415" y="336" width="130" height="30" rx="3" fill="#ffffff" stroke="#879ecb" stroke-width="1.2"/>
-<text x="480" y="356" font-size="13" fill="#253555" text-anchor="middle">the one it replaced</text>
-<rect x="562" y="336" width="130" height="30" rx="3" fill="#ffffff" stroke="#879ecb" stroke-width="1.2"/>
-<text x="627" y="356" font-size="13" fill="#253555" text-anchor="middle">the default</text>
-<line x1="398" y1="351" x2="413" y2="351" stroke="#4a6699" stroke-width="1.6"/>
-<polygon points="413.0,351.0 404.0,355.5 404.0,346.5" fill="#4a6699"/>
-<line x1="545" y1="351" x2="560" y2="351" stroke="#4a6699" stroke-width="1.6"/>
-<polygon points="560.0,351.0 551.0,355.5 551.0,346.5" fill="#4a6699"/>
-<text x="480" y="380" font-size="12.5" fill="#5a6478" text-anchor="middle" font-style="italic">one chain for each kind of event; only the chain for this kind runs</text>
-<line x1="480" y1="386" x2="480" y2="446" stroke="#4a6699" stroke-width="1.6"/>
-<polygon points="480.0,446.0 475.5,437.0 484.5,437.0" fill="#4a6699"/>
-<text x="520" y="425" font-size="12.5" fill="#5a6478" text-anchor="start" font-style="italic">not handled</text>
-<rect x="250" y="448" width="460" height="60" rx="4" fill="#fdf3d8" stroke="#b39237" stroke-width="1.4"/>
-<text x="480" y="472" font-size="16" fill="#1c2941" text-anchor="middle" font-weight="bold">the program</text>
-<text x="480" y="492" font-size="13" fill="#253555" text-anchor="middle">event(f, &amp;er) returns, with the event in er</text>
-<line x1="710" y1="478" x2="790" y2="478" stroke="#4a6699" stroke-width="1.6"/>
-<line x1="790" y1="478" x2="790" y2="117" stroke="#4a6699" stroke-width="1.6"/>
-<line x1="790" y1="117" x2="632" y2="117" stroke="#4a6699" stroke-width="1.6"/>
-<polygon points="632.0,117.0 641.0,112.5 641.0,121.5" fill="#4a6699"/>
-<text x="860" y="290" font-size="16" fill="#1c2941" text-anchor="middle">event(f, &amp;er)</text>
-<text x="860" y="308" font-size="12.5" fill="#5a6478" text-anchor="middle" font-style="italic">the program's call</text>
-<text x="860" y="324" font-size="12.5" fill="#5a6478" text-anchor="middle" font-style="italic">takes the next event</text>
-<text x="860" y="340" font-size="12.5" fill="#5a6478" text-anchor="middle" font-style="italic">from the queue</text>
-<line x1="250" y1="344" x2="170" y2="344" stroke="#b39237" stroke-width="1.6"/>
-<line x1="170" y1="344" x2="170" y2="117" stroke="#b39237" stroke-width="1.6"/>
-<line x1="170" y1="117" x2="328" y2="117" stroke="#b39237" stroke-width="1.6"/>
-<polygon points="328.0,117.0 319.0,121.5 319.0,112.5" fill="#b39237"/>
-<line x1="250" y1="212" x2="170" y2="212" stroke="#b39237" stroke-width="1.6"/>
-<text x="90" y="220" font-size="12.5" fill="#5a6478" text-anchor="middle" font-style="italic">handled:</text>
-<text x="90" y="236" font-size="12.5" fill="#5a6478" text-anchor="middle" font-style="italic">the event is consumed,</text>
-<text x="90" y="252" font-size="12.5" fill="#5a6478" text-anchor="middle" font-style="italic">event() goes on</text>
-<text x="90" y="268" font-size="12.5" fill="#5a6478" text-anchor="middle" font-style="italic">to the next one</text>
-<text x="480" y="540" font-size="12.5" fill="#5a6478" text-anchor="middle" font-style="italic">Each handler may call the one it replaced; a chain that reaches its default marks the event not handled.</text>
+<svg xmlns="http://www.w3.org/2000/svg" width="800" height="752" viewBox="0 0 800 752" font-family="Helvetica, Arial, sans-serif">
+<rect x="28.0" y="16" width="136" height="36" rx="4" fill="#eef0f3" stroke="#99a3b3" stroke-width="1.2"/>
+<text x="96.0" y="40" font-size="17" fill="#1c2941" text-anchor="middle">keyboard</text>
+<rect x="180.0" y="16" width="136" height="36" rx="4" fill="#eef0f3" stroke="#99a3b3" stroke-width="1.2"/>
+<text x="248.0" y="40" font-size="17" fill="#1c2941" text-anchor="middle">mouse</text>
+<rect x="332.0" y="16" width="136" height="36" rx="4" fill="#eef0f3" stroke="#99a3b3" stroke-width="1.2"/>
+<text x="400.0" y="40" font-size="17" fill="#1c2941" text-anchor="middle">joystick</text>
+<rect x="484.0" y="16" width="136" height="36" rx="4" fill="#eef0f3" stroke="#99a3b3" stroke-width="1.2"/>
+<text x="552.0" y="40" font-size="17" fill="#1c2941" text-anchor="middle">timers</text>
+<rect x="636.0" y="16" width="136" height="36" rx="4" fill="#eef0f3" stroke="#99a3b3" stroke-width="1.2"/>
+<text x="704.0" y="40" font-size="17" fill="#1c2941" text-anchor="middle">window system</text>
+<rect x="250" y="94" width="300" height="40" rx="4" fill="#dfe7f5" stroke="#4a6699" stroke-width="1.4"/>
+<text x="400.0" y="120" font-size="20" fill="#1c2941" text-anchor="middle" font-weight="bold">the event queue</text>
+<line x1="96.0" y1="52" x2="290.0" y2="94" stroke="#4a6699" stroke-width="1.6"/>
+<polygon points="290.0,94.0 279.3,96.3 281.2,87.5" fill="#4a6699"/>
+<line x1="248.0" y1="52" x2="345.0" y2="94" stroke="#4a6699" stroke-width="1.6"/>
+<polygon points="345.0,94.0 334.0,94.2 337.6,85.9" fill="#4a6699"/>
+<line x1="400.0" y1="52" x2="400.0" y2="94" stroke="#4a6699" stroke-width="1.6"/>
+<polygon points="400.0,94.0 395.5,84.0 404.5,84.0" fill="#4a6699"/>
+<line x1="552.0" y1="52" x2="455.0" y2="94" stroke="#4a6699" stroke-width="1.6"/>
+<polygon points="455.0,94.0 462.4,85.9 466.0,94.2" fill="#4a6699"/>
+<line x1="704.0" y1="52" x2="510.0" y2="94" stroke="#4a6699" stroke-width="1.6"/>
+<polygon points="510.0,94.0 518.8,87.5 520.7,96.3" fill="#4a6699"/>
+<line x1="400.0" y1="134" x2="400.0" y2="176" stroke="#4a6699" stroke-width="1.6"/>
+<polygon points="400.0,176.0 395.5,166.0 404.5,166.0" fill="#4a6699"/>
+<rect x="150" y="176" width="500" height="60" rx="4" fill="#dfe7f5" stroke="#4a6699" stroke-width="1.4"/>
+<text x="400.0" y="200" font-size="20" fill="#1c2941" text-anchor="middle" font-weight="bold">event(f, &amp;er) takes the next event</text>
+<text x="400.0" y="224" font-size="16" fill="#5a6478" text-anchor="middle" font-style="italic">the program's call; it waits here while the queue is empty</text>
+<line x1="400.0" y1="236" x2="400.0" y2="278" stroke="#4a6699" stroke-width="1.6"/>
+<polygon points="400.0,278.0 395.5,268.0 404.5,268.0" fill="#4a6699"/>
+<rect x="150" y="278" width="500" height="122" rx="4" fill="#dfe7f5" stroke="#4a6699" stroke-width="1.4"/>
+<text x="400.0" y="302" font-size="20" fill="#1c2941" text-anchor="middle" font-weight="bold">eventsover(): the master handler chain</text>
+<rect x="170.0" y="318" width="140" height="34" rx="3" fill="#ffffff" stroke="#879ecb" stroke-width="1.2"/>
+<text x="240.0" y="340" font-size="16" fill="#253555" text-anchor="middle">newest handler</text>
+<rect x="330.0" y="318" width="140" height="34" rx="3" fill="#ffffff" stroke="#879ecb" stroke-width="1.2"/>
+<text x="400.0" y="340" font-size="16" fill="#253555" text-anchor="middle">the one it replaced</text>
+<line x1="310.0" y1="335.0" x2="330.0" y2="335.0" stroke="#4a6699" stroke-width="1.6"/>
+<polygon points="330.0,335.0 320.0,339.5 320.0,330.5" fill="#4a6699"/>
+<rect x="490.0" y="318" width="140" height="34" rx="3" fill="#ffffff" stroke="#879ecb" stroke-width="1.2"/>
+<text x="560.0" y="340" font-size="16" fill="#253555" text-anchor="middle">the default</text>
+<line x1="470.0" y1="335.0" x2="490.0" y2="335.0" stroke="#4a6699" stroke-width="1.6"/>
+<polygon points="490.0,335.0 480.0,339.5 480.0,330.5" fill="#4a6699"/>
+<text x="400.0" y="374" font-size="16" fill="#5a6478" text-anchor="middle" font-style="italic">every event passes here; the widgets, windowc</text>
+<text x="400.0" y="392" font-size="16" fill="#5a6478" text-anchor="middle" font-style="italic">and the C++ wrapper hook this chain</text>
+<line x1="400.0" y1="400" x2="400.0" y2="450" stroke="#4a6699" stroke-width="1.6"/>
+<polygon points="400.0,450.0 395.5,440.0 404.5,440.0" fill="#4a6699"/>
+<text x="412.0" y="430" font-size="16" fill="#5a6478" text-anchor="start" font-style="italic">not handled</text>
+<rect x="150" y="450" width="500" height="122" rx="4" fill="#dfe7f5" stroke="#4a6699" stroke-width="1.4"/>
+<text x="400.0" y="474" font-size="20" fill="#1c2941" text-anchor="middle" font-weight="bold">eventover(e): the chain for this kind of event</text>
+<rect x="170.0" y="490" width="140" height="34" rx="3" fill="#ffffff" stroke="#879ecb" stroke-width="1.2"/>
+<text x="240.0" y="512" font-size="16" fill="#253555" text-anchor="middle">newest handler</text>
+<rect x="330.0" y="490" width="140" height="34" rx="3" fill="#ffffff" stroke="#879ecb" stroke-width="1.2"/>
+<text x="400.0" y="512" font-size="16" fill="#253555" text-anchor="middle">the one it replaced</text>
+<line x1="310.0" y1="507.0" x2="330.0" y2="507.0" stroke="#4a6699" stroke-width="1.6"/>
+<polygon points="330.0,507.0 320.0,511.5 320.0,502.5" fill="#4a6699"/>
+<rect x="490.0" y="490" width="140" height="34" rx="3" fill="#ffffff" stroke="#879ecb" stroke-width="1.2"/>
+<text x="560.0" y="512" font-size="16" fill="#253555" text-anchor="middle">the default</text>
+<line x1="470.0" y1="507.0" x2="490.0" y2="507.0" stroke="#4a6699" stroke-width="1.6"/>
+<polygon points="490.0,507.0 480.0,511.5 480.0,502.5" fill="#4a6699"/>
+<text x="400.0" y="546" font-size="16" fill="#5a6478" text-anchor="middle" font-style="italic">one chain for each kind of event;</text>
+<text x="400.0" y="564" font-size="16" fill="#5a6478" text-anchor="middle" font-style="italic">only the chain for this kind runs</text>
+<line x1="400.0" y1="572" x2="400.0" y2="622" stroke="#4a6699" stroke-width="1.6"/>
+<polygon points="400.0,622.0 395.5,612.0 404.5,612.0" fill="#4a6699"/>
+<text x="412.0" y="602" font-size="16" fill="#5a6478" text-anchor="start" font-style="italic">not handled</text>
+<rect x="150" y="622" width="500" height="60" rx="4" fill="#fdf3d8" stroke="#b39237" stroke-width="1.4"/>
+<text x="400.0" y="646" font-size="20" fill="#1c2941" text-anchor="middle" font-weight="bold">the program</text>
+<text x="400.0" y="670" font-size="16" fill="#253555" text-anchor="middle">event(f, &amp;er) returns, with the event in er</text>
+<line x1="150" y1="335.0" x2="108" y2="335.0" stroke="#b39237" stroke-width="1.6"/>
+<line x1="150" y1="507.0" x2="108" y2="507.0" stroke="#b39237" stroke-width="1.6"/>
+<line x1="108" y1="507.0" x2="108" y2="206.0" stroke="#b39237" stroke-width="1.6"/>
+<line x1="108" y1="206.0" x2="150" y2="206.0" stroke="#b39237" stroke-width="1.6"/>
+<polygon points="150.0,206.0 140.0,210.5 140.0,201.5" fill="#b39237"/>
+<text x="54" y="387.0" font-size="16" fill="#5a6478" text-anchor="middle" font-style="italic">handled:</text>
+<text x="54" y="407.0" font-size="16" fill="#5a6478" text-anchor="middle" font-style="italic">the event</text>
+<text x="54" y="427.0" font-size="16" fill="#5a6478" text-anchor="middle" font-style="italic">is used up,</text>
+<text x="54" y="447.0" font-size="16" fill="#5a6478" text-anchor="middle" font-style="italic">event()</text>
+<text x="54" y="467.0" font-size="16" fill="#5a6478" text-anchor="middle" font-style="italic">takes the</text>
+<text x="54" y="487.0" font-size="16" fill="#5a6478" text-anchor="middle" font-style="italic">next one</text>
+<line x1="650" y1="652.0" x2="688" y2="652.0" stroke="#4a6699" stroke-width="1.6"/>
+<line x1="688" y1="652.0" x2="688" y2="206.0" stroke="#4a6699" stroke-width="1.6"/>
+<line x1="688" y1="206.0" x2="650" y2="206.0" stroke="#4a6699" stroke-width="1.6"/>
+<polygon points="650.0,206.0 660.0,201.5 660.0,210.5" fill="#4a6699"/>
+<text x="744" y="397.0" font-size="16" fill="#5a6478" text-anchor="middle" font-style="italic">the program</text>
+<text x="744" y="417.0" font-size="16" fill="#5a6478" text-anchor="middle" font-style="italic">calls</text>
+<text x="744" y="437.0" font-size="16" fill="#5a6478" text-anchor="middle" font-style="italic">event(f, &amp;er)</text>
+<text x="744" y="457.0" font-size="16" fill="#5a6478" text-anchor="middle" font-style="italic">again</text>
+<text x="400.0" y="716" font-size="16" fill="#5a6478" text-anchor="middle" font-style="italic">Each handler may call the one it replaced;</text>
+<text x="400.0" y="736" font-size="16" fill="#5a6478" text-anchor="middle" font-style="italic">a chain that reaches its default marks the event not handled.</text>
 </svg>

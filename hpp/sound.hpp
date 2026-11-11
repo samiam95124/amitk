@@ -291,6 +291,7 @@ ami_long waveout(void);
 ami_long wavein(void);
 void loadsynth(ami_long s, const char* sf);
 void delsynth(ami_long s);
+ami_long getwaveid(void);
 void loadwave(ami_long w, const char* fn);
 void delwave(ami_long w);
 void opensynthout(ami_long p);

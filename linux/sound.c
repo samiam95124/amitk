@@ -394,9 +394,21 @@ static void bsd_seqtimer_consume(void)
 }
 #endif
 
-/* Wave track storage. Note this needs locking */
+/* Wave track storage. Note this needs locking. The ids a program names
+   are 1 to MAXWAVT; the ids ami_getwaveid() hands out are -1 down to
+   -MAXWAVT, so a library that plays a sound of its own never collides with
+   the program's. Both halves live in one table, indexed by WAVIDX(). An id
+   taken but not yet loaded holds the reserved marker, an empty name. */
 static pthread_mutex_t wavlck; /* wave track lock */
-static volatile string wavfil[MAXWAVT]; /* storage for wave track files */
+static volatile string wavfil[MAXWAVT*2+1]; /* storage for wave track files */
+
+/* wave output volume by port, 0..LONG_MAX, LONG_MAX full: a property of the
+   port, held across opens, read by every writer of samples to it */
+static pthread_mutex_t wavvollck; /* wave volume lock */
+static volatile ami_long wavvol[MAXWAVP]; /* wave output volume by port */
+static char wavres[1] = ""; /* the reserved marker: taken, nothing loaded */
+#define WAVIDX(w) ((w)+MAXWAVT) /* wave id to table index */
+#define WAVIDOK(w) ((w) != 0 && (w) >= -MAXWAVT && (w) <= MAXWAVT)
 
 static void sndinit(void); /* forward: devices enumerate on first use */
 
@@ -445,6 +457,7 @@ static int alsapcminplug; /* PCM in */
 /* forwards */
 static void alsaplaysynth_kickoff(ami_long p, ami_long s);
 static void alsaplaywave_kickoff(ami_long p, ami_long w);
+static void setwavvol(ami_long p, ami_long v);
 
 /*******************************************************************************
 
@@ -1432,7 +1445,7 @@ void _pa_excseq(ami_long p, ami_seqptr sp)
             alsaplaywave_kickoff(sp->port, sp->wt);
             break;
         case st_volwave:
-            /* not implemented at present */
+            setwavvol(sp->port, sp->wv);
             break;
 
     }
@@ -1946,6 +1959,117 @@ static void closealsapcmin(ami_long p)
 
 /*******************************************************************************
 
+Find wave output gain
+
+Returns the gain for the wave output port, 0.0 to 1.0, from the port's volume
+setting.
+
+*******************************************************************************/
+
+static double wavgain(ami_long p)
+
+{
+
+    ami_long v;
+
+    pthread_mutex_lock(&wavvollck);
+    v = wavvol[p-1];
+    pthread_mutex_unlock(&wavvollck);
+
+    return ((double)v/LONG_MAX);
+
+}
+
+/*******************************************************************************
+
+Scale wave samples
+
+Scales a buffer of interleaved samples in place by the gain, 0.0 to 1.0. The
+samples are in the given ALSA format, which tells their container width,
+significant bits, sign, byte order and whether they are floating point, so
+every format the port can be set to is covered: 8 to 32 bit integers, signed
+or unsigned, either endian, packed or in a 32 bit word, and 32 or 64 bit
+floating point. An integer sample is taken to a signed value about zero,
+scaled, and put back in its own form.
+
+*******************************************************************************/
+
+static void scalewave(byte* buff, snd_pcm_uframes_t frames, int chan,
+                      snd_pcm_format_t fmt, double gain)
+
+{
+
+    int                phys; /* container bytes per sample */
+    int                wid;  /* significant bits per sample */
+    int                sgn;  /* samples are signed */
+    int                big;  /* samples are big endian */
+    unsigned long long u;    /* sample container */
+    unsigned long long mask; /* mask of significant bits */
+    long long          half; /* half of full scale, the unsigned zero */
+    long long          v;    /* sample value */
+    long               n;    /* samples to do */
+    int                i;
+    byte*              bp;
+
+    phys = snd_pcm_format_physical_width(fmt)/8;
+    wid = snd_pcm_format_width(fmt);
+    big = snd_pcm_format_big_endian(fmt) == 1;
+    n = frames*chan;
+    if (snd_pcm_format_float(fmt)) {
+
+        /* floating point: scale in place, byte order kept */
+        for (bp = buff; n; n--, bp += phys) {
+
+            if (phys == 4) {
+
+                float f;
+                unsigned char* fb = (unsigned char*)&f;
+
+                for (i = 0; i < 4; i++) fb[i] = bp[big? 3-i: i];
+                f *= gain;
+                for (i = 0; i < 4; i++) bp[big? 3-i: i] = fb[i];
+
+            } else if (phys == 8) {
+
+                double d;
+                unsigned char* db = (unsigned char*)&d;
+
+                for (i = 0; i < 8; i++) db[i] = bp[big? 7-i: i];
+                d *= gain;
+                for (i = 0; i < 8; i++) bp[big? 7-i: i] = db[i];
+
+            }
+
+        }
+        return;
+
+    }
+    sgn = snd_pcm_format_signed(fmt) == 1;
+    mask = (1ULL << wid)-1;
+    half = 1LL << (wid-1);
+    for (bp = buff; n; n--, bp += phys) {
+
+        /* gather the container, least significant byte first */
+        u = 0;
+        for (i = 0; i < phys; i++)
+            u |= (unsigned long long)bp[big? phys-1-i: i] << (8*i);
+        /* to a signed value about zero */
+        v = (long long)(u & mask);
+        if (sgn) { if (v & half) v -= 1LL << wid; }
+        else v -= half;
+        v = (long long)(v*gain); /* scale */
+        if (!sgn) v += half;
+        u = (unsigned long long)v & mask;
+        /* and back to the container */
+        for (i = 0; i < phys; i++)
+            bp[big? phys-1-i: i] = (byte)(u >> (8*i));
+
+    }
+
+}
+
+/*******************************************************************************
+
 Write ALSA PCM output device
 
 Writes a buffer of wave data to the given output wave port. The data must be
@@ -1968,8 +2092,11 @@ static void wralsapcmout(ami_long p, byte* buff, ami_long len)
 
 {
 
-    int r;
-    int bytes;
+    int     r;
+    int     bytes;
+    double  gain; /* port gain */
+    byte*   sbuf = NULL; /* scaled copy of the samples */
+    ssize_t nb;   /* its size */
 
     if (alsapcmout[p-1]->fmt == -1) {
 
@@ -1988,6 +2115,19 @@ static void wralsapcmout(ami_long p, byte* buff, ami_long len)
         snd_pcm_prepare(alsapcmout[p-1]->pcm);
 
     }
+    /* the port's volume applies to a copy of the samples; the caller's
+       buffer is left as given */
+    gain = wavgain(p);
+    if (gain < 1.0) {
+
+        nb = snd_pcm_frames_to_bytes(alsapcmout[p-1]->pcm, len);
+        sbuf = malloc(nb);
+        if (!sbuf) error("Out of memory");
+        memcpy(sbuf, buff, nb);
+        scalewave(sbuf, len, alsapcmout[p-1]->chan, alsapcmout[p-1]->fmt, gain);
+        buff = sbuf;
+
+    }
     /* the length is in samples (frames), as connectwave and genwave
        pass it; ALSA counts the same way */
     r = snd_pcm_writei(alsapcmout[p-1]->pcm, buff, len);
@@ -1996,6 +2136,7 @@ static void wralsapcmout(ami_long p, byte* buff, ami_long len)
         /* printf("Recovered from output error\n"); */
         snd_pcm_recover(alsapcmout[p-1]->pcm, r, 1);
     } else if (r < 0) alsaerror(r);
+    free(sbuf);
 
 }
 
@@ -5227,6 +5368,7 @@ static void* alsaplaywave(void* data)
     int               i;
     byte*             buffp;
     char              fn[MAXFNM];
+    double            gain;   /* port gain */
 
     pip = (portidptr) data; /* get data pointer */
     w = pip->id; /* get id */
@@ -5239,7 +5381,11 @@ static void* alsaplaywave(void* data)
        actually got it outside the lock */
     pthread_mutex_lock(&wavlck); /* take wave table lock */
     fn[0] = 0; /* terminate wave table entry */
-    if (wavfil[w]) { strncpy(fn, wavfil[w], MAXFNM-1); fn[MAXFNM-1] = 0; }
+    if (wavfil[WAVIDX(w)]) {
+
+        strncpy(fn, wavfil[WAVIDX(w)], MAXFNM-1); fn[MAXFNM-1] = 0;
+
+    }
     pthread_mutex_unlock(&wavlck); /* release lock */
     if (!fn[0]) return (NULL); /* entry is empty, abort */
 
@@ -5275,7 +5421,7 @@ static void* alsaplaywave(void* data)
 
         case 8:  fmt = SND_PCM_FORMAT_U8;  break;
         case 16: fmt = SND_PCM_FORMAT_S16; break;
-        case 24: fmt = SND_PCM_FORMAT_S24; break;
+        case 24: fmt = SND_PCM_FORMAT_S24_3LE; break; /* packed, as in the file */
         case 32: fmt = SND_PCM_FORMAT_S32; break;
         default: error("Cannot play this PCM format");
 
@@ -5308,6 +5454,10 @@ static void* alsaplaywave(void* data)
                     xfrsiz = remfrm*frmsiz; /* find bytes to transfer */
                     len = read(fh, buff, xfrsiz);
                     if (len != xfrsiz) error(".wav file format");
+                    /* the port's volume, as it stands at each buffer, so a
+                       change in mid play is heard */
+                    gain = wavgain(p);
+                    if (gain < 1.0) scalewave(buff, remfrm, fhd.channels, fmt, gain);
                     r = snd_pcm_writei(pdh, &buff, remfrm);
                     // If an error, try to recover from it
                     if (r < 0) r = snd_pcm_recover(pdh, r, 0);
@@ -5371,11 +5521,44 @@ static void alsaplaywave_kickoff(ami_long p, ami_long w)
 
 /*******************************************************************************
 
+Get anonymous wave id
+
+Takes a wave id the program did not name: the ids run -1, -2 and so on down to
+-N, the first free one each time. The id is held from here until delwave()
+releases it, whether or not a file is ever loaded to it. A library that plays
+a sound of its own takes its id this way, and so never collides with a wave
+the program loaded.
+
+\returns The wave id.
+
+*******************************************************************************/
+
+ami_long ami_getwaveid(void)
+
+{
+
+    sndinit(); /* devices enumerate on first use */
+    ami_long w;
+
+    pthread_mutex_lock(&wavlck); /* take wave table lock */
+    w = -1; /* start at -1 */
+    while (w > -MAXWAVT && wavfil[WAVIDX(w)]) w--;
+    if (!wavfil[WAVIDX(w)]) wavfil[WAVIDX(w)] = wavres; /* hold it */
+    else w = 0; /* none free */
+    pthread_mutex_unlock(&wavlck); /* release lock */
+    if (!w) error("No more anonymous wave ids");
+
+    return (w);
+
+}
+
+/*******************************************************************************
+
 Load waveform file
 
-Loads a waveform file to a logical cache, from 1 to N. These are loaded up into
-memory for minimum latency. The file is specified by file name, and the file
-type is system dependent.
+Loads a waveform file to a logical cache, 1 to N for the ids a program names,
+or an id from getwaveid(). These are loaded up into memory for minimum latency.
+The file is specified by file name, and the file type is system dependent.
 
 Note that we support 100 wave files loaded, but the Petit-ami "rule of thumb"
 is no more than 10 wave files at a time.
@@ -5393,7 +5576,7 @@ void ami_loadwave(ami_long w, string fn)
     string p, p2;
     char fnh[MAXFNM]; /* file name holder */
 
-    if (w < 1 || w > MAXWAVT) error("Invalid logical wave number");
+    if (!WAVIDOK(w)) error("Invalid logical wave number");
 
     /* copy filename and add extension if required */
     if (strlen(fn) >= MAXFNM) error("File name too long");
@@ -5403,8 +5586,9 @@ void ami_loadwave(ami_long w, string fn)
     if (!p) error("Could not alocate wave file");
     strcpy(p, fnh); /* place filename */
     pthread_mutex_lock(&wavlck); /* take wave table lock */
-    p2 = wavfil[w]; /* get existing entry */
-    wavfil[w] = p; /* place new */
+    p2 = wavfil[WAVIDX(w)]; /* get existing entry */
+    if (p2 == wavres) p2 = NULL; /* an id held for us is free to fill */
+    if (!p2) wavfil[WAVIDX(w)] = p; /* place new */
     pthread_mutex_unlock(&wavlck); /* release lock */
     if (p2) error("Wave file already defined for logical wave number");
 
@@ -5415,7 +5599,7 @@ void ami_loadwave(ami_long w, string fn)
 Delete waveform file
 
 Removes a waveform file from the caching table. This frees up the entry to be
-redefined.
+redefined, and releases an id taken by getwaveid().
 
 *******************************************************************************/
 
@@ -5426,14 +5610,14 @@ void ami_delwave(ami_long w)
     sndinit(); /* devices enumerate on first use */
     string p;
 
-    if (w < 1 || w > MAXWAVT) error("Invalid logical wave number");
+    if (!WAVIDOK(w)) error("Invalid logical wave number");
 
     pthread_mutex_lock(&wavlck); /* take wave table lock */
-    p = wavfil[w]; /* get the existing entry */
-    wavfil[w] = NULL; /* clear original */
+    p = wavfil[WAVIDX(w)]; /* get the existing entry */
+    wavfil[WAVIDX(w)] = NULL; /* clear original */
     pthread_mutex_unlock(&wavlck); /* release lock */
     if (!p) error("No wave file loaded for logical wave number");
-    free(p); /* free the entry */
+    if (p != wavres) free(p); /* free the entry */
 
 }
 
@@ -5459,8 +5643,9 @@ void ami_playwave(ami_long p, ami_long t, ami_long w)
     if (p < 1 || p > MAXWAVP) error("Invalid wave port");
     if (!alsapcmout[p-1]) error("No wave device defined for logical port");
     if (!alsapcmout[p-1]->devopn) error("Wave port not open");
-    if (w < 1 || w > MAXWAVT) error("Invalid logical wave number");
-    if (!wavfil[w]) error("No wave file loaded for logical wave number");
+    if (!WAVIDOK(w)) error("Invalid logical wave number");
+    if (!wavfil[WAVIDX(w)] || wavfil[WAVIDX(w)] == wavres)
+        error("No wave file loaded for logical wave number");
 
     /* create sequencer entry */
     getseq(&sp); /* get a sequencer message */
@@ -5491,20 +5676,59 @@ void ami_playwave(ami_long p, ami_long t, ami_long w)
 
 Adjust waveform volume
 
-Adjusts the volume on waveform playback. The volume value is from 0 to maxint.
-
-Not implemented at present.
+Adjusts the volume on waveform playback for the wave output port. The volume
+value is from 0 to LONG_MAX, LONG_MAX being full volume, and it applies to
+everything written to the port from then on: wave files played to it and
+samples written to it, including plays already in progress. The volume is a
+property of the port and holds across opens and closes. With a time, the change
+is sequenced like any other event.
 
 *******************************************************************************/
+
+static void setwavvol(ami_long p, ami_long v)
+
+{
+
+    pthread_mutex_lock(&wavvollck);
+    wavvol[p-1] = v;
+    pthread_mutex_unlock(&wavvollck);
+
+}
 
 void ami_volwave(ami_long p, ami_long t, ami_long v)
 
 {
 
     sndinit(); /* devices enumerate on first use */
+    ami_seqptr sp;   /* message pointer */
+    ami_long   elap; /* current elapsed time */
+
     if (p < 1 || p > MAXWAVP) error("Invalid wave output port");
     if (!alsapcmout[p-1]) error("No wave output device defined at logical number");
-    if (!alsapcmout[p-1]->devopn) error("Wave port not open");
+    if (v < 0) error("Invalid wave volume");
+
+    /* create sequencer entry */
+    getseq(&sp); /* get a sequencer message */
+    sp->port = p; /* set port */
+    sp->time = t; /* set time */
+    sp->st = st_volwave; /* set type */
+    sp->wv = v; /* set volume */
+
+    elap = seqelap(); /* find elapsed time */
+    /* execute immediate if 0 or sequencer running and time past */
+    if (t == 0 || (t <= elap && seqrun)) {
+
+        wrtseq(sp); /* execute */
+        putseq(sp); /* free */
+
+    } else { /* sequence */
+
+        /* check sequencer running */
+        if (!seqrun) error("Sequencer not running");
+        insseq(sp); /* insert to sequencer list */
+        acttim(); /* kick timer if needed */
+
+    }
 
 }
 
@@ -6858,7 +7082,10 @@ static void ami_init_sound()
     sintim.tv_usec = 0;
 
     /* clear the wave track cache */
-    for (i = 0; i < MAXWAVT; i++) wavfil[i] = NULL;
+    for (i = 0; i < MAXWAVT*2+1; i++) wavfil[i] = NULL;
+
+    /* wave output ports start at full volume */
+    for (i = 0; i < MAXWAVP; i++) wavvol[i] = LONG_MAX;
 
     /* clear the synth track cache */
     for (i = 0; i < MAXMIDT; i++) syntab[i] = NULL;
@@ -6892,6 +7119,7 @@ static void ami_init_sound()
 
     /* initialize other locks */
     pthread_mutex_init(&wavlck, NULL); /* init wave output lock */
+    pthread_mutex_init(&wavvollck, NULL); /* init wave volume lock */
     pthread_mutex_init(&wnmlck, NULL); /* init wave count lock */
     pthread_mutex_init(&synlck, NULL); /* init synth sequencer lock */
     pthread_mutex_init(&snmlck, NULL); /* init synth count lock */

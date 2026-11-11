@@ -408,6 +408,7 @@ ami_long ami_waveout(void);
 ami_long ami_wavein(void);
 void ami_openwaveout(ami_long p);
 void ami_closewaveout(ami_long p);
+ami_long ami_getwaveid(void);
 void ami_loadwave(ami_long w, string fn);
 void ami_playwave(ami_long p, ami_long t, ami_long w);
 void ami_delwave(ami_long w);

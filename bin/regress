@@ -246,6 +246,8 @@ fi
 # - the largest loopback message in network_test, which is the loopback
 #   route's MTU less the headers and so the platform's: Linux offers 65488
 #   over v6 where Windows offers 65487
+# - the host position of services_test, which comes from a network lookup
+#   when the configuration gives none, and so varies with the connection
 # - the daylight savings flag, which changes with the season. The timezone
 #   offset is not masked: it is a fixed property of the machine's zone now
 #   that ami_timezone handles the day wrap
@@ -273,6 +275,7 @@ mask()
         -e 's|"[^"]*tmp\.[0-9]+\.([12])"|"*tmp.*.\1"|g' \
         -e 's|^(test 702: 1 s/b 1 \(length )[0-9]+|\1*|' \
         -e 's|^(test 59: Daysave: )[0-9]+|\1*|' \
+        -e 's|^(test 5[345]: [A-Za-z]+: )-?[0-9]+|\1*|' \
         -e 's#^(\.\. +)[0-9]+( +)[0-9]+#\1*\2*#' \
         -e 's|^(    maximum (secure )?message for (v6 )?loopback: )[0-9]+|\1*|' \
         -e 's|^(    sent )[0-9]+( bytes \(the maxmsg(v6)? limit\), server received )[0-9]+|\1*\2*|' \

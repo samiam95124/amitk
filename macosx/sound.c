@@ -183,6 +183,7 @@ typedef struct {
     AudioQueueRef queue;   /* AudioQueue for streaming */
     size_t        pend;    /* bytes written and not yet played */
     int           fmtset;  /* format needs (re-)configuration */
+    float         vol;     /* port volume, 0.0 to 1.0, under wavvollck */
     void (*opn)(ami_long p);
     void (*cls)(ami_long p);
     void (*chanwavout)(ami_long p, ami_long c);
@@ -256,8 +257,19 @@ static int         wavein_num;
 static int         wavein_plug;
 
 /* loaded file caches */
-static char* wavfil[MAXWAVT]; /* wave file name table */
+/* The ids a program names are 1 to MAXWAVT; the ids ami_getwaveid() hands
+   out are -1 down to -MAXWAVT, so a library that plays a sound of its own
+   never collides with the program's. Both halves live in one table, indexed
+   by WAVIDX(). An id taken but not yet loaded holds the reserved marker, an
+   empty name. */
+static char* wavfil[MAXWAVT*2+1]; /* wave file name table */
+static char  wavres[1] = ""; /* the reserved marker: taken, nothing loaded */
+#define WAVIDX(w) ((w)+MAXWAVT) /* wave id to table index */
+#define WAVIDOK(w) ((w) != 0 && (w) >= -MAXWAVT && (w) <= MAXWAVT)
 static pthread_mutex_t wavlck = PTHREAD_MUTEX_INITIALIZER;
+/* the wave output port volumes: set by volwave, read by every queue that
+   plays to a port */
+static pthread_mutex_t wavvollck = PTHREAD_MUTEX_INITIALIZER;
 
 static char* synfil[MAXMIDT]; /* synth (MIDI) file name table */
 static pthread_mutex_t synlck = PTHREAD_MUTEX_INITIALIZER;
@@ -365,6 +377,8 @@ static void insseq(ami_seqptr sp)
 
 /* forward declarations */
 static void excseq(ami_seqptr sp);
+static void setwavvol(ami_long p, ami_long v);
+static float wavgain(ami_long p);
 static void playwave_kickoff(ami_long port, ami_long wt);
 static void playsynth_kickoff(ami_long port, ami_long sid);
 
@@ -614,7 +628,7 @@ static void excseq(ami_seqptr sp)
         playwave_kickoff(sp->port, sp->wt);
         break;
     case st_volwave:
-        /* not implemented */
+        setwavvol(sp->port, sp->wv);
         break;
     }
 }
@@ -711,6 +725,7 @@ static void enumerate_devices(void)
     waveout_tab[0].sgn  = TRUE;
     waveout_tab[0].flt  = FALSE;
     waveout_tab[0].big  = FALSE;
+    waveout_tab[0].vol  = 1.0f;
     waveout_num = 1;
 
     /* wave input: always 1 default device */
@@ -1623,6 +1638,8 @@ static void ensure_aq_out(waveoutdev* d)
     OSStatus st = AudioQueueNewOutput(&fmt, aq_output_cb, d,
                                        NULL, NULL, 0, &d->queue);
     if (st != noErr) error("Cannot create AudioQueue output");
+    AudioQueueSetParameter(d->queue, kAudioQueueParam_Volume,
+                           wavgain(d-waveout_tab+1));
 
     d->pend = 0;
     AudioQueueStart(d->queue, NULL);
@@ -1669,20 +1686,42 @@ void ami_wrwave(ami_long p, byte* buff, ami_long len)
 *                                                                              *
 *******************************************************************************/
 
+/* Takes a wave id the program did not name: -1, -2 and so on down, the
+   first free one each time, held until ami_delwave() releases it. */
+ami_long ami_getwaveid(void)
+{
+    ami_long w = -1;
+
+    pthread_mutex_lock(&wavlck);
+    while (w > -MAXWAVT && wavfil[WAVIDX(w)]) w--;
+    if (!wavfil[WAVIDX(w)]) wavfil[WAVIDX(w)] = wavres; /* hold it */
+    else w = 0; /* none free */
+    pthread_mutex_unlock(&wavlck);
+    if (!w) error("No more anonymous wave ids");
+    return w;
+}
+
+/* drop a table entry: a loaded name is freed, the reserved marker is not */
+static void wavdrop(ami_long w)
+{
+    if (wavfil[WAVIDX(w)] && wavfil[WAVIDX(w)] != wavres) free(wavfil[WAVIDX(w)]);
+    wavfil[WAVIDX(w)] = NULL;
+}
+
 void ami_loadwave(ami_long w, string fn)
 {
-    if (w < 1 || w > MAXWAVT) error("Invalid wave file slot");
+    if (!WAVIDOK(w)) error("Invalid wave file slot");
     pthread_mutex_lock(&wavlck);
-    if (wavfil[w - 1]) { free(wavfil[w - 1]); wavfil[w - 1] = NULL; }
-    wavfil[w - 1] = strdup(fn);
+    wavdrop(w);
+    wavfil[WAVIDX(w)] = strdup(fn);
     pthread_mutex_unlock(&wavlck);
 }
 
 void ami_delwave(ami_long w)
 {
-    if (w < 1 || w > MAXWAVT) error("Invalid wave file slot");
+    if (!WAVIDOK(w)) error("Invalid wave file slot");
     pthread_mutex_lock(&wavlck);
-    if (wavfil[w - 1]) { free(wavfil[w - 1]); wavfil[w - 1] = NULL; }
+    wavdrop(w);
     pthread_mutex_unlock(&wavlck);
 }
 
@@ -1725,16 +1764,17 @@ static void* playwave_thread(void* arg)
     ami_long* args = (ami_long*)arg;
     ami_long port = args[0];
     ami_long wt   = args[1];
+    float    gain; /* the port's volume as last applied */
+    float    g;
     free(args);
-    (void)port;
 
     /* get filename */
     pthread_mutex_lock(&wavlck);
-    if (wt < 1 || wt > MAXWAVT || !wavfil[wt - 1]) {
+    if (!WAVIDOK(wt) || !wavfil[WAVIDX(wt)] || wavfil[WAVIDX(wt)] == wavres) {
         pthread_mutex_unlock(&wavlck);
         goto done;
     }
-    char* fn = strdup(wavfil[wt - 1]);
+    char* fn = strdup(wavfil[WAVIDX(wt)]);
     pthread_mutex_unlock(&wavlck);
 
     CFURLRef url = CFURLCreateFromFileSystemRepresentation(
@@ -1786,10 +1826,20 @@ static void* playwave_thread(void* arg)
         if (info.done) break;
     }
 
+    gain = wavgain(port);
+    AudioQueueSetParameter(info.queue, kAudioQueueParam_Volume, gain);
     AudioQueueStart(info.queue, NULL);
 
-    /* wait until done */
-    while (!info.done) usleep(50000);
+    /* wait until done; a volume change on the port in mid play is applied
+       to this play as it is seen */
+    while (!info.done) {
+        usleep(50000);
+        g = wavgain(port);
+        if (g != gain) {
+            gain = g;
+            AudioQueueSetParameter(info.queue, kAudioQueueParam_Volume, gain);
+        }
+    }
     usleep(200000); /* drain tail */
 
     AudioQueueStop(info.queue, true);
@@ -1825,7 +1875,7 @@ static void playwave_kickoff(ami_long port, ami_long wt)
 void ami_playwave(ami_long p, ami_long t, ami_long w)
 {
     if (p < 1 || p > waveout_num) error("Invalid wave output port");
-    if (w < 1 || w > MAXWAVT) error("Invalid wave file slot");
+    if (!WAVIDOK(w)) error("Invalid wave file slot");
     if (t == 0 || !seqrun) {
         playwave_kickoff(p, w);
     } else {
@@ -1837,10 +1887,47 @@ void ami_playwave(ami_long p, ami_long t, ami_long w)
     }
 }
 
+/* Adjusts the volume on waveform playback for the wave output port. The volume
+   is 0 to LONG_MAX, LONG_MAX being full, and applies to everything played or
+   written to the port from then on, plays in progress included. It is a
+   property of the port and holds across opens and closes. With a time, the
+   change is sequenced like any other event. */
+
+static float wavgain(ami_long p)
+{
+    float g;
+
+    pthread_mutex_lock(&wavvollck);
+    g = waveout_tab[p-1].vol;
+    pthread_mutex_unlock(&wavvollck);
+    return g;
+}
+
+static void setwavvol(ami_long p, ami_long v)
+{
+    waveoutdev* d = &waveout_tab[p-1];
+
+    pthread_mutex_lock(&wavvollck);
+    d->vol = (float)((double)v/LONG_MAX);
+    pthread_mutex_unlock(&wavvollck);
+    /* the streaming queue, if it is up, changes at once; the file players
+       pick the change up themselves */
+    if (d->queue) AudioQueueSetParameter(d->queue, kAudioQueueParam_Volume, d->vol);
+}
+
 void ami_volwave(ami_long p, ami_long t, ami_long v)
 {
-    /* not implemented at present */
-    (void)p; (void)t; (void)v;
+    if (p < 1 || p > waveout_num) error("Invalid wave output port");
+    if (v < 0) error("Invalid wave volume");
+    if (t == 0 || !seqrun) {
+        setwavvol(p, v);
+    } else {
+        ami_seqptr sp;
+        getseq(&sp);
+        sp->port = p; sp->time = t; sp->st = st_volwave;
+        sp->wv = v;
+        seqorexe(sp);
+    }
 }
 
 void ami_waitwave(ami_long p)
