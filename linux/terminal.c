@@ -138,11 +138,11 @@ extern char *program_invocation_short_name;
 /* Default terminal size sets the geometry of the terminal if we cannot find
    out the geometry from the terminal itself. */
 #ifndef DEFXD
-#define DEFXD 80 /* default terminal size, 80x24, this is Linux standard */
+#define DEFXD 80 /* default terminal size, 80x25 */
 #endif
 
 #ifndef DEFYD
-#define DEFYD 24
+#define DEFYD 25
 #endif
 
 /* Set unresponsive timer and present message and state if the program has not
