@@ -132,6 +132,7 @@ static _pa_wrtstr_t      dn_wrtstr;      static _pa_wrtstrn_t     dn_wrtstrn;
 static _pa_sizbuf_t      dn_sizbuf;      static _pa_title_t       dn_title;
 static _pa_titlen_t      dn_titlen;      static _pa_fcolorc_t     dn_fcolorc;
 static _pa_bcolorc_t     dn_bcolorc;     static _pa_sendevent_t   dn_sendevent;
+static _pa_autohold_t    dn_autohold;
 
 /*******************************************************************************
 
@@ -772,6 +773,17 @@ static void sendevent_pvf(FILE* f, ami_evtrec* er)
     noinput();
 }
 
+/* autohold names no file, so it is refused while a print file is open: the
+   printer has no window to hold */
+static void autohold_pvf(ami_long e)
+{
+    int fd;
+
+    for (fd = 0; fd < MAXPFIL; fd++)
+        if (prtfil[fd]) error("No autohold with a print file open");
+    (*dn_autohold)(e);
+}
+
 /* tabs */
 
 static void instab(prtptr p, ami_long t)
@@ -948,6 +960,7 @@ static void ami_init_txtterminal(void)
     _pa_fcolorc_ovr(fcolorc_pvf, &dn_fcolorc);
     _pa_bcolorc_ovr(bcolorc_pvf, &dn_bcolorc);
     _pa_sendevent_ovr(sendevent_pvf, &dn_sendevent);
+    _pa_autohold_ovr(autohold_pvf, &dn_autohold);
 
 }
 
@@ -1014,6 +1027,7 @@ static void ami_deinit_txtterminal(void)
     { _pa_fcolorc_t t;     _pa_fcolorc_ovr(dn_fcolorc, &t); }
     { _pa_bcolorc_t t;     _pa_bcolorc_ovr(dn_bcolorc, &t); }
     { _pa_sendevent_t t;   _pa_sendevent_ovr(dn_sendevent, &t); }
+    { _pa_autohold_t t;    _pa_autohold_ovr(dn_autohold, &t); }
 
     /* swap the system vectors back; if we don't come off the top of the
        chain the stacking is corrupt */
