@@ -1800,13 +1800,29 @@ static void translate_event(const pa_rawevent* raw, ami_evtrec* er)
         }
         break;
 
-    case PA_EVT_REDRAW:
+    case PA_EVT_REDRAW: {
+        /* The redraw is announced twice, as the resize is: etredrawg
+           carries the rectangle in pixels, sent on behind this one, and
+           etredraw the cells that cover it. */
+        winptr rw = wid2win(er->winid);
+        ami_long cs = rw && rw->charspace > 0? rw->charspace: 1;
+        ami_long ls = rw && rw->linespace > 0? rw->linespace: 1;
+        ami_evtrec* g = malloc(sizeof(*g));
+        if (!g) error(enomem);
+        memset(g, 0, sizeof(*g));
+        g->etype = ami_etredrawg;
+        g->rsx   = raw->redraw.x;
+        g->rsy   = raw->redraw.y;
+        g->rex   = raw->redraw.x + raw->redraw.w - 1;
+        g->rey   = raw->redraw.y + raw->redraw.h - 1;
+        pa_cocoa_send_user_event(raw->win, g);
         er->etype = ami_etredraw;
-        er->rsx   = raw->redraw.x;
-        er->rsy   = raw->redraw.y;
-        er->rex   = raw->redraw.x + raw->redraw.w - 1;
-        er->rey   = raw->redraw.y + raw->redraw.h - 1;
+        er->rsx   = (g->rsx-1)/cs+1;
+        er->rsy   = (g->rsy-1)/ls+1;
+        er->rex   = (g->rex-1)/cs+1;
+        er->rey   = (g->rey-1)/ls+1;
         break;
+    }
 
     case PA_EVT_JOY_MOVE:
         er->etype = ami_etjoymov;

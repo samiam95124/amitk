@@ -654,6 +654,7 @@ static void prtevtt(
         case ami_etmoumovg: fprintf(stderr, "etmoumovg"); break;
         case ami_etframe:   fprintf(stderr, "etframe  "); break;
         case ami_etredraw:  fprintf(stderr, "etredraw "); break;
+        case ami_etredrawg: fprintf(stderr, "etredrawg"); break;
         case ami_etmin:     fprintf(stderr, "etmin    "); break;
         case ami_etmax:     fprintf(stderr, "etmax    "); break;
         case ami_etnorm:    fprintf(stderr, "etnorm   "); break;
@@ -728,7 +729,8 @@ static void prtevt(
         case ami_etfun: fprintf(stderr, ": key: %lld", AMI_LONG_CAST(er->fkey)); break;
         case ami_etmoumovg: fprintf(stderr, ": mouse: %lld x: %4lld y: %4lld",
                                    AMI_LONG_CAST(er->mmoung), AMI_LONG_CAST(er->moupxg), AMI_LONG_CAST(er->moupyg)); break;
-        case ami_etredraw: fprintf(stderr, ": sx: %4lld sy: %4lld ex: %4lld ey: %4lld",
+        case ami_etredraw:
+        case ami_etredrawg: fprintf(stderr, ": sx: %4lld sy: %4lld ex: %4lld ey: %4lld",
                                   AMI_LONG_CAST(er->rsx), AMI_LONG_CAST(er->rsy), AMI_LONG_CAST(er->rex), AMI_LONG_CAST(er->rey)); break;
         case ami_etmenus: fprintf(stderr, ": id: %lld", AMI_LONG_CAST(er->menuid)); break;
         case ami_etbutton: fprintf(stderr, ": id: %lld", AMI_LONG_CAST(er->butid)); break;
@@ -984,8 +986,8 @@ static void widget_redraw(
     ev.etype = ami_etredraw; /* set redraw event */
     ev.rsx = 1; /* set extent */
     ev.rsy = 1;
-    ev.rex = ami_maxxg(wp->head.wf);
-    ev.rey = ami_maxyg(wp->head.wf);
+    ev.rex = ami_maxx(wp->head.wf);
+    ev.rey = ami_maxy(wp->head.wf);
     ami_sendevent(wp->head.wf, &ev); /* send to widget window */
 
 }
@@ -6586,8 +6588,8 @@ static void ialert(
     er.etype = ami_etredraw;
     er.rsx = 1;
     er.rsy = 1;
-    er.rex = ami_maxxg(out);
-    er.rey = ami_maxyg(out);
+    er.rex = ami_maxx(out);
+    er.rey = ami_maxy(out);
     ami_sendevent(out, &er);
 
     /* start with events */
@@ -6815,8 +6817,8 @@ static void iquerycolor(
     er.etype = ami_etredraw;
     er.rsx = 1;
     er.rsy = 1;
-    er.rex = ami_maxxg(out);
-    er.rey = ami_maxyg(out);
+    er.rex = ami_maxx(out);
+    er.rey = ami_maxy(out);
     ami_sendevent(out, &er);
 
 
@@ -7753,8 +7755,8 @@ static void iqueryfind(
     er.etype = ami_etredraw;
     er.rsx = 1;
     er.rsy = 1;
-    er.rex = ami_maxxg(out);
-    er.rey = ami_maxyg(out);
+    er.rex = ami_maxx(out);
+    er.rey = ami_maxy(out);
     ami_sendevent(out, &er);
 
 
@@ -8001,8 +8003,8 @@ static void iqueryfindrep(
     er.etype = ami_etredraw;
     er.rsx = 1;
     er.rsy = 1;
-    er.rex = ami_maxxg(out);
-    er.rey = ami_maxyg(out);
+    er.rex = ami_maxx(out);
+    er.rey = ami_maxy(out);
     ami_sendevent(out, &er);
 
 
@@ -8270,8 +8272,8 @@ static void iqueryfont(
     er.etype = ami_etredraw;
     er.rsx = 1;
     er.rsy = 1;
-    er.rex = ami_maxxg(out);
-    er.rey = ami_maxyg(out);
+    er.rex = ami_maxx(out);
+    er.rey = ami_maxy(out);
     ami_sendevent(out, &er);
 
 

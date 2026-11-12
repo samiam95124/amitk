@@ -1769,6 +1769,7 @@ void prtevtcod(ami_evtcod e)
         case ami_etmoumovg: fprintf(stderr, "etmoumovg"); break;
         case ami_etframe:   fprintf(stderr, "etframe"); break;
         case ami_etredraw:  fprintf(stderr, "etredraw"); break;
+        case ami_etredrawg: fprintf(stderr, "etredrawg"); break;
         case ami_etmin:     fprintf(stderr, "etmin"); break;
         case ami_etmax:     fprintf(stderr, "etmax"); break;
         case ami_etnorm:    fprintf(stderr, "etnorm"); break;
@@ -1839,6 +1840,7 @@ static void prtevt(ami_evtrec* ev)
                     AMI_LONG_CAST(ev->moupyg));
             break;
         case ami_etredraw:
+        case ami_etredrawg:
             fprintf(stderr, " bounds: sx: %lld sy: %lld ex: %lld ey: %lld", AMI_LONG_CAST(ev->rsx),
                     AMI_LONG_CAST(ev->rsy), AMI_LONG_CAST(ev->rex), AMI_LONG_CAST(ev->rey));
             break;
@@ -8587,11 +8589,30 @@ static void winevt(winptr win, ami_evtrec* er, MSG* msg, int ofn, int* keep)
 
             /* form redraw request */
             b = GetUpdateRect(win->winhan, &cr, FALSE);
+            /* The redraw is announced twice, as the resize is: etredrawg
+               carries the update rectangle in pixels, and rides the
+               message queue as a sent event; etredraw carries the cells
+               that cover it. */
+            {
+
+                ami_evtrec* ep; /* the pixel event */
+
+                ep = malloc(sizeof(ami_evtrec));
+                if (!ep) error(enomem);
+                memset(ep, 0, sizeof(ami_evtrec));
+                ep->etype = ami_etredrawg;
+                ep->rsx = msg->wParam/0x10000;
+                ep->rsy = msg->wParam%0x10000;
+                ep->rex = msg->lParam/0x10000;
+                ep->rey = msg->lParam%0x10000;
+                putmsg(win->winhan, UM_SNDEVT, 0, (LPARAM)ep);
+
+            }
             er->etype = ami_etredraw; /* set redraw message */
-            er->rsx = msg->wParam/0x10000; /* fill the rectangle with update */
-            er->rsy = msg->wParam%0x10000;
-            er->rex = msg->lParam/0x10000;
-            er->rey = msg->lParam%0x10000;
+            er->rsx = ((ami_long)(msg->wParam/0x10000)-1)/win->charspace+1;
+            er->rsy = ((ami_long)(msg->wParam%0x10000)-1)/win->linespace+1;
+            er->rex = ((ami_long)(msg->lParam/0x10000)-1)/win->charspace+1;
+            er->rey = ((ami_long)(msg->lParam%0x10000)-1)/win->linespace+1;
             *keep = TRUE; /* set keep event */
 
         }

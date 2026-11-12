@@ -3071,6 +3071,10 @@ static void annredraw(winptr win)
         win->redrawpend = TRUE; /* one announcement serves until delivered */
         mclogf("queue redraw wid %lld\n", AMI_LONG_CAST(win->wid));
         er.etype = ami_etredraw;
+        er.rsx = 1; /* the whole client, in characters */
+        er.rsy = 1;
+        er.rex = win->cmaxx < 1? 1: win->cmaxx;
+        er.rey = win->cmaxy < 1? 1: win->cmaxy;
         intsendevent(win, &er);
 
     }

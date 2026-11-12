@@ -147,10 +147,11 @@ static const evtent evttbl[] = {
     { "min",      ami_etmin,      0 }, { "max",      ami_etmax,      0 },
     { "norm",     ami_etnorm,     0 }, { "menus",    ami_etmenus,    1 },
 #ifdef AUTO_EVENT_TERMINAL
-    { "redraw",   ami_etredraw,   0 }, /* the terminal's redraw has no bounds */
+    { "redraw",   ami_etredraw,   4 }, /* bounds in characters */
 #else
     /* the graphical events and the widgets: not in the terminal's set */
     { "redraw",   ami_etredraw,   4 }, { "moumovg",  ami_etmoumovg,  3 },
+    { "redrawg",  ami_etredrawg,  4 },
     { "button",   ami_etbutton,   1 }, { "chkbox",   ami_etchkbox,   1 },
     { "radbut",   ami_etradbut,   1 }, { "sclull",   ami_etsclull,   1 },
     { "scldrl",   ami_etscldrl,   1 }, { "sclulp",   ami_etsclulp,   1 },
@@ -249,10 +250,13 @@ static void mkevent(const evtent* ep, ami_long* p)
         case ami_etmenus:   pend.menuid = p[0]; break;
 #ifdef AUTO_EVENT_TERMINAL
         case ami_etresize:  pend.rszx = p[0]; pend.rszy = p[1]; break;
+        case ami_etredraw:  pend.rsx = p[0]; pend.rsy = p[1];
+                            pend.rex = p[2]; pend.rey = p[3]; break;
 #else
         case ami_etresize:  pend.rszx = p[0]; pend.rszy = p[1];
                             pend.rszxg = p[2]; pend.rszyg = p[3]; break;
-        case ami_etredraw:  pend.rsx = p[0]; pend.rsy = p[1];
+        case ami_etredraw:
+        case ami_etredrawg: pend.rsx = p[0]; pend.rsy = p[1];
                             pend.rex = p[2]; pend.rey = p[3]; break;
         case ami_etmoumovg: pend.mmoung = p[0]; pend.moupxg = p[1];
                             pend.moupyg = p[2]; break;
