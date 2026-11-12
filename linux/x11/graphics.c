@@ -626,9 +626,6 @@ typedef struct winrec {
     int          bufmod;            /* buffered screen mode */
     int          autobuf;           /* the buffer shows scroll bars when
                                        larger than the client */
-    int          bufset;            /* the program set the buffer's size: until
-                                       it does, the buffer follows the window's
-                                       client through setsiz */
     Window       xchan;             /* the canvas: a child of the subclient the
                                        size of the buffer, that the screen is
                                        drawn on and the mouse arrives on, both
@@ -6645,7 +6642,6 @@ static void opnwin(int fn, int pfn, ami_long wid, int subclient)
     win->hbar = FALSE;
     win->scldrag = 0;
     win->scldrgoff = 0;
-    win->bufset = FALSE; /* the buffer follows the client until set */
 
     /* get screen parameters */
     XWLOCK();
@@ -16024,7 +16020,6 @@ static void sizbufg_ivf(FILE* f, ami_long x, ami_long y)
     winptr win; /* pointer to windows context */
 
     win = txt2win(f); /* get window context */
-    win->bufset = TRUE; /* the program sets the buffer: it holds from here */
     isizbufg(win, x, y);
 
 }
@@ -16921,21 +16916,6 @@ static void setsizg_ivf(FILE* f, ami_long x, ami_long y)
             win->gmaxy = win->gmaxyg/win->linespace;
 
         }
-
-    }
-    /* A buffer the program has not set follows the window: it was the
-       client's size at the open, and is the client's size after. A program
-       that sizes a window and never its buffer expects the two to match, as
-       window_test's window size frames do; the buffer as opened was left
-       larger than the window sized smaller, and showed scroll bars for it.
-       A buffer set with sizbuf holds. The client is taken as it would be
-       with no bars, which the buffer's new size then calls for none of. */
-    if (win->bufmod && !win->bufset) {
-
-        int aw, ah; /* the client with no bars */
-
-        sclavail(win, &aw, &ah);
-        if (aw != win->gmaxxg || ah != win->gmaxyg) isizbufg(win, aw, ah);
 
     }
     sclsync(win); /* the scroll bars and the canvas as the client calls for */
