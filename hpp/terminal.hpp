@@ -253,6 +253,16 @@ void sizbuf(FILE* f, ami_long x, ami_long y);
 void sizbuf(ami_long x, ami_long y);
 void eventover(evtcod e, pevthan eh, pevthan* oeh);
 void eventsover(pevthan eh, pevthan* oeh);
+void title(FILE* f, char* ts);
+void title(char* ts);
+void titlen(FILE* f, char* ts, ami_long n);
+void titlen(char* ts, ami_long n);
+void fcolorc(FILE* f, ami_long r, ami_long g, ami_long b);
+void fcolorc(ami_long r, ami_long g, ami_long b);
+void bcolorc(FILE* f, ami_long r, ami_long g, ami_long b);
+void bcolorc(ami_long r, ami_long g, ami_long b);
+void openprint(FILE** f, char* n);
+void errorover(ami_errhan nfp, ami_errhan* ofp);
 
 /* object based interface */
 class term {
@@ -318,6 +328,10 @@ void wrtstr(char *s);
 void wrtstr(char *s, ami_long n);
 void wrtstrn(char *s, ami_long n);
 void sizbuf(ami_long x, ami_long y);
+void title(char* ts);
+void titlen(char* ts, ami_long n);
+void fcolorc(ami_long r, ami_long g, ami_long b);
+void bcolorc(ami_long r, ami_long g, ami_long b);
 static void termCB(evtrec* er);
 
 /* virtual callbacks */
