@@ -433,6 +433,8 @@ typedef struct winrec {
     int      bufset;            /* the program set the buffer's size: until
                                    it does, the buffer follows the client
                                    through setsiz and decoration changes */
+    ami_long sbufx, sbufy;      /* the buffer size when buffering was turned
+                                   off, restored when it is turned on again */
     int      tab[MAXTAB];       /* tabbing array */
     metptr   metlst;            /* menu tracking list */
     metptr   menu;              /* "faux menu" bar */
@@ -3825,6 +3827,8 @@ static void opnwin(int fn, int pfn, ami_long wid, int subclient, int root)
     win->bufmod = TRUE; /* set buffering on */
     win->autobuf = TRUE; /* scroll bars for a buffer larger than the client */
     win->bufset = FALSE; /* the buffer follows the client until set */
+    win->sbufx = 0; /* no buffer size saved */
+    win->sbufy = 0;
     win->metlst = NULL; /* clear menu tracking list */
     win->menu = NULL; /* set menu bar not active */
     if (root) { /* set up root without frame */
@@ -7124,15 +7128,17 @@ static void ibuffer(FILE* f, ami_long e)
     if (e != win->bufmod) { /* buffered status has changed */
 
         win->bufmod = e; /* set new buffer status */
-        sclsync(win); /* the scroll bars are a buffered window's */
         /* The screens hold the window content in both modes: they are what
            repaints the surface when the window arrangement changes. The
            difference is only what governs their size: entering follow mode
            sizes the buffer to the client, and from there it tracks the
-           client; entering buffered mode keeps the buffer as it stands, and
-           from there the program governs it with sizbuf. */
+           client; entering buffered mode brings the buffer back to the size
+           it had when buffering was turned off, as the graphical modules
+           do, and from there the program governs it with sizbuf. */
         if (!e) {
 
+            win->sbufx = win->bufx; /* keep the size for the return */
+            win->sbufy = win->bufy;
             resizewinbuf(win, win->cmaxx, win->cmaxy);
             /* In follow mode the program owns the content and draws on
                the redraw announcements; entering it, the surface is the
@@ -7142,7 +7148,16 @@ static void ibuffer(FILE* f, ami_long e)
             annresize(win);
             annredraw(win);
 
+        } else if (win->bufset && win->sbufx) {
+
+            /* the buffer the program had set comes back at its size; one
+               the program never set goes on following the client */
+            resizewinbuf(win, win->sbufx, win->sbufy);
+            recalcfmask(); /* the masks before the repaint, as in isizbuf */
+            if (indisp(win)) restore(win); /* repaint from the buffer */
+
         }
+        sclsync(win); /* the scroll bars are a buffered window's */
 
     }
 
