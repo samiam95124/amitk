@@ -626,9 +626,6 @@ typedef struct winrec {
     int          bufmod;            /* buffered screen mode */
     int          autobuf;           /* the buffer shows scroll bars when
                                        larger than the client */
-    int          bufset;            /* the program set the buffer's size: until
-                                       it does, the buffer follows the window's
-                                       client through setsiz */
     Window       xchan;             /* the canvas: a child of the subclient the
                                        size of the buffer, that the screen is
                                        drawn on and the mouse arrives on, both
@@ -2046,6 +2043,7 @@ void prtevtt(ami_evtcod e)
         case ami_etmoumovg: fprintf(stderr, "etmoumovg"); break;
         case ami_etframe:   fprintf(stderr, "etframe  "); break;
         case ami_etredraw:  fprintf(stderr, "etredraw "); break;
+        case ami_etredrawg: fprintf(stderr, "etredrawg"); break;
         case ami_etmin:     fprintf(stderr, "etmin    "); break;
         case ami_etmax:     fprintf(stderr, "etmax    "); break;
         case ami_etnorm:    fprintf(stderr, "etnorm   "); break;
@@ -2122,7 +2120,8 @@ void prtevt(ami_evtptr er)
             case ami_etfun: fprintf(stderr, ": key: %lld", AMI_LONG_CAST(er->fkey)); break;
             case ami_etmoumovg: fprintf(stderr, ": mouse: %lld x: %4lld y: %4lld",
                                        AMI_LONG_CAST(er->mmoung), AMI_LONG_CAST(er->moupxg), AMI_LONG_CAST(er->moupyg)); break;
-            case ami_etredraw: fprintf(stderr, ": sx: %4lld sy: %4lld ex: %4lld ey: %4lld",
+            case ami_etredraw:
+            case ami_etredrawg: fprintf(stderr, ": sx: %4lld sy: %4lld ex: %4lld ey: %4lld",
                                       AMI_LONG_CAST(er->rsx), AMI_LONG_CAST(er->rsy), AMI_LONG_CAST(er->rex), AMI_LONG_CAST(er->rey)); break;
             case ami_etmenus: fprintf(stderr, ": id: %lld", AMI_LONG_CAST(er->menuid)); break;
             case ami_etbutton: fprintf(stderr, ": id: %lld", AMI_LONG_CAST(er->butid)); break;
@@ -3636,8 +3635,6 @@ void setfnt(winptr win)
     /* read charspace at LOGICAL pixel size for cursor advancement */
     FT_Set_Pixel_Sizes(win->ftface, 0, win->gfhigh_log);
     win->charspace = (int)(win->ftface->size->metrics.max_advance >> 6);
-    win->chrspcx = 0;
-    win->chrspcy = 0;
 
     if (prtftm) {
 
@@ -5173,6 +5170,60 @@ static void isendevent(winptr win, ami_evtrec* er)
 
 /** ****************************************************************************
 
+Redraw events
+
+A redraw is announced twice, as the resize is: etredraw carries the rectangle
+in characters, the cells that cover it, and etredrawg carries it in pixels.
+The program obeys one and ignores the other. redrawchr fills a record as the
+character event from a pixel rectangle, redrawg sends the pixel event, and
+sendredraw sends the pair.
+
+*******************************************************************************/
+
+static void redrawchr(winptr win, ami_evtrec* er, ami_long sx, ami_long sy,
+                      ami_long ex, ami_long ey)
+
+{
+
+    er->etype = ami_etredraw; /* set redraw event */
+    er->rsx = (sx-1)/win->charspace+1; /* the cells that cover the pixels */
+    er->rsy = (sy-1)/win->linespace+1;
+    er->rex = (ex-1)/win->charspace+1;
+    er->rey = (ey-1)/win->linespace+1;
+
+}
+
+static void redrawg(winptr win, ami_long sx, ami_long sy, ami_long ex,
+                    ami_long ey)
+
+{
+
+    ami_evtrec er;
+
+    er.etype = ami_etredrawg; /* set redraw event, in pixels */
+    er.rsx = sx;
+    er.rsy = sy;
+    er.rex = ex;
+    er.rey = ey;
+    isendevent(win, &er);
+
+}
+
+static void sendredraw(winptr win, ami_long sx, ami_long sy, ami_long ex,
+                       ami_long ey)
+
+{
+
+    ami_evtrec er;
+
+    redrawchr(win, &er, sx, sy, ex, ey);
+    isendevent(win, &er);
+    redrawg(win, sx, sy, ex, ey);
+
+}
+
+/** ****************************************************************************
+
 Find if cursor is in screen bounds
 
 Checks if the cursor lies in the current bounds, and returns TRUE if so.
@@ -6645,7 +6696,6 @@ static void opnwin(int fn, int pfn, ami_long wid, int subclient)
     win->hbar = FALSE;
     win->scldrag = 0;
     win->scldrgoff = 0;
-    win->bufset = FALSE; /* the buffer follows the client until set */
 
     /* get screen parameters */
     XWLOCK();
@@ -6693,6 +6743,8 @@ static void opnwin(int fn, int pfn, ami_long wid, int subclient)
     win->misoffx = win->gfhigh*MISOFFX; /* set offset x */
     win->misoffy = win->gfhigh*MISOFFY; /* set offset x */
     win->ftface = NULL; /* clear current font face */
+    win->chrspcx = 0; /* no extra character spacing */
+    win->chrspcy = 0; /* no extra line spacing */
     setfnt(win); /* select font */
 
     /* set standard/reference font sizes */
@@ -14137,11 +14189,13 @@ static void xwinevt(winptr win, ami_evtrec* er, XEvent* e, int* keep)
 
         } else { /* let the client handle it */
 
-            er->etype = ami_etredraw; /* set redraw event */
-            er->rsx = e->xexpose.x+1; /* set redraw rectangle */
-            er->rsy = e->xexpose.y+1;
-            er->rex = e->xexpose.x+e->xexpose.width;
-            er->rey = e->xexpose.y+e->xexpose.height;
+            /* the redraw rectangle, in characters and in pixels */
+            redrawchr(win, er, e->xexpose.x+1, e->xexpose.y+1,
+                      e->xexpose.x+e->xexpose.width,
+                      e->xexpose.y+e->xexpose.height);
+            redrawg(win, e->xexpose.x+1, e->xexpose.y+1,
+                    e->xexpose.x+e->xexpose.width,
+                    e->xexpose.y+e->xexpose.height);
             *keep = TRUE; /* set found */
 
         }
@@ -15994,24 +16048,14 @@ static void isizbufg(winptr win, ami_long x, ami_long y)
     if (x > oldw) {
 
         /* right strip: from old width to new width, full new height */
-        er.etype = ami_etredraw;
-        er.rsx = oldw + 1;
-        er.rsy = 1;
-        er.rex = x;
-        er.rey = y;
-        isendevent(win, &er);
+        sendredraw(win, oldw+1, 1, x, y);
 
     }
     if (y > oldh) {
 
         /* bottom strip: from old height to new height, old width only
            (right strip already covered above) */
-        er.etype = ami_etredraw;
-        er.rsx = 1;
-        er.rsy = oldh + 1;
-        er.rex = oldw < x ? oldw : x;
-        er.rey = y;
-        isendevent(win, &er);
+        sendredraw(win, 1, oldh+1, oldw < x ? oldw : x, y);
 
     }
 
@@ -16024,7 +16068,6 @@ static void sizbufg_ivf(FILE* f, ami_long x, ami_long y)
     winptr win; /* pointer to windows context */
 
     win = txt2win(f); /* get window context */
-    win->bufset = TRUE; /* the program sets the buffer: it holds from here */
     isizbufg(win, x, y);
 
 }
@@ -16921,21 +16964,6 @@ static void setsizg_ivf(FILE* f, ami_long x, ami_long y)
             win->gmaxy = win->gmaxyg/win->linespace;
 
         }
-
-    }
-    /* A buffer the program has not set follows the window: it was the
-       client's size at the open, and is the client's size after. A program
-       that sizes a window and never its buffer expects the two to match, as
-       window_test's window size frames do; the buffer as opened was left
-       larger than the window sized smaller, and showed scroll bars for it.
-       A buffer set with sizbuf holds. The client is taken as it would be
-       with no bars, which the buffer's new size then calls for none of. */
-    if (win->bufmod && !win->bufset) {
-
-        int aw, ah; /* the client with no bars */
-
-        sclavail(win, &aw, &ah);
-        if (aw != win->gmaxxg || ah != win->gmaxyg) isizbufg(win, aw, ah);
 
     }
     sclsync(win); /* the scroll bars and the canvas as the client calls for */

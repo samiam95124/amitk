@@ -1678,6 +1678,32 @@ static void enquepaevt(ami_evtrec* e)
 
 }
 
+/* Queue the redraw notices for a window's whole client: etredraw with the
+   rectangle in characters and etredrawg with it in pixels. The caller has
+   entered the window's client, so the metrics are in its font. */
+
+static void enqredraw(winptr win)
+
+{
+
+    ami_evtrec er;
+
+    er.winid = win->wid;
+    er.etype = ami_etredraw;
+    er.rsx = 1;
+    er.rsy = 1;
+    er.rex = win->cmaxx/(*chrsizx_down)(stdout);
+    er.rey = win->cmaxy/(*chrsizy_down)(stdout);
+    if (er.rex < 1) er.rex = 1;
+    if (er.rey < 1) er.rey = 1;
+    enquepaevt(&er);
+    er.etype = ami_etredrawg;
+    er.rex = win->cmaxx;
+    er.rey = win->cmaxy;
+    enquepaevt(&er);
+
+}
+
 static int dequepaevt(ami_evtrec* e)
 
 {
@@ -1943,9 +1969,7 @@ static void dragend(ami_long gx, ami_long gy)
         enquepaevt(&er);
         /* and the redraw notice the desktop backends send after it:
            an unbuffered client repaints on this */
-        er.etype = ami_etredraw;
-        er.winid = win->wid;
-        enquepaevt(&er);
+        enqredraw(win);
 
     }
     winrect(win, &r2);
@@ -4666,9 +4690,7 @@ static void setsizg_ivf(FILE* f, ami_long x, ami_long y)
         er.rszy = win->cmaxy/(*chrsizy_down)(stdout);
         enquepaevt(&er);
         /* and the redraw notice the desktop backends send after it */
-        er.etype = ami_etredraw;
-        er.winid = win->wid;
-        enquepaevt(&er);
+        enqredraw(win);
 
     }
 
@@ -5259,9 +5281,7 @@ static void annresize(winptr win)
     er.rszx = win->cmaxx/(*chrsizx_down)(stdout);
     er.rszy = win->cmaxy/(*chrsizy_down)(stdout);
     enquepaevt(&er);
-    er.etype = ami_etredraw;
-    er.winid = win->wid;
-    enquepaevt(&er);
+    enqredraw(win);
 
 }
 

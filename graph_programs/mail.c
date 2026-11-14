@@ -5573,7 +5573,7 @@ int main(int argc, char* argv[])
             /* Sized by the layout, which draws what the sizing moved; a
                redraw is drawn from its left edge, except the right strip
                a wider banner is told of after the layout drew it. */
-            if (er.etype == ami_etredraw) {
+            if (er.etype == ami_etredrawg) {
 
                 if (er.rsx > 0 && banpart) banpart = FALSE;
                 else drawbanner(er.rsx);
@@ -5604,7 +5604,7 @@ int main(int argc, char* argv[])
                     break;
 
                 }
-                case ami_etredraw: drawfoldrect(er.rsy, er.rey); break;
+                case ami_etredrawg: drawfoldrect(er.rsy, er.rey); break;
                 case ami_etresize: /* sized by the layout, which drew it */
                     break;
                 default: break;
@@ -5747,7 +5747,7 @@ int main(int argc, char* argv[])
                     if (msgsel >= 0) openmsg(msgsel);
                     break;
 
-                case ami_etredraw: /* only what was exposed */
+                case ami_etredrawg: /* only what was exposed */
                     /* the right strip a wider pane is told of was drawn
                        by the layout, with the rows' tails */
                     if (er.rsx > 0 && listpart) listpart = FALSE;
