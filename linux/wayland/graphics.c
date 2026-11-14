@@ -3070,8 +3070,6 @@ void setfnt(winptr win)
     /* read charspace at LOGICAL pixel size for cursor advancement */
     FT_Set_Pixel_Sizes(win->ftface, 0, win->gfhigh_log);
     win->charspace = (int)(win->ftface->size->metrics.max_advance >> 6);
-    win->chrspcx = 0;
-    win->chrspcy = 0;
 
     if (prtftm) {
 
@@ -6380,6 +6378,8 @@ static void opnwin(int fn, int pfn, ami_long wid, int subclient)
     win->misoffx = win->gfhigh*MISOFFX; /* set offset x */
     win->misoffy = win->gfhigh*MISOFFY; /* set offset x */
     win->ftface = NULL; /* clear current font face */
+    win->chrspcx = 0; /* no extra character spacing */
+    win->chrspcy = 0; /* no extra line spacing */
     win->gcache = NULL; /* its glyph cache is made at first use */
     setfnt(win); /* select font */
 
