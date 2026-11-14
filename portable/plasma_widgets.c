@@ -2307,10 +2307,14 @@ static void editbox_event(
             editbox_draw(wg); /* redraw the window */
             break;
         case ami_etchar: /* enter character */
-            if (!wg->num || isdigit(ev->echar) || ev->echar == '-' ||
-                ev->echar == '=') {
+            l = strlen(wg->face); /* get length of existing face string */
+            /* a number takes digits, and a minus sign as its first character
+               only. Nothing is inserted ahead of a minus sign already there. */
+            if (!wg->num ||
+                ((isdigit(ev->echar) || (ev->echar == '-' && wg->curs == 0)) &&
+                 !(wg->curs == 0 && wg->face[0] == '-' &&
+                   (!wg->ins || wg->curs >= l)))) {
 
-                l = strlen(wg->face); /* get length of existing face string */
                 if (!wg->ins || wg->curs >= l) { /* insert mode or end */
 
                     s = malloc(l+1+1); /* get new face string */
