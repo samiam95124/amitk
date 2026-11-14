@@ -2934,13 +2934,10 @@ void pa_cocoa_widget_select(pa_winhan win, int id, int on)
         NSView* v = find_widget(win, id);
         if (v && [v isKindOfClass:[NSButton class]]) {
             NSButton* b = (NSButton*)v;
-            /* A momentary push button does not render its state; convert it
-               to push-on/push-off the first time a select is applied so the
-               pressed-in look persists. Checkboxes and radios already show
-               state (nonzero showsStateBy) and are left alone. */
-            if ([[b cell] showsStateBy] == 0)
-                [b setButtonType:NSButtonTypePushOnPushOff];
-            b.state = on ? NSControlStateValueOn : NSControlStateValueOff;
+            /* Checkboxes and radios show state (nonzero showsStateBy). A
+               momentary push button has no select and is left alone. */
+            if ([[b cell] showsStateBy] != 0)
+                b.state = on ? NSControlStateValueOn : NSControlStateValueOff;
         }
     });
 }

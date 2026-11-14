@@ -13182,10 +13182,9 @@ static void killwidget_ivf(FILE* f, ami_long id)
 
 Select/deselect widget
 
-Selects or deselects a widget. Any widget accepts the select state. Buttons
-render it as a persistent pressed in look, checkboxes and radio buttons as
-their check figure; widget kinds with no select rendering accept the call
-without effect.
+Selects or deselects a widget. Checkboxes and radio buttons render the select
+as their check figure; widget kinds with no select rendering accept the call
+without effect. A button has no select, and selecting one is an error.
 
 *******************************************************************************/
 
@@ -13195,26 +13194,13 @@ static void iselectwidget(winptr win, ami_long id, ami_long e)
 
     wigptr wp;  /* widget entry */
     int    r;   /* return value */
-    LONG   fl;  /* window style */
 
     if (!win->visible) winvis(win); /* make sure we are displayed */
     wp = fndwig(win, id); /* find widget */
     if (!wp) error(ewignf); /* not found */
-    if (wp->typ == wtbutton) {
-
-        /* A plain push button has no persistent select rendering. Restyle
-           it as a pushlike checkbox, which looks the same but holds a
-           pressed in look while checked. The check state is program
-           controlled, so clicks still just send button events */
-        unlockwin(win); /* end exclusive access */
-        fl = GetWindowLong(wp->han, GWL_STYLE);
-        if (!(fl & BS_PUSHLIKE))
-            SetWindowLong(wp->han, GWL_STYLE,
-                          (fl & ~(LONG)0xf) | BS_CHECKBOX | BS_PUSHLIKE);
-        r = SendMessage(wp->han, BM_SETCHECK, !!e, 0);
-        lockwin(win);/* start exclusive access */
-
-    } else if (wp->typ == wtcheckbox || wp->typ == wtradiobutton) {
+    /* a button has no select: pressed is its own affair */
+    if (wp->typ == wtbutton) error(ewigsel);
+    if (wp->typ == wtcheckbox || wp->typ == wtradiobutton) {
 
         unlockwin(win); /* end exclusive access */
         r = SendMessage(wp->han, BM_SETCHECK, !!e, 0);

@@ -1350,10 +1350,8 @@ static void button_draw(
 
 {
 
-    /* color the background; a selected button keeps the pressed in look,
-       giving a persistent active state for modal buttons, and a hovered
-       button lights up */
-    if (wg->pressed || wg->select) fcolort(wg->head.wf, th_backpressed);
+    /* color the background; a hovered button lights up */
+    if (wg->pressed) fcolort(wg->head.wf, th_backpressed);
     else if (wg->head.hover && wg->head.enb) fcolort(wg->head.wf, th_backhover);
     else fcolort(wg->head.wf, th_back);
     ami_frect(wg->head.wf, 1, 1, ami_maxxg(wg->head.wf),
@@ -4021,10 +4019,9 @@ static void ikillwidget(
 
 Select/deselect widget
 
-Selects or deselects a widget. Any widget accepts and records the select
-state. Buttons render it as a persistent pressed in look, checkboxes and
-radio buttons as their check figure; widget kinds with no select rendering
-simply record the state.
+Selects or deselects a widget. Checkboxes and radio buttons render the
+select as their check figure; widget kinds with no select rendering simply
+record the state. A button has no select, and selecting one is an error.
 
 *******************************************************************************/
 
@@ -4040,6 +4037,8 @@ static void iselectwidget(
     ami_long  chg; /* widget state changes */
 
     wp = fndwig(f, id); /* index the widget */
+    /* a button has no select: pressed is its own affair */
+    if (wp->typ == wtbutton) error("Widget is not selectable");
     chg = wp->select != !!e; /* check select state changes */
     wp->select = !!e; /* set select state */
     /* if the select changes, refresh the widget */
