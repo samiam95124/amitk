@@ -3016,7 +3016,7 @@ static void* sequencer_thread(void* data)
                     pthread_mutex_lock(&snmlck);
                     numseq--; /* count active */
                     /* if now zero, signal zero crossing */
-                    if (!numseq) pthread_cond_signal(&snmzer);
+                    if (!numseq) pthread_cond_broadcast(&snmzer);
                     pthread_mutex_unlock(&snmlck); /* release lock */
                     if (numseq < 0) error("Wave locking imbalance");
 
@@ -4523,11 +4523,20 @@ static void *alsaplaymidi(void* data)
     pthread_mutex_lock(&synlck); /* take wave table lock */
     seqlst = syntab[s]; /* get the existing entry */
     pthread_mutex_unlock(&synlck); /* release lock */
-    if (!seqlst) return (NULL); /* entry is empty, abort */
+    if (!seqlst) { /* entry is empty, abort */
 
-    /* count active sequence instances */
+        /* give back the count the kickoff took */
+        pthread_mutex_lock(&snmlck);
+        numseq--;
+        if (!numseq) pthread_cond_broadcast(&snmzer);
+        pthread_mutex_unlock(&snmlck);
+
+        return (NULL);
+
+    }
+
+    /* the kickoff counted this play active; count the file's own plays */
     pthread_mutex_lock(&snmlck);
-    numseq++; /* count active */
     numsql[s]++;
     pthread_mutex_unlock(&snmlck); /* release lock */
 
@@ -4573,7 +4582,7 @@ static void *alsaplaymidi(void* data)
     numseq--; /* count active */
     numsql[s]--;
     /* if now zero, signal zero crossing */
-    if (!numseq) pthread_cond_signal(&snmzer);
+    if (!numseq) pthread_cond_broadcast(&snmzer);
     pthread_mutex_unlock(&snmlck); /* release lock */
     if (numseq < 0) error("Sequencer locking imbalance");
     free(pip); /* release data pointer */
@@ -4602,6 +4611,11 @@ void alsaplaysynth_kickoff(ami_long p, ami_long s)
     pip = malloc(sizeof(portid)); /* get a port/id structure */
     pip->port = p; /* place port */
     pip->id = s; /* place synth file id */
+    /* count the play active here, not in the thread, so that a waitsynth()
+       right after this call finds it */
+    pthread_mutex_lock(&snmlck);
+    numseq++;
+    pthread_mutex_unlock(&snmlck);
     pthread_create(&tid, NULL, alsaplaymidi, (void*)pip);
 
 }
@@ -5246,7 +5260,8 @@ void ami_waitsynth(ami_long p)
     if (!alsamidiout[p-1]->devopn) error("Synthsizer port not open");
 
     pthread_mutex_lock(&snmlck); /* lock counter */
-    pthread_cond_wait(&snmzer, &snmlck); /* wait zero event */
+    /* wait for the count of active plays to reach zero, none at all included */
+    while (numseq > 0) pthread_cond_wait(&snmzer, &snmlck);
     pthread_mutex_unlock(&snmlck); /* release lock */
 
 }
@@ -5387,12 +5402,17 @@ static void* alsaplaywave(void* data)
 
     }
     pthread_mutex_unlock(&wavlck); /* release lock */
-    if (!fn[0]) return (NULL); /* entry is empty, abort */
+    if (!fn[0]) { /* entry is empty, abort */
 
-    /* count active wave instances */
-    pthread_mutex_lock(&wnmlck);
-    numwav++; /* count active */
-    pthread_mutex_unlock(&wnmlck); /* release lock */
+        /* give back the count the kickoff took */
+        pthread_mutex_lock(&wnmlck);
+        numwav--;
+        if (!numwav) pthread_cond_broadcast(&wnmzer);
+        pthread_mutex_unlock(&wnmlck);
+
+        return (NULL);
+
+    }
 
     fh = open(fn, O_RDONLY);
     if (fh < 0) error("Cannot open input .wav file");
@@ -5486,7 +5506,7 @@ static void* alsaplaywave(void* data)
     pthread_mutex_lock(&wnmlck);
     numwav--; /* count active */
     /* if now zero, signal zero crossing */
-    if (!numwav) pthread_cond_signal(&wnmzer);
+    if (!numwav) pthread_cond_broadcast(&wnmzer);
     pthread_mutex_unlock(&wnmlck); /* release lock */
     if (numwav < 0) error("Wave locking imbalance");
     free(pip); /* release data pointer */
@@ -5515,6 +5535,11 @@ static void alsaplaywave_kickoff(ami_long p, ami_long w)
     pip = malloc(sizeof(portid)); /* get a port/id structure */
     pip->port = p; /* place port */
     pip->id = w; /* place synth file id */
+    /* count the play active here, not in the thread, so that a waitwave()
+       right after this call finds it */
+    pthread_mutex_lock(&wnmlck);
+    numwav++;
+    pthread_mutex_unlock(&wnmlck);
     pthread_create(&tid, NULL, alsaplaywave, (void*)pip);
 
 }
@@ -5759,7 +5784,8 @@ void ami_waitwave(ami_long p)
     if (!alsapcmout[p-1]->devopn) error("Wave port not open");
 
     pthread_mutex_lock(&wnmlck); /* lock counter */
-    pthread_cond_wait(&wnmzer, &wnmlck); /* wait zero event */
+    /* wait for the count of active plays to reach zero, none at all included */
+    while (numwav > 0) pthread_cond_wait(&wnmzer, &wnmlck);
     pthread_mutex_unlock(&wnmlck); /* release lock */
 
 }
