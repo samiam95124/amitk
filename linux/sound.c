@@ -3266,8 +3266,8 @@ void ami_stoptimein(void)
 
 Get current time input
 
-Finds the current time for the sequencer, which is the elapsed time since the
-sequencer started.
+Finds the current input time, which is the time elapsed since starttimein()
+began marking it. Returns 0 when input time is not being marked.
 
 *******************************************************************************/
 
@@ -3276,7 +3276,7 @@ ami_long ami_curtimein(void)
 {
 
     sndinit(); /* devices enumerate on first use */
-   if (!sinrun) error("Input MIDI time is not marking");
+   if (!sinrun) return (0); /* not marking input time */
 
    return (timediff(&sintim)); /* return difference time */
 
