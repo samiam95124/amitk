@@ -124,7 +124,8 @@ typedef enum {
     ami_etterm,     /* terminate program */
     ami_etframe,    /* frame sync */
     ami_etmoumovg,  /* mouse move graphical */
-    ami_etredraw,   /* window redraw */
+    ami_etredraw,   /* window redraw, character rectangle */
+    ami_etredrawg,  /* window redraw, pixel rectangle */
     ami_etmin,      /* window minimized */
     ami_etmax,      /* window maximized */
     ami_etnorm,     /* window normalized */
@@ -230,7 +231,7 @@ typedef struct {
             /** mouse movement */ ami_long moupxg, moupyg;
 
         };
-        /** etredraw */
+        /** etredraw, in characters, and etredrawg, in pixels */
         struct {
 
             /** bounding rectangle */

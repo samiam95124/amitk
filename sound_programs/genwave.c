@@ -36,7 +36,7 @@ Set square wave output (the default is sine wave).
 #define SIZEBUF 2048
 #define PI 3.14159
 
-ami_long dport = AMI_SYNTH_OUT; /* set default synth out */
+ami_long dport = AMI_WAVE_OUT; /* set default wave out */
 ami_long freq = 440; /* set default frequency */
 ami_long square = FALSE; /* set not square wave */
 

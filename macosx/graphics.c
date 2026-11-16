@@ -139,8 +139,6 @@ typedef struct winrec {
     int         autobuf;     /* the buffer shows scroll bars when larger than
                                 the client */
     int         bufmod;        /* double-buffer on */
-    int         bufset;        /* the program set the buffer's size: until
-                                  then it follows the window through setsiz */
     int         gauto;         /* window-level auto scroll/wrap state; new or
                                   reselected screens inherit it (matches the
                                   reference: ami_auto is a window property, not
@@ -1802,13 +1800,29 @@ static void translate_event(const pa_rawevent* raw, ami_evtrec* er)
         }
         break;
 
-    case PA_EVT_REDRAW:
+    case PA_EVT_REDRAW: {
+        /* The redraw is announced twice, as the resize is: etredrawg
+           carries the rectangle in pixels, sent on behind this one, and
+           etredraw the cells that cover it. */
+        winptr rw = wid2win(er->winid);
+        ami_long cs = rw && rw->charspace > 0? rw->charspace: 1;
+        ami_long ls = rw && rw->linespace > 0? rw->linespace: 1;
+        ami_evtrec* g = malloc(sizeof(*g));
+        if (!g) error(enomem);
+        memset(g, 0, sizeof(*g));
+        g->etype = ami_etredrawg;
+        g->rsx   = raw->redraw.x;
+        g->rsy   = raw->redraw.y;
+        g->rex   = raw->redraw.x + raw->redraw.w - 1;
+        g->rey   = raw->redraw.y + raw->redraw.h - 1;
+        pa_cocoa_send_user_event(raw->win, g);
         er->etype = ami_etredraw;
-        er->rsx   = raw->redraw.x;
-        er->rsy   = raw->redraw.y;
-        er->rex   = raw->redraw.x + raw->redraw.w - 1;
-        er->rey   = raw->redraw.y + raw->redraw.h - 1;
+        er->rsx   = (g->rsx-1)/cs+1;
+        er->rsy   = (g->rsy-1)/ls+1;
+        er->rex   = (g->rex-1)/cs+1;
+        er->rey   = (g->rey-1)/ls+1;
         break;
+    }
 
     case PA_EVT_JOY_MOVE:
         er->etype = ami_etjoymov;
@@ -2225,7 +2239,6 @@ static void sizbufg_ivf(FILE* f, ami_long x, ami_long y)
     winptr win = f2win(f); if (!win) return;
     if (x < 1 || y < 1) error(einvsiz); /* invalid buffer size */
     if (!win->bufmod) error(ebufoff); /* buffers exist in buffered mode */
-    win->bufset = TRUE; /* the program sets the buffer: it holds from here */
     isizbufg(win, x, y);
 }
 
@@ -3210,17 +3223,6 @@ static void setsizg_ivf(FILE* f, ami_long x, ami_long y)
         sc->lwidth = 1.0;
         CGContextRef ctx = pa_cocoa_get_context(win->han);
         if (ctx) CGContextSetLineWidth(ctx, 1.0);
-    } else if (!win->bufset) {
-        /* A buffer the program has not set follows the window: it was the
-           client's size at the open, and is the client's size after. A
-           program that sizes a window and never its buffer expects the two
-           to match; the buffer as opened, left larger than a window sized
-           smaller, would show scroll bars for it. A buffer set with sizbuf
-           holds. The client is taken as the window has it, with no bars. */
-        int aw, ah;
-        pa_cocoa_get_size(win->han, &aw, &ah);
-        if (aw >= 1 && ah >= 1 && (aw != win->maxxg || ah != win->maxyg))
-            isizbufg(win, aw, ah);
     }
 }
 

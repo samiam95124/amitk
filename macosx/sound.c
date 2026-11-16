@@ -445,13 +445,15 @@ static void ensure_seqthread(void)
     }
 }
 
-/* schedule or execute immediately */
+/* schedule or execute immediately. A timed entry needs the sequencer running,
+   and is an error without it, as on the other systems. */
 static void seqorexe(ami_seqptr sp)
 {
-    if (sp->time == 0 || !seqrun) {
+    if (sp->time == 0) {
         excseq(sp);
         putseq(sp);
     } else {
+        if (!seqrun) error("Sequencer not running");
         ami_long elap = timediff(&strtim);
         if (sp->time <= elap) {
             excseq(sp);
@@ -1360,7 +1362,7 @@ void ami_playsynth(ami_long p, ami_long t, ami_long s)
 {
     if (p < 1 || p > synthout_num) error("Invalid synth port");
     if (s < 1 || s > MAXMIDT) error("Invalid synth file slot");
-    if (t == 0 || !seqrun) {
+    if (t == 0) {
         playsynth_kickoff(p, s);
     } else {
         ami_seqptr sp;
@@ -1876,7 +1878,7 @@ void ami_playwave(ami_long p, ami_long t, ami_long w)
 {
     if (p < 1 || p > waveout_num) error("Invalid wave output port");
     if (!WAVIDOK(w)) error("Invalid wave file slot");
-    if (t == 0 || !seqrun) {
+    if (t == 0) {
         playwave_kickoff(p, w);
     } else {
         ami_seqptr sp;
@@ -1919,7 +1921,7 @@ void ami_volwave(ami_long p, ami_long t, ami_long v)
 {
     if (p < 1 || p > waveout_num) error("Invalid wave output port");
     if (v < 0) error("Invalid wave volume");
-    if (t == 0 || !seqrun) {
+    if (t == 0) {
         setwavvol(p, v);
     } else {
         ami_seqptr sp;

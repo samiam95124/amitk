@@ -192,6 +192,13 @@ typedef struct {
             ami_long rszx, rszy;
 
         };
+        /** etredraw */
+        struct {
+
+            /** bounding rectangle, in characters */
+            ami_long rsx, rsy, rex, rey;
+
+        };
         /* ami_etmenus */
         ami_long menuid; /* menu item selected */
         /* ami_etbutton */

@@ -1011,6 +1011,7 @@ static const char* gr_evtname(ami_long e)
         case ami_etframe: return "FRAME";
         case ami_etmoumovg: return "MOUMOVG";
         case ami_etredraw: return "REDRAW";
+        case ami_etredrawg: return "REDRAWG";
         case ami_etmin: return "MIN";
         case ami_etmax: return "MAX";
         case ami_etnorm: return "NORM";

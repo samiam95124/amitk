@@ -1400,10 +1400,10 @@ void ami_stoptimein(void)
 
 /*******************************************************************************
 
-Get current time output
+Get current time input
 
-Finds the current time for the sequencer, which is the elapsed time since the
-sequencer started.
+Finds the current input time, which is the time elapsed since starttimein()
+began marking it. Returns 0 when input time is not being marked.
 
 *******************************************************************************/
 
@@ -1411,7 +1411,7 @@ ami_long ami_curtimein(void)
 
 {
 
-    if (!sinrun) error("Sequencer not running");
+    if (!sinrun) return (0); /* not marking input time */
 
     return (difftime(sintim)); /* return difference time */
 

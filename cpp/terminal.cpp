@@ -145,6 +145,16 @@ void sizbuf(FILE* f, ami_long x, ami_long y) { ami_sizbuf(f, x, y); }
 void sizbuf(ami_long x, ami_long y) { ami_sizbuf(stdout, x, y); }
 void eventover(evtcod e, pevthan eh, pevthan* oeh) { ami_eventover((ami_evtcod)e, (ami_pevthan)eh, (ami_pevthan*)oeh); }
 void eventsover(pevthan eh, pevthan* oeh) { ami_eventsover((ami_pevthan)eh, (ami_pevthan*)oeh); }
+void title(FILE* f, char* ts) { ami_title(f, ts); }
+void title(char* ts) { ami_title(stdout, ts); }
+void titlen(FILE* f, char* ts, ami_long n) { ami_titlen(f, ts, n); }
+void titlen(char* ts, ami_long n) { ami_titlen(stdout, ts, n); }
+void fcolorc(FILE* f, ami_long r, ami_long g, ami_long b) { ami_fcolorc(f, r, g, b); }
+void fcolorc(ami_long r, ami_long g, ami_long b) { ami_fcolorc(stdout, r, g, b); }
+void bcolorc(FILE* f, ami_long r, ami_long g, ami_long b) { ami_bcolorc(f, r, g, b); }
+void bcolorc(ami_long r, ami_long g, ami_long b) { ami_bcolorc(stdout, r, g, b); }
+void openprint(FILE** f, char* n) { ami_openprint(f, n); }
+void errorover(ami_errhan nfp, ami_errhan* ofp) { ami_errorover(nfp, ofp); }
 
 /* methods */
 term::term(void)
@@ -228,6 +238,10 @@ void term::wrtstr(char *s) { ami_wrtstr(outfile, s); }
 void term::wrtstr(char *s, ami_long n) { ami_wrtstrn(outfile, s, n); }
 void term::wrtstrn(char *s, ami_long n) { ami_wrtstrn(outfile, s, n); }
 void term::sizbuf(ami_long x, ami_long y) { ami_sizbuf(outfile, x, y); }
+void term::title(char* ts) { ami_title(outfile, ts); }
+void term::titlen(char* ts, ami_long n) { ami_titlen(outfile, ts, n); }
+void term::fcolorc(ami_long r, ami_long g, ami_long b) { ami_fcolorc(outfile, r, g, b); }
+void term::bcolorc(ami_long r, ami_long g, ami_long b) { ami_bcolorc(outfile, r, g, b); }
 
 /* virtual callbacks */
 ami_long term::evchar(char c) { return 0; }

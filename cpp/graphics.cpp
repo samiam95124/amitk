@@ -765,6 +765,7 @@ ami_long graph::evterm(void) { return 0; }
 ami_long graph::evframe(void) { return 0; }
 ami_long graph::evmoumovg(ami_long m, ami_long x, ami_long y) { return 0; }
 ami_long graph::evredraw(ami_long x1, ami_long y1, ami_long x2, ami_long y2) { return 0; }
+ami_long graph::evredrawg(ami_long x1, ami_long y1, ami_long x2, ami_long y2) { return 0; }
 ami_long graph::evmin(void) { return 0; }
 ami_long graph::evmax(void) { return 0; }
 ami_long graph::evnorm(void) { return 0; }
@@ -860,6 +861,7 @@ void graph::graphCB(evtrec* er)
             handled = graphoCB->evmoumovg(er->mmoung, er->moupxg, er->moupyg);
             break;
         case etredraw:  handled = graphoCB->evredraw(er->rsx, er->rsy, er->rex, er->rey); break;
+        case etredrawg: handled = graphoCB->evredrawg(er->rsx, er->rsy, er->rex, er->rey); break;
         case etmin:     handled = graphoCB->evmin(); break;
         case etmax:     handled = graphoCB->evmax(); break;
         case etnorm:    handled = graphoCB->evnorm(); break;
@@ -1093,6 +1095,7 @@ void windowCB(evtrec* er)
         case etterm: handled = wp->evterm(); break;
         case etframe: handled = wp->evframe(); break;
         case etredraw: handled = wp->evredraw(er->rsx, er->rsy, er->rex, er->rey); break;
+        case etredrawg: handled = wp->evredrawg(er->rsx, er->rsy, er->rex, er->rey); break;
         case etmin: handled = wp->evmin(); break;
         case etmax: handled = wp->evmax(); break;
         case etnorm: handled = wp->evnorm(); break;
@@ -1414,6 +1417,7 @@ ami_long window::evterm(void) { return 0; }
 ami_long window::evframe(void) { return 0; }
 ami_long window::evmoumovg(ami_long m, ami_long x, ami_long y) { return 0; }
 ami_long window::evredraw(ami_long x1, ami_long y1, ami_long x2, ami_long y2) { return 0; }
+ami_long window::evredrawg(ami_long x1, ami_long y1, ami_long x2, ami_long y2) { return 0; }
 ami_long window::evmin(void) { return 0; }
 ami_long window::evmax(void) { return 0; }
 ami_long window::evnorm(void) { return 0; }

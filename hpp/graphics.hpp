@@ -111,6 +111,7 @@ typedef enum {
     /** frame sync */                   etframe,
     /** mouse move graphical */         etmoumovg,
     /** window redraw */                etredraw,
+    /** window redraw graphical */      etredrawg,
     /** window minimized */             etmin,
     /** window maximized */             etmax,
     /** window normalized */            etnorm,
@@ -212,7 +213,7 @@ typedef struct {
             /** mouse movement */ ami_long moupxg, moupyg;
 
         };
-        /** etredraw */
+        /** etredraw, in characters, and etredrawg, in pixels */
         struct {
 
             /** bounding rectangle */
@@ -1042,6 +1043,7 @@ virtual ami_long evterm(void);
 virtual ami_long evframe(void);
 virtual ami_long evmoumovg(ami_long m, ami_long x, ami_long y);
 virtual ami_long evredraw(ami_long x1, ami_long y1, ami_long x2, ami_long y2);
+virtual ami_long evredrawg(ami_long x1, ami_long y1, ami_long x2, ami_long y2);
 virtual ami_long evmin(void);
 virtual ami_long evmax(void);
 virtual ami_long evnorm(void);
@@ -1380,6 +1382,7 @@ virtual ami_long evterm(void);
 virtual ami_long evframe(void);
 virtual ami_long evmoumovg(ami_long m, ami_long x, ami_long y);
 virtual ami_long evredraw(ami_long x1, ami_long y1, ami_long x2, ami_long y2);
+virtual ami_long evredrawg(ami_long x1, ami_long y1, ami_long x2, ami_long y2);
 virtual ami_long evmin(void);
 virtual ami_long evmax(void);
 virtual ami_long evnorm(void);

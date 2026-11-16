@@ -284,9 +284,6 @@ typedef struct winrec {
     int          bufmod;            /* buffered screen mode */
     int          autobuf;           /* the buffer shows scroll bars when
                                        larger than the client */
-    int          bufset;            /* the program set the buffer's size: until
-                                       it does, the buffer follows the window's
-                                       client through setsiz */
     pd_win*      xchan;             /* the canvas: a child of the subclient the
                                        size of the buffer, that the screen is
                                        drawn on and the mouse arrives on, both
