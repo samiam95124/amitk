@@ -1640,8 +1640,8 @@ Wait external message connection
 Waits for an external message socket connection on a given port address. If an
 external client connects to that port, then a socket file is opened and the file
 number returned. Note that any number of such connections can be active at one
-time. The program can invoke multiple tasks to handle each connection. If
-another program tries to take the same port, it is blocked.
+time. The program can invoke multiple tasks to handle each connection. Another
+program can take the same port as well: the socket is set for reuse.
 
 *******************************************************************************/
 
@@ -2176,8 +2176,8 @@ Wait external network connection
 Waits for an external socket connection on a given port address. If an external
 client connects to that port, then a socket file is opened and the file number
 returned. Note that any number of such connections can be active at one time.
-The program can invoke multiple tasks to handle each connection. If another
-program tries to take the same port, it is blocked.
+The program can invoke multiple tasks to handle each connection. Another
+program can take the same port as well: the socket is set for reuse.
 
 *******************************************************************************/
 
