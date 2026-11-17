@@ -213,6 +213,7 @@ typedef enum {
     enolpkey, /* Cannot load private key */
     enotmsg,  /* not a message file id */
     eismsg,   /* is a message file id */
+    emsgsiz,  /* Message exceeds buffer length */
     enotsec,  /* Not a secured file */
     enocert,  /* Cannot retrieve certificate */
     enobio,   /* Cannot create BIO in OpenSSL */
@@ -346,6 +347,7 @@ static void error(errcod e)
         case enolpkey: netwrterr("Cannot load private key"); break;
         case enotmsg:  netwrterr("Not a message file id"); break;
         case eismsg:   netwrterr("Is a message file id"); break;
+        case emsgsiz:  netwrterr("Message exceeds buffer length"); break;
         case enotsec:  netwrterr("Not a secured file"); break;
         case enocert:  netwrterr("Cannot retrieve certificate"); break;
         case enobio:   netwrterr("Cannot create BIO in OpenSSL"); break;
@@ -1968,7 +1970,8 @@ Read message from message file
 Reads a message from the message file, of any length up to and including the
 specified buffer length. The actual length transferred is returned. The length
 of the buffer should be equal to maxmsg to pass all possible messages, unless it
-is known that a given message size will never be exceeded.
+is known that a given message size will never be exceeded. A message longer
+than the buffer is an error.
 
 *******************************************************************************/
 ami_long ami_rdmsg(ami_long fn, void* msg, ami_ulong len)
@@ -1989,6 +1992,8 @@ ami_long ami_rdmsg(ami_long fn, void* msg, ami_ulong len)
         sr = SSL_read(opnfil[fn]->ssl, msg, len);
         if (sr <= 0) sslerror(opnfil[fn]->ssl, sr);
         r = sr; /* set length read */
+        /* what is left of the record did not fit the buffer */
+        if (SSL_pending(opnfil[fn]->ssl) > 0) error(emsgsiz);
 
     } else {
 
@@ -2009,11 +2014,8 @@ ami_long ami_rdmsg(ami_long fn, void* msg, ami_ulong len)
         }
         if (r == SOCKET_ERROR) {
 
-            /* Unix recvfrom truncates a datagram larger than the buffer and
-               returns the buffer length; Windows copies the truncated data
-               to the buffer the same way but then reports WSAEMSGSIZE. Give
-               it the Unix behavior, which rdmsg is specified to have. */
-            if (WSAGetLastError() == WSAEMSGSIZE) r = len;
+            /* a message longer than the buffer is our own error */
+            if (WSAGetLastError() == WSAEMSGSIZE) error(emsgsiz);
             else wskerr();
 
         }

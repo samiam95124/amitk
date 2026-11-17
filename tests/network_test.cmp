@@ -62,8 +62,14 @@ message exchange in the clear (IPv6)     pass
     sent 13 byte message, received 13 byte reply over UDP in the clear on IPv6
 message exchange secured (DTLS, IPv6)    pass
     sent 13 byte message, received 13 byte reply over DTLS on IPv6
-rdmsg short buffer truncates             pass
-    13 byte message into a 5 byte buffer: 5 bytes, "Hello"
+
+Error: Network: Message exceeds buffer length
+rdmsg short buffer is an error           pass
+    13 byte message into a 5 byte buffer: "Message exceeds buffer length"
+
+Error: Network: Message exceeds buffer length
+rdmsg short buffer is an error (DTLS)    pass
+    13 byte message into a 5 byte buffer: "Message exceeds buffer length"
 
 ----- Message limits: maxmsg/relymsg (IPv4), maxmsgv6/relymsgv6 (IPv6); a maxmsg sized message is deliverable -----
 
@@ -105,4 +111,4 @@ certlist CA basic constraints critical   pass
 certnet past chain end is empty          pass
 certlistnet past chain end is NULL       pass
 
-Network test complete: 53 passes, 0 fails
+Network test complete: 54 passes, 0 fails

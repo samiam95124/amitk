@@ -183,6 +183,7 @@ typedef enum {
     enolpkey, /* Cannot load private key */
     enotmsg,  /* not a message file id */
     eismsg,   /* is a message file id */
+    emsgsiz,  /* Message exceeds buffer length */
     enotsec,  /* Not a secured file */
     enocert,  /* Cannot retrieve certificate */
     enobio,   /* Cannot create BIO in OpenSSL */
@@ -378,6 +379,7 @@ static void error(errcod e)
         case enolpkey: netwrterr("Cannot load private key"); break;
         case enotmsg:  netwrterr("Not a message file id"); break;
         case eismsg:   netwrterr("Is a message file id"); break;
+        case emsgsiz:  netwrterr("Message exceeds buffer length"); break;
         case enotsec:  netwrterr("Not a secured file"); break;
         case enocert:  netwrterr("Cannot retrieve certificate"); break;
         case enobio:   netwrterr("Cannot create BIO in OpenSSL"); break;
@@ -1993,7 +1995,8 @@ Read message from message file
 Reads a message from the message file, of any length up to and including the
 specified buffer length. The actual length transferred is returned. The length
 of the buffer should be equal to maxmsg to pass all possible messages, unless it
-is known that a given message size will never be exceeded.
+is known that a given message size will never be exceeded. A message longer
+than the buffer is an error.
 
 *******************************************************************************/
 
@@ -2002,8 +2005,9 @@ ami_long ami_rdmsg(ami_long fn, void* msg, ami_ulong len)
 {
 
     ssize_t r;
-    socklen_t al;
     int sr;
+    struct msghdr mh;
+    struct iovec  iv;
 
     if (fn < 0 || fn >= MAXFIL) error(einvhan); /* invalid file handle */
 
@@ -2015,24 +2019,33 @@ ami_long ami_rdmsg(ami_long fn, void* msg, ami_ulong len)
         sr = SSL_read(opnfil[fn]->ssl, msg, len);
         if (sr <= 0) sslerror(opnfil[fn]->ssl, sr);
         r = sr; /* set length read */
+        /* what is left of the record did not fit the buffer */
+        if (SSL_pending(opnfil[fn]->ssl) > 0) error(emsgsiz);
 
     } else {
 
-        /* write the message to socket, blocking (get full UDP message) */
+        /* read the message from the socket, blocking (get full UDP message).
+           The sender address is captured so a server can reply, and the
+           system flags a message it had to cut to fit the buffer. */
+        iv.iov_base = msg;
+        iv.iov_len = len;
+        memset(&mh, 0, sizeof(mh));
+        mh.msg_iov = &iv;
+        mh.msg_iovlen = 1;
         if (opnfil[fn]->v6addr) {
 
-            al = sizeof(struct sockaddr_in6);
-            r = recvfrom((int)fn, msg, len, MSG_WAITALL,
-                         (struct sockaddr *) &opnfil[fn]->saddr.s6, &al);
+            mh.msg_name = &opnfil[fn]->saddr.s6;
+            mh.msg_namelen = sizeof(struct sockaddr_in6);
 
         } else {
 
-            al = sizeof(struct sockaddr_in);
-            r = recvfrom((int)fn, msg, len, MSG_WAITALL,
-                         (struct sockaddr *) &opnfil[fn]->saddr.s4, &al);
+            mh.msg_name = &opnfil[fn]->saddr.s4;
+            mh.msg_namelen = sizeof(struct sockaddr_in);
 
         }
+        r = recvmsg((int)fn, &mh, MSG_WAITALL);
         if (r < 0) linuxerror();
+        if (mh.msg_flags & MSG_TRUNC) error(emsgsiz);
 
     }
 

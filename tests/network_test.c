@@ -33,7 +33,7 @@
 *    dual stack. The certificate queries are also made on a v6 connection.    *
 * 9. Contract corners: the critical buffer clause of certnet at the exact     *
 *    certificate length (fills, no terminator; one byte more terminates);     *
-*    rdmsg with a buffer shorter than the message (datagram truncation);      *
+*    rdmsg with a buffer shorter than the message (an error);                 *
 *    relymsg says loopback is reliable, which it is by definition; two        *
 *    connections open at once with their replies kept apart; and the          *
 *    refused connection retry of opennet, run against a server that is       *
@@ -47,6 +47,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <setjmp.h>
 
 #ifdef _WIN32
 #include <windows.h>
@@ -73,6 +74,7 @@
 #define PORT_MAXM  24430
 #define PORT_MAXM6 24431
 #define PORT_TRUNC 24432
+#define PORT_TRUNCS 24441
 #define PORT_SIM1  24433
 #define PORT_SIM2  24434
 #define PORT_RETRY 24435
@@ -704,32 +706,46 @@ static void tmsglimv6(void)
 
 }
 
-/* A message longer than the buffer given to rdmsg: datagram semantics,
-   the buffer's worth arrives and the rest of the message is gone. The
-   reply is thirteen bytes read into five. */
-static void trdtrunc(void)
+/* A message longer than the buffer given to rdmsg is an error. The reply
+   is thirteen bytes read into five; the error is taken by a handler that
+   returns here, and the text it was given is checked. */
+static jmp_buf truncjmp;
+static char    truncmsg[100];
+
+static void trunchan(const char* es)
+
+{
+
+    strncpy(truncmsg, es, sizeof(truncmsg)-1);
+    longjmp(truncjmp, 1);
+
+}
+
+static void trdtrunc(const char* name, int port, int secure)
 
 {
 
     ami_ulong addr;
-    ami_long fn;
-    ami_long len;
+    volatile ami_long fn;
+    volatile int pass;
     char five[5];
-    int  pass;
 
-    startsrv(msgserver, PORT_TRUNC, FALSE);
+    pass = FALSE;
+    truncmsg[0] = 0;
+    startsrv(msgserver, port, secure);
     waitsrv();
     ami_addrnet("localhost", &addr);
-    fn = ami_openmsg(addr, PORT_TRUNC, FALSE);
+    fn = ami_openmsg(addr, port, secure);
     ami_wrmsg(fn, "Hello, server", 13);
-    memset(five, 0, sizeof(five));
-    len = ami_rdmsg(fn, five, sizeof(five));
-    pass = len == 5 && !strncmp(five, "Hello", 5);
+    fflush(stdout); /* the error text goes out on stderr */
+    ami_neterror(trunchan);
+    if (!setjmp(truncjmp)) ami_rdmsg(fn, five, sizeof(five));
+    else pass = !strcmp(truncmsg, "Message exceeds buffer length");
+    ami_neterror(NULL);
     ami_clsmsg(fn);
     finish();
-    result("rdmsg short buffer truncates", pass);
-    printf("    13 byte message into a 5 byte buffer: %lld bytes, "
-           "\"%.5s\"\n", AMI_LONG_CAST(len), five);
+    result(name, pass);
+    printf("    13 byte message into a 5 byte buffer: \"%s\"\n", truncmsg);
 
 }
 
@@ -957,7 +973,8 @@ int main(int argc, char **argv)
     tmsg("message exchange secured (DTLS)", PORT_DTLS, TRUE);
     tmsgv6("message exchange in the clear (IPv6)", PORT_MSG6, FALSE);
     tmsgv6("message exchange secured (DTLS, IPv6)", PORT_DTLS6, TRUE);
-    trdtrunc();
+    trdtrunc("rdmsg short buffer is an error", PORT_TRUNC, FALSE);
+    trdtrunc("rdmsg short buffer is an error (DTLS)", PORT_TRUNCS, TRUE);
     section("Message limits: maxmsg/relymsg (IPv4), maxmsgv6/relymsgv6 "
             "(IPv6); a maxmsg sized message is deliverable");
     tmsglim();
