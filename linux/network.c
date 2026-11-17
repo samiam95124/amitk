@@ -2235,8 +2235,8 @@ FILE* ami_waitnet(/* port number to wait on */ ami_long port,
 
     /* accept connection, discard peer address */
     fn = accept(sfn, NULL, NULL);
-    if (r < 0) linuxerror();
-    if (sfn < 0 || sfn >= MAXFIL) error(einvhan); /* invalid file handle */
+    if (fn < 0) linuxerror();
+    if (fn >= MAXFIL) error(einvhan); /* invalid file handle */
 
     /* discard server port */
     close(sfn);
