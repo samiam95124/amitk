@@ -31,6 +31,10 @@ typedef struct certfield {
 
 } certfield, *certptr;
 
+/* network error handler: called with the error text before the abort; one
+   that longjmps takes the error, one that returns lets the abort proceed */
+typedef void (*neterrhan_t)(const char* es);
+
 /* procedures and functions */
 void  addrnet(const char* name, ami_ulong* addr);
 void  addrnetv6(const char* name, unsigned long long* addrh,
@@ -49,7 +53,12 @@ ami_long  openmsgv6(unsigned long long addrh, unsigned long long addrl,
                 ami_long port, ami_long secure = 0);
 void  wrmsg(ami_long fn, void* msg, ami_ulong len);
 ami_long  rdmsg(ami_long fn, void* msg, ami_ulong len);
+ami_long  rdymsg(ami_long fn, ami_long usec = 0);
+void  tmomsg(ami_long fn, ami_long usec);
+void  bufmsg(ami_long fn, ami_long len);
+void  shutmsg(ami_long fn);
 void  clsmsg(ami_long fn);
+void  neterror(neterrhan_t handler);
 FILE* waitnet(ami_long port, ami_long secure = 0);
 ami_long  waitmsg(ami_long port, ami_long secure = 0);
 ami_long  certnet(FILE* f, ami_long which, char* cert, ami_long len);
@@ -142,6 +151,10 @@ void openmsgv6(const char* name, ami_long port, ami_long secure = 0);
 void waitmsg(ami_long port, ami_long secure = 0);
 void wrmsg(void* buff, ami_ulong len);
 ami_long rdmsg(void* buff, ami_ulong len);
+ami_long rdymsg(ami_long usec = 0);
+void tmomsg(ami_long usec);
+void bufmsg(ami_long len);
+void shutmsg(void);
 void clsmsg(void);
 ami_long certmsg(ami_long which, char* cert, ami_long len);
 ami_long certvalidmsg(ami_long which);

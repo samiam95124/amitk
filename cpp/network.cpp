@@ -63,7 +63,12 @@ ami_long  openmsgv6(unsigned long long addrh, unsigned long long addrl,
 void  wrmsg(ami_long fn, void* msg, ami_ulong len) { ami_wrmsg(fn, msg, len); }
 ami_long  rdmsg(ami_long fn, void* msg, ami_ulong len)
     { return ami_rdmsg(fn, msg, len); }
+ami_long  rdymsg(ami_long fn, ami_long usec) { return ami_rdymsg(fn, usec); }
+void  tmomsg(ami_long fn, ami_long usec) { ami_tmomsg(fn, usec); }
+void  bufmsg(ami_long fn, ami_long len) { ami_bufmsg(fn, len); }
+void  shutmsg(ami_long fn) { ami_shutmsg(fn); }
 void  clsmsg(ami_long fn) { ami_clsmsg(fn); }
+void  neterror(neterrhan_t handler) { ami_neterror(handler); }
 FILE* waitnet(ami_long port, ami_long secure) { return ami_waitnet(port, secure); }
 ami_long  waitmsg(ami_long port, ami_long secure) { return ami_waitmsg(port, secure); }
 ami_long  certnet(FILE* f, ami_long which, char* cert, ami_long len)
@@ -244,6 +249,11 @@ void msg::waitmsg(ami_long port, ami_long secure)
 void msg::wrmsg(void* buff, ami_ulong len) { ami_wrmsg(fn, buff, len); }
 ami_long msg::rdmsg(void* buff, ami_ulong len)
     { return ami_rdmsg(fn, buff, len); }
+ami_long msg::rdymsg(ami_long usec) { return ami_rdymsg(fn, usec); }
+void msg::tmomsg(ami_long usec) { ami_tmomsg(fn, usec); }
+void msg::bufmsg(ami_long len) { ami_bufmsg(fn, len); }
+/* shut the channel under its reader; it is still held, and still closes */
+void msg::shutmsg(void) { ami_shutmsg(fn); }
 
 void msg::clsmsg(void)
 
