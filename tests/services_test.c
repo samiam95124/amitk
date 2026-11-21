@@ -50,7 +50,38 @@ static void waittime(ami_long t)
 
 }
 
-int main(void)
+/* Sort a directory listing by name. ami_list() gives the entries in the
+   order the filesystem holds them, which is not the same from one disk to
+   the next, so the listing is put in order before it is printed. */
+
+static ami_filptr sortlist(ami_filptr lp)
+
+{
+
+    ami_filptr sl = NULL; /* sorted list */
+    ami_filptr p, *pp;
+
+    while (lp) {
+
+        p = lp; /* take the next entry */
+        lp = lp->next;
+        pp = &sl; /* find its place */
+        while (*pp && strcmp((*pp)->name, p->name) <= 0) pp = &(*pp)->next;
+        p->next = *pp; /* insert it there */
+        *pp = p;
+
+    }
+
+    return (sl);
+
+}
+
+/* The directory test lists the directory named on the command line, as
+   "dir/", or the current directory if none is named. bin/regress names
+   tests/testdir, which holds a few files kept for the purpose and nothing
+   else, so the listing is the same on every run. */
+
+int main(int argc, char* argv[])
 
 {
 
@@ -69,7 +100,8 @@ int main(void)
     printf("Services module test v1.0\n");
     printf("\n");
     printf("test1:\n");
-    ami_list("*", &lp);
+    ami_list(argc > 1 ? argv[1] : "*", &lp);
+    lp = sortlist(lp);
     while (lp) {
 
         printf("%-25s %-10lld %-10lld ", lp->name, lp->size, lp->alloc);
@@ -90,7 +122,8 @@ int main(void)
         lp = lp->next;
 
     }
-    printf("s/b <the listing for the current directory>\n");
+    if (argc > 1) printf("s/b <the listing for %s>\n", argv[1]);
+    else printf("s/b <the listing for the current directory>\n");
     ami_times(s, MAXSTR, ami_time());
     printf("test 3: %s s/b <the current time in zulu>\n", s);
     ami_times(s, MAXSTR, ami_local(ami_time()));
