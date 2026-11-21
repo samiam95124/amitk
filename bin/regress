@@ -120,8 +120,12 @@
 #
 # The test binaries load the Petit-Ami shared libraries relative to the
 # current directory, so everything runs from the repository root, except
-# services_test: it lists the current directory, so it runs in the fixed
-# sandbox tests/regress (which carries a lib symlink for the loader).
+# services_test, which runs in the sandbox tests/regress (which carries a
+# lib symlink for the loader). The directory its listing test lists is
+# tests/testdir, which regress names to it: a few dummy files kept for that
+# test alone, where nothing else is ever written, so the listing never
+# changes. The files have no line endings, so their sizes are the same on
+# every platform.
 # services_test also prints environment and locale state, so it runs under a
 # controlled minimal environment. The .cmp files still contain some machine
 # specific text (home paths, country, timezone); regenerate them with
@@ -246,6 +250,9 @@ fi
 # - the largest loopback message in network_test, which is the loopback
 #   route's MTU less the headers and so the platform's: Linux offers 65488
 #   over v6 where Windows offers 65487
+# - the size and allocation of the listed directory's parent in
+#   services_test's listing, with their padding, as one '*': the parent is the tests
+#   directory, whose size, and its number of digits, changes as it fills
 # - the host position of services_test, which comes from a network lookup
 #   when the configuration gives none, and so varies with the connection
 # - the daylight savings flag, which changes with the season. The timezone
@@ -276,7 +283,7 @@ mask()
         -e 's|^(test 702: 1 s/b 1 \(length )[0-9]+|\1*|' \
         -e 's|^(test 59: Daysave: )[0-9]+|\1*|' \
         -e 's|^(test 5[345]: [A-Za-z]+: )-?[0-9]+|\1*|' \
-        -e 's#^(\.\. +)[0-9]+( +)[0-9]+#\1*\2*#' \
+        -e 's#^(\.\. +)[0-9]+ +[0-9]+ +#\1* #' \
         -e 's|^(    maximum (secure )?message for (v6 )?loopback: )[0-9]+|\1*|' \
         -e 's|^(    sent )[0-9]+( bytes \(the maxmsg(v6)? limit\), server received )[0-9]+|\1*\2*|' \
         -e 's|^(    google.com A    -> ).*|\1*|' \
@@ -430,7 +437,8 @@ runtest()
     case "$1" in
 
     services_test)
-        # fixed sandbox for the directory listing; controlled environment;
+        # run in the sandbox; the directory it lists is tests/testdir, named
+        # from there; controlled environment;
         # PATH carries the repository bin for the exec tests. Windows names
         # the user in USERNAME.
         user="${USER:-$USERNAME}"
@@ -438,7 +446,7 @@ runtest()
          timeout 300 env -i HOME="$HOME" USER="$user" LOGNAME="$user" \
              PATH="$root/bin:/usr/local/bin:/usr/bin:/bin" \
              LANG="en_US.UTF-8" \
-             "$root/$(binof "$1")" < /dev/null) \
+             "$root/$(binof "$1")" ../testdir/ < /dev/null) \
              > "tests/$1.lst" 2>&1
         ;;
 
