@@ -15,7 +15,7 @@ control-= unshifted, since that is the one most people actually press.
 
 Build as a graphical program:
 
-    gcc $(CFLAGS) tests/sizekeys.c $(GLIBS) -o bin/sizekeys
+    gcc $(CFLAGS) tests/source/sizekeys.c $(GLIBS) -o bin/sizekeys
 
 Press control-+ and control--, and the sample text changes size while the
 window stays put. Escape twice, or the close box, ends it.

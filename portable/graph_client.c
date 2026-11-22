@@ -2282,7 +2282,7 @@ The picture tests capture their window and the event file drives their
 widgets through the display's seat rig, both display side features: the
 display is the server's, so they are asked of it. The capture hook
 (stub/screen_capture_stub.c, linked by the remote tests) and the seat of
-tests/auto_event.c come here. The capture waits for the server's answer,
+tests/source/auto_event.c come here. The capture waits for the server's answer,
 given when the picture is written, so the test's next drawing cannot get
 into the picture, and the file is whole when the test exits.
 

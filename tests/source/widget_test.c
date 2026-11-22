@@ -142,7 +142,7 @@ extern int  auto_event_step(void);
 extern void auto_event(FILE* f, ami_evtrec* er);
 
 #define EVENTNAME "widget_test.evt"    /* the events of the automatic run */
-#define EVENTFILE "tests/" EVENTNAME   /* where they are from the repository */
+#define EVENTFILE "tests/compare/" EVENTNAME   /* where they are from the repository */
 
 static int stepnum; /* the step within the frame being drawn */
 static int wholecap; /* the frame was captured whole */
@@ -153,7 +153,7 @@ static void frmstep(void);
    are windows of their own and paint from events, so an automatic run
    pumps events for a moment to let the screen settle before capturing it,
    then answers the wait with a return. The widgets are worked by the events
-   of tests/widget_test.evt (see doc/auto_events.md), put in at the display's
+   of tests/compare/widget_test.evt (see doc/auto_events.md), put in at the display's
    seat as a person's clicks and keys, each line captured as a step of the
    frame; "widget_test events" takes the file in an interactive run too. */
 static int autorun = FALSE;

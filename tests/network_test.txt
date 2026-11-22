@@ -1,6 +1,6 @@
 ************************** MANUAL NETWORK TESTS ********************************
 
-[NOTE: this procedure is superceeded by the automated tests/network_test.c,
+[NOTE: this procedure is superceeded by the automated tests/source/network_test.c,
 built as bin/network_test]
 
 No automated test exists for the network at present. These tests are performed

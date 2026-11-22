@@ -4,9 +4,9 @@
 *                                                                              *
 *                    Copyright (C) 2026 Scott A. Franco                        *
 *                                                                              *
-* The same page as tests/widgets_demo.c, built on GTK instead of on Ami, so     *
-* that the two can be set beside each other: the same widgets, the same        *
-* arrangement, the same dialogs, drawn by the toolkit the desktop ships.       *
+* The same page as tests/source/widgets_demo.c, built on GTK instead of on     *
+* Ami, so that the two can be set beside each other: the same widgets, the     *
+* same arrangement, the same dialogs, drawn by the toolkit the desktop ships.  *
 *                                                                              *
 * It is a comparison piece, not a port. Where GTK names a widget differently   *
 * the nearest one is used and the Ami name is kept on the label, so that the   *
