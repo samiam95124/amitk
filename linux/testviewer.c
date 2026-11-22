@@ -7,14 +7,16 @@
 *                                                                              *
 * Two kinds of file are understood, told apart by their first bytes:           *
 *                                                                              *
-*   A stream of PNGs, as the screen_capture module writes to tests/<test>.img *
-*   and as the picture standards tests/<platform>_compare/<test>.cmp hold:     *
-*   each PNG is one frame, and is shown as it is.                              *
+*   A stream of PNGs, as the screen_capture module writes to                   *
+*   tests/results/<test>.img and as the picture standards                      *
+*   tests/compare/<platform>/<test>.cmp hold: each PNG is one frame, and is    *
+*   shown as it is.                                                            *
 *                                                                              *
-*   A text listing, as the terminal tests write to tests/<test>.lst and as     *
-*   their standards tests/<test>.cmp hold: pages separated by form feeds,      *
-*   each page one frame, drawn in a fixed font, black on white, the way the    *
-*   terminal showed it. The text is UTF-8: the windowed tests draw their       *
+*   A text listing, as the terminal tests write to tests/results/<test>.lst    *
+*   and as their standards tests/compare/<test>.cmp hold: pages separated by   *
+*   form feeds, each page one frame, drawn in a fixed font, black on white,    *
+*   the way the terminal showed it. The text is UTF-8: the windowed tests      *
+*   draw their                                                                 *
 *   frames in box-drawing characters, and the Unicode fixed font has them.     *
 *                                                                              *
 * Keys:                                                                        *

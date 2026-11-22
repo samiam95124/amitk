@@ -16,7 +16,7 @@
 * follows every page with a form feed. The harness starts the xterm with the  *
 * printer command appending to the listing file:                               *
 *                                                                              *
-*   xterm -xrm '*printerCommand: cat >> tests/terminal_test.lst'              *
+*   xterm -xrm '*printerCommand: cat >> tests/results/terminal_test.lst'       *
 *         -xrm '*printAttributes: 0' -xrm '*printerAutoClose: true'           *
 *                                                                              *
 * printAttributes 0 keeps the pages to plain text; printerAutoClose closes    *

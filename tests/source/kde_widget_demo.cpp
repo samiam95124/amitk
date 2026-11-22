@@ -4,9 +4,9 @@
 *                                                                              *
 *                    Copyright (C) 2026 Scott A. Franco                        *
 *                                                                              *
-* The same page as tests/widgets_demo.c, built on Qt instead of on Ami, so      *
-* that the two can be set beside each other: the same widgets, the same        *
-* arrangement, the same dialogs, drawn by the toolkit KDE is built on.         *
+* The same page as tests/source/widgets_demo.c, built on Qt instead of on      *
+* Ami, so that the two can be set beside each other: the same widgets, the     *
+* same arrangement, the same dialogs, drawn by the toolkit KDE is built on.    *
 *                                                                              *
 * This one is C++ because Qt is: the toolkit has no C binding, and none can    *
 * be written for it, its whole interface being classes and its signals being   *

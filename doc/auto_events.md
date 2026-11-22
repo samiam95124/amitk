@@ -69,10 +69,10 @@ either the test, or in some cases, graphics.c/widget.c changes.
 
 ## As built
 
-The module is tests/auto_event.c, linked into the picture tests and, built
+The module is tests/source/auto_event.c, linked into the picture tests and, built
 with AUTO_EVENT_TERMINAL for the terminal's event set, into the terminal
-tests. The file is named after its test, tests/graphics_test.evt,
-tests/terminal_test.evt, tests/window_test.evt or tests/widget_test.evt, and
+tests. The file is named after its test, tests/compare/graphics_test.evt,
+tests/compare/terminal_test.evt, tests/compare/window_test.evt or tests/compare/widget_test.evt, and
 is committed beside it as an input. A run given a
 capture file takes the event file from the capture file's directory, since
 the regression runs the terminal tests from tests/terminal; terminal_testc,
@@ -200,7 +200,7 @@ draws its own frames at the buffer's scale and the X module has the window
 manager's, so the same test draws two looks on one desktop. And an event
 file whose points were read off one backend's pictures does not serve the
 other, since the client and its font differ. So the tree under tests forks
-by platform, desktop and backend, tests/linux/plasma/wayland and its kin,
+by platform, desktop and backend, tests/compare/linux/plasma/wayland and its kin,
 and a standard, <test>.cmp, or an event file, <test>.evt, is looked for
 from the most particular directory that applies up to tests itself: a file
 that holds for every backend of a desktop sits at the desktop, one that

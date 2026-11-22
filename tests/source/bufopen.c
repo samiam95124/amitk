@@ -19,8 +19,8 @@
 *                                                                              *
 * Build:                                                                       *
 *                                                                              *
-*     gcc -Iinclude -Ilibc tests/bufopen.c stub/keeper.o lib/libami_graph.a \  *
-*         $(the graphics libraries) -o bin/bufopen                             *
+*     gcc -Iinclude -Ilibc tests/source/bufopen.c stub/keeper.o \              *
+*         lib/libami_graph.a $(the graphics libraries) -o bin/bufopen          *
 *                                                                              *
 *******************************************************************************/
 

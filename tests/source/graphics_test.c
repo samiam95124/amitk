@@ -289,7 +289,7 @@
 * No scaling picture draw        5.41    0.000141                              *
 *                                                                              *
 * Benchmark results, Linux AMD Ryzen 9 5950x 16-core x 32,                     *
-* Ubuntu 26.04 LTS, GTK4/Cairo edition (tests/graphics_test_gtk.c):            *
+* Ubuntu 26.04 LTS, GTK4/Cairo edition (tests/source/graphics_test_gtk.c):     *
 * Cairo image surface, antialiasing off, shapes rasterized offscreen           *
 * and presented only between benchmarks (no display cost in the                *
 * timed loops, unlike the native Wayland rows above)                           *
@@ -327,9 +327,9 @@ Usage:
     auto   Walks every pattern with no input and exits after them: the
            regression mode. A following non-numeric argument names the
            file the screens are captured to. The patterns driven by the
-           user take their events from tests/graphics_test.evt (see
+           user take their events from tests/compare/graphics_test.evt (see
            doc/auto_events.md).
-    events Takes the events of tests/graphics_test.evt in an interactive
+    events Takes the events of tests/compare/graphics_test.evt in an interactive
            run as well, where the file has them for the frame at hand.
     first  The first frame to stop on. The patterns before it pass
            without a stop or capture.
@@ -372,7 +372,7 @@ extern int  auto_event_step(void);
 extern void auto_event(FILE* f, ami_evtrec* er);
 
 #define EVENTNAME "graphics_test.evt"  /* the events of the automatic run */
-#define EVENTFILE "tests/" EVENTNAME    /* where they are from the repository */
+#define EVENTFILE "tests/compare/" EVENTNAME    /* where they are from the repository */
 
 /*
  * Debug print system

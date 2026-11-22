@@ -1,0 +1,1 @@
+Regression standards for Mac OS X: the picture tests (graphics_test, window_test, widget_test) and the text tests whose output is the platform's own (services_test), as tests/compare/<test>.cmp. None exist yet; bin/regress --update <test> on a Mac makes one, to be reviewed before it is committed. The shared standards stay in tests/compare.

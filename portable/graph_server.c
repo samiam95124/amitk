@@ -980,7 +980,7 @@ static void job_hold(void* a)
 
 /* The seat: the event file of a test drives its widgets through the
    display layer's input rig, a fifo named in PD_INPUT (see
-   tests/auto_event.c, whose seat this is, moved here with the display).
+   tests/source/auto_event.c, whose seat this is, moved here with the display).
    The fifo is made at the first line and the layer opens it at its next
    look for input. The pointer coordinates in a line are in the session
    window's client area; the Wayland surface carries its frame around

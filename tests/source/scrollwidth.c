@@ -19,7 +19,7 @@ and the child window was blamed.
 
 Build as a character program against the manager:
 
-    gcc $(CFLAGS) tests/scrollwidth.c $(CLIBSC) -o bin/scrollwidth
+    gcc $(CFLAGS) tests/source/scrollwidth.c $(CLIBSC) -o bin/scrollwidth
 
 Run it in a terminal. Expected: a bar column on the window's right
 edge, thumb at about half way. Observed: nothing.

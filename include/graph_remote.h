@@ -467,7 +467,7 @@ typedef enum {
     /* ----------------------------------------------------- test rig */
 
     /** The picture tests' capture hook and the event file's seat, which
-       ride the display side (tests/auto_event.c, the screen_capture
+       ride the display side (tests/source/auto_event.c, the screen_capture
        modules): the server takes the pictures of the session's window
        and puts the seat's lines to its display's rig. A capture is
        answered when the picture is written, so the test stands until it

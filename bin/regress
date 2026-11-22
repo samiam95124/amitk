@@ -7,11 +7,11 @@
 # regress [--update] [<test>...]
 #
 # Runs each of the self-contained tests, captures the output as
-# tests/<test>.lst, and compares it against the golden file tests/<test>.cmp
+# tests/results/<test>.lst, and compares it against the golden file tests/compare/<test>.cmp
 # using dif -q, which treats '?' in either file as a wildcard matching any
 # single character. Fields that legitimately change from run to run (times,
 # dates) are masked with '?' in the .cmp files. Differences are left in
-# tests/<test>.dif; a test passes when its .dif file is empty.
+# tests/results/<test>.dif; a test passes when its .dif file is empty.
 #
 # Options:
 #
@@ -24,9 +24,9 @@
 #
 # Some text standards are of a platform's paths, environment, option character
 # and directory listing, and no mask covers that. Those tests keep a
-# standard per platform, in the platform's own directory: tests/windows,
-# tests/linux, tests/macosx. The tests that do are listed in plattests
-# below; the rest share one standard across the platforms, tests/<test>.cmp.
+# standard per platform, in the platform's own directory: tests/compare/windows,
+# tests/compare/linux, tests/compare/macosx. The tests that do are listed in plattests
+# below; the rest share one standard across the platforms, tests/compare/<test>.cmp.
 # (The document standard, pdftest, was once of the platform too: pdfgraph
 # scaled its arc angles by LONG_MAX, 32 bits on Windows, and an exact
 # quarter arc landed on a segment boundary one way there and the other on
@@ -34,8 +34,8 @@
 # the document is the same everywhere.)
 #
 # The print tests, txttest and pdftest, print into a file, and that is what
-# is compared: the text page, tests/txttest.lst, by dif; the document,
-# tests/pdftest.pdf, whole, and named so that a reader opens it.
+# is compared: the text page, tests/results/txttest.lst, by dif; the document,
+# tests/results/pdftest.pdf, whole, and named so that a reader opens it.
 # Neither carries a date or anything else that varies from run to run, and the
 # .pdf sets its text in the standard PDF fonts, whose metrics are the module's
 # own, so one standard serves every platform.
@@ -43,7 +43,7 @@
 # The terminal test, terminal_test, is judged on characters, not pixels. It
 # runs in an xterm of its own on a private X server (Xvfb), 80 by 24 whatever
 # the desktop, and at each frame asks the terminal to print its screen; the
-# xterm's printer is the listing, tests/terminal_test.lst, a page per frame
+# xterm's printer is the listing, tests/results/terminal_test.lst, a page per frame
 # with a form feed after each. The terminal's font, size and scale never
 # reach the listing, so one standard serves, and it is compared by dif like
 # the text tests, with the timing figures masked. It runs from the sandbox
@@ -58,10 +58,10 @@
 # window_testc, the window management test in character mode, runs the
 # same way in a larger xterm, 132 by 50: it is rooted, the xterm being the
 # desktop and every test applying to an 80 by 25 child window on it, and
-# needs the room. Its standard is its own, tests/window_testc.cmp.
+# needs the room. Its standard is its own, tests/compare/window_testc.cmp.
 # widget_testc, the widget test in character mode, runs as terminal_test
 # does, in the 80 by 24 xterm, its widgets on the root window as widget_test
-# has them on its window; its standard is its own, tests/widget_testc.cmp.
+# has them on its window; its standard is its own, tests/compare/widget_testc.cmp.
 #
 # The _ssh tests, terminal_testc_ssh, window_testc_ssh and widget_testc_ssh,
 # are those three character tests run over ssh: the xterm runs an ssh
@@ -87,11 +87,12 @@
 # The picture standards are of a desktop's look -- the frame the screen tests
 # size themselves against, the menus, the theme -- and of a backend's, since
 # the Wayland module draws its own frames at the buffer's scale and the X
-# module has the window manager's. So the tree under tests forks by
-# platform, then desktop, then backend: tests/linux/gnome/wayland,
-# tests/linux/gnome/x11, tests/linux/plasma/wayland, tests/linux/plasma/x11.
+# module has the window manager's. So the tree under tests/compare forks by
+# platform, then desktop, then backend: tests/compare/linux/gnome/wayland,
+# tests/compare/linux/gnome/x11, tests/compare/linux/plasma/wayland,
+# tests/compare/linux/plasma/x11.
 # A standard, <test>.cmp, and an event file, <test>.evt, are looked for
-# from the most particular directory that applies up to tests itself, and
+# from the most particular directory that applies up to tests/compare, and
 # the first found serves: a file that holds for every backend of a desktop
 # sits at the desktop, one that holds everywhere sits at the top, and one
 # that is a backend's own sits at the backend. --update writes a picture
@@ -101,8 +102,8 @@
 # which links XOpenDisplay or wl_display_connect and not both. Windows and
 # Mac OS X draw one look each and fork no further.
 #
-# The picture tests write their screens, a stream of PNGs, to tests/<test>.img;
-# a picture run that fails is kept as tests/<test>.fail-<stamp>.img, so the
+# The picture tests write their screens, a stream of PNGs, to tests/results/<test>.img;
+# a picture run that fails is kept as tests/results/<test>.fail-<stamp>.img, so the
 # screens that differed survive the re-run that overwrites the .img.
 #
 # The _testr tests are the same picture tests run remotely: the client links
@@ -139,15 +140,20 @@
 root=$(cd "$(dirname "$0")/.." && pwd)
 cd "$root" || exit 1
 
+# The tests directory: the sources of the tests are in tests/source, the
+# standards and the event files in tests/compare, and what a run produces
+# goes to tests/results, which is made here and is not tracked.
+mkdir -p tests/results || exit 1
+
 # the platform: it names the directory of the standards that are the
 # platform's own, and the programs. plat is set where the platform is not a
 # Unix; the Unix ports name their programs alike.
 case "$(uname -s)" in
 
-MINGW*|MSYS*|CYGWIN*) plat="windows"; cmpdir="tests/windows" ;;
-Darwin)               plat="";        cmpdir="tests/macosx" ;;
-FreeBSD)              plat="";        cmpdir="tests/freebsd" ;;
-*)                    plat="";        cmpdir="tests/linux" ;;
+MINGW*|MSYS*|CYGWIN*) plat="windows"; cmpdir="tests/compare/windows" ;;
+Darwin)               plat="";        cmpdir="tests/compare/macosx" ;;
+FreeBSD)              plat="";        cmpdir="tests/compare/freebsd" ;;
+*)                    plat="";        cmpdir="tests/compare/linux" ;;
 
 esac
 plattests=" services_test "
@@ -206,10 +212,10 @@ outof()
 {
 
     case "$1" in
-    pdftest) echo "tests/$1.pdf" ;;
+    pdftest) echo "tests/results/$1.pdf" ;;
     graphics_test|window_test|widget_test|graphics_testr|window_testr|widget_testr)
-             echo "tests/$1.img" ;;
-    *)       echo "tests/$1.lst" ;;
+             echo "tests/results/$1.img" ;;
+    *)       echo "tests/results/$1.lst" ;;
     esac
 
 }
@@ -447,7 +453,7 @@ runtest()
              PATH="$root/bin:/usr/local/bin:/usr/bin:/bin" \
              LANG="en_US.UTF-8" \
              "$root/$(binof "$1")" ../testdir/ < /dev/null) \
-             > "tests/$1.lst" 2>&1
+             > "tests/results/$1.lst" 2>&1
         ;;
 
     graphics_testr|window_testr|widget_testr)
@@ -460,7 +466,7 @@ runtest()
         startrsrv
         rm -f "$(outof "$1")"
         GRAPH_PORT=$rport GRAPH_NAME="${1%r}" timeout 900 "$(binof "$1")" \
-            auto "$(outof "$1")" < /dev/null > "tests/$1.out" 2>&1
+            auto "$(outof "$1")" < /dev/null > "tests/results/$1.out" 2>&1
         remoterc=$?
         ;;
 
@@ -476,7 +482,7 @@ runtest()
         # goes on, so the pages are in order and all there at the end.
         # The test runs in the sandbox, where the joysticks are configured
         # off and where the file its writethrough test makes lands.
-        rm -f "tests/$1.lst" "tests/$1.dpy" tests/terminal/testfile
+        rm -f "tests/results/$1.lst" "tests/results/$1.dpy" tests/terminal/testfile
         geom=80x24
         if [ "$(baseof "$1")" = "window_testc" ]; then geom=132x50; fi
         if [ "$plat" = "windows" ]; then
@@ -494,8 +500,8 @@ runtest()
             timeout $lim "$(cygpath -u "$SYSTEMROOT")/System32/cmd.exe" //c "$(cygpath -w "$root/bin/conrun.bat")" \
                 "${geom%x*}" "${geom#*x}" "$(cygpath -w "$root/tests/terminal")" \
                 "$(cygpath -w "$root/$(binof "$1")")" \
-                "$(cygpath -w "$root/tests/$1.lst")" \
-                "$(cygpath -w "$root/tests/$1.out")"
+                "$(cygpath -w "$root/tests/results/$1.lst")" \
+                "$(cygpath -w "$root/tests/results/$1.out")"
             if [ $? = 124 ]; then
 
                 # the limit kills the cmd that opened the console, not the
@@ -518,7 +524,7 @@ runtest()
             lim=1200
             if [ "$1" = "terminal_testc" ]; then lim=2400; fi
             tsock="pa_regress_$$"
-            run="exec '$root/$(binof "$1")' auto '$root/tests/$1.lst' 2> '$root/tests/$1.out'"
+            run="exec '$root/$(binof "$1")' auto '$root/tests/results/$1.lst' 2> '$root/tests/results/$1.out'"
             if [ "$1" != "$(baseof "$1")" ]; then
 
                 # an ssh test: the pane runs the ssh client, and the test runs
@@ -537,7 +543,7 @@ AUTO_EVENT_FILE='$AUTO_EVENT_FILE' $run\""
             fi
             if [ "$1" != "$(baseof "$1")" ] && [ -z "$sshdir" ]; then
 
-                echo "the private sshd did not start (see $sshd)" > "tests/$1.out"
+                echo "the private sshd did not start (see $sshd)" > "tests/results/$1.out"
 
             else
 
@@ -553,26 +559,26 @@ AUTO_EVENT_FILE='$AUTO_EVENT_FILE' $run\""
 
             fi
         else
-            Xvfb -displayfd 3 -screen 0 800x600x24 3> "tests/$1.dpy" \
+            Xvfb -displayfd 3 -screen 0 800x600x24 3> "tests/results/$1.dpy" \
                 > /dev/null 2>&1 &
             xvfbpid=$!
             for i in 1 2 3 4 5 6 7 8 9 10 11 12 13 14 15 16 17 18 19 20; do
-                [ -s "tests/$1.dpy" ] && break
+                [ -s "tests/results/$1.dpy" ] && break
                 sleep 0.5
             done
-            dpy=$(cat "tests/$1.dpy")
+            dpy=$(cat "tests/results/$1.dpy")
             if [ -z "$dpy" ]; then
-                echo "Xvfb did not start" > "tests/$1.out"
+                echo "Xvfb did not start" > "tests/results/$1.out"
             elif [ "$1" = "$(baseof "$1")" ]; then
                 (cd tests/terminal && \
                  DISPLAY=":$dpy" timeout 300 xterm -geometry "$geom" \
-                     -xrm "*printerCommand: cat >> $root/tests/$1.lst" \
+                     -xrm "*printerCommand: cat >> $root/tests/results/$1.lst" \
                      -xrm '*printAttributes: 0' \
                      -xrm '*printerAutoClose: true' \
-                     -e "$root/$(binof "$1")" auto "$root/tests/$1.lst") \
-                     > "tests/$1.out" 2>&1
+                     -e "$root/$(binof "$1")" auto "$root/tests/results/$1.lst") \
+                     > "tests/results/$1.out" 2>&1
             elif [ -z "$sshdir" ]; then
-                echo "the private sshd did not start (see $sshd)" > "tests/$1.out"
+                echo "the private sshd did not start (see $sshd)" > "tests/results/$1.out"
             else
                 # the same xterm, but what it runs is the ssh client, and
                 # the test runs at the far end, on this machine, in the
@@ -581,7 +587,7 @@ AUTO_EVENT_FILE='$AUTO_EVENT_FILE' $run\""
                 # far end is to see one, and sees nothing else of here.
                 (cd tests/terminal && \
                  DISPLAY=":$dpy" timeout 300 xterm -geometry "$geom" \
-                     -xrm "*printerCommand: cat >> $root/tests/$1.lst" \
+                     -xrm "*printerCommand: cat >> $root/tests/results/$1.lst" \
                      -xrm '*printAttributes: 0' \
                      -xrm '*printerAutoClose: true' \
                      -e ssh -t -o BatchMode=yes -o StrictHostKeyChecking=no \
@@ -589,14 +595,14 @@ AUTO_EVENT_FILE='$AUTO_EVENT_FILE' $run\""
                          -o LogLevel=ERROR -i "$sshdir/key" -p "$sport" localhost \
                          "cd '$root/tests/terminal' && \
                           AUTO_EVENT_FILE='$AUTO_EVENT_FILE' \
-                          exec '$root/$(binof "$1")' auto '$root/tests/$1.lst'") \
-                     > "tests/$1.out" 2>&1
+                          exec '$root/$(binof "$1")' auto '$root/tests/results/$1.lst'") \
+                     > "tests/results/$1.out" 2>&1
             fi
             kill "$xvfbpid" 2> /dev/null
             wait "$xvfbpid" 2> /dev/null
 
         fi
-        rm -f "tests/$1.dpy" tests/terminal/testfile
+        rm -f "tests/results/$1.dpy" tests/terminal/testfile
         # blanks at the end of a line are not on the screen: the terminal
         # prints a line as far as it was written, and the manager paints
         # every cell of a line, so the same screen prints with or without
@@ -604,9 +610,9 @@ AUTO_EVENT_FILE='$AUTO_EVENT_FILE' $run\""
         # (written through a temporary: GNU sed's -i takes an optional
         # suffix, BSD sed's requires one, and the two disagree on the
         # spelling, so in-place editing is not portable between them)
-        if [ -f "tests/$1.lst" ]; then
-            sed 's/ *$//' "tests/$1.lst" > "tests/$1.lst.tmp" &&
-                mv "tests/$1.lst.tmp" "tests/$1.lst"
+        if [ -f "tests/results/$1.lst" ]; then
+            sed 's/ *$//' "tests/results/$1.lst" > "tests/results/$1.lst.tmp" &&
+                mv "tests/results/$1.lst.tmp" "tests/results/$1.lst"
         fi
         ;;
 
@@ -614,7 +620,7 @@ AUTO_EVENT_FILE='$AUTO_EVENT_FILE' $run\""
         # the printer is a file: the document is the listing
         rm -f "$(outof "$1")"
         timeout 300 "$(binof "$1")" "$(outof "$1")" < /dev/null \
-            > "tests/$1.out" 2>&1
+            > "tests/results/$1.out" 2>&1
         ;;
     graphics_test|window_test|widget_test)
         # "auto" walks every screen without waiting for a keypress. What
@@ -628,11 +634,11 @@ AUTO_EVENT_FILE='$AUTO_EVENT_FILE' $run\""
         # frame, and a standard taken from a cut run passed a cut run.
         rm -f "$(outof "$1")"
         timeout 900 "$(binof "$1")" auto "$(outof "$1")" < /dev/null \
-            > "tests/$1.out" 2>&1
+            > "tests/results/$1.out" 2>&1
         ;;
 
     *)
-        timeout 300 "$(binof "$1")" < /dev/null > "tests/$1.lst" 2>&1
+        timeout 300 "$(binof "$1")" < /dev/null > "tests/results/$1.lst" 2>&1
         ;;
 
     esac
@@ -678,7 +684,7 @@ backendof() {
 }
 
 # The directories that apply to a test, most particular first: the
-# backend's, the desktop's, the platform's, and tests itself. A standard
+# backend's, the desktop's, the platform's, and tests/compare. A standard
 # or an event file is the first found along them.
 dirsof() {
 
@@ -690,7 +696,7 @@ dirsof() {
 
     fi
     echo "$cmpdir"
-    echo "tests"
+    echo "tests/compare"
 
 }
 
@@ -809,14 +815,14 @@ for t in $tests; do
 
         # the run must walk out clean and say nothing on the way; then its
         # pictures, taken by the server, compare as a local run's do
-        if [ "$remoterc" != "0" ] || [ -s "tests/$t.out" ]; then
+        if [ "$remoterc" != "0" ] || [ -s "tests/results/$t.out" ]; then
 
             {
                 echo "remote run failed: exit $remoterc"
                 echo "client output:"
-                cat "tests/$t.out"
-            } > "tests/$t.dif"
-            echo "$t: *** fail *** (see tests/$t.dif)"
+                cat "tests/results/$t.out"
+            } > "tests/results/$t.dif"
+            echo "$t: *** fail *** (see tests/results/$t.dif)"
             fails=$((fails+1))
             continue
 
@@ -848,9 +854,9 @@ for t in $tests; do
 
             # a run the event file did not carry through is no standard:
             # a standard taken from a cut run passes a cut run
-            if grep -q 'were skipped\|left waiting' "tests/$t.out" 2>/dev/null; then
+            if grep -q 'were skipped\|left waiting' "tests/results/$t.out" 2>/dev/null; then
 
-                echo "$t: *** not regenerated *** the run was cut: $(grep 'were skipped\|left waiting' "tests/$t.out" | head -1)"
+                echo "$t: *** not regenerated *** the run was cut: $(grep 'were skipped\|left waiting' "tests/results/$t.out" | head -1)"
                 fails=$((fails+1))
                 continue
 
@@ -866,20 +872,20 @@ for t in $tests; do
             {
                 echo "no $std: this platform${desk:+, desktop and backend} has no standard for $stdt yet"
                 echo "make one with: bin/regress --update $stdt, then review it"
-            } > "tests/$t.dif"
-            echo "$t: *** fail *** (see tests/$t.dif)"
+            } > "tests/results/$t.dif"
+            echo "$t: *** fail *** (see tests/results/$t.dif)"
             fails=$((fails+1))
 
         elif cmp -s "$out" "$std"; then
 
-            rm -f "tests/$t.dif"
+            rm -f "tests/results/$t.dif"
             echo "$t: pass"
 
         else
 
             # the run is kept aside, so the screens that differed survive
             # the re-run that overwrites the .img
-            keep="tests/$t.fail-$(date +%Y%m%d-%H%M%S).img"
+            keep="tests/results/$t.fail-$(date +%Y%m%d-%H%M%S).img"
             cp "$out" "$keep"
             {
                 echo "screens differ from $std"
@@ -890,8 +896,8 @@ for t in $tests; do
                 cmp "$std" "$out" 2>&1
                 echo "this run kept as $keep"
                 echo "view either with: bin/testviewer <file>"
-            } > "tests/$t.dif"
-            echo "$t: *** fail *** (see tests/$t.dif, run kept as $keep)"
+            } > "tests/results/$t.dif"
+            echo "$t: *** fail *** (see tests/results/$t.dif, run kept as $keep)"
             fails=$((fails+1))
 
         fi
@@ -906,7 +912,7 @@ for t in $tests; do
     std="$(findfile "$stdt" "$stdt.cmp")"
     if [ -z "$std" ]; then # none yet: where --update puts one
 
-        std="tests/$stdt.cmp"
+        std="tests/compare/$stdt.cmp"
         case "$plattests" in
         *" $stdt "*) std="$cmpdir/$stdt.cmp" ;;
         esac
@@ -930,18 +936,18 @@ for t in $tests; do
             {
                 echo "no $std: there is no standard for $t yet"
                 echo "make one with: bin/regress --update $t, then review it"
-            } > "tests/$t.dif"
-            echo "$t: *** fail *** (see tests/$t.dif)"
+            } > "tests/results/$t.dif"
+            echo "$t: *** fail *** (see tests/results/$t.dif)"
             fails=$((fails+1))
         elif cmp -s "$out" "$std"; then
-            rm -f "tests/$t.dif"
+            rm -f "tests/results/$t.dif"
             echo "$t: pass"
         else
             {
                 echo "document differs from $std"
                 cmp "$std" "$out" 2>&1
-            } > "tests/$t.dif"
-            echo "$t: *** fail *** (see tests/$t.dif)"
+            } > "tests/results/$t.dif"
+            echo "$t: *** fail *** (see tests/results/$t.dif)"
             fails=$((fails+1))
         fi
         continue
@@ -949,7 +955,7 @@ for t in $tests; do
     fi
     if [ "$update" = "1" ]; then
 
-        mask < "tests/$t.lst" > "$std"
+        mask < "tests/results/$t.lst" > "$std"
         echo "$t: $std regenerated, please review"
 
     elif [ ! -f "$std" ]; then
@@ -957,14 +963,14 @@ for t in $tests; do
         {
             echo "no $std: this platform has no standard for $t yet"
             echo "make one with: bin/regress --update $t, then review it"
-        } > "tests/$t.dif"
-        echo "$t: *** fail *** (see tests/$t.dif)"
+        } > "tests/results/$t.dif"
+        echo "$t: *** fail *** (see tests/results/$t.dif)"
         fails=$((fails+1))
 
     else
 
-        bin/dif -q "tests/$t.lst" "$std" > "tests/$t.dif"
-        if [ -s "tests/$t.dif" ] && \
+        bin/dif -q "tests/results/$t.lst" "$std" > "tests/results/$t.dif"
+        if [ -s "tests/results/$t.dif" ] && \
            { [ "$t" = "terminal_test" ] || [ "$t" = "terminal_testc" ] || \
              [ "$t" = "window_testc" ] || [ "$t" = "widget_testc" ] || \
              [ "$overssh" = "1" ]; }; then
@@ -972,15 +978,15 @@ for t in $tests; do
             # the pages: a count that differs says a frame went missing
             {
                 echo "standard: $(tr -cd '\f' < "$std" | wc -c) pages,\
- this run: $(tr -cd '\f' < "tests/$t.lst" | wc -c) pages"
-                cat "tests/$t.dif"
-            } > "tests/$t.dif.tmp"
-            mv "tests/$t.dif.tmp" "tests/$t.dif"
+ this run: $(tr -cd '\f' < "tests/results/$t.lst" | wc -c) pages"
+                cat "tests/results/$t.dif"
+            } > "tests/results/$t.dif.tmp"
+            mv "tests/results/$t.dif.tmp" "tests/results/$t.dif"
 
         fi
-        if [ -s "tests/$t.dif" ]; then
+        if [ -s "tests/results/$t.dif" ]; then
 
-            echo "$t: *** fail *** (see tests/$t.dif)"
+            echo "$t: *** fail *** (see tests/results/$t.dif)"
             fails=$((fails+1))
 
         else

@@ -124,7 +124,7 @@ int ferror(FILE* stream) - Check error on file.
 void perror(const char *s) - Print error message.
 int fileno(FILE* stream) - Find descriptor for file.
 
-A test suite for the module is provided in tests/stdio_test.c.
+A test suite for the module is provided in tests/source/stdio_test.c.
 
 ******************************************************************************/
 
