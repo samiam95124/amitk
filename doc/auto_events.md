@@ -71,9 +71,9 @@ either the test, or in some cases, graphics.c/widget.c changes.
 
 The module is tests/source/auto_event.c, linked into the picture tests and, built
 with AUTO_EVENT_TERMINAL for the terminal's event set, into the terminal
-tests. The file is named after its test, tests/compare/graphics_test.evt,
-tests/compare/terminal_test.evt, tests/compare/window_test.evt or tests/compare/widget_test.evt, and
-is committed beside it as an input. A run given a
+tests. The file is named after its test, tests/event/graphics_test.evt,
+tests/event/terminal_test.evt, tests/event/window_test.evt or
+tests/event/widget_test.evt, and is committed as an input. A run given a
 capture file takes the event file from the capture file's directory, since
 the regression runs the terminal tests from tests/terminal; terminal_testc,
 the same test on the console library, takes terminal_test's file. Lines hold one statement each, '#' starts a comment:
@@ -187,7 +187,17 @@ with the server's own hit testing, crossings and focus. The point named is
 in the X window itself, which is the client area, so the event module adds
 no frame offset there; a key is preceded by giving the target window the
 input focus, since the server sends keys to the focus and a test window
-does not have it by right. Two things XTest cannot do: it cannot hold the
+does not have it by right. The focus is confirmed before the key is sent:
+if the window does not take it within half a second the key is not sent at
+all, since it would be typed into whatever program has the focus instead.
+And the press is watched for after: a key the server gave to another
+program, one holding the keyboard, is lost to the test. Either is reported
+on the error output, as `x11 seat: key N not sent` or `x11 seat: key N sent
+but not received`, and `regress --update` refuses a run that says so. The
+pointer is watched the same way: where it is after each of the seat's own
+motions is noted, and if it is found elsewhere before the next line,
+something other than the test moved it, which is reported as `x11 seat:
+pointer moved by other than the test` and refused likewise. Two things XTest cannot do: it cannot hold the
 seat, so a hand on the desk during a run joins it, and under Xwayland its
 pointer motion moves the desktop's own pointer, since the compositor is
 told of it as emulated input. A run on a live desktop is therefore best
@@ -199,10 +209,12 @@ The picture standards are of a desktop and a backend: the Wayland module
 draws its own frames at the buffer's scale and the X module has the window
 manager's, so the same test draws two looks on one desktop. And an event
 file whose points were read off one backend's pictures does not serve the
-other, since the client and its font differ. So the tree under tests forks
-by platform, desktop and backend, tests/compare/linux/plasma/wayland and its kin,
-and a standard, <test>.cmp, or an event file, <test>.evt, is looked for
-from the most particular directory that applies up to tests itself: a file
+other, since the client and its font differ. So the standards, under
+tests/compare, and the event files, under tests/event, are each in a tree
+that forks by platform, desktop and backend, tests/compare/linux/plasma/wayland
+and tests/event/linux/plasma/wayland and their kin, and a standard,
+<test>.cmp, or an event file, <test>.evt, is looked for in its tree from
+the most particular directory that applies up to the top: a file
 that holds for every backend of a desktop sits at the desktop, one that
 holds everywhere sits at the top, and one that is a backend's own sits at
 the backend. bin/regress picks the desktop from XDG_CURRENT_DESKTOP and the

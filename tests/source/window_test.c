@@ -132,7 +132,7 @@ extern int  auto_event_step(void);
 extern void auto_event(FILE* f, ami_evtrec* er);
 
 #define EVENTNAME "window_test.evt"    /* the events of the automatic run */
-#define EVENTFILE "tests/compare/" EVENTNAME   /* where they are from the repository */
+#define EVENTFILE "tests/event/" EVENTNAME   /* where they are from the repository */
 /* the manager's composition hold, where the display has one: the fast
    forward to a selected frame passes its frames unseen */
 extern void wg_hold(ami_long on) __attribute__((weak));

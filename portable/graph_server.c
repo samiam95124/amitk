@@ -985,10 +985,12 @@ static void job_hold(void* a)
    look for input. The pointer coordinates in a line are in the session
    window's client area; the Wayland surface carries its frame around
    that, the X window is the client area itself. The rig is aimed at the
-   session's window once a session: it is the second toplevel, after the
-   server's own. */
+   session's window once a session: on the Wayland layer it is the second
+   toplevel, after the server's own; the X module is given its file. */
 
 extern int x11_seat __attribute__((weak)); /* the X module's rig */
+extern void x11_seataim(FILE* f) __attribute__((weak)); /* and its aim, by
+                                     the window's file: see there */
 
 static int  rigfd = -1;   /* the rig fifo, written here */
 static char rigfn[80];    /* its name */
@@ -1015,7 +1017,10 @@ static void seatline(const char* ln)
     if (!h2f[1]) return; /* no session window to aim at */
     if (!rigaimed) {
 
-        if (write(rigfd, "target 1\n", 9) < 0) return;
+        /* the X module is told the window itself; the Wayland layer its
+           place among the toplevels */
+        if (&x11_seataim) x11_seataim(h2f[1]);
+        else if (write(rigfd, "target 1\n", 9) < 0) return;
         rigaimed = 1;
 
     }

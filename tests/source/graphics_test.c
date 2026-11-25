@@ -327,9 +327,9 @@ Usage:
     auto   Walks every pattern with no input and exits after them: the
            regression mode. A following non-numeric argument names the
            file the screens are captured to. The patterns driven by the
-           user take their events from tests/compare/graphics_test.evt (see
+           user take their events from tests/event/graphics_test.evt (see
            doc/auto_events.md).
-    events Takes the events of tests/compare/graphics_test.evt in an interactive
+    events Takes the events of tests/event/graphics_test.evt in an interactive
            run as well, where the file has them for the frame at hand.
     first  The first frame to stop on. The patterns before it pass
            without a stop or capture.
@@ -372,7 +372,7 @@ extern int  auto_event_step(void);
 extern void auto_event(FILE* f, ami_evtrec* er);
 
 #define EVENTNAME "graphics_test.evt"  /* the events of the automatic run */
-#define EVENTFILE "tests/compare/" EVENTNAME    /* where they are from the repository */
+#define EVENTFILE "tests/event/" EVENTNAME    /* where they are from the repository */
 
 /*
  * Debug print system

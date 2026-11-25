@@ -261,7 +261,7 @@ extern ami_long auto_joybutton(FILE* f, ami_long j);
 extern ami_long auto_joyaxis(FILE* f, ami_long j);
 
 #define EVENTNAME "terminal_test.evt"  /* the events of the automatic run */
-#define EVENTFILE "tests/compare/" EVENTNAME    /* where they are from the repository */
+#define EVENTFILE "tests/event/" EVENTNAME    /* where they are from the repository */
 #define LABELW    12 /* the frame label's field: "frame 18.192" */
 
 #define AUTOTIM  3          /* the timer an automatic pause runs on */
