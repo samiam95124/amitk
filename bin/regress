@@ -91,8 +91,10 @@
 # platform, then desktop, then backend: tests/compare/linux/gnome/wayland,
 # tests/compare/linux/gnome/x11, tests/compare/linux/plasma/wayland,
 # tests/compare/linux/plasma/x11.
-# A standard, <test>.cmp, and an event file, <test>.evt, are looked for
-# from the most particular directory that applies up to tests/compare, and
+# The event files, <test>.evt, are in a tree of the same shape under
+# tests/event. A standard, <test>.cmp, is looked for from the most
+# particular directory that applies up to tests/compare, and an event file
+# the same way up to tests/event, and
 # the first found serves: a file that holds for every backend of a desktop
 # sits at the desktop, one that holds everywhere sits at the top, and one
 # that is a backend's own sits at the backend. --update writes a picture
@@ -141,8 +143,8 @@ root=$(cd "$(dirname "$0")/.." && pwd)
 cd "$root" || exit 1
 
 # The tests directory: the sources of the tests are in tests/source, the
-# standards and the event files in tests/compare, and what a run produces
-# goes to tests/results, which is made here and is not tracked.
+# standards in tests/compare, the event files in tests/event, and what a
+# run produces goes to tests/results, which is made here and is not tracked.
 mkdir -p tests/results || exit 1
 
 # the platform: it names the directory of the standards that are the
@@ -316,6 +318,7 @@ mask()
 # it, on a port of its own; killed by pid on the way out, never by name.
 #
 rport=4909
+rsrvlog="tests/results/graph_server.out"
 rsrvpid=""
 
 startrsrv()
@@ -323,7 +326,10 @@ startrsrv()
 
     if [ -z "$rsrvpid" ]; then
 
-        GRAPH_PORT=$rport "$(binof graph_server)" > /dev/null 2>&1 &
+        # what the server says is kept: its display's seat reports there a
+        # key it could not deliver or a pointer something else moved
+        : > "$rsrvlog"
+        GRAPH_PORT=$rport "$(binof graph_server)" > "$rsrvlog" 2>&1 &
         rsrvpid=$!
         sleep 2
 
@@ -465,9 +471,13 @@ runtest()
         # test's.
         startrsrv
         rm -f "$(outof "$1")"
+        rsrvat=$(wc -l < "$rsrvlog")
         GRAPH_PORT=$rport GRAPH_NAME="${1%r}" timeout 900 "$(binof "$1")" \
             auto "$(outof "$1")" < /dev/null > "tests/results/$1.out" 2>&1
         remoterc=$?
+        # the seat's complaints during this test are the test's: a run
+        # that says anything is not a clean one
+        tail -n +$((rsrvat+1)) "$rsrvlog" | grep 'seat: ' >> "tests/results/$1.out"
         ;;
 
     terminal_test|terminal_testc|window_testc|widget_testc|\
@@ -685,7 +695,8 @@ backendof() {
 
 # The directories that apply to a test, most particular first: the
 # backend's, the desktop's, the platform's, and tests/compare. A standard
-# or an event file is the first found along them.
+# is the first found along them, and an event file the first found along
+# the same directories under tests/event.
 dirsof() {
 
     if [ -n "$desk" ]; then
@@ -704,6 +715,18 @@ dirsof() {
 findfile() {
 
     for d in $(dirsof "$1"); do
+
+        if [ -f "$d/$2" ]; then echo "$d/$2"; return; fi
+
+    done
+
+}
+
+# the event file of that name that applies to the test, or nothing: the
+# same directories, in the tree under tests/event
+findevt() {
+
+    for d in $(dirsof "$1" | sed 's#^tests/compare#tests/event#'); do
 
         if [ -f "$d/$2" ]; then echo "$d/$2"; return; fi
 
@@ -807,7 +830,7 @@ for t in $tests; do
     graphics_testr|window_testr|widget_testr) evtof="${t%r}" ;;
     *) evtof="$(baseof "$t")" ;;
     esac
-    AUTO_EVENT_FILE="$(findfile "$evtof" "$evtof.evt")"
+    AUTO_EVENT_FILE="$(findevt "$evtof" "$evtof.evt")"
     [ -n "$AUTO_EVENT_FILE" ] && AUTO_EVENT_FILE="$root/$AUTO_EVENT_FILE"
     export AUTO_EVENT_FILE
     runtest "$t"
@@ -854,9 +877,12 @@ for t in $tests; do
 
             # a run the event file did not carry through is no standard:
             # a standard taken from a cut run passes a cut run
-            if grep -q 'were skipped\|left waiting' "tests/results/$t.out" 2>/dev/null; then
+            # nor is one the seat complained of: a key that could not be
+            # sent, or was sent and taken by another program, or a pointer
+            # that something other than the test moved
+            if grep -q 'were skipped\|left waiting\|seat: ' "tests/results/$t.out" 2>/dev/null; then
 
-                echo "$t: *** not regenerated *** the run was cut: $(grep 'were skipped\|left waiting' "tests/results/$t.out" | head -1)"
+                echo "$t: *** not regenerated *** the run was cut: $(grep 'were skipped\|left waiting\|seat: ' "tests/results/$t.out" | head -1)"
                 fails=$((fails+1))
                 continue
 

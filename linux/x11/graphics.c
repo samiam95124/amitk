@@ -3873,6 +3873,9 @@ static void ft_draw_string(Drawable d, GC gc, FT_Face face,
     for (i = 0; i < len; i++) {
 
         ft_draw_char(d, gc, face, pixel_size_x, pixel_size_y, x, y, s[i]);
+        /* the advance is taken at the size drawn: a glyph out of the cache
+           leaves the face at the size of whatever was loaded last */
+        FT_Set_Pixel_Sizes(face, pixel_size_x, pixel_size_y);
         if (FT_Load_Char(face, (unsigned char)s[i], FT_LOAD_DEFAULT) == 0)
             x += (int)(face->glyph->advance.x >> 6);
 
@@ -5618,6 +5621,17 @@ static void childfrm_draw(winptr win, int mw, int mh)
         int len = strlen(win->wintitle);
         int tleft = CFRM_BUTTON_MG; /* title left margin */
         int avail = bx_min - CFRM_BUTTON_GAP - tleft; /* space for title */
+        /* the size the window's own text has the face at, put back when
+           the title is done: the frame is drawn whenever the display
+           asks, and a title that left the face at its own size changed
+           what the program measured next, by when the frame was drawn */
+        int fsx = win->ftface->size->metrics.x_ppem;
+        int fsy = win->ftface->size->metrics.y_ppem;
+        /* measured at the size it is drawn at: the face is at whatever
+           size the window's last text left it, and a title measured at
+           that was centered by the wrong width, differently from one
+           program to the next */
+        FT_Set_Pixel_Sizes(win->ftface, title_size, title_size);
         tlen = ft_text_width(win->ftface, win->wintitle, len);
         int ty = (tbh + title_size) / 2 - 2;
 
@@ -5659,6 +5673,7 @@ static void childfrm_draw(winptr win, int mw, int mh)
             }
 
         }
+        FT_Set_Pixel_Sizes(win->ftface, fsx, fsy);
 
     }
 
@@ -5718,6 +5733,40 @@ Updates all the buffer and screen parameters from the display screen to the
 terminal.
 
 *******************************************************************************/
+
+/* The client past the buffer, where the buffer is the smaller, is in the
+   window's background color: painted here when that color is set, not only
+   when the window is next restored. Left to the restore, the margin showed
+   whichever background was in force the last time one happened to come, and
+   that is a matter of when the window manager's exposures arrive: a program
+   drawing through the remote server, which takes them as they come, and the
+   same program run directly, which takes them when it next waits, showed
+   different margins for the same calls. */
+static void margins(winptr win)
+
+{
+
+    scnptr sc = win->screens[win->curdsp-1]; /* the displayed screen */
+    int    winw, winh;
+
+    if (!win->bufmod || !win->visible || !win->xchan) return;
+    winw = win->xcr.w;
+    winh = win->xcr.h;
+    if (sc->maxxg >= winw && sc->maxyg >= winh) return; /* none */
+    XWLOCK();
+    XSetForeground(padisplay, sc->xcxt,
+                   (BIT(sarev) & sc->attr) ? sc->fcrgb : sc->bcrgb);
+    if (sc->maxxg < winw)
+        XFillRectangle(padisplay, win->xchan, sc->xcxt,
+                       sc->maxxg, 0, winw - sc->maxxg, winh);
+    if (sc->maxyg < winh)
+        XFillRectangle(padisplay, win->xchan, sc->xcxt,
+                       0, sc->maxyg, sc->maxxg, winh - sc->maxyg);
+    XSetForeground(padisplay, sc->xcxt,
+                   (BIT(sarev) & sc->attr) ? sc->bcrgb : sc->fcrgb);
+    XWUNLOCK();
+
+}
 
 static void restore(winptr win) /* window to restore */
 
@@ -10112,6 +10161,7 @@ static void bcolor_ivf(FILE* f, ami_color c)
     sc = win->screens[win->curupd-1]; /* index update screen */
     sc->bcrgb = colnum(c); /* set color status */
     win->gbcrgb = sc->bcrgb;
+    if (indisp(win)) margins(win); /* the client past the buffer follows */
     XWLOCK();
     /* set screen color according to reverse */
     if (BIT(sarev) & sc->attr) XSetForeground(padisplay, sc->xcxt, sc->bcrgb);
@@ -10143,6 +10193,7 @@ static void bcolorc_ivf(FILE* f, ami_long r, ami_long g, ami_long b)
     sc = win->screens[win->curupd-1]; /* index update screen */
     sc->bcrgb = rgb2xwin(r, g, b); /* set color status */
     win->gbcrgb = sc->bcrgb;
+    if (indisp(win)) margins(win); /* the client past the buffer follows */
     XWLOCK();
     /* set screen color according to reverse */
     if (BIT(sarev) & sc->attr) XSetBackground(padisplay, sc->xcxt, sc->bcrgb);
@@ -10176,6 +10227,7 @@ static void bcolorg_ivf(FILE* f, ami_long r, ami_long g, ami_long b)
     sc = win->screens[win->curupd-1]; /* index update screen */
     sc->bcrgb = rgb2xwin(r, g, b); /* set color status */
     win->gbcrgb = sc->bcrgb; /* copy to master */
+    if (indisp(win)) margins(win); /* the client past the buffer follows */
     XWLOCK();
     /* set screen color according to reverse */
     if (BIT(sarev) & sc->attr) XSetBackground(padisplay, sc->xcxt, sc->bcrgb);
@@ -15089,6 +15141,171 @@ static int rigfocused(void)
 
 }
 
+/* How long the rig waits on the server for a key: for the target to have
+   the focus before one is sent, and for the press to come back after. Both
+   come at once on a desk at rest; the wait is for the one that is not. */
+#define RIGKEYWAIT 500 /* in ms */
+
+/* count the presses of a key code waiting in the queue, taking none */
+static Bool rigkeypred(Display* d, XEvent* e, XPointer arg)
+
+{
+
+    int* p = (int*)arg;
+
+    if (e->type == KeyPress && (int)e->xkey.keycode == p[0]) p[1]++;
+
+    return (False);
+
+}
+
+static int rigkeyct(int code)
+
+{
+
+    int    p[2];
+    XEvent e;
+
+    p[0] = code;
+    p[1] = 0;
+    XCheckIfEvent(padisplay, &e, rigkeypred, (XPointer)p);
+
+    return (p[1]);
+
+}
+
+/* Give the target the input focus, and see that it has it. The server sends
+   a key to the focus, whatever window that is: a key sent on the strength of
+   a focus request that did not take is typed into another program, and the
+   arrows and return of a test are a command recalled and run in a terminal.
+   So the request is checked, and FALSE says no key may follow. A window not
+   yet viewable cannot be given the focus at all, and is waited for. */
+static int rigfocus(void)
+
+{
+
+    XWindowAttributes wa;
+    int               t;
+
+    for (t = 0; t < RIGKEYWAIT; t += 5) {
+
+        if (rigfocused()) return (TRUE);
+        if (XGetWindowAttributes(padisplay, rigwin(), &wa) &&
+            wa.map_state == IsViewable)
+            XSetInputFocus(padisplay, rigwin(), RevertToParent, CurrentTime);
+        XSync(padisplay, False);
+        if (rigfocused()) return (TRUE);
+        usleep(5000);
+
+    }
+
+    return (FALSE);
+
+}
+
+/* Put a key in: the press, the release too if both, and see the press
+   arrive. A key the server gave to another client -- one holding the
+   keyboard, as a desktop does for its own menus and switchers -- is gone,
+   and the test goes on short of it with nothing to show but a picture that
+   differs; it is said here, where the run can be refused for it. The press
+   is looked for in the queue and left there. */
+static void rigkey(int code, int both)
+
+{
+
+    int n, t;
+
+    if (!rigfocus()) {
+
+        fprintf(stderr, "x11 seat: key %d not sent: the test window did not "
+                        "take the input focus\n", code);
+        return;
+
+    }
+    n = rigkeyct(code);
+    XTestFakeKeyEvent(padisplay, code, True, CurrentTime);
+    if (both) XTestFakeKeyEvent(padisplay, code, False, CurrentTime);
+    XSync(padisplay, False);
+    for (t = 0; rigkeyct(code) <= n && t < RIGKEYWAIT; t += 2) {
+
+        usleep(2000);
+        XSync(padisplay, False);
+
+    }
+    if (rigkeyct(code) <= n)
+        fprintf(stderr, "x11 seat: key %d sent but not received: another "
+                        "program took it\n", code);
+
+}
+
+/* Aim the rig at a window by its file. The count of top level windows
+   made is not the same from one program to the next: the widget package
+   makes one of its own that is never shown, so that the remote server's
+   session window, the second on the Wayland layer, is the third here, and
+   "target 1" aimed the seat at a window that is not on the screen. The
+   server, which has the window's file, names the window itself. */
+void x11_seataim(FILE* f)
+
+{
+
+    winptr win = txt2win(f);
+    int    i;
+
+    for (i = 0; i < rigtopct; i++)
+        if (rigtops[i] == win->xmwhan) rigtarget = i;
+
+}
+
+/* The pointer, kept track of. XTest cannot hold the seat: a hand on the
+   mouse during a run moves the same pointer the rig does, and the test
+   draws, or clicks, where the hand left it. Where the pointer is after
+   each of the rig's own motions is noted, and it is looked at again before
+   the next line of any kind: found elsewhere, something other than the rig
+   moved it, and that is said, where a run can be refused for it. The place
+   noted is the one the server reports, not the one asked for, since the
+   server keeps the pointer on the screen. */
+static int righas;       /* the rig has placed the pointer */
+static int rigpx, rigpy; /* where it was left, on the root */
+
+static int rigwhere(int* x, int* y)
+
+{
+
+    Window   rw, cw;
+    int      wx, wy;
+    unsigned m;
+
+    return (XQueryPointer(padisplay, RootWindow(padisplay, pascreen), &rw, &cw,
+                          x, y, &wx, &wy, &m));
+
+}
+
+static void rigptrchk(void)
+
+{
+
+    int x, y;
+
+    if (righas && rigwhere(&x, &y) && (x != rigpx || y != rigpy)) {
+
+        fprintf(stderr, "x11 seat: pointer moved by other than the test, "
+                        "from %d,%d to %d,%d\n", rigpx, rigpy, x, y);
+        rigpx = x; /* said once for each time it is found moved */
+        rigpy = y;
+
+    }
+
+}
+
+static void rigptrnote(void)
+
+{
+
+    XSync(padisplay, False);
+    righas = rigwhere(&rigpx, &rigpy);
+
+}
+
 static void rigline(char* ln)
 
 {
@@ -15096,18 +15313,12 @@ static void rigline(char* ln)
     int a, x, y, rx, ry;
 
     XWLOCK();
+    rigptrchk(); /* the pointer is where the rig left it, or it is said */
     /* A key goes to the focus. The target is given it unless the focus is
        in its tree already: a click has put it on a widget of the target,
        and taking it back would send the keys past the widget. */
-    if (!strncmp(ln, "key", 3) && !rigfocused())
-        XSetInputFocus(padisplay, rigwin(), RevertToParent, CurrentTime);
-    if (sscanf(ln, "key %d", &a) == 1) {
-
-        XTestFakeKeyEvent(padisplay, a, True, CurrentTime);
-        XTestFakeKeyEvent(padisplay, a, False, CurrentTime);
-
-    } else if (sscanf(ln, "keydown %d", &a) == 1)
-        XTestFakeKeyEvent(padisplay, a, True, CurrentTime);
+    if (sscanf(ln, "key %d", &a) == 1) rigkey(a, TRUE);
+    else if (sscanf(ln, "keydown %d", &a) == 1) rigkey(a, FALSE);
     else if (sscanf(ln, "keyup %d", &a) == 1)
         XTestFakeKeyEvent(padisplay, a, False, CurrentTime);
     else if (sscanf(ln, "move %d %d", &x, &y) == 2) {
@@ -15138,6 +15349,7 @@ static void rigline(char* ln)
     else if (sscanf(ln, "conf %d %d", &x, &y) == 2)
         XResizeWindow(padisplay, rigwin(), x, y);
     XFlush(padisplay);
+    if (!strncmp(ln, "move", 4) || !strncmp(ln, "btn", 3)) rigptrnote();
     XWUNLOCK();
 
 }
@@ -17373,6 +17585,27 @@ static void winclientg_ivf(FILE* f, ami_long cx, ami_long cy, ami_long* wx, ami_
     winptr win; /* windows record pointer */
 
     win = txt2win(f); /* get window from file */
+    if (win->childfrm) {
+
+        /* A child's frame is the one Ami draws, not the window manager's:
+           the title bar and the border, or nothing with the frame off.
+           Answered from the manager's frame, a child sized to hold a
+           client came out with a client smaller than was asked, and a
+           buffer made to that client showed scroll bars. */
+        *wx = cx;
+        *wy = cy;
+        if (BIT(ami_wmframe) & ms) {
+
+            *wx += CFRM_BORDER_W*2;
+            *wy += CFRM_TITBAR_H(win)+CFRM_BORDER_W;
+
+        }
+        /* the menu bar adds its band above the client, whatever the frame */
+        if (BIT(ami_wmmenu) & ms) *wy += win->menuspcy;
+
+        return;
+
+    }
     *wx = cx+frmextwdt[frmcfgall]; /* find framed size */
     *wy = cy+frmexthgt[frmcfgall];
     /* we only allow one frame mode at a time, so we process here in priority
@@ -17438,6 +17671,122 @@ Turns the window frame on and off.
 
 *******************************************************************************/
 
+/* A top level window's client across a change of decoration hints.
+
+   The window manager acts on the hints in its own time, and when it adds or
+   removes a frame it keeps the outside of the window where it was: the
+   client grows by the title bar when the frame goes, and shrinks when it
+   comes back. A size asked for in the same breath as the hints is handled
+   before the frame changes and so is undone by it, which left the client a
+   title bar taller or shorter than the program had it, a buffer that no
+   longer fit, and a window caught half decorated by whatever looked at it
+   next. So the client is noted before the hints change, the manager is
+   waited on until what it does has come to rest, and the client is then put
+   back as it was and seen to be there. The waits are bounded: a manager
+   that does nothing for a hint costs the first of them. */
+typedef struct {
+
+    unsigned w, h;       /* the client */
+    long     l, r, t, b; /* the frame's extents */
+
+} frmnote;
+
+static void frmlook(winptr win, frmnote* n)
+
+{
+
+    Window   rw;
+    int      x, y;
+    unsigned bw, d;
+
+    n->l = n->r = n->t = n->b = 0;
+    frmextents(win->xmwhan, &n->l, &n->r, &n->t, &n->b);
+    XWLOCK();
+    XSync(padisplay, False);
+    n->w = n->h = 0;
+    XGetGeometry(padisplay, win->xmwhan, &rw, &x, &y, &n->w, &n->h, &bw, &d);
+    XWUNLOCK();
+
+}
+
+static int frmsame(frmnote* a, frmnote* b)
+
+{
+
+    return (a->w == b->w && a->h == b->h && a->l == b->l && a->r == b->r &&
+            a->t == b->t && a->b == b->b);
+
+}
+
+/* Is the window in the manager's hands now: on the screen, and not one the
+   manager is told to leave alone. Only then does a change of hints move
+   anything, and only then is it waited on: a window not yet shown takes its
+   hints when it is, with the client it was given, and to wait on each of
+   those is to wait for nothing, a menu's worth of times for a menu. */
+static int frmmanaged(winptr win)
+
+{
+
+    XWindowAttributes wa;
+    int               r;
+
+    XWLOCK();
+    r = XGetWindowAttributes(padisplay, win->xmwhan, &wa) &&
+        wa.map_state == IsViewable && !wa.override_redirect;
+    XWUNLOCK();
+
+    return (r);
+
+}
+
+#define FRMACT  250 /* ms for the manager to begin on a hint */
+#define FRMREST 60  /* ms unchanged that count as come to rest */
+#define FRMSIZE 500 /* ms for a size asked for to be given */
+
+static void frmkeep(winptr win, frmnote* was)
+
+{
+
+    frmnote now, last;
+    int     t, still;
+
+    /* the manager begins */
+    for (t = 0; t < FRMACT; t += 10) {
+
+        frmlook(win, &now);
+        if (!frmsame(&now, was)) break;
+        usleep(10000);
+
+    }
+    /* and comes to rest */
+    if (t < FRMACT) for (t = 0, still = 0; t < FRMSIZE && still < FRMREST; t += 10) {
+
+        last = now;
+        usleep(10000);
+        frmlook(win, &now);
+        if (frmsame(&now, &last)) still += 10; else still = 0;
+
+    }
+    /* the client as it was */
+    if (now.w != was->w || now.h != was->h) {
+
+        XWLOCK();
+        XResizeWindow(padisplay, win->xmwhan, was->w, was->h);
+        XWUNLOCK();
+        for (t = 0; t < FRMSIZE; t += 10) {
+
+            frmlook(win, &now);
+            if (now.w == was->w && now.h == was->h) break;
+            usleep(10000);
+
+        }
+
+    }
+    win->xmwr.w = now.w;
+    win->xmwr.h = now.h;
+
+}
+
 void _pa_frame_ovr(ami_frame_t nfp, ami_frame_t* ofp)
     { *ofp = frame_vect; frame_vect = nfp; }
 void ami_frame(FILE* f, ami_long e) { (*frame_vect)(f, e); }
@@ -17451,13 +17800,19 @@ static void frame_ivf(FILE* f, ami_long e)
     mwmhints hints;
     XWindowChanges xwc; /* XWindow values */
     int chg;            /* geometry change */
+    int was3;           /* frame, size and system bar before */
+    frmnote was;        /* the client and frame before */
+    int mng;            /* the window manager has the window */
 
     win = txt2win(f); /* get window context */
-    chg = win->frame != !!e; /* set frame has changed */
-    win->frame = FALSE; /* turn off all frame configures */
-    win->size = FALSE;
-    win->sysbar = FALSE;
+    was3 = win->frame*4+win->size*2+win->sysbar; /* the three as they were */
+    /* the decorations are one hint, replaced whole: what this call does
+       not name is on after it */
+    win->frame = TRUE;
+    win->size = TRUE;
+    win->sysbar = TRUE;
     win->frame = !!e; /* set new status of frame */
+    chg = was3 != win->frame*4+win->size*2+win->sysbar; /* the hint changes */
 
     if (win->childfrm) {
 
@@ -17507,6 +17862,8 @@ static void frame_ivf(FILE* f, ami_long e)
     } else {
 
         /* top-level: use WM frame */
+        mng = frmmanaged(win);
+        if (mng) frmlook(win, &was); /* the client before the hints change */
         enbxfrm(win->xmwhan, e); /* enable/disable frame */
 
         if (e) {
@@ -17525,8 +17882,14 @@ static void frame_ivf(FILE* f, ami_long e)
 
         }
 
-        if (chg) {
+        if (chg && mng) {
 
+            frmkeep(win, &was); /* the client stays as it was */
+            restore(win);
+
+        } else if (chg) {
+
+            /* not shown yet: the size it is to be shown at */
             xwc.width = win->gmaxxg;
             xwc.height = win->gmaxyg;
             XWLOCK();
@@ -17594,13 +17957,21 @@ static void sizable_ivf(FILE* f, ami_long e)
     mwmhints hints;
     XWindowChanges xwc; /* XWindow values */
     int chg;            /* geometry change */
+    int was3;           /* frame, size and system bar before */
+    frmnote was;        /* the client and frame before */
+    int mng;            /* the window manager has the window */
 
     win = txt2win(f); /* get window context */
-    chg = win->size != !!e; /* set size has changed */
-    win->frame = FALSE; /* turn off all frame configures */
-    win->size = FALSE;
-    win->sysbar = FALSE;
+    was3 = win->frame*4+win->size*2+win->sysbar; /* the three as they were */
+    /* the decorations are one hint, replaced whole: what this call does
+       not name is on after it */
+    win->frame = TRUE;
+    win->size = TRUE;
+    win->sysbar = TRUE;
     win->size = !!e; /* set new status of size bars */
+    chg = was3 != win->frame*4+win->size*2+win->sysbar; /* the hint changes */
+    mng = !win->childfrm && frmmanaged(win);
+    if (mng) frmlook(win, &was); /* the client before */
     enbxsiz(win->xmwhan, e); /* enable/disable size bars */
 
     if (e) {
@@ -17623,7 +17994,12 @@ static void sizable_ivf(FILE* f, ami_long e)
 
     }
 
-    if (chg) { /* geometry has changed */
+    if (chg && mng) { /* the hint changed, on a window in hand */
+
+        frmkeep(win, &was); /* the client stays as it was */
+        restore(win); /* restore buffer to screen */
+
+    } else if (chg) { /* geometry has changed */
 
         xwc.width = win->gmaxxg; /* set XWindow width and height */
         xwc.height = win->gmaxyg;
@@ -17665,13 +18041,21 @@ static void sysbar_ivf(FILE* f, ami_long e)
     mwmhints hints;
     XWindowChanges xwc; /* XWindow values */
     int chg;            /* geometry change */
+    int was3;           /* frame, size and system bar before */
+    frmnote was;        /* the client and frame before */
+    int mng;            /* the window manager has the window */
 
     win = txt2win(f); /* get window context */
-    chg = win->sysbar != !!e; /* set sysbar has changed */
-    win->frame = FALSE; /* turn off all frame configures */
-    win->size = FALSE;
-    win->sysbar = FALSE;
+    was3 = win->frame*4+win->size*2+win->sysbar; /* the three as they were */
+    /* the decorations are one hint, replaced whole: what this call does
+       not name is on after it */
+    win->frame = TRUE;
+    win->size = TRUE;
+    win->sysbar = TRUE;
     win->sysbar = !!e; /* set new status of system bar */
+    chg = was3 != win->frame*4+win->size*2+win->sysbar; /* the hint changes */
+    mng = !win->childfrm && frmmanaged(win);
+    if (mng) frmlook(win, &was); /* the client before */
     enbxsys(win->xmwhan, e); /* enable/disable system bar */
 
     if (e) {
@@ -17694,7 +18078,12 @@ static void sysbar_ivf(FILE* f, ami_long e)
 
     }
 
-    if (chg) { /* geometry has changed */
+    if (chg && mng) { /* the hint changed, on a window in hand */
+
+        frmkeep(win, &was); /* the client stays as it was */
+        restore(win); /* restore buffer to screen */
+
+    } else if (chg) { /* geometry has changed */
 
         xwc.width = win->gmaxxg; /* set XWindow width and height */
         xwc.height = win->gmaxyg;
