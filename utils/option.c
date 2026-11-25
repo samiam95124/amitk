@@ -53,8 +53,8 @@ void ami_dequote(string s)
     if (l >=2 && (s[0] == '"' || s[0] == '\'') && s[0] == s[l-1]) {
 
         /* quoted and matched */
-        for (i = 0; i < l-1; i++) s[i] = s[i+1]; /* move down */
-        s[i] = 0; /* terminate */
+        for (i = 0; i < l-2; i++) s[i] = s[i+1]; /* move down */
+        s[i] = 0; /* terminate, over the closing quote */
 
     }
 
@@ -65,10 +65,10 @@ void ami_dequote(string s)
 Take an option's parameter
 
 Converts the parameter text for the option found, into each of the forms its
-table entry asks for. The string is taken whole and dequoted; a number must be
-the whole of the text.
+table entry asks for, all from the same text. The string is taken whole and
+dequoted; a number must be the whole of the text, less any quotes.
 
-Returns 0 on success, 1 if text is left after the number.
+Returns 0 on success, 1 if a number was asked for and the text is not one.
 
 *******************************************************************************/
 
@@ -80,32 +80,37 @@ static ami_long optparam(
 {
 
     string ep; /* end pointer */
+    int    l;  /* length of text */
+    char   q;  /* quote the number is within, or 0 */
 
-    /* if string is wanted do that conversion first */
-    if (fp->str) {
+    if (fp->str) { /* string is wanted */
 
         strcpy(fp->str, s); /* get string */
         ami_dequote(fp->str); /* remove any quotes */
-        while (*s) s++; /* skip contents */
 
     }
-    /* if float is asked for, convert that first */
-    if (fp->fval) {
+    if (fp->fval || fp->ival) { /* number is wanted */
 
-        *fp->fval = strtof(s, &ep); /* convert */
+        /* a number can be quoted as a string can */
+        l = strlen(s);
+        q = 0;
+        if (l >= 2 && (s[0] == '"' || s[0] == '\'') && s[0] == s[l-1])
+            q = *s++;
+        if (fp->fval) { /* float, and integer from it if that as well */
+
+            *fp->fval = strtof(s, &ep); /* convert */
+            if (fp->ival) *fp->ival = *fp->fval;
+
+        } else *fp->ival = strtol(s, &ep, 0); /* integer value */
+        if (ep == s) return (1); /* there was no number */
         s = ep; /* set new end */
-        /* if also integer, convert that */
-        if (fp->ival) *fp->ival = *fp->fval;
+        if (q && s[0] == q && !s[1]) s++; /* skip closing quote */
 
-    } else if (fp->ival) {
-
-        /* integer value */
-        *fp->ival = strtol(s, &ep, 0); /* convert */
-        s = ep; /* set new end */
+        return (!!*s); /* good if end of string */
 
     }
 
-    return (!!*s); /* good if end of string */
+    return (0);
 
 }
 
@@ -134,9 +139,10 @@ static ami_long optword(
 
     ami_long  r;         /* return value */
     int       longopt;   /* option is long ("--") */
-    char      buff[100]; /* buffer for character strings */
+    char      buff[MAXOPT]; /* buffer for character strings */
     ami_optptr fp;        /* found option entry pointer */
     ami_optptr op;        /* option table pointer */
+    int       ovf;       /* option name is too long to be one */
     int       fo;        /* an option was found */
     int       mm;        /* mismatch found */
     int       i;
@@ -201,15 +207,18 @@ static ami_long optword(
 
             /* now pull the option string from the rest */
             i = 0; /* set 1st character */
+            ovf = FALSE; /* set name fits */
             while (*s && *s != '=' && *s != ':') {
 
-                buff[i++] = *s++; /* place character */
+                if (i < MAXOPT-1) buff[i++] = *s; /* place character */
+                else ovf = TRUE; /* set too long */
+                s++;
 
             }
             buff[i] = 0; /* terminate buffer */
             fp = NULL; /* set no option found */
             op = opts; /* index options table */
-            while (op->name) { /* search options table */
+            while (op->name && !ovf) { /* search options table */
 
                 if (!strcmp(op->name, buff)) fp = op; /* set found */
                 op++;

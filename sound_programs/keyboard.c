@@ -157,7 +157,7 @@ int main(int argc, char **argv)
 
     if (argcl != 1) {
 
-        fprintf(stderr, "Usage: keyboard [--port=<port>|-p=<port>]\n");
+        fprintf(stderr, "Usage: keyboard [--port=<port>|-p <port>]\n");
 
         exit(1);
 
