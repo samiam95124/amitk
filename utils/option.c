@@ -53,8 +53,8 @@ void ami_dequote(string s)
     if (l >=2 && (s[0] == '"' || s[0] == '\'') && s[0] == s[l-1]) {
 
         /* quoted and matched */
-        for (i = 0; i < l-1; i++) s[i] = s[i+1]; /* move down */
-        s[i] = 0; /* terminate */
+        for (i = 0; i < l-2; i++) s[i] = s[i+1]; /* move down */
+        s[i] = 0; /* terminate, over the closing quote */
 
     }
 

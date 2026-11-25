@@ -1046,6 +1046,9 @@ cpp/services.o: cpp/services.cpp
 cpp/network.o: cpp/network.cpp
 	$(CPP) $(CFLAGS) -Ihpp -c cpp/network.cpp -o cpp/network.o
 
+cpp/option.o: cpp/option.cpp hpp/option.hpp
+	$(CPP) $(CFLAGS) -Ihpp -c cpp/option.cpp -o cpp/option.o
+
 cpp/graphics.o: cpp/graphics.cpp
 	$(CPP) $(CFLAGS) -Ihpp -c cpp/graphics.cpp -o cpp/graphics.o
 
@@ -1247,37 +1250,37 @@ else
 # to do things like midi to wave conversion.
 #
 lib/petit_ami_plain.so: $(LINUXSTDIO) linux/services.o $(CRASHDUMP_OBJ) linux/network.o utils/config.o \
-    utils/option.o cpp/sound.o cpp/services.o cpp/network.o cpp/stdio.o
+    utils/option.o cpp/sound.o cpp/services.o cpp/network.o cpp/option.o cpp/stdio.o
 	$(CC) -shared $(LINUXSTDIO) linux/services.o $(CRASHDUMP_OBJ) linux/network.o utils/config.o \
-		utils/option.o cpp/sound.o cpp/services.o cpp/network.o cpp/stdio.o -lstdc++ -o lib/petit_ami_plain.so
+		utils/option.o cpp/sound.o cpp/services.o cpp/network.o cpp/option.o cpp/stdio.o -lstdc++ -o lib/petit_ami_plain.so
 	
 # the terminal library carries the character mode window manager (windowc)
 lib/petit_ami_term.so: $(LINUXSTDIO) linux/services.o $(CRASHDUMP_OBJ) linux/network.o \
 	linux/terminal.o portable/windowc.o linux/system_event.o utils/config.o utils/option.o \
-    cpp/terminal.o cpp/sound.o cpp/services.o cpp/network.o cpp/stdio.o
+    cpp/terminal.o cpp/sound.o cpp/services.o cpp/network.o cpp/option.o cpp/stdio.o
 	$(CC) -shared $(LINUXSTDIO) linux/services.o $(CRASHDUMP_OBJ) linux/network.o \
 		linux/terminal.o portable/windowc.o linux/system_event.o utils/config.o \
-		utils/option.o  cpp/terminal.o cpp/sound.o cpp/services.o cpp/network.o cpp/stdio.o \
+		utils/option.o  cpp/terminal.o cpp/sound.o cpp/services.o cpp/network.o cpp/option.o cpp/stdio.o \
 		-lstdc++ -o lib/petit_ami_term.so
 	
 # the graphical library, holding the backend GRAPHICS_BACKEND chose
 lib/petit_ami_graph.so: lib/graph_backend $(LINUXSTDIO) linux/services.o $(CRASHDUMP_OBJ) linux/network.o \
 	$(GRAPHOBJS) linux/system_event.o \
-	portable/gnome_widgets.o portable/plasma_widgets.o portable/widget_base.o utils/config.o utils/option.o cpp/terminal.o cpp/sound.o cpp/services.o cpp/network.o \
+	portable/gnome_widgets.o portable/plasma_widgets.o portable/widget_base.o utils/config.o utils/option.o cpp/terminal.o cpp/sound.o cpp/services.o cpp/network.o cpp/option.o \
 	cpp/graphics.o cpp/stdio.o
 	$(CC) -shared $(LINUXSTDIO) linux/services.o $(CRASHDUMP_OBJ) linux/network.o \
 		$(GRAPHOBJS) linux/system_event.o \
-		portable/gnome_widgets.o portable/plasma_widgets.o portable/widget_base.o utils/config.o utils/option.o cpp/terminal.o cpp/sound.o cpp/services.o cpp/network.o \
+		portable/gnome_widgets.o portable/plasma_widgets.o portable/widget_base.o utils/config.o utils/option.o cpp/terminal.o cpp/sound.o cpp/services.o cpp/network.o cpp/option.o \
 		cpp/graphics.o cpp/stdio.o -lstdc++ -o lib/petit_ami_graph.so
 
 # the remote graphical library: graph_client in place of a backend, the
 # display on a graph_server. The client carries the sound API itself.
 lib/petit_ami_graphr.so: $(LINUXSTDIO) linux/services.o $(CRASHDUMP_OBJ) linux/network.o \
 	portable/graph_client.o utils/config.o utils/option.o \
-	cpp/terminal.o cpp/sound.o cpp/services.o cpp/network.o cpp/graphics.o cpp/stdio.o
+	cpp/terminal.o cpp/sound.o cpp/services.o cpp/network.o cpp/option.o cpp/graphics.o cpp/stdio.o
 	$(CC) -shared $(LINUXSTDIO) linux/services.o $(CRASHDUMP_OBJ) linux/network.o \
 		portable/graph_client.o utils/config.o utils/option.o \
-		cpp/terminal.o cpp/sound.o cpp/services.o cpp/network.o cpp/graphics.o cpp/stdio.o \
+		cpp/terminal.o cpp/sound.o cpp/services.o cpp/network.o cpp/option.o cpp/graphics.o cpp/stdio.o \
 		-lstdc++ -o lib/petit_ami_graphr.so
 
 #
@@ -1367,11 +1370,12 @@ lib/graphr_core.o: $(CORE_COMMON) portable/graph_client.o
 # The C++ binding, one member per class, under names of their own: an
 # archive holds members by base name, and sound.o is the sound module.
 # The graphical classes include the terminal one, and every model has
-# the sound, services and network classes.
+# the sound, services, network and option classes.
 lib/cpp_%.o: cpp/%.o
 	cp cpp/$*.o lib/cpp_$*.o
 
-CPPWRAP_PLAIN = lib/cpp_sound.o lib/cpp_services.o lib/cpp_network.o lib/cpp_stdio.o
+CPPWRAP_PLAIN = lib/cpp_sound.o lib/cpp_services.o lib/cpp_network.o \
+                lib/cpp_option.o lib/cpp_stdio.o
 CPPWRAP_TERM = $(CPPWRAP_PLAIN) lib/cpp_terminal.o
 CPPWRAP_GRAPH = $(CPPWRAP_TERM) lib/cpp_graphics.o
 
