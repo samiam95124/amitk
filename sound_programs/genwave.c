@@ -69,9 +69,9 @@ int main(int argc, char **argv)
     if (argcl != 1) {
 
         fprintf(stderr,
-            "Usage: genwave [--port=<port>|--p=<port>|--freq=<freq>|--f=<freq>|\n");
+            "Usage: genwave [--port=<port>|-p <port>|--freq=<freq>|-f <freq>|\n");
         fprintf(stderr,
-            "                --square|--sq|--sine|-s]\n");
+            "                --square|-s]\n");
 
         exit(1);
 

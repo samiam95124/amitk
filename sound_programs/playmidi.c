@@ -2,7 +2,7 @@
 
 Play midi file
 
-playmidi [--port=<port>|-p=<port>] <.mid file>
+playmidi [--port=<port>|-p <port>] <.mid file>
 
 Plays the given midi file.
 
@@ -36,7 +36,7 @@ int main(int argc, char **argv)
 
     if (argcl < 2) {
 
-        fprintf(stderr, "Usage: playmidi [--port=<port>|-p=<port>] <.mid file>\n");
+        fprintf(stderr, "Usage: playmidi [--port=<port>|-p <port>] <.mid file>\n");
         exit(1);
 
     }

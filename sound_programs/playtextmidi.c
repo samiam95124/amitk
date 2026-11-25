@@ -2,7 +2,7 @@
 
 Play text MIDI file
 
-playtextmidi [--port=<port>|-p=<port>] <text midi file>
+playtextmidi [--port=<port>|-p <port>] <text midi file>
 
 Reads a text MIDI file in the mf2t/t2mf format and plays it through the Ami
 sound API. The text format is line-oriented:
@@ -277,7 +277,7 @@ int main(int argc, char **argv)
 
     if (argi >= argcl) {
         fprintf(stderr,
-                "Usage: playtextmidi [--port=<port>|-p=<port>] <file>\n");
+                "Usage: playtextmidi [--port=<port>|-p <port>] <file>\n");
         exit(1);
     }
 
