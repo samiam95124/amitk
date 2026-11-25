@@ -6,9 +6,9 @@ Parses an option or options given as a list. The format of an option is adjusted
 according to the OS requirements, meaning that these functions can be used to
 cross different operating systems.
 
-We use the option introduction character from services.c. This means that Unix/
-linux single character options, and Unix "+" character options are not
-supported.
+We use the option introduction character from services.c. Unix "+" character
+options are not supported. Where the character is '-' and the caller asks for
+them, single character options are taken as POSIX has them.
 
 The following option formats are supported:
 

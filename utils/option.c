@@ -6,9 +6,8 @@ Parses an option or options given as a list. The format of an option is adjusted
 according to the OS requirements, meaning that these functions can be used to
 cross different operating systems.
 
-We use the option introduction character from services.c. This means that Unix/
-linux single character options, and Unix "+" character options are not
-supported.
+We use the option introduction character from services.c. Unix "+" character
+options are not supported.
 
 The following option formats are supported:
 
@@ -16,7 +15,9 @@ The following option formats are supported:
 <lead>option=<number>
 <lead>option=<string>
 
-The <lead> is whatever option character services says.
+The <lead> is whatever option character services says. Where that is '-' and
+the caller asks for them, single character options are taken as POSIX has
+them, see ami_option().
 
 *******************************************************************************/
 
@@ -61,62 +62,72 @@ void ami_dequote(string s)
 
 /**//***************************************************************************
 
-Parse option from string
+Take an option's parameter
 
-Parse a single option from the string using an options table. If the option
-matches an entry in the table, its fields are filled based on the option. These
-are:
+Converts the parameter text for the option found, into each of the forms its
+table entry asks for. The string is taken whole and dequoted; a number must be
+the whole of the text.
 
-1. The exists flag, set to true if the option was found.
-2. The integer value of the option.
-3. The floating point value of the option.
-4. The entire string of the option.
-
-Note that normally, either option form according to operating system is allowed,
-and only a single option introduction character is needed:
-
--option - Linux or MAC OS X
-/option - Windows
-
-The format -option can use any number of characters, which is not exactly Linux
-standard, but is used. An example of this form is java.
-
-If the single flag is used and the option character is '-', then the behavior is
-changed to allow single character options:
-
--abc
-
-Where each of a, b, and c are option characters. In this mode, no parameters are
-parsed nor allowed, and any number of options can appear (including the same
-option repeated). Short options can be used as long options:
-
---a
-
-And can have parameters in this mode as well:
-
---a=42
-
-The user can pick either mode of Linux option, or alternately you can just use
-Unix/Linux mode options entirely. Windows users are generally used to the idea
-of Unix/Linux format options, and distributing programs with these options only
-is more acceptable today. There is no "Unix/Linux" only option/parameter,
-because I think it would be better to just use existing Unix/linux option
-parsing support like GNU getopt() or similar library routines.
-
-Note that '+' options are not supported. I consider this to be an archaic
-format.
-
-Note that in Windows, single options will still work, but just be identical to
-long mode options:
-
-/a
+Returns 0 on success, 1 if text is left after the number.
 
 *******************************************************************************/
 
-ami_long ami_option(
-    /* string to parse */                string    s,
+static ami_long optparam(
+    /* option table entry */ ami_optptr fp,
+    /* parameter text */     string     s
+)
+
+{
+
+    string ep; /* end pointer */
+
+    /* if string is wanted do that conversion first */
+    if (fp->str) {
+
+        strcpy(fp->str, s); /* get string */
+        ami_dequote(fp->str); /* remove any quotes */
+        while (*s) s++; /* skip contents */
+
+    }
+    /* if float is asked for, convert that first */
+    if (fp->fval) {
+
+        *fp->fval = strtof(s, &ep); /* convert */
+        s = ep; /* set new end */
+        /* if also integer, convert that */
+        if (fp->ival) *fp->ival = *fp->fval;
+
+    } else if (fp->ival) {
+
+        /* integer value */
+        *fp->ival = strtol(s, &ep, 0); /* convert */
+        s = ep; /* set new end */
+
+    }
+
+    return (!!*s); /* good if end of string */
+
+}
+
+/**//***************************************************************************
+
+Parse option word
+
+Parses the option word s as ami_option() does, with the word that follows it
+on the command line, or NULL if there is none. A single character option that
+takes a parameter, and has none attached, takes the following word as its
+parameter, and used is set true to say that word was consumed.
+
+Returns 0 on success, 1 on failure.
+
+*******************************************************************************/
+
+static ami_long optword(
+    /* string to parse */                string     s,
+    /* word after it, or NULL */         string     next,
     /* option table */                   ami_optrec opts[],
-    /* allow single character options */ ami_long  single
+    /* allow single character options */ ami_long   single,
+    /* following word was used */        int*       used
 )
 
 {
@@ -125,13 +136,13 @@ ami_long ami_option(
     int       longopt;   /* option is long ("--") */
     char      buff[100]; /* buffer for character strings */
     ami_optptr fp;        /* found option entry pointer */
-    string    ep;        /* end pointer */
     ami_optptr op;        /* option table pointer */
     int       fo;        /* an option was found */
     int       mm;        /* mismatch found */
     int       i;
 
     r = 1; /* set error by default */
+    *used = FALSE; /* set following word not used */
     longopt = FALSE;
     if (s[0] == ami_optchr()) { /* there is an option */
 
@@ -163,11 +174,21 @@ ami_long ami_option(
                 }
                 if (fp) { /* option was found */
 
-                    if (!fp->ival && !fp->fval && !fp->str) {
+                    fo = TRUE; /* set option found */
+                    if (fp->flag) *fp->flag = TRUE; /* set encounter flag */
+                    if (fp->ival || fp->fval || fp->str) {
 
-                        /* no parameters required */
-                        fo = TRUE; /* set option found */
-                        if (fp->flag) *fp->flag = TRUE; /* set encounter flag */
+                        /* The option takes a parameter: the rest of this
+                           word if there is any, and the word after it if
+                           not. Either way it ends the word. */
+                        if (*s) mm |= optparam(fp, s);
+                        else if (next) {
+
+                            mm |= optparam(fp, next);
+                            *used = TRUE; /* set following word used */
+
+                        } else mm = TRUE; /* no parameter to be had */
+                        while (*s) s++; /* skip the rest of the word */
 
                     }
 
@@ -200,30 +221,7 @@ ami_long ami_option(
                 if (*s == '=' || *s == ':') { /* there is a parameter */
 
                     s++; /* skip '=' or ':' */
-                    /* if string is wanted do that conversion first */
-                    if (fp->str) {
-
-                        strcpy(fp->str, s); /* get string */
-                        ami_dequote(fp->str); /* remove any quotes */
-                        while (*s) s++; /* skip contents */
-
-                    }
-                    /* if float is asked for, convert that first */
-                    if (fp->fval) {
-
-                        *fp->fval = strtof(s, &ep); /* convert */
-                        s = ep; /* set new end */
-                        /* if also integer, convert that */
-                        if (fp->ival) *fp->ival = *fp->fval;
-
-                    } else if (fp->ival) {
-
-                        /* integer value */
-                        *fp->ival = strtol(s, &ep, 0); /* convert */
-                        s = ep; /* set new end */
-
-                    }
-                    r = !!*s; /* return good if end of string */
+                    r = optparam(fp, s); /* take it */
 
                 /* no parameter, error if not end of string or if one of the
                    parameter types was asked for */
@@ -241,12 +239,93 @@ ami_long ami_option(
 
 /**//***************************************************************************
 
+Parse option from string
+
+Parse a single option from the string using an options table. If the option
+matches an entry in the table, its fields are filled based on the option. These
+are:
+
+1. The exists flag, set to true if the option was found.
+2. The integer value of the option.
+3. The floating point value of the option.
+4. The entire string of the option.
+
+Note that normally, either option form according to operating system is allowed,
+and only a single option introduction character is needed:
+
+-option - Linux or MAC OS X
+/option - Windows
+
+The format -option can use any number of characters, which is not exactly Linux
+standard, but is used. An example of this form is java.
+
+If the single flag is used and the option character is '-', then the behavior is
+changed to allow single character options, as POSIX has them:
+
+-abc
+
+Where each of a, b, and c are option characters, and any number of options can
+appear (including the same option repeated). An option that takes a parameter
+takes the rest of its word as that parameter, and so is the last option of its
+word:
+
+-abc42
+
+Here c takes 42. With nothing after it in the word, the option takes the next
+word on the command line:
+
+-abc 42
+
+That form needs the words of the command line, so it is ami_options() that
+takes it; ami_option() is given one word, and for it an option left without
+its parameter is an error. Short options can be used as long options:
+
+--a
+
+And can have parameters in that form as well:
+
+--a=42
+
+The user can pick either mode of Linux option, or alternately you can just use
+Unix/Linux mode options entirely. Windows users are generally used to the idea
+of Unix/Linux format options, and distributing programs with these options only
+is more acceptable today.
+
+Note that '+' options are not supported. I consider this to be an archaic
+format.
+
+Note that in Windows, single options will still work, but just be identical to
+long mode options:
+
+/a
+
+Returns 0 on success, 1 on failure.
+
+*******************************************************************************/
+
+ami_long ami_option(
+    /* string to parse */                string    s,
+    /* option table */                   ami_optrec opts[],
+    /* allow single character options */ ami_long  single
+)
+
+{
+
+    int used; /* following word used, there is none */
+
+    return (optword(s, NULL, opts, single, &used));
+
+}
+
+/**//***************************************************************************
+
 Parse option series
 
-Parses a series of arguments using options(). The argument strings are taken
-from argv[argi], and argi is advanced over the argument series. Each argument
-is parsed individually. The argc or remaining arguments counter is also
-maintained.
+Parses a series of arguments as option() does. The argument strings are taken
+from argv[argi], and argi is advanced over the argument series. The argc or
+remaining arguments counter is also maintained. A single character option that
+takes a parameter, and has none attached, takes the argument after it, and
+that is passed over with it.
 
 Note there is no way to tell which pickup argument appeared first, so the caller
 should not specify more than one such argument in the options table given, or
@@ -267,15 +346,18 @@ ami_long ami_options(
 {
 
     ami_long r;
+    int      used; /* the argument after the option was its parameter */
 
     r = 0; /* set no error */
     while (*argc > 1 && argv[*argi][0] == ami_optchr() && !r) {
 
-        r = ami_option(argv[*argi], opts, single); /* parse options */
+        /* parse options, with the argument after if there is one */
+        r = optword(argv[*argi], *argc > 2? argv[*argi+1]: NULL, opts, single,
+                    &used);
         if (!r) { /* success */
 
-            (*argi)++; /* advance index */
-            (*argc)--; /* count */
+            (*argi) += 1+used; /* advance index */
+            (*argc) -= 1+used; /* count */
 
         }
 
