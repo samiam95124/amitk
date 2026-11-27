@@ -764,6 +764,7 @@ int main(int argc, char* argv[])
     prtcen(ami_maxy(tw), "Buffer resize graphical test");
     ami_bcolor(tw, ami_white);
     waitnext();
+    ami_linewidth(tw, 1); /* back to single lines: the width outlives the buffer */
     ami_sizbufg(tw, ox, oy);
 
     /* ****************** Resize screen with buffer on character *************** */
