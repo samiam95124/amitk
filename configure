@@ -6,31 +6,37 @@
 # Checks that the tools and the development packages the build needs are on
 # the machine, and installs the packages that are missing. The required set is
 # what the default "make" target links against; the optional set is what the
-# regression tests and the manual build use, which is reported but not
-# installed.
+# regression tests and the manual build use. Both are installed: a required
+# package that fails to install stops the configure, an optional one is
+# reported and the configure goes on.
 #
 # Options:
 #
 # --check   Report what is missing and install nothing.
+# --ask     Ask before each package is installed (Y/n). A required package
+#           that is declined leaves the configure incomplete.
 # --help    Print this.
 #
 ################################################################################
 
 check="0"
+ask="0"
 for var in "$@"
 do
 
     case "$var" in
 
     --check) check="1" ;;
+    --ask)   ask="1" ;;
     --help)
 
         echo "Configure program for Petit-Ami"
         echo
-        echo "configure [--check]"
+        echo "configure [--check] [--ask]"
         echo
         echo "Checks for the tools and development packages the build needs and"
         echo "installs the missing packages. --check reports and installs nothing."
+        echo "--ask asks before each package is installed (Y/n)."
         exit 0
         ;;
 
@@ -94,6 +100,37 @@ function checkpkg {
 
 }
 
+#
+# Pick the packages to install from a list of missing ones. With --ask each is
+# put to the user, and return alone, or anything but an n, takes it; without,
+# all are taken. The result is in the variable picked. No answer to be had,
+# the input being at its end, declines.
+#
+function pickpkgs {
+
+    local p ans
+
+    picked=""
+    for p in "$@"
+    do
+
+        if [ "$ask" = "1" ]
+        then
+
+            ans="n"
+            read -r -p "Install $p? (Y/n) " ans
+            case "$ans" in
+            [nN]*) echo "    $p not installed" ;;
+            *)     picked="$picked $p" ;;
+            esac
+
+        else picked="$picked $p"
+        fi
+
+    done
+
+}
+
 ################################################################################
 #
 # Set default variables
@@ -142,7 +179,11 @@ fi
 #
 # Optional: what the regression tests and the manual use. The terminal tests
 # run in an xterm on a private Xvfb; doc/mkpdf renders the manual with
-# LibreOffice.
+# LibreOffice. The ssh tests run a private sshd of their own, on a port of
+# their own, and want only the program: Linux has it in openssh-server, which
+# also turns the system's ssh service on, so that is turned off again when it
+# is this script that installed the package. FreeBSD and the Mac carry sshd
+# in the base system.
 #
 if [ "$host" = "linux" ]
 then
@@ -154,7 +195,7 @@ then
               libfreetype-dev libfontconfig-dev
               libx11-dev libxext-dev libxtst-dev
               libwayland-dev libxkbcommon-dev"
-    optional="xvfb xterm libreoffice-writer"
+    optional="xvfb xterm openssh-server libreoffice-writer"
 
 elif [ "$host" = "bsd" ]
 then
@@ -216,10 +257,16 @@ then
         else echo "    sudo pkg install$missingreq"
         fi
 
+    elif pickpkgs $missingreq && [ "$picked" != "$missingreq" ] && declined="1" && [ -z "$picked" ]
+    then
+
+        # every one of them was declined: nothing to install
+        true
+
     elif [ "$host" = "linux" ]
     then
 
-        sudo apt-get install -y $missingreq || installfailed="1"
+        sudo apt-get install -y $picked || installfailed="1"
 
     elif [ "$host" = "mac" ]
     then
@@ -235,11 +282,11 @@ then
             exit 1
 
         fi
-        "$brew" install $missingreq || installfailed="1"
+        "$brew" install $picked || installfailed="1"
 
     else
 
-        sudo pkg install -y $missingreq || installfailed="1"
+        sudo pkg install -y $picked || installfailed="1"
 
     fi
 
@@ -261,6 +308,64 @@ if [ -n "$missingopt" ]
 then
 
     echo "Optional packages not installed (tests and manual):$missingopt"
+    if [ "$check" = "1" ]
+    then
+
+        echo "Install them with:"
+        if [ "$host" = "linux" ] ; then echo "    sudo apt-get install$missingopt"
+        elif [ "$host" = "mac" ] ; then echo "    brew install$missingopt"
+        else echo "    sudo pkg install$missingopt"
+        fi
+
+    else
+
+        #
+        # The build stands without these, so a failure here is said and
+        # passed: the tests that want them skip, and say so.
+        #
+        optfailed="0"
+        pickpkgs $missingopt
+        if [ -z "$picked" ] ; then true
+        elif [ "$host" = "linux" ] ; then sudo apt-get install -y $picked || optfailed="1"
+        elif [ "$host" = "mac" ] ; then
+
+            if [ -n "$brew" ] ; then "$brew" install $picked || optfailed="1"
+            else optfailed="1"
+            fi
+
+        else sudo pkg install -y $picked || optfailed="1"
+        fi
+        #
+        # The ssh server was wanted for its program, not its service: a
+        # machine that did not take remote logins before does not now. One
+        # that had the package already is left as it was.
+        #
+        case " $picked " in
+        *" openssh-server "*)
+
+            if [ "$host" = "linux" ] && checkpkg openssh-server
+            then
+
+                echo "Turning the system ssh service off: the tests run their own"
+                sudo systemctl disable --now ssh.socket ssh.service
+
+            fi
+            ;;
+
+        esac
+        if [ "$optfailed" = "1" ]
+        then
+
+            echo "*** The optional package install failed: the tests that need"
+            echo "    them will be skipped, and the manual will not build"
+
+        fi
+
+    fi
+
+else
+
+    echo "All optional packages are installed"
 
 fi
 
@@ -296,6 +401,14 @@ if [ -n "$missingreq" ] && [ "$check" = "1" ]
 then
 
     echo "Configure found missing packages"
+    exit 1
+
+fi
+
+if [ "$declined" = "1" ]
+then
+
+    echo "Configure is incomplete: required packages were declined"
     exit 1
 
 fi
