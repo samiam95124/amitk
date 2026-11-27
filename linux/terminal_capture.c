@@ -34,6 +34,17 @@
 * file, and only then returns to the program. One page is ever in flight, the *
 * pages arrive in order, and when the program ends every page is there.       *
 *                                                                              *
+* The page in the file is not yet the printer gone: the process that appended *
+* it exits half a millisecond or so later, and xterm (407) hangs if it is     *
+* asked for the next page just then. Its printer close reaps children without *
+* waiting, takes the one that has that moment exited, and the SIGCHLD that    *
+* follows finds nothing to reap: the handler waits, for good, on the child    *
+* left, the program, and the terminal reads no more. A program that draws a   *
+* frame between captures is past that moment before it asks again; one that   *
+* captures twice with little between, the cursor on and off frames of         *
+* terminal_test, landed on it one run in twenty or so. So the capture rests   *
+* a few milliseconds after each page, until the printer is well gone.         *
+*                                                                              *
 * The sequences are written beneath the terminal module's write override.     *
 * That module places every byte written to standard output into its screen    *
 * buffer, and a control sequence sent through it would land there as text; a  *
@@ -53,6 +64,8 @@
 
 #define OUTFIL  1      /* handle to standard output */
 #define PAGEWAIT 10000 /* the most a page is waited for, in milliseconds */
+#define PAGEREST 5     /* the rest after a page, for its printer to exit, in
+                          milliseconds: ten times what the printer takes */
 
 static int  cap_enabled = 0;   /* a listing was named: the capture is on */
 static int  cap_started = 0;   /* the form feed mode has been set */
@@ -138,5 +151,8 @@ void screen_capture(void)
        prints nothing is given up on after a while, and the run goes on */
     for (ms = 0; ms < PAGEWAIT && pages() == before; ms++)
         nanosleep(&ts, NULL);
+    /* the page is in, its printer is still on the way out: let it go
+       before the terminal can be asked for another (see above) */
+    if (ms < PAGEWAIT) for (ms = 0; ms < PAGEREST; ms++) nanosleep(&ts, NULL);
 
 }

@@ -1,0 +1,793 @@
+# Events for the automatic run of widget_test: see doc/auto_events.md.
+#
+# The mouse and key lines go in at the display's seat, as a person's would.
+# A point is in the client area of the main window. The points are those of
+# GNOME over Wayland, read off the screens of its standard,
+# tests/compare/linux/gnome/wayland/widget_test.cmp; another desktop or
+# backend lays its widgets out to its own sizes and wants a file of its own.
+#
+# Each line is a step of its frame, and the screen after it is captured: a
+# press is three, the move to the point, the button down and the button up.
+# A chapter's presses end with one at 700,600, on the main window, which
+# takes the keyboard focus back from the widget pressed last, so that the
+# return after it reaches the test and ends the chapter.
+#
+# The frames with no block here, the group boxes, the backgrounds and the
+# dialogs, take no events.
+
+# The real joystick is set aside; the keyboard and mouse are the file's
+joystickoff
+
+# Terminal buttons test: each button pressed, then the main window to
+# take the focus back for the return; then again with the middle button
+# disabled, which does nothing
+sync 2
+moumovg 1 281 252
+mouba 1 1
+moubd 1 1
+moumovg 1 229 360
+mouba 1 1
+moubd 1 1
+moumovg 1 221 468
+mouba 1 1
+moubd 1 1
+moumovg 1 700 600
+mouba 1 1
+moubd 1 1
+enter
+moumovg 1 281 252
+mouba 1 1
+moubd 1 1
+moumovg 1 229 360
+mouba 1 1
+moubd 1 1
+moumovg 1 221 468
+mouba 1 1
+moubd 1 1
+moumovg 1 700 600
+mouba 1 1
+moubd 1 1
+enter
+
+# Graphical buttons test: the same
+sync 3
+moumovg 1 187 178
+mouba 1 1
+moubd 1 1
+moumovg 1 140 287
+mouba 1 1
+moubd 1 1
+moumovg 1 135 395
+mouba 1 1
+moubd 1 1
+moumovg 1 700 600
+mouba 1 1
+moubd 1 1
+enter
+moumovg 1 187 178
+mouba 1 1
+moubd 1 1
+moumovg 1 140 287
+mouba 1 1
+moubd 1 1
+moumovg 1 135 395
+mouba 1 1
+moubd 1 1
+moumovg 1 700 600
+mouba 1 1
+moubd 1 1
+enter
+
+# Terminal checkbox test: each box checked, then again with the middle
+# one disabled
+sync 4
+moumovg 1 250 250
+mouba 1 1
+moubd 1 1
+moumovg 1 240 357
+mouba 1 1
+moubd 1 1
+moumovg 1 245 467
+mouba 1 1
+moubd 1 1
+moumovg 1 700 600
+mouba 1 1
+moubd 1 1
+enter
+moumovg 1 250 250
+mouba 1 1
+moubd 1 1
+moumovg 1 240 357
+mouba 1 1
+moubd 1 1
+moumovg 1 245 467
+mouba 1 1
+moubd 1 1
+moumovg 1 700 600
+mouba 1 1
+moubd 1 1
+enter
+
+# Graphical checkbox test: the top box, a point between the boxes that
+# takes the focus off it, and the middle box; then again with the middle
+# one disabled
+sync 5
+moumovg 1 150 178
+mouba 1 1
+moubd 1 1
+moumovg 1 150 236
+mouba 1 1
+moubd 1 1
+moumovg 1 140 287
+mouba 1 1
+moubd 1 1
+moumovg 1 700 600
+mouba 1 1
+moubd 1 1
+enter
+moumovg 1 150 178
+mouba 1 1
+moubd 1 1
+moumovg 1 150 236
+mouba 1 1
+moubd 1 1
+moumovg 1 140 287
+mouba 1 1
+moubd 1 1
+moumovg 1 700 600
+mouba 1 1
+moubd 1 1
+enter
+
+# Terminal radio button test: each button selected, then again with the
+# middle one disabled
+sync 6
+moumovg 1 250 250
+mouba 1 1
+moubd 1 1
+moumovg 1 250 357
+mouba 1 1
+moubd 1 1
+moumovg 1 250 467
+mouba 1 1
+moubd 1 1
+moumovg 1 700 600
+mouba 1 1
+moubd 1 1
+enter
+moumovg 1 250 250
+mouba 1 1
+moubd 1 1
+moumovg 1 250 357
+mouba 1 1
+moubd 1 1
+moumovg 1 250 467
+mouba 1 1
+moubd 1 1
+moumovg 1 700 600
+mouba 1 1
+moubd 1 1
+enter
+
+# Graphical radio button test: the top button, a point between the
+# buttons, and the middle button; then again with the middle one disabled
+sync 7
+moumovg 1 160 178
+mouba 1 1
+moubd 1 1
+moumovg 1 160 236
+mouba 1 1
+moubd 1 1
+moumovg 1 160 287
+mouba 1 1
+moubd 1 1
+moumovg 1 700 600
+mouba 1 1
+moubd 1 1
+enter
+moumovg 1 160 178
+mouba 1 1
+moubd 1 1
+moumovg 1 160 236
+mouba 1 1
+moubd 1 1
+moumovg 1 160 287
+mouba 1 1
+moubd 1 1
+moumovg 1 700 600
+mouba 1 1
+moubd 1 1
+enter
+
+# Terminal scroll bar test: on each bar the slider pressed where it
+# stands, then the track at its end, its middle, and a quarter and three
+# quarters along, the slider going to each press
+sync 12
+moumovg 1 170 348
+mouba 1 1
+moubd 1 1
+moumovg 1 170 703
+mouba 1 1
+moubd 1 1
+moumovg 1 170 521
+mouba 1 1
+moubd 1 1
+moumovg 1 170 420
+mouba 1 1
+moubd 1 1
+moumovg 1 170 620
+mouba 1 1
+moubd 1 1
+moumovg 1 261 343
+mouba 1 1
+moubd 1 1
+moumovg 1 588 343
+mouba 1 1
+moubd 1 1
+moumovg 1 416 343
+mouba 1 1
+moubd 1 1
+moumovg 1 330 343
+mouba 1 1
+moubd 1 1
+moumovg 1 500 343
+mouba 1 1
+moubd 1 1
+moumovg 1 700 600
+mouba 1 1
+moubd 1 1
+enter
+
+# Terminal scroll bar sizing test: each of the four bars pressed at its
+# middle, then at its end
+sync 13
+moumovg 1 178 520
+mouba 1 1
+moubd 1 1
+moumovg 1 178 574
+mouba 1 1
+moubd 1 1
+moumovg 1 263 520
+mouba 1 1
+moubd 1 1
+moumovg 1 263 622
+mouba 1 1
+moubd 1 1
+moumovg 1 348 520
+mouba 1 1
+moubd 1 1
+moumovg 1 348 670
+mouba 1 1
+moubd 1 1
+moumovg 1 433 520
+mouba 1 1
+moubd 1 1
+moumovg 1 433 694
+mouba 1 1
+moubd 1 1
+moumovg 1 700 600
+mouba 1 1
+moubd 1 1
+enter
+
+# Terminal scroll bar minimums test: each of the two smallest bars
+# pressed at its middle
+sync 14
+moumovg 1 170 358
+mouba 1 1
+moubd 1 1
+moumovg 1 263 342
+mouba 1 1
+moubd 1 1
+moumovg 1 700 600
+mouba 1 1
+moubd 1 1
+enter
+
+# Terminal scroll bar fat and skinny bars test: each bar pressed at its
+# middle, skinny and fat, vertical then horizontal. The last press, the
+# one that elsewhere gives the main window the focus, lands on the fat
+# horizontal bar, which fills that part of the window, and moves it; the
+# return goes to the bar, and the test passes on by itself
+sync 15
+moumovg 1 162 520
+mouba 1 1
+moubd 1 1
+moumovg 1 263 520
+mouba 1 1
+moubd 1 1
+moumovg 1 670 342
+mouba 1 1
+moubd 1 1
+moumovg 1 670 560
+mouba 1 1
+moubd 1 1
+moumovg 1 700 600
+mouba 1 1
+moubd 1 1
+enter
+
+# Graphical scroll bar test: the vertical bar's slider pressed where it
+# stands, then its track at the end, the middle, and a quarter and three
+# quarters along. The five presses after are at the places of the terminal
+# test's horizontal bar, where this test has none: they do nothing
+sync 16
+moumovg 1 77 87
+mouba 1 1
+moubd 1 1
+moumovg 1 77 285
+mouba 1 1
+moubd 1 1
+moumovg 1 77 184
+mouba 1 1
+moubd 1 1
+moumovg 1 77 130
+mouba 1 1
+moubd 1 1
+moumovg 1 77 240
+mouba 1 1
+moubd 1 1
+moumovg 1 261 343
+mouba 1 1
+moubd 1 1
+moumovg 1 588 343
+mouba 1 1
+moubd 1 1
+moumovg 1 416 343
+mouba 1 1
+moubd 1 1
+moumovg 1 330 343
+mouba 1 1
+moubd 1 1
+moumovg 1 500 343
+mouba 1 1
+moubd 1 1
+moumovg 1 700 600
+mouba 1 1
+moubd 1 1
+enter
+
+# Graphical scroll bar sizing test: each of the four bars pressed at its
+# middle, then at its end
+sync 17
+moumovg 1 77 300
+mouba 1 1
+moubd 1 1
+moumovg 1 77 323
+mouba 1 1
+moubd 1 1
+moumovg 1 122 300
+mouba 1 1
+moubd 1 1
+moumovg 1 122 350
+mouba 1 1
+moubd 1 1
+moumovg 1 167 300
+mouba 1 1
+moubd 1 1
+moumovg 1 167 377
+mouba 1 1
+moubd 1 1
+moumovg 1 212 300
+mouba 1 1
+moubd 1 1
+moumovg 1 212 390
+mouba 1 1
+moubd 1 1
+moumovg 1 700 600
+mouba 1 1
+moubd 1 1
+enter
+
+# Graphical scroll bar minimums test: each of the two smallest bars
+# pressed at its middle
+sync 18
+moumovg 1 77 92
+mouba 1 1
+moubd 1 1
+moumovg 1 131 82
+mouba 1 1
+moubd 1 1
+moumovg 1 700 600
+mouba 1 1
+moubd 1 1
+enter
+
+# Graphical scroll bar fat and skinny bars test: each bar pressed at its
+# middle, skinny and fat, vertical then horizontal
+sync 19
+moumovg 1 77 240
+mouba 1 1
+moubd 1 1
+moumovg 1 180 240
+mouba 1 1
+moubd 1 1
+moumovg 1 485 82
+mouba 1 1
+moubd 1 1
+moumovg 1 485 195
+mouba 1 1
+moubd 1 1
+moumovg 1 700 600
+mouba 1 1
+moubd 1 1
+enter
+
+# Terminal number select box test: the field clicked, its 1 deleted and
+# a 7 typed and entered; the plus pressed three times, to 10, and the
+# field clicked and entered to send that
+sync 20
+moumovg 1 200 358
+mouba 1 1
+moubd 1 1
+delcb
+char '7'
+enter
+moumovg 1 340 358
+mouba 1 1
+moubd 1 1
+moumovg 1 340 358
+mouba 1 1
+moubd 1 1
+moumovg 1 340 358
+mouba 1 1
+moubd 1 1
+moumovg 1 200 358
+mouba 1 1
+moubd 1 1
+enter
+moumovg 1 700 600
+mouba 1 1
+moubd 1 1
+enter
+
+# Graphical number select box test: the same
+sync 21
+moumovg 1 145 134
+mouba 1 1
+moubd 1 1
+delcb
+char '7'
+enter
+moumovg 1 272 134
+mouba 1 1
+moubd 1 1
+moumovg 1 272 134
+mouba 1 1
+moubd 1 1
+moumovg 1 272 134
+mouba 1 1
+moubd 1 1
+moumovg 1 145 134
+mouba 1 1
+moubd 1 1
+enter
+moumovg 1 700 600
+mouba 1 1
+moubd 1 1
+enter
+
+# Terminal edit box test: the text clicked within its last word, six
+# characters deleted back from there, "world" typed in their place, and
+# the box entered
+sync 22
+moumovg 1 361 358
+mouba 1 1
+moubd 1 1
+delcb
+delcb
+delcb
+delcb
+delcb
+delcb
+char 'w'
+char 'o'
+char 'r'
+char 'l'
+char 'd'
+enter
+moumovg 1 700 600
+mouba 1 1
+moubd 1 1
+enter
+
+# Graphical edit box test: the same, the click a character further left
+sync 23
+moumovg 1 295 128
+mouba 1 1
+moubd 1 1
+delcb
+delcb
+delcb
+delcb
+delcb
+delcb
+char 'w'
+char 'o'
+char 'r'
+char 'l'
+char 'd'
+enter
+moumovg 1 700 600
+mouba 1 1
+moubd 1 1
+enter
+
+# Terminal progress bar test: the bar as its timer fills it.
+# The bar's timer ticks once a second from the start of the chapter,
+# and a wait's own end counts with the test as a tick more. The waits are
+# cut so that five ticks fall in each of the first three, a step's settling
+# and capture, a third of a second, falls between two ticks, and no wait
+# ends on one: the bar stands at 6, 12 and 18 of 20, and in the last wait
+# it fills, says so, and is set back to 11 by the wait's end
+sync 24
+wait 5400
+wait 4660
+wait 4660
+wait 2500
+enter
+
+# Graphical progress bar test: the same
+sync 25
+wait 5400
+wait 4660
+wait 4660
+wait 2500
+enter
+
+# Terminal list box test: Blue picked, then a press above the box, which
+# picks nothing
+sync 26
+moumovg 1 220 430
+mouba 1 1
+moubd 1 1
+moumovg 1 220 300
+mouba 1 1
+moubd 1 1
+moumovg 1 700 600
+mouba 1 1
+moubd 1 1
+enter
+
+# Graphical list box test: Blue picked, then Green
+sync 27
+moumovg 1 170 205
+mouba 1 1
+moubd 1 1
+moumovg 1 170 134
+mouba 1 1
+moubd 1 1
+moumovg 1 700 600
+mouba 1 1
+moubd 1 1
+enter
+
+# Terminal dropdown box test: the box opened by its arrow, then a press
+# off the list, which leaves it open and picks nothing
+sync 28
+moumovg 1 288 358
+mouba 1 1
+moubd 1 1
+moumovg 1 500 300
+mouba 1 1
+moubd 1 1
+moumovg 1 700 600
+mouba 1 1
+moubd 1 1
+enter
+
+# Graphical dropdown box test: the same
+sync 29
+moumovg 1 222 133
+mouba 1 1
+moubd 1 1
+moumovg 1 500 300
+mouba 1 1
+moubd 1 1
+moumovg 1 700 600
+mouba 1 1
+moubd 1 1
+enter
+
+# Terminal dropdown edit box test: the field clicked, "cat" typed and
+# entered; then the list opened by the arrow and "flower" picked from it
+sync 30
+moumovg 1 220 358
+mouba 1 1
+moubd 1 1
+char 'c'
+char 'a'
+char 't'
+enter
+moumovg 1 336 358
+mouba 1 1
+moubd 1 1
+moumovg 1 220 466
+mouba 1 1
+moubd 1 1
+moumovg 1 700 600
+mouba 1 1
+moubd 1 1
+enter
+
+# Graphical dropdown edit box test: the same
+sync 31
+moumovg 1 150 135
+mouba 1 1
+moubd 1 1
+char 'c'
+char 'a'
+char 't'
+enter
+moumovg 1 286 135
+mouba 1 1
+moubd 1 1
+moumovg 1 200 241
+mouba 1 1
+moubd 1 1
+moumovg 1 700 600
+mouba 1 1
+moubd 1 1
+enter
+
+# Terminal slider test: each slider's track pressed, the two horizontal
+# then the two vertical, the knob going to the press. The last press, the
+# one that elsewhere gives the main window the focus, lands on the first
+# vertical slider and moves it; the return goes to the slider, and the
+# test passes on by itself
+sync 32
+moumovg 1 320 358
+mouba 1 1
+moubd 1 1
+moumovg 1 400 718
+mouba 1 1
+moubd 1 1
+moumovg 1 695 500
+mouba 1 1
+moubd 1 1
+moumovg 1 865 600
+mouba 1 1
+moubd 1 1
+moumovg 1 700 600
+mouba 1 1
+moubd 1 1
+enter
+
+# Graphical slider test: each slider's track pressed, the two horizontal
+# then the two vertical
+sync 33
+moumovg 1 280 169
+mouba 1 1
+moubd 1 1
+moumovg 1 350 395
+mouba 1 1
+moubd 1 1
+moumovg 1 588 310
+mouba 1 1
+moubd 1 1
+moumovg 1 758 400
+mouba 1 1
+moubd 1 1
+moumovg 1 700 600
+mouba 1 1
+moubd 1 1
+enter
+
+# Terminal tab bar test: on each bar, top, left, right and bottom, the
+# center tab and then the last one. The last press, the one that elsewhere
+# gives the main window the focus, lands on the right bar; the return goes
+# to the bar, and the test passes on by itself
+sync 34
+moumovg 1 414 106
+mouba 1 1
+moubd 1 1
+moumovg 1 534 106
+mouba 1 1
+moubd 1 1
+moumovg 1 103 390
+mouba 1 1
+moubd 1 1
+moumovg 1 103 528
+mouba 1 1
+moubd 1 1
+moumovg 1 714 390
+mouba 1 1
+moubd 1 1
+moumovg 1 714 528
+mouba 1 1
+moubd 1 1
+moumovg 1 413 756
+mouba 1 1
+moubd 1 1
+moumovg 1 535 756
+mouba 1 1
+moubd 1 1
+moumovg 1 700 600
+mouba 1 1
+moubd 1 1
+enter
+
+# Graphical tab bar test: the same, and the last press lands in the
+# right bar's client area
+sync 35
+moumovg 1 444 106
+mouba 1 1
+moubd 1 1
+moumovg 1 566 106
+mouba 1 1
+moubd 1 1
+moumovg 1 103 407
+mouba 1 1
+moubd 1 1
+moumovg 1 103 545
+mouba 1 1
+moubd 1 1
+moumovg 1 800 407
+mouba 1 1
+moubd 1 1
+moumovg 1 800 545
+mouba 1 1
+moubd 1 1
+moumovg 1 444 807
+mouba 1 1
+moubd 1 1
+moumovg 1 566 807
+mouba 1 1
+moubd 1 1
+moumovg 1 700 600
+mouba 1 1
+moubd 1 1
+enter
+
+# Terminal overlaid tab bar test: the four bars around one client area;
+# on each, top, left, right and bottom, the center tab and then the last
+# one. The last press lands on the left bar, which lies over the others
+sync 36
+moumovg 1 498 178
+mouba 1 1
+moubd 1 1
+moumovg 1 620 178
+mouba 1 1
+moubd 1 1
+moumovg 1 272 390
+mouba 1 1
+moubd 1 1
+moumovg 1 272 528
+mouba 1 1
+moubd 1 1
+moumovg 1 869 390
+mouba 1 1
+moubd 1 1
+moumovg 1 869 528
+mouba 1 1
+moubd 1 1
+moumovg 1 498 681
+mouba 1 1
+moubd 1 1
+moumovg 1 620 681
+mouba 1 1
+moubd 1 1
+moumovg 1 700 600
+mouba 1 1
+moubd 1 1
+enter
+
+# Graphical overlaid tab bar test: the top and left bars, the center tab
+# and then the last one of each. The last press lands on the left bar
+sync 37
+moumovg 1 374 60
+mouba 1 1
+moubd 1 1
+moumovg 1 496 60
+mouba 1 1
+moubd 1 1
+moumovg 1 163 273
+mouba 1 1
+moubd 1 1
+moumovg 1 163 410
+mouba 1 1
+moubd 1 1
+moumovg 1 700 600
+mouba 1 1
+moubd 1 1
+enter
